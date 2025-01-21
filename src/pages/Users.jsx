@@ -12,7 +12,9 @@ const Users = () => {
     name: '',
     email: '',
     password: '',
-    role: 'user'
+    role: 'user',
+    company_name: '',
+    lawfirm_name: ''
   });
   const [createError, setCreateError] = useState(null);
 
@@ -39,7 +41,7 @@ const Users = () => {
       const response = await api.post('/auth/users', newUser);
       setUsers([...users, response.data.data.user]);
       setShowModal(false);
-      setNewUser({ name: '', email: '', password: '', role: 'user' });
+      setNewUser({ name: '', email: '', password: '', role: 'user', company_name: '', lawfirm_name: '' });
     } catch (err) {
       setCreateError(err.response?.data?.message || 'Error creating user');
     }
@@ -99,6 +101,28 @@ const Users = () => {
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-gray-700">Company Name</label>
+              <input
+                type="text"
+                value={newUser.company_name}
+                onChange={(e) => setNewUser({ ...newUser, company_name: e.target.value })}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
+                placeholder="Optional"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Law Firm Name</label>
+              <input
+                type="text"
+                value={newUser.lawfirm_name}
+                onChange={(e) => setNewUser({ ...newUser, lawfirm_name: e.target.value })}
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
+                placeholder="Optional"
+              />
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-700">Role</label>
               <select
                 value={newUser.role}
@@ -107,6 +131,7 @@ const Users = () => {
               >
                 <option value="user">User</option>
                 <option value="admin">Admin</option>
+                <option value="employee">Employee</option>
               </select>
             </div>
 
@@ -171,6 +196,15 @@ const Users = () => {
                   Email
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Type
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Company Name
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Law Firm Name
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -197,6 +231,21 @@ const Users = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{user.email}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900 capitalize">
+                      {user.type?.replace('_', ' ') || 'individual'}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">
+                      {user.company_name || '-'}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">
+                      {user.lawfirm_name || '-'}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{user.role}</div>

@@ -14,6 +14,7 @@ import UploadForm from './pages/UploadForm';
 import PendingForms from './pages/PendingForms';
 import CompletedForms from './pages/CompletedForms';
 import MyProfile from './pages/MyProfile';
+import CRM from './pages/CRM';
 
 const App = () => {
   return (
@@ -115,6 +116,14 @@ const App = () => {
             element={
               <PrivateRoute>
                 <MyProfile />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/crm"
+            element={
+              <PrivateRoute>
+                <CRM />
               </PrivateRoute>
             }
           />

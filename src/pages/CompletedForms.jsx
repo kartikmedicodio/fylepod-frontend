@@ -5,19 +5,19 @@ import { useAuth } from '../contexts/AuthContext';
 import Sidebar from '../components/dashboard/Sidebar';
 import Header from '../components/dashboard/Header';
 
-const CompletedForms = () => {
-  const [forms, setForms] = useState([]);
+const CompletedProcesses = () => {
+  const [processes, setProcesses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { user } = useAuth();
 
   useEffect(() => {
     if (user?._id) {
-      fetchCompletedForms();
+      fetchCompletedProcesses();
     }
   }, [user?._id]);
 
-  const fetchCompletedForms = async () => {
+  const fetchCompletedProcesses = async () => {
     try {
       setLoading(true);
       const response = await api.get(`/management/user/${user._id}`, {
@@ -25,9 +25,9 @@ const CompletedForms = () => {
           status: 'completed'
         }
       });
-      setForms(response.data.data.entries || []);
+      setProcesses(response.data.data.entries || []);
     } catch (err) {
-      setError('Failed to fetch completed forms');
+      setError('Failed to fetch completed processes');
       console.error(err);
     } finally {
       setLoading(false);
@@ -58,15 +58,15 @@ const CompletedForms = () => {
     return (
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">Completed Forms</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">Completed Processes</h1>
         </div>
 
-        {forms.length === 0 ? (
+        {processes.length === 0 ? (
           <div className="text-center py-12">
             <FileCheck className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No completed forms</h3>
+            <h3 className="mt-2 text-sm font-medium text-gray-900">No completed processes</h3>
             <p className="mt-1 text-sm text-gray-500">
-              Completed forms will appear here once processed.
+              Completed processes will appear here once processed.
             </p>
           </div>
         ) : (
@@ -89,8 +89,8 @@ const CompletedForms = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {forms.map((form) => (
-                  <tr key={form._id}>
+                {processes.map((process) => (
+                  <tr key={process._id}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0">
@@ -98,22 +98,22 @@ const CompletedForms = () => {
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">
-                            {form.categoryName}
+                            {process.categoryName}
                           </div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        {renderDocumentTypes(form.documentTypes)}
+                        {renderDocumentTypes(process.documentTypes)}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(form.createdAt).toLocaleDateString()}
+                      {new Date(process.createdAt).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                        {form.categoryStatus}
+                        {process.categoryStatus}
                       </span>
                     </td>
                   </tr>
@@ -139,4 +139,4 @@ const CompletedForms = () => {
   );
 };
 
-export default CompletedForms; 
+export default CompletedProcesses; 

@@ -9,11 +9,24 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    // Initialize user from localStorage if available
+    const savedUser = localStorage.getItem('user');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
   const [loading, setLoading] = useState(true);
   const [pendingFormsCount, setPendingFormsCount] = useState(0);
   const [completedFormsCount, setCompletedFormsCount] = useState(0);
   const navigate = useNavigate();
+
+  // Update localStorage whenever user changes
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('user');
+    }
+  }, [user]);
 
   useEffect(() => {
     checkAuth();
@@ -67,13 +80,26 @@ export const AuthProvider = ({ children }) => {
   const checkAuth = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (token) {
+      const savedUser = localStorage.getItem('user');
+      
+      if (token && savedUser) {
+        // Verify token is still valid with backend
         const response = await api.get('/auth/me');
-        setUser(response.data.data.user);
+        const freshUserData = response.data.data.user;
+        
+        // Update stored user data with fresh data from server
+        localStorage.setItem('user', JSON.stringify(freshUserData));
+        setUser(freshUserData);
+      } else {
+        // If either token or user data is missing, clear both
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setUser(null);
       }
     } catch (error) {
       console.error('Auth check failed:', error);
       localStorage.removeItem('token');
+      localStorage.removeItem('user');
       setUser(null);
     } finally {
       setLoading(false);
@@ -85,7 +111,9 @@ export const AuthProvider = ({ children }) => {
       const response = await api.post('/auth/login', { email, password });
       const { token, user: userData } = response.data.data;
       
+      // Store both token and user data
       localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
       await fetchPendingForms(userData._id);
       
@@ -98,7 +126,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    // Clear both token and user data
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setUser(null);
     setPendingFormsCount(0);
     navigate('/login');

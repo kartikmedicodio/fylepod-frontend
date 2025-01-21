@@ -1,21 +1,20 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '../layouts/DashboardLayout';
 import { Loader2 } from 'lucide-react';
-import api from '../utils/api';
+import { getDocuments } from '../services/document.service';
+import { useAuth } from '../contexts/AuthContext';
 
 const ExtractedData = () => {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { user } = useAuth();
 
   useEffect(() => {
     const fetchDocuments = async () => {
       try {
         setLoading(true);
-        const response = await api.get('/documents');
-        const docs = Array.isArray(response.data.data) 
-          ? response.data.data 
-          : response.data.data.documents || [];
+        const docs = await getDocuments(user?.role === 'admin' ? { all: true } : undefined);
         setDocuments(docs);
       } catch (err) {
         console.error('Error fetching documents:', err);
@@ -26,7 +25,7 @@ const ExtractedData = () => {
     };
 
     fetchDocuments();
-  }, []);
+  }, [user?.role]);
 
   const renderValue = (value) => {
     if (value === null || value === undefined) {
@@ -63,15 +62,32 @@ const ExtractedData = () => {
   return (
     <DashboardLayout>
       <div className="p-6">
-        <h1 className="text-2xl font-semibold mb-6">Extracted Data</h1>
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-2xl font-semibold">Extracted Data</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              {user?.role === 'admin' 
+                ? 'View extracted data from all documents' 
+                : 'View extracted data from your documents'}
+            </p>
+          </div>
+        </div>
+
         <div className="grid gap-6">
           {Array.isArray(documents) && documents.length > 0 ? (
             documents.map((doc) => (
               <div key={doc._id || doc.id} className="bg-white rounded-lg shadow p-6">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-lg font-medium">
-                    {doc.originalname || doc.name || 'Untitled Document'}
-                  </h2>
+                  <div>
+                    <h2 className="text-lg font-medium">
+                      {doc.originalname || doc.name || 'Untitled Document'}
+                    </h2>
+                    {user?.role === 'admin' && doc.uploadedBy && (
+                      <p className="text-sm text-gray-500 mt-1">
+                        Uploaded by: {doc.uploadedBy.name || doc.uploadedBy.email || 'Unknown'}
+                      </p>
+                    )}
+                  </div>
                   <span className="px-3 py-1 bg-primary-100 text-primary-800 rounded-full text-sm">
                     {doc.type || 'Unknown Type'}
                   </span>
