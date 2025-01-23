@@ -9,7 +9,7 @@ const Header = () => {
     <header className="bg-white border-b h-16">
       <div className="h-full px-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold text-gray-900">
-          Document Management System
+          Document Collection Agent
         </h1>
 
         <div className="flex items-center space-x-4">

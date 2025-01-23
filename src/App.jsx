@@ -119,14 +119,10 @@ const App = () => {
               </PrivateRoute>
             }
           />
-          <Route
-            path="/crm"
-            element={
-              <PrivateRoute>
-                <CRM />
-              </PrivateRoute>
-            }
-          />
+          <Route path="/crm" element={<CRM />} />
+          <Route path="/crm/user/:userId" element={<CRM />} />
+          <Route path="/crm/user/:userId/application/:applicationId" element={<CRM />} />
+          <Route path="/crm/user/:userId/application/:applicationId/document/:documentId" element={<CRM />} />
         </Routes>
       </AuthProvider>
     </Router>

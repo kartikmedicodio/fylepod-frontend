@@ -46,8 +46,13 @@ const AIChat = () => {
         doc.status === "processed" && doc.extractedData && Object.keys(doc.extractedData).length > 0
       );
 
-      // First group by users
+      // First group by users with null check for uploadedBy
       const userGroups = processedDocs.reduce((acc, doc) => {
+        // Skip documents with no uploader information
+        if (!doc.uploadedBy) {
+          return acc;
+        }
+
         const uploaderId = doc.uploadedBy._id;
         const uploaderName = doc.uploadedBy.name || doc.uploadedBy.email || 'Unknown User';
         

@@ -31,8 +31,6 @@ const Sidebar = () => {
   );
 
   const navigation = [
-    { name: 'Documents', href: '/documents', icon: FileText },
-    { name: 'Extracted Data', href: '/extracted', icon: Database },
     { name: 'AI Chat', href: '/chat', icon: MessageSquare },
     { name: 'CRM', href: '/crm', icon: Building },
   ];
@@ -41,7 +39,7 @@ const Sidebar = () => {
   const managementLinks = [
     { name: 'Users', href: '/users', icon: Users },
     { name: 'Process Types', href: '/categories', icon: FolderTree },
-    { name: 'Settings', href: '/settings', icon: Settings },
+    { name: 'Assign', href: '/settings', icon: Settings },
   ];
 
   const isActive = (path) => location.pathname === path;
