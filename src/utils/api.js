@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://api.relayzen.com/api",
+  baseURL: "https://api-dev.relayzen.com/api",
   headers: {
     "Content-Type": "application/json",
   },
