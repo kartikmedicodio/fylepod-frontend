@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../utils/api';
-import { Upload, Loader2, CheckCircle, Wand2, Camera } from 'lucide-react';
+import { Upload, Loader2, CheckCircle, Wand2, Camera, Files } from 'lucide-react';
 import Sidebar from '../components/dashboard/Sidebar';
 import Header from '../components/dashboard/Header';
 import ReactCrop from 'react-image-crop';
@@ -31,6 +31,10 @@ const PendingProcesses = () => {
   const [completedCrop, setCompletedCrop] = useState(null);
   const [imageRef, setImageRef] = useState(null);
   const [currentUploadContext, setCurrentUploadContext] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState('');
+  const [processingProcessId, setProcessingProcessId] = useState(null);
+  const [capturedImages, setCapturedImages] = useState([]);
 
   useEffect(() => {
     if (user?._id) {
@@ -197,8 +201,7 @@ const PendingProcesses = () => {
             if (actualDocType?.toLowerCase() === documentType?.name.toLowerCase()) {
               await updateDocumentStatus(managementId, documentTypeId);
               await fetchPendingProcesses();
-              
-              alert('Document processed and submitted successfully!');
+              return true;
             } else {
               // Delete the document if type doesn't match
               await api.delete(`/documents/${documentId}`);
@@ -206,7 +209,7 @@ const PendingProcesses = () => {
             }
           } catch (submitError) {
             console.error('Error during submission:', submitError);
-            alert(submitError.message || 'Failed to submit document. Please try again.');
+            throw submitError;
           }
         }
 
@@ -221,9 +224,10 @@ const PendingProcesses = () => {
 
         await fetchExistingDocuments();
       }
+      return false;
     } catch (err) {
       console.error('Error in upload process:', err);
-      alert(err.message || 'Failed to process document. Please try again.');
+      throw err;
     } finally {
       setProcessingDocuments(prev => ({ ...prev, [documentTypeId]: false }));
       setUploading(prev => ({ ...prev, [documentTypeId]: false }));
@@ -233,7 +237,8 @@ const PendingProcesses = () => {
   const checkDocumentProcessing = async (documentId, documentTypeId) => {
     try {
       let attempts = 0;
-      const maxAttempts = 30; // Maximum 30 attempts (30 seconds)
+      const maxAttempts = 20;
+      const checkInterval = 2000;
       
       while (attempts < maxAttempts) {
         console.log(`Checking processing status for document ${documentId}, attempt ${attempts + 1}`);
@@ -247,17 +252,40 @@ const PendingProcesses = () => {
           return true;
         }
         
-        // Wait 1 second before next attempt
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
         attempts++;
+
+        if (attempts === maxAttempts - 1) {
+          const finalCheck = await api.get(`/documents/${documentId}`);
+          if (finalCheck.data.data.document.extractedData?.document_type) {
+            setProcessingDocuments(prev => ({ ...prev, [documentTypeId]: false }));
+            return true;
+          }
+          
+          // If we reach here, the document couldn't be processed
+          await api.delete(`/documents/${documentId}`);
+          throw new Error('Invalid document type or unreadable document');
+        }
       }
       
-      throw new Error('Document processing timed out');
+      throw new Error('Invalid document type or unreadable document');
     } catch (err) {
       console.error('Error checking document processing:', err);
       setProcessingDocuments(prev => ({ ...prev, [documentTypeId]: false }));
-      alert('Document processing failed. Please try uploading again.');
-      return false;
+      
+      // Delete the document since it couldn't be processed
+      try {
+        await api.delete(`/documents/${documentId}`);
+      } catch (deleteErr) {
+        console.error('Error deleting invalid document:', deleteErr);
+      }
+
+      // Provide a more user-friendly error message
+      const errorMessage = err.message === 'Invalid document type or unreadable document' 
+        ? 'The document could not be processed. Please ensure it is a valid document and try again.'
+        : 'Failed to process document. Please try uploading again.';
+      
+      throw new Error(errorMessage);
     }
   };
 
@@ -288,28 +316,19 @@ const PendingProcesses = () => {
     });
   };
 
-  const handleCropComplete = async () => {
-    if (!completedCrop || !imageRef || !currentUploadContext) return;
-
+  const handleCameraCapture = async (managementId) => {
     try {
-      const croppedBlob = await getCroppedImg(imageRef, completedCrop);
-      const file = new File([croppedBlob], `cropped-camera-capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
-      
-      setShowCropModal(false);
-      setCropImage(null);
-      setCompletedCrop(null);
-      setImageRef(null);
+      const process = pendingProcesses.find(p => p._id === managementId);
+      if (!process) {
+        throw new Error('Process not found');
+      }
 
-      const { managementId, documentTypeId } = currentUploadContext;
-      await handleFileUpload(managementId, documentTypeId, file);
-    } catch (err) {
-      console.error('Error processing cropped image:', err);
-      alert('Failed to process cropped image. Please try again.');
-    }
-  };
+      const pendingDocs = process.documentTypes.filter(doc => doc.status === 'pending');
+      if (pendingDocs.length === 0) {
+        alert('All documents are already completed for this process.');
+        return;
+      }
 
-  const handleCameraCapture = async (managementId, documentTypeId) => {
-    try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       const videoModal = document.createElement('div');
       videoModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
@@ -317,7 +336,7 @@ const PendingProcesses = () => {
       const modalContent = `
         <div class="bg-white p-4 rounded-lg max-w-2xl w-full">
           <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-medium">Take Photo</h3>
+            <h3 class="text-lg font-medium">Capture Multiple Photos</h3>
             <button class="text-gray-500 hover:text-gray-700" id="closeCamera">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -325,13 +344,20 @@ const PendingProcesses = () => {
             </button>
           </div>
           <video class="w-full rounded-lg mb-4" autoplay playsinline></video>
-          <div class="flex justify-end space-x-2">
-            <button class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300" id="cancelCapture">
-              Cancel
-            </button>
-            <button class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700" id="capturePhoto">
-              Capture
-            </button>
+          <div class="captured-images-preview flex gap-2 overflow-x-auto mb-4 min-h-[96px] p-2 border rounded"></div>
+          <div class="flex flex-col space-y-4">
+            <div class="flex justify-end space-x-2">
+              <button class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300" id="cancelCapture">
+                Cancel
+              </button>
+              <button class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700" id="capturePhoto">
+                Take Photo
+              </button>
+              <button class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 opacity-50 cursor-not-allowed" 
+                id="processPhotos" disabled>
+                Process Photos (0)
+              </button>
+            </div>
           </div>
         </div>
       `;
@@ -342,14 +368,31 @@ const PendingProcesses = () => {
       const video = videoModal.querySelector('video');
       video.srcObject = stream;
       
+      let capturedPhotos = [];
+      
+      const updateProcessButton = () => {
+        const processButton = videoModal.querySelector('#processPhotos');
+        const count = capturedPhotos.length;
+        processButton.textContent = `Process Photos (${count})`;
+        if (count > 0) {
+          processButton.disabled = false;
+          processButton.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+          processButton.disabled = true;
+          processButton.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+      };
+
       const cleanup = () => {
         stream.getTracks().forEach(track => track.stop());
         videoModal.remove();
+        capturedPhotos = [];
       };
       
       videoModal.querySelector('#closeCamera').onclick = cleanup;
       videoModal.querySelector('#cancelCapture').onclick = cleanup;
       
+      // Handle individual photo capture
       videoModal.querySelector('#capturePhoto').onclick = () => {
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth;
@@ -357,130 +400,113 @@ const PendingProcesses = () => {
         canvas.getContext('2d').drawImage(video, 0, 0);
         
         canvas.toBlob((blob) => {
-          cleanup();
           const imageUrl = URL.createObjectURL(blob);
-          setCropImage(imageUrl);
-          setShowCropModal(true);
-          setCurrentUploadContext({ managementId, documentTypeId });
+          const photoIndex = capturedPhotos.length;
+          capturedPhotos.push({ blob, url: imageUrl });
+          
+          // Update preview
+          const previewContainer = videoModal.querySelector('.captured-images-preview');
+          const preview = document.createElement('div');
+          preview.className = 'relative';
+          preview.innerHTML = `
+            <img src="${imageUrl}" alt="Captured" class="w-24 h-24 object-cover rounded" />
+            <button class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600"
+              data-index="${photoIndex}">×</button>
+          `;
+          previewContainer.appendChild(preview);
+          
+          updateProcessButton();
         }, 'image/jpeg');
       };
+      
+      // Handle processing all captured photos
+      videoModal.querySelector('#processPhotos').onclick = async () => {
+        if (capturedPhotos.length === 0) return;
+        
+        try {
+          const files = capturedPhotos.map((photo, index) => 
+            new File([photo.blob], `camera-capture-${index}.jpg`, { type: 'image/jpeg' })
+          );
+          cleanup();
+          await handleMultipleFileUpload(files, managementId);
+        } catch (err) {
+          console.error('Error processing captured images:', err);
+          alert('Failed to process captured images. Please try again.');
+        }
+      };
+      
+      // Handle removing individual captures
+      videoModal.addEventListener('click', (e) => {
+        if (e.target.matches('button[data-index]')) {
+          const index = parseInt(e.target.dataset.index);
+          capturedPhotos = capturedPhotos.filter((_, i) => i !== index);
+          e.target.closest('.relative').remove();
+          updateProcessButton();
+        }
+      });
+      
     } catch (err) {
       console.error('Error accessing camera:', err);
       alert('Could not access camera. Please make sure you have granted camera permissions.');
     }
   };
 
-  const renderDocumentUploadButtons = (process, doc) => {
-    if (doc.status === 'pending') {
-      const isProcessing = processingDocuments[doc.documentTypeId];
+  const handleMultipleFileUpload = async (files, processId) => {
+    try {
+      setProcessingProcessId(processId);
+      const uploadPromises = [];
+      const processedFiles = new Set();
+      const processedDocTypes = new Set();
+      let matchedCount = 0;
+
+      // Get the specific process
+      const process = pendingProcesses.find(p => p._id === processId);
+      if (!process) {
+        throw new Error('Process not found');
+      }
+
+      for (const file of files) {
+        if (processedFiles.has(file.name)) continue;
+
+        // Only check document types for this specific process
+        for (const docType of process.documentTypes) {
+          const docTypeKey = `${process._id}-${docType.documentTypeId}`;
+          if (docType.status === 'completed' || processedDocTypes.has(docTypeKey)) continue;
+          
+          const uploadPromise = (async () => {
+            try {
+              const response = await handleFileUpload(process._id, docType.documentTypeId, file);
+              if (response) {
+                processedFiles.add(file.name);
+                processedDocTypes.add(docTypeKey);
+                matchedCount++;
+              }
+            } catch (err) {
+              console.error(`Error processing ${file.name} for ${docType.name}:`, err);
+            }
+          })();
+
+          uploadPromises.push(uploadPromise);
+        }
+      }
+
+      await Promise.all(uploadPromises);
+
+      await fetchPendingProcesses();
       
-      return (
-        <div className="flex items-center space-x-2">
-          <div 
-            id={`success-${doc.documentTypeId}`}
-            className="hidden text-green-600 animate-fade-out"
-          >
-            <CheckCircle className="w-5 h-5" />
-          </div>
+      if (matchedCount > 0) {
+        alert(`Successfully processed ${matchedCount} file${matchedCount !== 1 ? 's' : ''}`);
+        window.location.reload();
+      } else {
+        alert('No files could be processed. Please check the document types and try again.');
+      }
 
-          <div className="flex flex-col space-y-2">
-            <div className="flex space-x-2">
-              <div>
-                <input
-                  type="file"
-                  id={`file-${doc._id}`}
-                  className="hidden"
-                  onChange={async (e) => {
-                    if (e.target.files?.[0]) {
-                      try {
-                        // Only handle file upload first
-                        await handleFileUpload(process._id, doc.documentTypeId, e.target.files[0]);
-                        // Don't call handleSubmit here anymore
-                      } catch (error) {
-                        console.error('Error during file upload:', error);
-                      }
-                    }
-                  }}
-                  accept="image/*,application/pdf"
-                />
-                <label
-                  htmlFor={`file-${doc._id}`}
-                  className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
-                    ${isProcessing || uploading[doc._id]
-                      ? 'bg-gray-300 cursor-not-allowed'
-                      : 'bg-primary-600 hover:bg-primary-700 text-white cursor-pointer'
-                    }`}
-                >
-                  {isProcessing || uploading[doc._id] ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                      {isProcessing ? 'Processing...' : 'Uploading...'}
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4 mr-2" />
-                      Upload Document
-                    </>
-                  )}
-                </label>
-              </div>
-
-              <button
-                onClick={() => handleCameraCapture(process._id, doc.documentTypeId)}
-                className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
-                  ${isProcessing || uploading[doc._id]
-                    ? 'bg-gray-300 cursor-not-allowed'
-                    : 'bg-primary-600 hover:bg-primary-700 text-white'
-                  }`}
-                disabled={isProcessing || uploading[doc._id]}
-              >
-                <Camera className="w-4 h-4 mr-2" />
-                Camera
-              </button>
-            </div>
-            
-            {isProcessing && (
-              <div className="flex items-center space-x-2 bg-blue-50 p-3 rounded-lg animate-pulse">
-                <div className="relative">
-                  <div className="w-8 h-8 border-4 border-blue-200 rounded-full">
-                    <div className="absolute top-0 left-0 w-8 h-8 border-4 border-blue-600 rounded-full animate-spin border-t-transparent"></div>
-                  </div>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium text-blue-700">
-                    Processing Document
-                  </span>
-                  <span className="text-xs text-blue-600">
-                    Extracting information using AI...
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {uploadedFiles[doc.documentTypeId]?.uploaded && !isProcessing && (
-              <div className="flex items-center space-x-2 bg-green-50 p-3 rounded-lg">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium text-green-700">
-                    Document Processed Successfully
-                  </span>
-                  <span className="text-xs text-green-600">
-                    Upload another document to replace
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      );
+    } catch (err) {
+      console.error('Error in multiple file upload:', err);
+      alert('An error occurred while processing files. Please try again.');
+    } finally {
+      setProcessingProcessId(null);
     }
-
-    return (
-      <div className="flex items-center space-x-2 text-green-600">
-        <CheckCircle className="w-5 h-5" />
-        <span className="text-sm">Completed</span>
-      </div>
-    );
   };
 
   const renderDocumentSection = (process, doc) => (
@@ -503,7 +529,23 @@ const PendingProcesses = () => {
         </p>
       </div>
       
-      {renderDocumentUploadButtons(process, doc)}
+      {doc.status === 'completed' && (
+        <div className="flex items-center space-x-2 text-green-600">
+          <CheckCircle className="w-5 h-5" />
+          <span className="text-sm">Completed</span>
+        </div>
+      )}
+    </div>
+  );
+
+  const ProcessingIndicator = () => (
+    <div className="flex items-center space-x-2 bg-blue-50 px-3 py-1.5 rounded-md">
+      <div className="relative">
+        <div className="w-4 h-4 border-2 border-blue-200 rounded-full">
+          <div className="absolute top-0 left-0 w-4 h-4 border-2 border-blue-600 rounded-full animate-spin border-t-transparent"></div>
+        </div>
+      </div>
+      <span className="text-sm text-blue-700">Processing...</span>
     </div>
   );
 
@@ -513,20 +555,63 @@ const PendingProcesses = () => {
       className="bg-white rounded-lg shadow p-6"
     >
       <div className="flex justify-between items-center mb-4">
-        <div className='flex flex-col gap-2'>
-            <h2 className="text-xl font-semibold">
-              {process.categoryName}
-            </h2>
-            <div className="flex items-center gap-2">
-              <span className="text-gray-600">Assigned to:</span>
-              <p className="text-base font-medium text-gray-700 px-3 py-1 bg-gray-100 rounded-md">
-                {process.userId.name}
-              </p>
+        <h2 className="text-xl font-semibold">
+          {process.categoryName}
+        </h2>
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-500">
+              Assigned: {new Date(process.createdAt).toLocaleDateString()}
+            </span>
+            {processingProcessId === process._id && <ProcessingIndicator />}
+          </div>
+          
+          {/* Document upload buttons group */}
+          <div className="flex items-center space-x-2">
+            {/* Multiple file upload button */}
+            <div>
+              <input
+                type="file"
+                id={`multiple-files-upload-${process._id}`}
+                className="hidden"
+                multiple
+                onChange={async (e) => {
+                  if (e.target.files?.length) {
+                    try {
+                      const pendingDocs = process.documentTypes.filter(doc => doc.status === 'pending');
+                      if (pendingDocs.length === 0) {
+                        alert('All documents are already completed for this process.');
+                        return;
+                      }
+                      await handleMultipleFileUpload(Array.from(e.target.files), process._id);
+                    } catch (error) {
+                      console.error('Error during multiple file upload:', error);
+                    }
+                  }
+                }}
+                accept="image/*,application/pdf"
+              />
+              <label
+                htmlFor={`multiple-files-upload-${process._id}`}
+                className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
+                  bg-primary-600 hover:bg-primary-700 text-white cursor-pointer"
+              >
+                <Files className="w-4 h-4 mr-2" />
+                Upload Documents
+              </label>
             </div>
+
+            {/* Camera capture button */}
+            <button
+              onClick={() => handleCameraCapture(process._id)}
+              className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
+                bg-primary-600 hover:bg-primary-700 text-white"
+            >
+              <Camera className="w-4 h-4 mr-2" />
+              Camera
+            </button>
+          </div>
         </div>
-        <span className="text-sm text-gray-500">
-          Assigned: {new Date(process.createdAt).toLocaleDateString()}
-        </span>
       </div>
       
       <div className="space-y-4">
@@ -564,24 +649,22 @@ const PendingProcesses = () => {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">My Pending Processes</h1>
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => handleAutoFill(existingDocuments)}
-              disabled={autoFilling || pendingProcesses.length === 0}
-              className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
-                ${(autoFilling || pendingProcesses.length === 0)
-                  ? 'bg-gray-300 cursor-not-allowed text-gray-500'
-                  : 'bg-primary-600 hover:bg-primary-700 text-white cursor-pointer'
-                }`}
-            >
-              {autoFilling ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : (
-                <Wand2 className="w-4 h-4 mr-2" />
-              )}
-              Auto-fill Documents
-            </button>
-          </div>
+          <button
+            onClick={() => handleAutoFill(existingDocuments)}
+            disabled={autoFilling || pendingProcesses.length === 0}
+            className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
+              ${(autoFilling || pendingProcesses.length === 0)
+                ? 'bg-gray-300 cursor-not-allowed text-gray-500'
+                : 'bg-primary-600 hover:bg-primary-700 text-white cursor-pointer'
+              }`}
+          >
+            {autoFilling ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            ) : (
+              <Wand2 className="w-4 h-4 mr-2" />
+            )}
+            Auto-fill Documents
+          </button>
         </div>
         
         {pendingProcesses.length === 0 ? (
