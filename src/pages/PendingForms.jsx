@@ -201,7 +201,8 @@ const PendingProcesses = () => {
             if (actualDocType?.toLowerCase() === documentType?.name.toLowerCase()) {
               await updateDocumentStatus(managementId, documentTypeId);
               await fetchPendingProcesses();
-              return true;
+              
+              // alert('Document processed and submitted successfully!');
             } else {
               // Delete the document if type doesn't match
               await api.delete(`/documents/${documentId}`);
@@ -209,7 +210,7 @@ const PendingProcesses = () => {
             }
           } catch (submitError) {
             console.error('Error during submission:', submitError);
-            throw submitError;
+            // alert(submitError.message || 'Failed to submit document. Please try again.');
           }
         }
 
@@ -224,10 +225,9 @@ const PendingProcesses = () => {
 
         await fetchExistingDocuments();
       }
-      return false;
     } catch (err) {
       console.error('Error in upload process:', err);
-      throw err;
+      alert(err.message || 'Failed to process document. Please try again.');
     } finally {
       setProcessingDocuments(prev => ({ ...prev, [documentTypeId]: false }));
       setUploading(prev => ({ ...prev, [documentTypeId]: false }));
@@ -237,7 +237,7 @@ const PendingProcesses = () => {
   const checkDocumentProcessing = async (documentId, documentTypeId) => {
     try {
       let attempts = 0;
-      const maxAttempts = 10;
+      const maxAttempts = 20;
       const checkInterval = 2000;
       
       while (attempts < maxAttempts) {
@@ -457,7 +457,6 @@ const PendingProcesses = () => {
       const uploadPromises = [];
       const processedFiles = new Set();
       const processedDocTypes = new Set();
-      let matchedCount = 0;
 
       // Get the specific process
       const process = pendingProcesses.find(p => p._id === processId);
@@ -475,12 +474,9 @@ const PendingProcesses = () => {
           
           const uploadPromise = (async () => {
             try {
-              const response = await handleFileUpload(process._id, docType.documentTypeId, file);
-              if (response) {
-                processedFiles.add(file.name);
-                processedDocTypes.add(docTypeKey);
-                matchedCount++;
-              }
+              await handleFileUpload(process._id, docType.documentTypeId, file);
+              processedFiles.add(file.name);
+              processedDocTypes.add(docTypeKey);
             } catch (err) {
               console.error(`Error processing ${file.name} for ${docType.name}:`, err);
             }
@@ -492,10 +488,10 @@ const PendingProcesses = () => {
 
       await Promise.all(uploadPromises);
 
-      await fetchPendingProcesses();
-      
-      if (matchedCount > 0) {
-        alert(`Successfully processed ${matchedCount} file${matchedCount !== 1 ? 's' : ''}`);
+      const processedCount = processedFiles.size;
+      if (processedCount > 0) {
+        await fetchPendingProcesses();
+        alert(`Successfully processed ${processedCount} file${processedCount !== 1 ? 's' : ''}`);
         window.location.reload();
       } else {
         alert('No files could be processed. Please check the document types and try again.');
