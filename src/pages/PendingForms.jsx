@@ -513,9 +513,17 @@ const PendingProcesses = () => {
       className="bg-white rounded-lg shadow p-6"
     >
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">
-          {process.categoryName}
-        </h2>
+        <div className='flex flex-col gap-2'>
+            <h2 className="text-xl font-semibold">
+              {process.categoryName}
+            </h2>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-600">Assigned to:</span>
+              <p className="text-base font-medium text-gray-700 px-3 py-1 bg-gray-100 rounded-md">
+                {process.userId.name}
+              </p>
+            </div>
+        </div>
         <span className="text-sm text-gray-500">
           Assigned: {new Date(process.createdAt).toLocaleDateString()}
         </span>
