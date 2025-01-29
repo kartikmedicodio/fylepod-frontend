@@ -33,6 +33,7 @@ const PendingProcesses = () => {
   const [currentUploadContext, setCurrentUploadContext] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
+  const [processingProcessId, setProcessingProcessId] = useState(null);
 
   useEffect(() => {
     if (user?._id) {
@@ -235,7 +236,8 @@ const PendingProcesses = () => {
   const checkDocumentProcessing = async (documentId, documentTypeId) => {
     try {
       let attempts = 0;
-      const maxAttempts = 30; // Maximum 30 attempts (30 seconds)
+      const maxAttempts = 10; // Reduced from 30 to 10 attempts
+      const checkInterval = 2000; // Check every 2 seconds instead of 1 second
       
       while (attempts < maxAttempts) {
         console.log(`Checking processing status for document ${documentId}, attempt ${attempts + 1}`);
@@ -249,9 +251,19 @@ const PendingProcesses = () => {
           return true;
         }
         
-        // Wait 1 second before next attempt
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Wait 2 seconds before next attempt
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
         attempts++;
+
+        // If we're at the last attempt, don't wait for timeout
+        if (attempts === maxAttempts - 1) {
+          const finalCheck = await api.get(`/documents/${documentId}`);
+          if (finalCheck.data.data.document.extractedData?.document_type) {
+            setProcessingDocuments(prev => ({ ...prev, [documentTypeId]: false }));
+            return true;
+          }
+          break;
+        }
       }
       
       throw new Error('Document processing timed out');
@@ -310,8 +322,20 @@ const PendingProcesses = () => {
     }
   };
 
-  const handleCameraCapture = async (managementId, documentTypeId) => {
+  const handleCameraCapture = async (managementId) => {
     try {
+      // Get pending document types for this process
+      const process = pendingProcesses.find(p => p._id === managementId);
+      if (!process) {
+        throw new Error('Process not found');
+      }
+
+      const pendingDocs = process.documentTypes.filter(doc => doc.status === 'pending');
+      if (pendingDocs.length === 0) {
+        alert('All documents are already completed for this process.');
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       const videoModal = document.createElement('div');
       videoModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
@@ -327,13 +351,20 @@ const PendingProcesses = () => {
             </button>
           </div>
           <video class="w-full rounded-lg mb-4" autoplay playsinline></video>
-          <div class="flex justify-end space-x-2">
-            <button class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300" id="cancelCapture">
-              Cancel
-            </button>
-            <button class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700" id="capturePhoto">
-              Capture
-            </button>
+          <div class="flex flex-col space-y-4">
+            <select id="documentTypeSelect" class="w-full p-2 border rounded-md">
+              ${pendingDocs.map(doc => `
+                <option value="${doc.documentTypeId}">${doc.name}</option>
+              `).join('')}
+            </select>
+            <div class="flex justify-end space-x-2">
+              <button class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300" id="cancelCapture">
+                Cancel
+              </button>
+              <button class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700" id="capturePhoto">
+                Capture
+              </button>
+            </div>
           </div>
         </div>
       `;
@@ -353,6 +384,7 @@ const PendingProcesses = () => {
       videoModal.querySelector('#cancelCapture').onclick = cleanup;
       
       videoModal.querySelector('#capturePhoto').onclick = () => {
+        const documentTypeId = videoModal.querySelector('#documentTypeSelect').value;
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
@@ -372,34 +404,38 @@ const PendingProcesses = () => {
     }
   };
 
-  const handleMultipleFileUpload = async (files) => {
+  const handleMultipleFileUpload = async (files, processId) => {
     try {
-      setIsProcessing(true);
-      setProcessingStatus('Processing...');
+      setProcessingProcessId(processId);
       const uploadPromises = [];
       const processedFiles = new Set();
       const processedDocTypes = new Set();
 
+      // Get the specific process
+      const process = pendingProcesses.find(p => p._id === processId);
+      if (!process) {
+        throw new Error('Process not found');
+      }
+
       for (const file of files) {
         if (processedFiles.has(file.name)) continue;
 
-        for (const process of pendingProcesses) {
-          for (const docType of process.documentTypes) {
-            const docTypeKey = `${process._id}-${docType.documentTypeId}`;
-            if (docType.status === 'completed' || processedDocTypes.has(docTypeKey)) continue;
-            
-            const uploadPromise = (async () => {
-              try {
-                await handleFileUpload(process._id, docType.documentTypeId, file);
-                processedFiles.add(file.name);
-                processedDocTypes.add(docTypeKey);
-              } catch (err) {
-                console.error(`Error processing ${file.name} for ${docType.name}:`, err);
-              }
-            })();
+        // Only check document types for this specific process
+        for (const docType of process.documentTypes) {
+          const docTypeKey = `${process._id}-${docType.documentTypeId}`;
+          if (docType.status === 'completed' || processedDocTypes.has(docTypeKey)) continue;
+          
+          const uploadPromise = (async () => {
+            try {
+              await handleFileUpload(process._id, docType.documentTypeId, file);
+              processedFiles.add(file.name);
+              processedDocTypes.add(docTypeKey);
+            } catch (err) {
+              console.error(`Error processing ${file.name} for ${docType.name}:`, err);
+            }
+          })();
 
-            uploadPromises.push(uploadPromise);
-          }
+          uploadPromises.push(uploadPromise);
         }
       }
 
@@ -407,7 +443,9 @@ const PendingProcesses = () => {
 
       const processedCount = processedFiles.size;
       if (processedCount > 0) {
+        await fetchPendingProcesses();
         alert(`Successfully processed ${processedCount} file${processedCount !== 1 ? 's' : ''}`);
+        window.location.reload();
       } else {
         alert('No files could be processed. Please check the document types and try again.');
       }
@@ -416,8 +454,7 @@ const PendingProcesses = () => {
       console.error('Error in multiple file upload:', err);
       alert('An error occurred while processing files. Please try again.');
     } finally {
-      setIsProcessing(false);
-      setProcessingStatus('');
+      setProcessingProcessId(null);
     }
   };
 
@@ -475,40 +512,53 @@ const PendingProcesses = () => {
             <span className="text-sm text-gray-500">
               Assigned: {new Date(process.createdAt).toLocaleDateString()}
             </span>
-            {isProcessing && <ProcessingIndicator />}
+            {processingProcessId === process._id && <ProcessingIndicator />}
           </div>
           
-          {/* Multiple file upload button */}
-          <div>
-            <input
-              type="file"
-              id={`multiple-files-upload-${process._id}`}
-              className="hidden"
-              multiple
-              onChange={async (e) => {
-                if (e.target.files?.length) {
-                  try {
-                    const pendingDocs = process.documentTypes.filter(doc => doc.status === 'pending');
-                    if (pendingDocs.length === 0) {
-                      alert('All documents are already completed for this process.');
-                      return;
+          {/* Document upload buttons group */}
+          <div className="flex items-center space-x-2">
+            {/* Multiple file upload button */}
+            <div>
+              <input
+                type="file"
+                id={`multiple-files-upload-${process._id}`}
+                className="hidden"
+                multiple
+                onChange={async (e) => {
+                  if (e.target.files?.length) {
+                    try {
+                      const pendingDocs = process.documentTypes.filter(doc => doc.status === 'pending');
+                      if (pendingDocs.length === 0) {
+                        alert('All documents are already completed for this process.');
+                        return;
+                      }
+                      await handleMultipleFileUpload(Array.from(e.target.files), process._id);
+                    } catch (error) {
+                      console.error('Error during multiple file upload:', error);
                     }
-                    await handleMultipleFileUpload(Array.from(e.target.files));
-                  } catch (error) {
-                    console.error('Error during multiple file upload:', error);
                   }
-                }
-              }}
-              accept="image/*,application/pdf"
-            />
-            <label
-              htmlFor={`multiple-files-upload-${process._id}`}
+                }}
+                accept="image/*,application/pdf"
+              />
+              <label
+                htmlFor={`multiple-files-upload-${process._id}`}
+                className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
+                  bg-primary-600 hover:bg-primary-700 text-white cursor-pointer"
+              >
+                <Files className="w-4 h-4 mr-2" />
+                Upload Documents
+              </label>
+            </div>
+
+            {/* Camera capture button */}
+            <button
+              onClick={() => handleCameraCapture(process._id)}
               className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
-                bg-primary-600 hover:bg-primary-700 text-white cursor-pointer"
+                bg-primary-600 hover:bg-primary-700 text-white"
             >
-              <Files className="w-4 h-4 mr-2" />
-              Upload Documents
-            </label>
+              <Camera className="w-4 h-4 mr-2" />
+              Camera
+            </button>
           </div>
         </div>
       </div>
