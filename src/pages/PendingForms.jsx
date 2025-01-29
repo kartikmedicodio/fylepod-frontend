@@ -34,6 +34,7 @@ const PendingProcesses = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
   const [processingProcessId, setProcessingProcessId] = useState(null);
+  const [capturedImages, setCapturedImages] = useState([]);
 
   useEffect(() => {
     if (user?._id) {
@@ -200,8 +201,7 @@ const PendingProcesses = () => {
             if (actualDocType?.toLowerCase() === documentType?.name.toLowerCase()) {
               await updateDocumentStatus(managementId, documentTypeId);
               await fetchPendingProcesses();
-              
-              // alert('Document processed and submitted successfully!');
+              return true;
             } else {
               // Delete the document if type doesn't match
               await api.delete(`/documents/${documentId}`);
@@ -209,7 +209,7 @@ const PendingProcesses = () => {
             }
           } catch (submitError) {
             console.error('Error during submission:', submitError);
-            // alert(submitError.message || 'Failed to submit document. Please try again.');
+            throw submitError;
           }
         }
 
@@ -224,9 +224,10 @@ const PendingProcesses = () => {
 
         await fetchExistingDocuments();
       }
+      return false;
     } catch (err) {
       console.error('Error in upload process:', err);
-      alert(err.message || 'Failed to process document. Please try again.');
+      throw err;
     } finally {
       setProcessingDocuments(prev => ({ ...prev, [documentTypeId]: false }));
       setUploading(prev => ({ ...prev, [documentTypeId]: false }));
@@ -236,8 +237,8 @@ const PendingProcesses = () => {
   const checkDocumentProcessing = async (documentId, documentTypeId) => {
     try {
       let attempts = 0;
-      const maxAttempts = 10; // Reduced from 30 to 10 attempts
-      const checkInterval = 2000; // Check every 2 seconds instead of 1 second
+      const maxAttempts = 10;
+      const checkInterval = 2000;
       
       while (attempts < maxAttempts) {
         console.log(`Checking processing status for document ${documentId}, attempt ${attempts + 1}`);
@@ -251,27 +252,40 @@ const PendingProcesses = () => {
           return true;
         }
         
-        // Wait 2 seconds before next attempt
         await new Promise(resolve => setTimeout(resolve, checkInterval));
         attempts++;
 
-        // If we're at the last attempt, don't wait for timeout
         if (attempts === maxAttempts - 1) {
           const finalCheck = await api.get(`/documents/${documentId}`);
           if (finalCheck.data.data.document.extractedData?.document_type) {
             setProcessingDocuments(prev => ({ ...prev, [documentTypeId]: false }));
             return true;
           }
-          break;
+          
+          // If we reach here, the document couldn't be processed
+          await api.delete(`/documents/${documentId}`);
+          throw new Error('Invalid document type or unreadable document');
         }
       }
       
-      throw new Error('Document processing timed out');
+      throw new Error('Invalid document type or unreadable document');
     } catch (err) {
       console.error('Error checking document processing:', err);
       setProcessingDocuments(prev => ({ ...prev, [documentTypeId]: false }));
-      alert('Document processing failed. Please try uploading again.');
-      return false;
+      
+      // Delete the document since it couldn't be processed
+      try {
+        await api.delete(`/documents/${documentId}`);
+      } catch (deleteErr) {
+        console.error('Error deleting invalid document:', deleteErr);
+      }
+
+      // Provide a more user-friendly error message
+      const errorMessage = err.message === 'Invalid document type or unreadable document' 
+        ? 'The document could not be processed. Please ensure it is a valid document and try again.'
+        : 'Failed to process document. Please try uploading again.';
+      
+      throw new Error(errorMessage);
     }
   };
 
@@ -302,29 +316,8 @@ const PendingProcesses = () => {
     });
   };
 
-  const handleCropComplete = async () => {
-    if (!completedCrop || !imageRef || !currentUploadContext) return;
-
-    try {
-      const croppedBlob = await getCroppedImg(imageRef, completedCrop);
-      const file = new File([croppedBlob], `cropped-camera-capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
-      
-      setShowCropModal(false);
-      setCropImage(null);
-      setCompletedCrop(null);
-      setImageRef(null);
-
-      const { managementId, documentTypeId } = currentUploadContext;
-      await handleFileUpload(managementId, documentTypeId, file);
-    } catch (err) {
-      console.error('Error processing cropped image:', err);
-      alert('Failed to process cropped image. Please try again.');
-    }
-  };
-
   const handleCameraCapture = async (managementId) => {
     try {
-      // Get pending document types for this process
       const process = pendingProcesses.find(p => p._id === managementId);
       if (!process) {
         throw new Error('Process not found');
@@ -343,7 +336,7 @@ const PendingProcesses = () => {
       const modalContent = `
         <div class="bg-white p-4 rounded-lg max-w-2xl w-full">
           <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-medium">Take Photo</h3>
+            <h3 class="text-lg font-medium">Capture Multiple Photos</h3>
             <button class="text-gray-500 hover:text-gray-700" id="closeCamera">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -351,18 +344,18 @@ const PendingProcesses = () => {
             </button>
           </div>
           <video class="w-full rounded-lg mb-4" autoplay playsinline></video>
+          <div class="captured-images-preview flex gap-2 overflow-x-auto mb-4 min-h-[96px] p-2 border rounded"></div>
           <div class="flex flex-col space-y-4">
-            <select id="documentTypeSelect" class="w-full p-2 border rounded-md">
-              ${pendingDocs.map(doc => `
-                <option value="${doc.documentTypeId}">${doc.name}</option>
-              `).join('')}
-            </select>
             <div class="flex justify-end space-x-2">
               <button class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300" id="cancelCapture">
                 Cancel
               </button>
-              <button class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700" id="capturePhoto">
-                Capture
+              <button class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700" id="capturePhoto">
+                Take Photo
+              </button>
+              <button class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 opacity-50 cursor-not-allowed" 
+                id="processPhotos" disabled>
+                Process Photos (0)
               </button>
             </div>
           </div>
@@ -375,29 +368,83 @@ const PendingProcesses = () => {
       const video = videoModal.querySelector('video');
       video.srcObject = stream;
       
+      let capturedPhotos = [];
+      
+      const updateProcessButton = () => {
+        const processButton = videoModal.querySelector('#processPhotos');
+        const count = capturedPhotos.length;
+        processButton.textContent = `Process Photos (${count})`;
+        if (count > 0) {
+          processButton.disabled = false;
+          processButton.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+          processButton.disabled = true;
+          processButton.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+      };
+
       const cleanup = () => {
         stream.getTracks().forEach(track => track.stop());
         videoModal.remove();
+        capturedPhotos = [];
       };
       
       videoModal.querySelector('#closeCamera').onclick = cleanup;
       videoModal.querySelector('#cancelCapture').onclick = cleanup;
       
+      // Handle individual photo capture
       videoModal.querySelector('#capturePhoto').onclick = () => {
-        const documentTypeId = videoModal.querySelector('#documentTypeSelect').value;
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         canvas.getContext('2d').drawImage(video, 0, 0);
         
         canvas.toBlob((blob) => {
-          cleanup();
           const imageUrl = URL.createObjectURL(blob);
-          setCropImage(imageUrl);
-          setShowCropModal(true);
-          setCurrentUploadContext({ managementId, documentTypeId });
+          const photoIndex = capturedPhotos.length;
+          capturedPhotos.push({ blob, url: imageUrl });
+          
+          // Update preview
+          const previewContainer = videoModal.querySelector('.captured-images-preview');
+          const preview = document.createElement('div');
+          preview.className = 'relative';
+          preview.innerHTML = `
+            <img src="${imageUrl}" alt="Captured" class="w-24 h-24 object-cover rounded" />
+            <button class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600"
+              data-index="${photoIndex}">×</button>
+          `;
+          previewContainer.appendChild(preview);
+          
+          updateProcessButton();
         }, 'image/jpeg');
       };
+      
+      // Handle processing all captured photos
+      videoModal.querySelector('#processPhotos').onclick = async () => {
+        if (capturedPhotos.length === 0) return;
+        
+        try {
+          const files = capturedPhotos.map((photo, index) => 
+            new File([photo.blob], `camera-capture-${index}.jpg`, { type: 'image/jpeg' })
+          );
+          cleanup();
+          await handleMultipleFileUpload(files, managementId);
+        } catch (err) {
+          console.error('Error processing captured images:', err);
+          alert('Failed to process captured images. Please try again.');
+        }
+      };
+      
+      // Handle removing individual captures
+      videoModal.addEventListener('click', (e) => {
+        if (e.target.matches('button[data-index]')) {
+          const index = parseInt(e.target.dataset.index);
+          capturedPhotos = capturedPhotos.filter((_, i) => i !== index);
+          e.target.closest('.relative').remove();
+          updateProcessButton();
+        }
+      });
+      
     } catch (err) {
       console.error('Error accessing camera:', err);
       alert('Could not access camera. Please make sure you have granted camera permissions.');
@@ -410,6 +457,7 @@ const PendingProcesses = () => {
       const uploadPromises = [];
       const processedFiles = new Set();
       const processedDocTypes = new Set();
+      let matchedCount = 0;
 
       // Get the specific process
       const process = pendingProcesses.find(p => p._id === processId);
@@ -427,9 +475,12 @@ const PendingProcesses = () => {
           
           const uploadPromise = (async () => {
             try {
-              await handleFileUpload(process._id, docType.documentTypeId, file);
-              processedFiles.add(file.name);
-              processedDocTypes.add(docTypeKey);
+              const response = await handleFileUpload(process._id, docType.documentTypeId, file);
+              if (response) {
+                processedFiles.add(file.name);
+                processedDocTypes.add(docTypeKey);
+                matchedCount++;
+              }
             } catch (err) {
               console.error(`Error processing ${file.name} for ${docType.name}:`, err);
             }
@@ -441,10 +492,10 @@ const PendingProcesses = () => {
 
       await Promise.all(uploadPromises);
 
-      const processedCount = processedFiles.size;
-      if (processedCount > 0) {
-        await fetchPendingProcesses();
-        alert(`Successfully processed ${processedCount} file${processedCount !== 1 ? 's' : ''}`);
+      await fetchPendingProcesses();
+      
+      if (matchedCount > 0) {
+        alert(`Successfully processed ${matchedCount} file${matchedCount !== 1 ? 's' : ''}`);
         window.location.reload();
       } else {
         alert('No files could be processed. Please check the document types and try again.');
