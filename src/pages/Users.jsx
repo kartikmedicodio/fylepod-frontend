@@ -17,14 +17,31 @@ const Users = () => {
     lawfirm_name: ''
   });
   const [createError, setCreateError] = useState(null);
+  const [companies, setCompanies] = useState([]);
+  const [lawFirms, setLawFirms] = useState([]);
 
   useEffect(() => {
     fetchUsers();
+    const fetchDropdownData = async () => {
+      try {
+        const [companiesRes, lawFirmsRes] = await Promise.all([
+          api.get('/companies'),
+          api.get('/lawfirms')
+        ]);
+        setCompanies(companiesRes.data.data || []);
+        setLawFirms(lawFirmsRes.data.data || []);
+      } catch (err) {
+        console.error('Error fetching dropdown data:', err);
+      }
+    };
+
+    fetchDropdownData();
   }, []);
 
   const fetchUsers = async () => {
     try {
       const response = await api.get('/auth/users');
+      // console.log("all the users response", response);
       setUsers(response.data.data.users);
     } catch (err) {
       setError(err.message || 'Failed to fetch users');
@@ -101,25 +118,49 @@ const Users = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Company Name</label>
-              <input
-                type="text"
+              <label htmlFor="company-select" className="block text-sm font-medium text-gray-700">
+                Company Name
+              </label>
+              <select
+                id="company-select"
                 value={newUser.company_name}
                 onChange={(e) => setNewUser({ ...newUser, company_name: e.target.value })}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
-                placeholder="Optional"
-              />
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 bg-white"
+                aria-label="Select company name"
+              >
+                <option value="">Select a company</option>
+                {companies && companies.length > 0 && companies.map((company) => (
+                  <option 
+                    key={company._id || company.id} 
+                    value={company.name || company.company_name}
+                  >
+                    {company.name || company.company_name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Law Firm Name</label>
-              <input
-                type="text"
+              <label htmlFor="lawfirm-select" className="block text-sm font-medium text-gray-700">
+                Law Firm Name
+              </label>
+              <select
+                id="lawfirm-select"
                 value={newUser.lawfirm_name}
                 onChange={(e) => setNewUser({ ...newUser, lawfirm_name: e.target.value })}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
-                placeholder="Optional"
-              />
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 bg-white"
+                aria-label="Select law firm name"
+              >
+                <option value="">Select a law firm</option>
+                {lawFirms && lawFirms.length > 0 && lawFirms.map((lawFirm, index) => (
+                  <option 
+                    key={lawFirm._id || lawFirm.id || index} 
+                    value={lawFirm.lawfirm_name}
+                  >
+                    {lawFirm.lawfirm_name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
@@ -239,12 +280,12 @@ const Users = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
-                      {user.company_name || '-'}
+                      {user.company_id?.company_name || '-'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
-                      {user.lawfirm_name || '-'}
+                      {user.lawfirm_id?.lawfirm_name || '-'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
