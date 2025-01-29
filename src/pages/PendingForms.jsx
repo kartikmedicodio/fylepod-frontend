@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../utils/api';
-import { Upload, Loader2, CheckCircle, Wand2, Camera } from 'lucide-react';
+import { Upload, Loader2, CheckCircle, Wand2, Camera, Files } from 'lucide-react';
 import Sidebar from '../components/dashboard/Sidebar';
 import Header from '../components/dashboard/Header';
 import ReactCrop from 'react-image-crop';
@@ -31,6 +31,8 @@ const PendingProcesses = () => {
   const [completedCrop, setCompletedCrop] = useState(null);
   const [imageRef, setImageRef] = useState(null);
   const [currentUploadContext, setCurrentUploadContext] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState('');
 
   useEffect(() => {
     if (user?._id) {
@@ -198,7 +200,7 @@ const PendingProcesses = () => {
               await updateDocumentStatus(managementId, documentTypeId);
               await fetchPendingProcesses();
               
-              alert('Document processed and submitted successfully!');
+              // alert('Document processed and submitted successfully!');
             } else {
               // Delete the document if type doesn't match
               await api.delete(`/documents/${documentId}`);
@@ -206,7 +208,7 @@ const PendingProcesses = () => {
             }
           } catch (submitError) {
             console.error('Error during submission:', submitError);
-            alert(submitError.message || 'Failed to submit document. Please try again.');
+            // alert(submitError.message || 'Failed to submit document. Please try again.');
           }
         }
 
@@ -370,117 +372,53 @@ const PendingProcesses = () => {
     }
   };
 
-  const renderDocumentUploadButtons = (process, doc) => {
-    if (doc.status === 'pending') {
-      const isProcessing = processingDocuments[doc.documentTypeId];
-      
-      return (
-        <div className="flex items-center space-x-2">
-          <div 
-            id={`success-${doc.documentTypeId}`}
-            className="hidden text-green-600 animate-fade-out"
-          >
-            <CheckCircle className="w-5 h-5" />
-          </div>
+  const handleMultipleFileUpload = async (files) => {
+    try {
+      setIsProcessing(true);
+      setProcessingStatus('Processing...');
+      const uploadPromises = [];
+      const processedFiles = new Set();
+      const processedDocTypes = new Set();
 
-          <div className="flex flex-col space-y-2">
-            <div className="flex space-x-2">
-              <div>
-                <input
-                  type="file"
-                  id={`file-${doc._id}`}
-                  className="hidden"
-                  onChange={async (e) => {
-                    if (e.target.files?.[0]) {
-                      try {
-                        // Only handle file upload first
-                        await handleFileUpload(process._id, doc.documentTypeId, e.target.files[0]);
-                        // Don't call handleSubmit here anymore
-                      } catch (error) {
-                        console.error('Error during file upload:', error);
-                      }
-                    }
-                  }}
-                  accept="image/*,application/pdf"
-                />
-                <label
-                  htmlFor={`file-${doc._id}`}
-                  className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
-                    ${isProcessing || uploading[doc._id]
-                      ? 'bg-gray-300 cursor-not-allowed'
-                      : 'bg-primary-600 hover:bg-primary-700 text-white cursor-pointer'
-                    }`}
-                >
-                  {isProcessing || uploading[doc._id] ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                      {isProcessing ? 'Processing...' : 'Uploading...'}
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4 mr-2" />
-                      Upload Document
-                    </>
-                  )}
-                </label>
-              </div>
+      for (const file of files) {
+        if (processedFiles.has(file.name)) continue;
 
-              <button
-                onClick={() => handleCameraCapture(process._id, doc.documentTypeId)}
-                className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
-                  ${isProcessing || uploading[doc._id]
-                    ? 'bg-gray-300 cursor-not-allowed'
-                    : 'bg-primary-600 hover:bg-primary-700 text-white'
-                  }`}
-                disabled={isProcessing || uploading[doc._id]}
-              >
-                <Camera className="w-4 h-4 mr-2" />
-                Camera
-              </button>
-            </div>
+        for (const process of pendingProcesses) {
+          for (const docType of process.documentTypes) {
+            const docTypeKey = `${process._id}-${docType.documentTypeId}`;
+            if (docType.status === 'completed' || processedDocTypes.has(docTypeKey)) continue;
             
-            {isProcessing && (
-              <div className="flex items-center space-x-2 bg-blue-50 p-3 rounded-lg animate-pulse">
-                <div className="relative">
-                  <div className="w-8 h-8 border-4 border-blue-200 rounded-full">
-                    <div className="absolute top-0 left-0 w-8 h-8 border-4 border-blue-600 rounded-full animate-spin border-t-transparent"></div>
-                  </div>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium text-blue-700">
-                    Processing Document
-                  </span>
-                  <span className="text-xs text-blue-600">
-                    Extracting information using AI...
-                  </span>
-                </div>
-              </div>
-            )}
+            const uploadPromise = (async () => {
+              try {
+                await handleFileUpload(process._id, docType.documentTypeId, file);
+                processedFiles.add(file.name);
+                processedDocTypes.add(docTypeKey);
+              } catch (err) {
+                console.error(`Error processing ${file.name} for ${docType.name}:`, err);
+              }
+            })();
 
-            {uploadedFiles[doc.documentTypeId]?.uploaded && !isProcessing && (
-              <div className="flex items-center space-x-2 bg-green-50 p-3 rounded-lg">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium text-green-700">
-                    Document Processed Successfully
-                  </span>
-                  <span className="text-xs text-green-600">
-                    Upload another document to replace
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      );
+            uploadPromises.push(uploadPromise);
+          }
+        }
+      }
+
+      await Promise.all(uploadPromises);
+
+      const processedCount = processedFiles.size;
+      if (processedCount > 0) {
+        alert(`Successfully processed ${processedCount} file${processedCount !== 1 ? 's' : ''}`);
+      } else {
+        alert('No files could be processed. Please check the document types and try again.');
+      }
+
+    } catch (err) {
+      console.error('Error in multiple file upload:', err);
+      alert('An error occurred while processing files. Please try again.');
+    } finally {
+      setIsProcessing(false);
+      setProcessingStatus('');
     }
-
-    return (
-      <div className="flex items-center space-x-2 text-green-600">
-        <CheckCircle className="w-5 h-5" />
-        <span className="text-sm">Completed</span>
-      </div>
-    );
   };
 
   const renderDocumentSection = (process, doc) => (
@@ -503,7 +441,23 @@ const PendingProcesses = () => {
         </p>
       </div>
       
-      {renderDocumentUploadButtons(process, doc)}
+      {doc.status === 'completed' && (
+        <div className="flex items-center space-x-2 text-green-600">
+          <CheckCircle className="w-5 h-5" />
+          <span className="text-sm">Completed</span>
+        </div>
+      )}
+    </div>
+  );
+
+  const ProcessingIndicator = () => (
+    <div className="flex items-center space-x-2 bg-blue-50 px-3 py-1.5 rounded-md">
+      <div className="relative">
+        <div className="w-4 h-4 border-2 border-blue-200 rounded-full">
+          <div className="absolute top-0 left-0 w-4 h-4 border-2 border-blue-600 rounded-full animate-spin border-t-transparent"></div>
+        </div>
+      </div>
+      <span className="text-sm text-blue-700">Processing...</span>
     </div>
   );
 
@@ -516,9 +470,47 @@ const PendingProcesses = () => {
         <h2 className="text-xl font-semibold">
           {process.categoryName}
         </h2>
-        <span className="text-sm text-gray-500">
-          Assigned: {new Date(process.createdAt).toLocaleDateString()}
-        </span>
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-500">
+              Assigned: {new Date(process.createdAt).toLocaleDateString()}
+            </span>
+            {isProcessing && <ProcessingIndicator />}
+          </div>
+          
+          {/* Multiple file upload button */}
+          <div>
+            <input
+              type="file"
+              id={`multiple-files-upload-${process._id}`}
+              className="hidden"
+              multiple
+              onChange={async (e) => {
+                if (e.target.files?.length) {
+                  try {
+                    const pendingDocs = process.documentTypes.filter(doc => doc.status === 'pending');
+                    if (pendingDocs.length === 0) {
+                      alert('All documents are already completed for this process.');
+                      return;
+                    }
+                    await handleMultipleFileUpload(Array.from(e.target.files));
+                  } catch (error) {
+                    console.error('Error during multiple file upload:', error);
+                  }
+                }
+              }}
+              accept="image/*,application/pdf"
+            />
+            <label
+              htmlFor={`multiple-files-upload-${process._id}`}
+              className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
+                bg-primary-600 hover:bg-primary-700 text-white cursor-pointer"
+            >
+              <Files className="w-4 h-4 mr-2" />
+              Upload Documents
+            </label>
+          </div>
+        </div>
       </div>
       
       <div className="space-y-4">
@@ -556,24 +548,22 @@ const PendingProcesses = () => {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">My Pending Processes</h1>
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => handleAutoFill(existingDocuments)}
-              disabled={autoFilling || pendingProcesses.length === 0}
-              className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
-                ${(autoFilling || pendingProcesses.length === 0)
-                  ? 'bg-gray-300 cursor-not-allowed text-gray-500'
-                  : 'bg-primary-600 hover:bg-primary-700 text-white cursor-pointer'
-                }`}
-            >
-              {autoFilling ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : (
-                <Wand2 className="w-4 h-4 mr-2" />
-              )}
-              Auto-fill Documents
-            </button>
-          </div>
+          <button
+            onClick={() => handleAutoFill(existingDocuments)}
+            disabled={autoFilling || pendingProcesses.length === 0}
+            className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
+              ${(autoFilling || pendingProcesses.length === 0)
+                ? 'bg-gray-300 cursor-not-allowed text-gray-500'
+                : 'bg-primary-600 hover:bg-primary-700 text-white cursor-pointer'
+              }`}
+          >
+            {autoFilling ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            ) : (
+              <Wand2 className="w-4 h-4 mr-2" />
+            )}
+            Auto-fill Documents
+          </button>
         </div>
         
         {pendingProcesses.length === 0 ? (
