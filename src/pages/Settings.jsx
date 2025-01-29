@@ -46,7 +46,8 @@ const Settings = () => {
       // First create management entry
       const managementResponse = await api.post('/management', {
         userId: selectedUser,
-        categoryId: selectedCategory
+        categoryId: selectedCategory,
+        createdBy: JSON.parse(localStorage.getItem('user'))?._id
       });
 
       console.log('Management entry created:', managementResponse.data);
