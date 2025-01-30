@@ -239,52 +239,81 @@ const PendingProcesses = () => {
       let attempts = 0;
       const maxAttempts = 20;
       const checkInterval = 2000;
+      let lastResponse = null;
+      let processingStarted = false;
       
       while (attempts < maxAttempts) {
         console.log(`Checking processing status for document ${documentId}, attempt ${attempts + 1}`);
         
         const response = await api.get(`/documents/${documentId}`);
-        const document = response.data.data.document;
+        lastResponse = response.data.data.document;
         
-        if (document.extractedData?.document_type) {
-          console.log('Document processing completed:', document);
+        // Check if processing has started by looking for processing status or errors
+        if (!processingStarted && lastResponse.status === 'processing') {
+          processingStarted = true;
+        }
+
+        // Early detection of processing errors
+        if (lastResponse.processingError || lastResponse.status === 'failed') {
+          await api.delete(`/documents/${documentId}`);
+          throw new Error('Document processing failed: Invalid or corrupted file');
+        }
+
+        // Check for successful processing
+        if (lastResponse.extractedData?.document_type) {
+          console.log('Document processing completed:', lastResponse);
           setProcessingDocuments(prev => ({ ...prev, [documentTypeId]: false }));
           return true;
         }
         
-        await new Promise(resolve => setTimeout(resolve, checkInterval));
+        // If processing hasn't started after 3 attempts, assume there's an issue
+        if (!processingStarted && attempts >= 3) {
+          await api.delete(`/documents/${documentId}`);
+          throw new Error('Document processing could not start');
+        }
+
+        // Exponential backoff for polling interval
+        const dynamicInterval = checkInterval * Math.min(Math.pow(2, attempts), 8); // Max 16 seconds interval
+        await new Promise(resolve => setTimeout(resolve, dynamicInterval));
         attempts++;
 
+        // Final check using cached response
         if (attempts === maxAttempts - 1) {
-          const finalCheck = await api.get(`/documents/${documentId}`);
-          if (finalCheck.data.data.document.extractedData?.document_type) {
+          if (lastResponse.extractedData?.document_type) {
             setProcessingDocuments(prev => ({ ...prev, [documentTypeId]: false }));
             return true;
           }
           
-          // If we reach here, the document couldn't be processed
           await api.delete(`/documents/${documentId}`);
-          throw new Error('Invalid document type or unreadable document');
+          throw new Error('Document processing timed out');
         }
       }
       
-      throw new Error('Invalid document type or unreadable document');
+      throw new Error('Document processing timed out');
     } catch (err) {
       console.error('Error checking document processing:', err);
       setProcessingDocuments(prev => ({ ...prev, [documentTypeId]: false }));
       
-      // Delete the document since it couldn't be processed
+      // Clean up document if it exists
       try {
-        await api.delete(`/documents/${documentId}`);
+        if (documentId) {
+          await api.delete(`/documents/${documentId}`);
+        }
       } catch (deleteErr) {
         console.error('Error deleting invalid document:', deleteErr);
       }
 
-      // Provide a more user-friendly error message
-      const errorMessage = err.message === 'Invalid document type or unreadable document' 
-        ? 'The document could not be processed. Please ensure it is a valid document and try again.'
-        : 'Failed to process document. Please try uploading again.';
-      
+      // Provide specific error messages based on the error type
+      const errorMessages = {
+        'Document processing failed: Invalid or corrupted file': 
+          'The document appears to be invalid or corrupted. Please check the file and try again.',
+        'Document processing could not start': 
+          'The system could not process this type of document. Please ensure you are uploading a valid document.',
+        'Document processing timed out': 
+          'The document processing took too long. Please try uploading a clearer document.',
+      };
+
+      const errorMessage = errorMessages[err.message] || 'Failed to process document. Please try uploading again.';
       throw new Error(errorMessage);
     }
   };
