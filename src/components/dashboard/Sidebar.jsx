@@ -56,7 +56,7 @@ const Sidebar = () => {
   // Forms section renamed to Process/Applications section
   const processLinks = [
     { 
-      name: 'Pending', 
+      name: 'Active Process',
       href: '/pending-forms', 
       icon: ClipboardList,
       count: pendingFormsCount

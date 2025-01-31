@@ -7,6 +7,31 @@ import Sidebar from '../components/dashboard/Sidebar';
 import Header from '../components/dashboard/Header';
 import ReactCrop from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Transition } from '@headlessui/react';
+import { toast } from 'react-hot-toast';
+import { Toaster } from 'react-hot-toast';
+
+const fadeIn = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -20 }
+};
+
+const staggerChildren = {
+  animate: {
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
+const processingSteps = [
+  { id: 1, text: "Analyzing document..." },
+  { id: 2, text: "Validating content..." },
+  { id: 3, text: "Checking document type..." },
+  { id: 4, text: "Verifying authenticity..." }
+];
 
 const PendingProcesses = () => {
   const { user } = useAuth();
@@ -37,10 +62,40 @@ const PendingProcesses = () => {
   const [processingStatus, setProcessingStatus] = useState('');
   const [processingProcessId, setProcessingProcessId] = useState(null);
   const [capturedImages, setCapturedImages] = useState([]);
+  const [processingQueue, setProcessingQueue] = useState(new Set());
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   useEffect(() => {
     if (user?._id) {
-      Promise.all([fetchPendingProcesses(), fetchExistingDocuments()]);
+      const loadInitialData = async () => {
+        setIsInitialLoad(true);
+        try {
+          const [processesResponse, documentsResponse] = await Promise.all([
+            fetchPendingProcesses(),
+            fetchExistingDocuments()
+          ]);
+          
+          if (processesResponse?.data?.data?.entries) {
+            let processes = processesResponse.data.data.entries;
+            if (applicationId) {
+              processes = processes.filter(process => process._id === applicationId);
+            }
+            setPendingProcesses(processes);
+          }
+
+          if (documentsResponse?.data?.data?.documents) {
+            setExistingDocuments(documentsResponse.data.data.documents);
+          }
+        } catch (err) {
+          console.error('Error loading initial data:', err);
+          setError(err.response?.data?.message || 'Failed to load data');
+        } finally {
+          setIsInitialLoad(false);
+          setLoading(false);
+        }
+      };
+
+      loadInitialData();
     }
   }, [user?._id, userId, applicationId]);
 
@@ -115,31 +170,32 @@ const PendingProcesses = () => {
 
   const fetchPendingProcesses = async () => {
     try {
-      setLoading(true);
-      
-      // If userId is provided in URL, use that instead of logged-in user's ID
       const targetUserId = userId || user._id;
-      
       const response = await api.get(`/management/user/${targetUserId}`, {
-        params: {
-          status: 'pending'
-        }
+        params: { status: 'pending' }
       });
 
-      let processes = response.data.data.entries;
+      // Filter out completed processes before setting state
+      if (response?.data?.data?.entries) {
+        let processes = response.data.data.entries;
+        
+        // If applicationId is provided, filter for that specific application
+        if (applicationId) {
+          processes = processes.filter(process => process._id === applicationId);
+        }
 
-      // If applicationId is provided, filter for that specific application
-      if (applicationId) {
-        processes = processes.filter(process => process._id === applicationId);
+        // Filter out processes where all documents are completed
+        processes = processes.filter(process => {
+          const hasIncompleteDocuments = process.documentTypes.some(doc => doc.status !== 'completed');
+          return hasIncompleteDocuments;
+        });
+
+        setPendingProcesses(processes);
       }
 
-      console.log('Fetched pending processes:', processes);
-      setPendingProcesses(processes);
+      return response;
     } catch (err) {
-      console.error('Error fetching pending processes:', err);
-      setError(err.response?.data?.message || 'Failed to fetch pending processes');
-    } finally {
-      setLoading(false);
+      throw err;
     }
   };
 
@@ -172,182 +228,126 @@ const PendingProcesses = () => {
 
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
-    if (!allowedTypes.includes(file.type)) {
-      throw new Error('Invalid file type. Please upload only images (JPG, PNG) or PDF files.');
-    }
-    return true;
+    return allowedTypes.includes(file.type);
   };
 
   const handleFileUpload = async (managementId, documentTypeId, file) => {
+    if (processingQueue.has(documentTypeId)) {
+      return false;
+    }
+
+    let uploadedDocumentId = null;
+
     try {
-      // Validate file type before uploading
-      validateFileType(file);
-      
+      if (!validateFileType(file)) return false;
       setUploading(prev => ({ ...prev, [documentTypeId]: true }));
-      setProcessingDocuments(prev => ({ ...prev, [documentTypeId]: true }));
       
-      const process = pendingProcesses.find(f => f._id === managementId);
+      const process = pendingProcesses.find(p => p._id === managementId);
       const documentType = process?.documentTypes.find(d => d.documentTypeId === documentTypeId);
       
-      // Create unique filename with timestamp and original extension
-      const fileExtension = file.name.split('.').pop();
-      const timestamp = new Date().getTime();
-      const uniqueFilename = `${timestamp}-${documentType?.name.replace(/\s+/g, '_')}.${fileExtension}`;
+      if (!process || !documentType) return false;
 
       const formData = new FormData();
-      formData.append('file', file); // Backend handles file naming
-      formData.append('name', uniqueFilename);
-      formData.append('type', documentType?.name || 'other');
-      formData.append('form_category', process?.categoryName || 'other');
+      formData.append('file', file);
+      formData.append('name', `${Date.now()}-${documentType.name.replace(/\s+/g, '_')}.${file.name.split('.').pop()}`);
+      formData.append('type', documentType.name);
       formData.append('managementId', managementId);
       formData.append('documentTypeId', documentTypeId);
       formData.append('managementDocumentId', documentType._id);
+      formData.append('form_category', process.categoryName || 'other');
 
       const uploadResponse = await api.post('/documents', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      console.log('Upload Response:', uploadResponse.data);
+      if (!uploadResponse.data?.status === 'success' || !uploadResponse.data.data.document) {
+        throw new Error('Upload failed');
+      }
 
-      if (uploadResponse.data?.status === 'success' && uploadResponse.data.data.document) {
-        const documentId = uploadResponse.data.data.document._id;
-        
-        setUploadedDocumentIds(prev => ({
-          ...prev,
-          [documentTypeId]: documentId
-        }));
+      uploadedDocumentId = uploadResponse.data.data.document._id;
 
-        // Wait for document processing to complete
-        const processingComplete = await checkDocumentProcessing(documentId, documentTypeId);
-        
-        if (processingComplete) {
-          try {
-            const documentResponse = await api.get(`/documents/${documentId}`);
-            const actualDocType = documentResponse.data.data.document.extractedData?.document_type;
-            
-            if (actualDocType?.toLowerCase() === documentType?.name.toLowerCase()) {
-              await updateDocumentStatus(managementId, documentTypeId);
-              await fetchPendingProcesses();
-              return true;
-            } else {
-              // Delete the document if type doesn't match
-              await api.delete(`/documents/${documentId}`);
-              throw new Error(`Incorrect document type detected. Expected ${documentType?.name}, got ${actualDocType}. Please upload the correct document.`);
-            }
-          } catch (submitError) {
-            console.error('Error during submission:', submitError);
-            throw submitError;
-          }
-        }
+      const processedDoc = await checkDocumentProcessing(
+        uploadedDocumentId,
+        documentTypeId
+      );
 
-        setUploadedFiles(prev => ({
-          ...prev,
-          [documentTypeId]: {
-            managementId,
-            documentTypeId,
-            uploaded: true,
-            filePath: uploadResponse.data.data.document.filePath,
-            originalName: uploadResponse.data.data.document.originalName
-          }
-        }));
+      if (!processedDoc) {
+        throw new Error('Document processing failed');
+      }
 
-        await fetchExistingDocuments();
+      const extractedType = processedDoc.extractedData?.document_type?.toLowerCase();
+      const expectedType = documentType.name.toLowerCase();
+
+      if (extractedType === expectedType) {
+        await updateDocumentStatus(managementId, documentTypeId);
+        return true;
       } else {
-        throw new Error('Upload failed: Invalid response from server');
+        console.log(`Document type mismatch. Expected: ${expectedType}, Got: ${extractedType}`);
+        throw new Error('Document type mismatch');
+      }
+
+    } catch (err) {
+      console.error('Error in file upload:', err);
+      // Delete the uploaded document if it exists and there was an error
+      if (uploadedDocumentId) {
+        try {
+          console.log('Deleting invalid document:', uploadedDocumentId);
+          await api.delete(`/documents/${uploadedDocumentId}`);
+        } catch (deleteErr) {
+          console.error('Error deleting invalid document:', deleteErr);
+        }
       }
       return false;
-    } catch (err) {
-      console.error('Error in upload process:', err);
-      throw err;
     } finally {
-      setProcessingDocuments(prev => ({ ...prev, [documentTypeId]: false }));
       setUploading(prev => ({ ...prev, [documentTypeId]: false }));
     }
   };
 
   const checkDocumentProcessing = async (documentId, documentTypeId) => {
+    if (processingQueue.has(documentTypeId)) {
+      return false;
+    }
+
     try {
-      let attempts = 0;
+      setProcessingQueue(prev => new Set([...prev, documentTypeId]));
+      
       const maxAttempts = 20;
-      const checkInterval = 2000;
-      let lastResponse = null;
-      let processingStarted = false;
-      
+      const baseInterval = 2000;
+      let attempts = 0;
+
       while (attempts < maxAttempts) {
-        console.log(`Checking processing status for document ${documentId}, attempt ${attempts + 1}`);
-        
         const response = await api.get(`/documents/${documentId}`);
-        lastResponse = response.data.data.document;
-        
-        // Check if processing has started by looking for processing status or errors
-        if (!processingStarted && lastResponse.status === 'processing') {
-          processingStarted = true;
+        const document = response.data.data.document;
+
+        // Add artificial delay to show processing steps (remove in production)
+        await new Promise(resolve => 
+          setTimeout(resolve, baseInterval)
+        );
+
+        if (document.processingError || document.status === 'failed') {
+          throw new Error('Document processing failed');
         }
 
-        // Early detection of processing errors
-        if (lastResponse.processingError || lastResponse.status === 'failed') {
-          await api.delete(`/documents/${documentId}`);
-          throw new Error('Document processing failed: Invalid or corrupted file');
+        if (document.extractedData?.document_type) {
+          return document;
         }
 
-        // Check for successful processing
-        if (lastResponse.extractedData?.document_type) {
-          console.log('Document processing completed:', lastResponse);
-          setProcessingDocuments(prev => ({ ...prev, [documentTypeId]: false }));
-          return true;
-        }
-        
-        // If processing hasn't started after 3 attempts, assume there's an issue
-        if (!processingStarted && attempts >= 3) {
-          await api.delete(`/documents/${documentId}`);
-          throw new Error('Document processing could not start');
-        }
-
-        // Exponential backoff for polling interval
-        const dynamicInterval = checkInterval * Math.min(Math.pow(2, attempts), 8); // Max 16 seconds interval
-        await new Promise(resolve => setTimeout(resolve, dynamicInterval));
         attempts++;
-
-        // Final check using cached response
-        if (attempts === maxAttempts - 1) {
-          if (lastResponse.extractedData?.document_type) {
-            setProcessingDocuments(prev => ({ ...prev, [documentTypeId]: false }));
-            return true;
-          }
-          
-          await api.delete(`/documents/${documentId}`);
-          throw new Error('Document processing timed out');
-        }
+        await new Promise(resolve => 
+          setTimeout(resolve, baseInterval * Math.min(Math.pow(1.5, attempts), 8))
+        );
       }
-      
+
       throw new Error('Document processing timed out');
     } catch (err) {
-      console.error('Error checking document processing:', err);
-      setProcessingDocuments(prev => ({ ...prev, [documentTypeId]: false }));
-      
-      // Clean up document if it exists
-      try {
-        if (documentId) {
-          await api.delete(`/documents/${documentId}`);
-        }
-      } catch (deleteErr) {
-        console.error('Error deleting invalid document:', deleteErr);
-      }
-
-      // Provide specific error messages based on the error type
-      const errorMessages = {
-        'Document processing failed: Invalid or corrupted file': 
-          'The document appears to be invalid or corrupted. Please check the file and try again.',
-        'Document processing could not start': 
-          'The system could not process this type of document. Please ensure you are uploading a valid document.',
-        'Document processing timed out': 
-          'The document processing took too long. Please try uploading a clearer document.',
-      };
-
-      const errorMessage = errorMessages[err.message] || 'Failed to process document. Please try uploading again.';
-      throw new Error(errorMessage);
+      console.error('Error in document processing:', err);
+      return null;
+    } finally {
+      setProcessingQueue(prev => {
+        const next = new Set(prev);
+        next.delete(documentTypeId);
+        return next;
+      });
     }
   };
 
@@ -521,16 +521,12 @@ const PendingProcesses = () => {
       const processedDocTypes = new Set();
       let matchedCount = 0;
 
-      // Get the specific process
       const process = pendingProcesses.find(p => p._id === processId);
-      if (!process) {
-        throw new Error('Process not found');
-      }
+      if (!process) return;
 
       for (const file of files) {
         if (processedFiles.has(file.name)) continue;
 
-        // Only check document types for this specific process
         for (const docType of process.documentTypes) {
           const docTypeKey = `${process._id}-${docType.documentTypeId}`;
           if (docType.status === 'completed' || processedDocTypes.has(docTypeKey)) continue;
@@ -553,227 +549,332 @@ const PendingProcesses = () => {
       }
 
       await Promise.all(uploadPromises);
-
-      await fetchPendingProcesses();
+      
+      const updatedProcessesResponse = await fetchPendingProcesses();
+      if (updatedProcessesResponse?.data?.data?.entries) {
+        let updatedProcesses = updatedProcessesResponse.data.data.entries;
+        updatedProcesses = updatedProcesses.filter(process => {
+          const hasIncompleteDocuments = process.documentTypes.some(doc => doc.status !== 'completed');
+          return hasIncompleteDocuments;
+        });
+        setPendingProcesses(updatedProcesses);
+      }
       
       if (matchedCount > 0) {
-        alert(`Successfully processed ${matchedCount} file${matchedCount !== 1 ? 's' : ''}`);
-        window.location.reload();
-      } else {
-        alert('No files could be processed. Please check the document types and try again.');
+        toast.success(
+          <div className="flex flex-col">
+            <span className="font-medium">Documents uploaded successfully!</span>
+            <span className="text-sm">
+              {matchedCount} document{matchedCount !== 1 ? 's' : ''} processed
+            </span>
+          </div>,
+          {
+            duration: 4000,
+            position: 'top-right',
+            className: 'bg-white',
+            style: {
+              borderRadius: '10px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+            },
+          }
+        );
       }
 
     } catch (err) {
       console.error('Error in multiple file upload:', err);
-      alert('An error occurred while processing files. Please try again.');
     } finally {
       setProcessingProcessId(null);
     }
   };
 
   const renderDocumentSection = (process, doc) => (
-    <div 
+    <motion.div
       key={doc._id}
-      className="flex items-center justify-between p-4 border rounded-lg"
+      variants={fadeIn}
+      layout
+      className={`
+        flex items-center justify-between p-6 rounded-xl
+        transition-all duration-200 ease-in-out
+        ${doc.status === 'completed' 
+          ? 'bg-green-50 border border-green-100 shadow-sm' 
+          : 'bg-white border border-gray-100 hover:border-primary-100 shadow-sm hover:shadow-md'
+        }
+      `}
     >
-      <div>
-        <p className="font-medium">{doc.name}</p>
-        <p className="text-sm text-gray-500">
-          Status: 
-          <span className={`ml-1 ${
-            doc.status === 'completed' ? 'text-green-600' : 'text-yellow-600'
-          }`}>
+      <div className="flex-1">
+        <h3 className="text-lg font-medium text-gray-900">{doc.name}</h3>
+        <div className="mt-1 flex items-center gap-3">
+          <span className={`
+            px-3 py-1 rounded-full text-sm font-medium
+            ${doc.status === 'completed' 
+              ? 'bg-green-100 text-green-800' 
+              : 'bg-yellow-100 text-yellow-800'
+            }
+          `}>
             {doc.status}
           </span>
           {doc.required && (
-            <span className="text-red-500 ml-2">*Required</span>
+            <span className="text-sm text-red-500 flex items-center">
+              <span className="mr-1">•</span> Required
+            </span>
           )}
-        </p>
+        </div>
       </div>
       
-      {doc.status === 'completed' && (
-        <div className="flex items-center space-x-2 text-green-600">
-          <CheckCircle className="w-5 h-5" />
-          <span className="text-sm">Completed</span>
-        </div>
-      )}
-    </div>
+      <AnimatePresence>
+        {doc.status === 'completed' && (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            exit={{ scale: 0 }}
+            className="flex items-center space-x-2 text-green-600"
+          >
+            <CheckCircle className="w-6 h-6" />
+            <span className="font-medium">Verified</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 
-  const ProcessingIndicator = () => (
-    <div className="flex items-center space-x-2 bg-blue-50 px-3 py-1.5 rounded-md">
-      <div className="relative">
-        <div className="w-4 h-4 border-2 border-blue-200 rounded-full">
-          <div className="absolute top-0 left-0 w-4 h-4 border-2 border-blue-600 rounded-full animate-spin border-t-transparent"></div>
+  const ProcessingIndicator = () => {
+    const [currentStep, setCurrentStep] = useState(0);
+
+    useEffect(() => {
+      const interval = setInterval(() => {
+        setCurrentStep((prev) => (prev + 1) % processingSteps.length);
+      }, 2000); // Change step every 2 seconds
+
+      return () => clearInterval(interval);
+    }, []);
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center gap-4 bg-blue-50 px-6 py-3 rounded-lg border border-blue-100"
+      >
+        <div className="relative">
+          <div className="w-6 h-6">
+            <motion.div
+              className="absolute inset-0 border-2 border-blue-500 rounded-full"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            />
+            <motion.div
+              className="absolute inset-1 border-2 border-blue-300 rounded-full"
+              animate={{ rotate: -360 }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+            />
+          </div>
         </div>
-      </div>
-      <span className="text-sm text-blue-700">Processing...</span>
-    </div>
-  );
+        
+        <div className="flex flex-col">
+          <motion.span 
+            key={currentStep}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="text-sm font-medium text-blue-700"
+          >
+            {processingSteps[currentStep].text}
+          </motion.span>
+          <div className="flex gap-1 mt-1">
+            {processingSteps.map((step, index) => (
+              <motion.div
+                key={step.id}
+                className={`h-1 rounded-full ${
+                  index === currentStep ? 'w-8 bg-blue-500' : 'w-2 bg-blue-200'
+                }`}
+                animate={{
+                  width: index === currentStep ? 32 : 8,
+                  backgroundColor: index === currentStep ? '#3B82F6' : '#BFDBFE'
+                }}
+                transition={{ duration: 0.3 }}
+              />
+            ))}
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
 
   const renderProcess = (process) => (
-    <div 
-      key={process._id} 
-      className="bg-white rounded-lg shadow p-6"
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      key={process._id}
+      className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"
     >
-      <div className="flex justify-between items-center mb-4">
-        <div className='flex flex-col gap-2'>
-          <h2 className="text-xl font-semibold">
-            {process.categoryName}
-          </h2>
-          <div className="flex items-center gap-2">
-            <span className="text-gray-600">Assigned to:</span>
-            <p className="text-base font-medium text-gray-700 px-3 py-1 bg-gray-100 rounded-md">
-              {process.userId?.name || 'Unknown User'}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-500">
-              Assigned: {new Date(process.createdAt).toLocaleDateString()}
-            </span>
-            {processingProcessId === process._id && <ProcessingIndicator />}
-          </div>
-          
-          {/* Document upload buttons group */}
-          <div className="flex items-center space-x-2">
-            {/* Multiple file upload button */}
-            <div>
-              <input
-                type="file"
-                id={`multiple-files-upload-${process._id}`}
-                className="hidden"
-                multiple
-                onChange={async (e) => {
-                  if (e.target.files?.length) {
-                    try {
-                      const pendingDocs = process.documentTypes.filter(doc => doc.status === 'pending');
-                      if (pendingDocs.length === 0) {
-                        alert('All documents are already completed for this process.');
-                        return;
-                      }
-                      await handleMultipleFileUpload(Array.from(e.target.files), process._id);
-                    } catch (error) {
-                      console.error('Error during multiple file upload:', error);
-                    }
-                  }
-                }}
-                accept="image/*,application/pdf"
-              />
-              <label
-                htmlFor={`multiple-files-upload-${process._id}`}
-                className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
-                  bg-primary-600 hover:bg-primary-700 text-white cursor-pointer"
-              >
-                <Files className="w-4 h-4 mr-2" />
-                Upload Documents
-              </label>
+      <div className="p-6 border-b border-gray-100">
+        <div className="flex justify-between items-start">
+          <div className="space-y-3">
+            <h2 className="text-2xl font-semibold text-gray-900">
+              {process.categoryName}
+            </h2>
+            <div className="flex items-center gap-3">
+              <span className="text-gray-500">Assigned to:</span>
+              <span className="px-3 py-1.5 bg-gray-50 rounded-lg text-gray-700 font-medium">
+                {process.userId?.name || 'Unknown User'}
+              </span>
             </div>
+          </div>
 
-            {/* Camera capture button */}
-            <button
-              onClick={() => handleCameraCapture(process._id)}
-              className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
-                bg-primary-600 hover:bg-primary-700 text-white"
-            >
-              <Camera className="w-4 h-4 mr-2" />
-              Camera
-            </button>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <span className="block text-sm text-gray-500">
+                Assigned
+              </span>
+              <span className="block mt-1 font-medium">
+                {new Date(process.createdAt).toLocaleDateString()}
+              </span>
+            </div>
+            {processingProcessId === process._id && (
+              <div className="min-w-[300px]">
+                <ProcessingIndicator />
+              </div>
+            )}
           </div>
         </div>
+
+        <div className="flex gap-3 mt-6">
+          <label
+            htmlFor={`multiple-files-upload-${process._id}`}
+            className="inline-flex items-center px-4 py-2.5 rounded-lg text-sm font-medium
+              bg-primary-600 hover:bg-primary-700 text-white cursor-pointer
+              transition-colors duration-200 shadow-sm hover:shadow-md"
+          >
+            <Files className="w-4 h-4 mr-2" />
+            Upload Documents
+          </label>
+          <input
+            type="file"
+            id={`multiple-files-upload-${process._id}`}
+            className="hidden"
+            multiple
+            onChange={async (e) => {
+              if (e.target.files?.length) {
+                const pendingDocs = process.documentTypes.filter(doc => doc.status === 'pending');
+                if (pendingDocs.length > 0) {
+                  await handleMultipleFileUpload(Array.from(e.target.files), process._id);
+                }
+              }
+            }}
+            accept="image/*,application/pdf"
+          />
+
+          <button
+            onClick={() => handleCameraCapture(process._id)}
+            className="inline-flex items-center px-4 py-2.5 rounded-lg text-sm font-medium
+              bg-white border border-gray-200 hover:bg-gray-50 text-gray-700
+              transition-colors duration-200 shadow-sm hover:shadow-md"
+          >
+            <Camera className="w-4 h-4 mr-2" />
+            Camera
+          </button>
+        </div>
       </div>
-      
-      <div className="space-y-4">
+
+      <motion.div 
+        variants={staggerChildren}
+        initial="initial"
+        animate="animate"
+        className="p-6 space-y-4 bg-gray-50"
+      >
         {process.documentTypes.map((doc) => renderDocumentSection(process, doc))}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 
   const renderContent = () => {
     if (!user) {
       return (
-        <div className="text-center text-gray-500">
-          Please log in to view pending processes.
-        </div>
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex flex-col items-center justify-center min-h-[60vh] text-gray-500"
+        >
+          <div className="text-xl">Please log in to view pending processes.</div>
+        </motion.div>
       );
     }
 
     if (loading) {
       return (
-        <div className="flex items-center justify-center min-h-screen">
-          <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
-        </div>
-      );
-    }
-
-    if (error) {
-      return (
-        <div className="p-4 text-red-500 text-center">
-          <p>{error}</p>
-        </div>
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex flex-col items-center justify-center min-h-[60vh]"
+        >
+          <Loader2 className="w-10 h-10 animate-spin text-primary-600" />
+          <p className="mt-4 text-gray-600">Loading your documents...</p>
+        </motion.div>
       );
     }
 
     return (
-      <div className="space-y-6">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="space-y-8"
+      >
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">
+          <h1 className="text-3xl font-bold text-gray-900">
             {applicationId 
               ? 'Pending Application Details'
               : userId 
-                ? `${pendingProcesses[0]?.userId?.name || 'User'}'s Pending Processes`
-                : 'My Pending Processes'
+                ? `${pendingProcesses[0]?.userId?.name || 'User'}'s Active Processes`
+                : 'My Active Processes'
             }
           </h1>
-          {/* Only show auto-fill button if not viewing a specific application */}
-          {!applicationId && (
-            <button
-              onClick={() => handleAutoFill(existingDocuments)}
-              disabled={autoFilling || pendingProcesses.length === 0}
-              className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
-                ${(autoFilling || pendingProcesses.length === 0)
-                  ? 'bg-gray-300 cursor-not-allowed text-gray-500'
-                  : 'bg-primary-600 hover:bg-primary-700 text-white cursor-pointer'
-                }`}
-            >
-              {autoFilling ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : (
-                <Wand2 className="w-4 h-4 mr-2" />
-              )}
-              Auto-fill Documents
-            </button>
-          )}
         </div>
-        
-        {pendingProcesses.length === 0 ? (
-          <div className="text-center text-gray-500 p-8 bg-white rounded-lg shadow">
-            <p className="text-lg">No pending processes found</p>
-            <p className="text-sm mt-2">
-              {applicationId 
-                ? 'The requested application was not found or is not pending.'
-                : userId 
-                  ? 'This user has no pending processes.'
-                  : "You don't have any processes waiting for document uploads."
-              }
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {!applicationId && existingDocuments.length > 0 && (
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <p className="text-sm text-blue-700">
-                  You have {existingDocuments.length} existing document{existingDocuments.length !== 1 ? 's' : ''} that might match your requirements.
-                  Click "Auto-fill Documents" to automatically match them.
+
+        <AnimatePresence>
+          {pendingProcesses.length === 0 ? (
+            <motion.div
+              {...fadeIn}
+              className="text-center py-16 bg-white rounded-xl shadow-sm border border-gray-100"
+            >
+              <div className="max-w-md mx-auto">
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  No pending processes found
+                </h3>
+                <p className="text-gray-500">
+                  {applicationId 
+                    ? 'The requested application was not found or is not pending.'
+                    : userId 
+                      ? 'This user has no pending processes.'
+                      : "You don't have any processes waiting for document uploads."
+                  }
                 </p>
               </div>
-            )}
+            </motion.div>
+          ) : (
+            <motion.div 
+              variants={staggerChildren}
+              initial="initial"
+              animate="animate"
+              className="space-y-6"
+            >
+              {!applicationId && existingDocuments.length > 0 && (
+                <motion.div
+                  {...fadeIn}
+                  className="bg-blue-50 p-6 rounded-xl border border-blue-100"
+                >
+                  <p className="text-blue-700">
+                    You have {existingDocuments.length} existing document
+                    {existingDocuments.length !== 1 ? 's' : ''}.
+                  </p>
+                </motion.div>
+              )}
 
-            {pendingProcesses.map(renderProcess)}
-          </div>
-        )}
-      </div>
+              {pendingProcesses.map(renderProcess)}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
     );
   };
 
@@ -786,7 +887,9 @@ const PendingProcesses = () => {
           {renderContent()}
         </main>
       </div>
-
+      <div>
+        <Toaster />
+      </div>
       {/* Crop Modal */}
       {showCropModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

@@ -35,4 +35,8 @@ api.interceptors.response.use(
   }
 );
 
+export const getPendingForms = async () => {
+  return await axios.get('/api/forms/pending');
+};
+
 export default api;

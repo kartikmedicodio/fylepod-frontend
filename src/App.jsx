@@ -24,14 +24,6 @@ const App = () => {
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Navigate to="/pending-forms" replace />} />
           <Route
-            path="/dashboard"
-            element={
-              <PrivateRoute>
-                <Dashboard />
-              </PrivateRoute>
-            }
-          />
-          <Route
             path="/documents"
             element={
               <PrivateRoute>
