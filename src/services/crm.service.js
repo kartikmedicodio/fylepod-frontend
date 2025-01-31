@@ -51,6 +51,23 @@ const CRMService = {
       },
     });
   },
+
+  getCategories: async () => {
+    try {
+      const response = await axios.get(`${API_URL}/categories`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  assignApplication: (data) => {
+    return axios.post(`${API_URL}/applications/assign`, data);
+  },
 };
 
 export default CRMService; 
