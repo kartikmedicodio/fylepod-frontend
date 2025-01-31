@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { FolderTree, Loader2, Plus, X, FileText, Check, AlertCircle, Edit } from 'lucide-react';
 import api from '../utils/api';
 import DashboardLayout from '../layouts/DashboardLayout';
+import { motion } from 'framer-motion';
 
-const ProcessTypes = () => {
-  const [processTypes, setProcessTypes] = useState([]);
+const ProcessTemplates = () => {
+  const [processTemplates, setProcessTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [newProcessType, setNewProcessType] = useState({
+  const [newProcessTemplate, setNewProcessTemplate] = useState({
     name: '',
     description: '',
     documentTypes: [{ 
@@ -19,27 +20,27 @@ const ProcessTypes = () => {
     }]
   });
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editingProcessType, setEditingProcessType] = useState(null);
+  const [editingProcessTemplate, setEditingProcessTemplate] = useState(null);
 
   useEffect(() => {
-    fetchProcessTypes();
+    fetchProcessTemplates();
   }, []);
 
-  const fetchProcessTypes = async () => {
+  const fetchProcessTemplates = async () => {
     try {
       const response = await api.get('/categories');
-      setProcessTypes(response.data.data.categories);
+      setProcessTemplates(response.data.data.categories);
     } catch (err) {
-      setError(err.message || 'Failed to fetch process types');
+      setError(err.message || 'Failed to fetch process templates');
     } finally {
       setLoading(false);
     }
   };
 
   const handleAddDocumentType = () => {
-    setNewProcessType({
-      ...newProcessType,
-      documentTypes: [...newProcessType.documentTypes, { 
+    setNewProcessTemplate({
+      ...newProcessTemplate,
+      documentTypes: [...newProcessTemplate.documentTypes, { 
         name: '', 
         required: false,
         questions: [{ text: '' }],
@@ -49,28 +50,28 @@ const ProcessTypes = () => {
   };
 
   const handleRemoveDocumentType = (index) => {
-    const updatedTypes = newProcessType.documentTypes.filter((_, i) => i !== index);
-    setNewProcessType({
-      ...newProcessType,
+    const updatedTypes = newProcessTemplate.documentTypes.filter((_, i) => i !== index);
+    setNewProcessTemplate({
+      ...newProcessTemplate,
       documentTypes: updatedTypes
     });
   };
 
   const handleDocumentTypeChange = (index, field, value) => {
-    const updatedTypes = newProcessType.documentTypes.map((type, i) => {
+    const updatedTypes = newProcessTemplate.documentTypes.map((type, i) => {
       if (i === index) {
         return { ...type, [field]: value };
       }
       return type;
     });
-    setNewProcessType({
-      ...newProcessType,
+    setNewProcessTemplate({
+      ...newProcessTemplate,
       documentTypes: updatedTypes
     });
   };
 
   const handleAddQuestion = (docTypeIndex) => {
-    const updatedTypes = newProcessType.documentTypes.map((type, idx) => {
+    const updatedTypes = newProcessTemplate.documentTypes.map((type, idx) => {
       if (idx === docTypeIndex) {
         return {
           ...type,
@@ -80,14 +81,14 @@ const ProcessTypes = () => {
       return type;
     });
 
-    setNewProcessType({
-      ...newProcessType,
+    setNewProcessTemplate({
+      ...newProcessTemplate,
       documentTypes: updatedTypes
     });
   };
 
   const handleQuestionChange = (docTypeIndex, questionIndex, value) => {
-    const updatedTypes = newProcessType.documentTypes.map((type, idx) => {
+    const updatedTypes = newProcessTemplate.documentTypes.map((type, idx) => {
       if (idx === docTypeIndex) {
         const updatedQuestions = type.questions.map((q, qIdx) => {
           if (qIdx === questionIndex) {
@@ -103,14 +104,14 @@ const ProcessTypes = () => {
       return type;
     });
 
-    setNewProcessType({
-      ...newProcessType,
+    setNewProcessTemplate({
+      ...newProcessTemplate,
       documentTypes: updatedTypes
     });
   };
 
   const handleRemoveQuestion = (docTypeIndex, questionIndex) => {
-    const updatedTypes = newProcessType.documentTypes.map((type, idx) => {
+    const updatedTypes = newProcessTemplate.documentTypes.map((type, idx) => {
       if (idx === docTypeIndex) {
         const updatedQuestions = type.questions.filter((_, qIdx) => qIdx !== questionIndex);
         return {
@@ -121,14 +122,14 @@ const ProcessTypes = () => {
       return type;
     });
 
-    setNewProcessType({
-      ...newProcessType,
+    setNewProcessTemplate({
+      ...newProcessTemplate,
       documentTypes: updatedTypes
     });
   };
 
   const handleAddValidation = (docTypeIndex) => {
-    const updatedTypes = newProcessType.documentTypes.map((type, idx) => {
+    const updatedTypes = newProcessTemplate.documentTypes.map((type, idx) => {
       if (idx === docTypeIndex) {
         return {
           ...type,
@@ -138,14 +139,14 @@ const ProcessTypes = () => {
       return type;
     });
 
-    setNewProcessType({
-      ...newProcessType,
+    setNewProcessTemplate({
+      ...newProcessTemplate,
       documentTypes: updatedTypes
     });
   };
 
   const handleValidationChange = (docTypeIndex, validationIndex, value) => {
-    const updatedTypes = newProcessType.documentTypes.map((type, idx) => {
+    const updatedTypes = newProcessTemplate.documentTypes.map((type, idx) => {
       if (idx === docTypeIndex) {
         const updatedValidations = [...type.validations];
         updatedValidations[validationIndex] = value;
@@ -157,14 +158,14 @@ const ProcessTypes = () => {
       return type;
     });
 
-    setNewProcessType({
-      ...newProcessType,
+    setNewProcessTemplate({
+      ...newProcessTemplate,
       documentTypes: updatedTypes
     });
   };
 
   const handleRemoveValidation = (docTypeIndex, validationIndex) => {
-    const updatedTypes = newProcessType.documentTypes.map((type, idx) => {
+    const updatedTypes = newProcessTemplate.documentTypes.map((type, idx) => {
       if (idx === docTypeIndex) {
         const updatedValidations = type.validations.filter((_, vIdx) => vIdx !== validationIndex);
         return {
@@ -175,20 +176,20 @@ const ProcessTypes = () => {
       return type;
     });
 
-    setNewProcessType({
-      ...newProcessType,
+    setNewProcessTemplate({
+      ...newProcessTemplate,
       documentTypes: updatedTypes
     });
   };
 
-  const handleCreateProcessType = async (e) => {
+  const handleCreateProcessTemplate = async (e) => {
     e.preventDefault();
     try {
-        const response = await api.post('/categories', newProcessType);
+        const response = await api.post('/categories', newProcessTemplate);
         if (response.data && response.data.data) {
-            setProcessTypes([...processTypes, response.data.data]);
+            setProcessTemplates([...processTemplates, response.data.data]);
             setShowModal(false);
-            setNewProcessType({ 
+            setNewProcessTemplate({ 
                 name: '', 
                 description: '', 
                 documentTypes: [{ 
@@ -201,14 +202,14 @@ const ProcessTypes = () => {
         }
     } catch (err) {
         console.error('Create error:', err);
-        setError(err.response?.data?.message || 'Error creating process type');
+        setError(err.response?.data?.message || 'Error creating process template');
     }
   };
 
-  const handleEditClick = (processType) => {
-    setEditingProcessType({
-      ...processType,
-      documentTypes: processType.documentTypes.map(type => ({
+  const handleEditClick = (processTemplate) => {
+    setEditingProcessTemplate({
+      ...processTemplate,
+      documentTypes: processTemplate.documentTypes.map(type => ({
         ...type,
         questions: type.questions || [{ text: '' }],
         validations: type.validations || ['']
@@ -217,37 +218,37 @@ const ProcessTypes = () => {
     setShowEditModal(true);
   };
 
-  const handleUpdateProcessType = async (e) => {
+  const handleUpdateProcessTemplate = async (e) => {
     e.preventDefault();
     try {
-      const response = await api.put(`/categories/${editingProcessType._id}`, editingProcessType);
+      const response = await api.put(`/categories/${editingProcessTemplate._id}`, editingProcessTemplate);
       
-      setProcessTypes(processTypes.map(pt => 
-        pt._id === editingProcessType._id ? response.data.data : pt
+      setProcessTemplates(processTemplates.map(pt => 
+        pt._id === editingProcessTemplate._id ? response.data.data : pt
       ));
       
       setShowEditModal(false);
-      setEditingProcessType(null);
+      setEditingProcessTemplate(null);
     } catch (err) {
-      setError(err.response?.data?.message || 'Error updating process type');
+      setError(err.response?.data?.message || 'Error updating process template');
     }
   };
 
   const handleEditDocumentTypeChange = (index, field, value) => {
-    const updatedTypes = editingProcessType.documentTypes.map((type, i) => {
+    const updatedTypes = editingProcessTemplate.documentTypes.map((type, i) => {
       if (i === index) {
         return { ...type, [field]: value };
       }
       return type;
     });
-    setEditingProcessType({
-      ...editingProcessType,
+    setEditingProcessTemplate({
+      ...editingProcessTemplate,
       documentTypes: updatedTypes
     });
   };
 
   const handleEditAddQuestion = (docTypeIndex) => {
-    const updatedTypes = editingProcessType.documentTypes.map((type, idx) => {
+    const updatedTypes = editingProcessTemplate.documentTypes.map((type, idx) => {
       if (idx === docTypeIndex) {
         return {
           ...type,
@@ -257,14 +258,14 @@ const ProcessTypes = () => {
       return type;
     });
 
-    setEditingProcessType({
-      ...editingProcessType,
+    setEditingProcessTemplate({
+      ...editingProcessTemplate,
       documentTypes: updatedTypes
     });
   };
 
   const handleEditQuestionChange = (docTypeIndex, questionIndex, value) => {
-    const updatedTypes = editingProcessType.documentTypes.map((type, idx) => {
+    const updatedTypes = editingProcessTemplate.documentTypes.map((type, idx) => {
       if (idx === docTypeIndex) {
         const updatedQuestions = type.questions.map((q, qIdx) => {
           if (qIdx === questionIndex) {
@@ -280,14 +281,14 @@ const ProcessTypes = () => {
       return type;
     });
 
-    setEditingProcessType({
-      ...editingProcessType,
+    setEditingProcessTemplate({
+      ...editingProcessTemplate,
       documentTypes: updatedTypes
     });
   };
 
   const handleEditRemoveQuestion = (docTypeIndex, questionIndex) => {
-    const updatedTypes = editingProcessType.documentTypes.map((type, idx) => {
+    const updatedTypes = editingProcessTemplate.documentTypes.map((type, idx) => {
       if (idx === docTypeIndex) {
         const updatedQuestions = type.questions.filter((_, qIdx) => qIdx !== questionIndex);
         return {
@@ -298,14 +299,14 @@ const ProcessTypes = () => {
       return type;
     });
 
-    setEditingProcessType({
-      ...editingProcessType,
+    setEditingProcessTemplate({
+      ...editingProcessTemplate,
       documentTypes: updatedTypes
     });
   };
 
   const handleEditAddValidation = (docTypeIndex) => {
-    const updatedTypes = editingProcessType.documentTypes.map((type, idx) => {
+    const updatedTypes = editingProcessTemplate.documentTypes.map((type, idx) => {
       if (idx === docTypeIndex) {
         return {
           ...type,
@@ -315,14 +316,14 @@ const ProcessTypes = () => {
       return type;
     });
 
-    setEditingProcessType({
-      ...editingProcessType,
+    setEditingProcessTemplate({
+      ...editingProcessTemplate,
       documentTypes: updatedTypes
     });
   };
 
   const handleEditValidationChange = (docTypeIndex, validationIndex, value) => {
-    const updatedTypes = editingProcessType.documentTypes.map((type, idx) => {
+    const updatedTypes = editingProcessTemplate.documentTypes.map((type, idx) => {
       if (idx === docTypeIndex) {
         const updatedValidations = [...type.validations];
         updatedValidations[validationIndex] = value;
@@ -334,14 +335,14 @@ const ProcessTypes = () => {
       return type;
     });
 
-    setEditingProcessType({
-      ...editingProcessType,
+    setEditingProcessTemplate({
+      ...editingProcessTemplate,
       documentTypes: updatedTypes
     });
   };
 
   const handleEditRemoveValidation = (docTypeIndex, validationIndex) => {
-    const updatedTypes = editingProcessType.documentTypes.map((type, idx) => {
+    const updatedTypes = editingProcessTemplate.documentTypes.map((type, idx) => {
       if (idx === docTypeIndex) {
         const updatedValidations = type.validations.filter((_, vIdx) => vIdx !== validationIndex);
         return {
@@ -352,16 +353,16 @@ const ProcessTypes = () => {
       return type;
     });
 
-    setEditingProcessType({
-      ...editingProcessType,
+    setEditingProcessTemplate({
+      ...editingProcessTemplate,
       documentTypes: updatedTypes
     });
   };
 
   const handleEditRemoveDocumentType = (index) => {
-    const updatedTypes = editingProcessType.documentTypes.filter((_, i) => i !== index);
-    setEditingProcessType({
-      ...editingProcessType,
+    const updatedTypes = editingProcessTemplate.documentTypes.filter((_, i) => i !== index);
+    setEditingProcessTemplate({
+      ...editingProcessTemplate,
       documentTypes: updatedTypes
     });
   };
@@ -370,22 +371,26 @@ const ProcessTypes = () => {
     if (!showModal) return null;
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="fixed inset-0 bg-gray-500/20 backdrop-blur-sm flex items-center justify-center z-50">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4 shadow-xl border border-gray-200"
+        >
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">Create New Process Type</h2>
+            <h2 className="text-xl font-semibold text-gray-900">Create New Process Template</h2>
             <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-700">
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          <form onSubmit={handleCreateProcessType} className="space-y-6">
+          <form onSubmit={handleCreateProcessTemplate} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700">Name</label>
               <input
                 type="text"
-                value={newProcessType.name}
-                onChange={(e) => setNewProcessType({ ...newProcessType, name: e.target.value })}
+                value={newProcessTemplate.name}
+                onChange={(e) => setNewProcessTemplate({ ...newProcessTemplate, name: e.target.value })}
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
                 required
               />
@@ -394,8 +399,8 @@ const ProcessTypes = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700">Description</label>
               <textarea
-                value={newProcessType.description}
-                onChange={(e) => setNewProcessType({ ...newProcessType, description: e.target.value })}
+                value={newProcessTemplate.description}
+                onChange={(e) => setNewProcessTemplate({ ...newProcessTemplate, description: e.target.value })}
                 className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
                 rows="3"
               />
@@ -403,17 +408,17 @@ const ProcessTypes = () => {
 
             <div className="space-y-6">
               <div className="flex justify-between items-center">
-                <label className="block text-sm font-medium text-gray-700">Document Types</label>
+                <label className="block text-sm font-medium text-gray-700">Document List</label>
                 <button
                   type="button"
                   onClick={handleAddDocumentType}
-                  className="text-sm text-primary-600 hover:text-primary-700"
+                  className="text-sm text-blue-600 hover:text-blue-700"
                 >
-                  + Add Document Type
+                  + Add Document
                 </button>
               </div>
               
-              {newProcessType.documentTypes.map((type, typeIndex) => (
+              {newProcessTemplate.documentTypes.map((type, typeIndex) => (
                 <div key={typeIndex} className="border rounded-lg p-4 space-y-4">
                   <div className="flex gap-4 items-start">
                     <div className="flex-1">
@@ -452,7 +457,7 @@ const ProcessTypes = () => {
                       <button
                         type="button"
                         onClick={() => handleAddQuestion(typeIndex)}
-                        className="text-xs text-primary-600 hover:text-primary-700"
+                        className="text-xs text-blue-600 hover:text-blue-700"
                       >
                         + Add Suggested Question
                       </button>
@@ -487,7 +492,7 @@ const ProcessTypes = () => {
                       <button
                         type="button"
                         onClick={() => handleAddValidation(typeIndex)}
-                        className="text-xs text-primary-600 hover:text-primary-700"
+                        className="text-xs text-blue-600 hover:text-blue-700"
                       >
                         + Add Validation
                       </button>
@@ -529,13 +534,13 @@ const ProcessTypes = () => {
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
               >
-                Create Process Type
+                Create Process Template
               </button>
             </div>
           </form>
-        </div>
+        </motion.div>
       </div>
     );
   };
@@ -544,7 +549,7 @@ const ProcessTypes = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-full">
-          <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
         </div>
       </DashboardLayout>
     );
@@ -552,116 +557,150 @@ const ProcessTypes = () => {
 
   return (
     <DashboardLayout>
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-semibold">Process Types</h1>
+      <div className="p-6 max-w-7xl mx-auto bg-gray-50 min-h-screen">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Process Templates</h1>
+            <p className="text-gray-600 mt-1">Manage and organize your document processing workflows</p>
+          </div>
           <button
             onClick={() => setShowModal(true)}
-            className="flex items-center px-3 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-300 shadow-lg hover:shadow-blue-200"
           >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Process Type
+            <Plus className="w-5 h-5 mr-2" />
+            New Process Template
           </button>
         </div>
 
         {error && (
-          <div className="mb-4 p-4 bg-red-50 text-red-500 rounded-lg">
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-600 rounded-lg flex items-center">
+            <AlertCircle className="w-5 h-5 mr-2" />
             {error}
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {processTypes && processTypes.map((processType) => (
-            <div key={processType?._id} className="bg-white rounded-lg shadow p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center">
-                  <FolderTree className="w-5 h-5 text-primary-500 mr-2" />
-                  <h3 className="text-lg font-medium">{processType?.name}</h3>
-                </div>
-                <button
-                  onClick={() => handleEditClick(processType)}
-                  className="p-1 hover:bg-gray-100 rounded-full"
-                >
-                  <Edit className="w-4 h-4 text-gray-500" />
-                </button>
-              </div>
-              {processType?.description && (
-                <p className="text-gray-600 text-sm mb-4">{processType.description}</p>
-              )}
-              
-              <div className="border-t pt-3">
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Document Types:</h4>
-                <div className="space-y-4">
-                  {processType?.documentTypes?.map((type) => (
-                    <div key={type?._id || Math.random()} className="bg-gray-50 rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center">
-                          <FileText className="w-4 h-4 text-gray-400 mr-2" />
-                          <span className="font-medium text-sm">{type?.name}</span>
-                        </div>
-                        {type?.required && (
-                          <span className="text-xs px-2 py-1 bg-primary-100 text-primary-700 rounded-full">
-                            Required
-                          </span>
-                        )}
-                      </div>
-                      
-                      {type?.questions?.length > 0 && (
-                        <div className="mt-2 pl-6 border-l-2 border-gray-200">
-                          <p className="text-xs font-medium text-gray-500 mb-1">Suggested Questions:</p>
-                          <ul className="space-y-1">
-                            {type.questions.map((question, qIndex) => (
-                              <li 
-                                key={qIndex} 
-                                className="text-sm text-gray-600 flex items-start"
-                              >
-                                <span className="text-xs text-gray-400 mr-2 mt-1">•</span>
-                                {question?.text}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+          <div className="grid grid-cols-12 gap-4 p-4 bg-gray-50 border-b border-gray-200 rounded-t-xl">
+            <div className="col-span-3 font-medium text-gray-700">Process Template</div>
+            <div className="col-span-9 font-medium text-gray-700">Document List</div>
+          </div>
 
-                      {type?.validations?.length > 0 && (
-                        <div className="mt-2 pl-6 border-l-2 border-gray-200">
-                          <p className="text-xs font-medium text-gray-500 mb-1">Validations:</p>
-                          <ul className="space-y-1">
-                            {type.validations.map((validation, vIndex) => (
-                              <li key={vIndex} className="text-sm text-gray-600 flex items-start">
-                                <Check className="w-3 h-3 text-green-500 mr-2 mt-1" />
-                                {validation}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
+          <div className="divide-y divide-gray-100">
+            {processTemplates && processTemplates.map((processTemplate) => (
+              <motion.div
+                key={processTemplate?._id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="grid grid-cols-12 gap-4 p-4 hover:bg-gray-50 group transition-colors duration-200"
+              >
+                <div className="col-span-3">
+                  <div className="flex items-start space-x-3">
+                    <motion.div 
+                      whileHover={{ rotate: 15 }}
+                      className="p-2 bg-blue-50 rounded-lg shrink-0"
+                    >
+                      <FolderTree className="w-5 h-5 text-blue-500" />
+                    </motion.div>
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors duration-300">
+                        {processTemplate?.name}
+                      </h3>
+                      {processTemplate?.description && (
+                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">{processTemplate.description}</p>
                       )}
+                      <button
+                        onClick={() => handleEditClick(processTemplate)}
+                        className="mt-2 text-xs text-blue-600 hover:text-blue-700 flex items-center"
+                      >
+                        <Edit className="w-3 h-3 mr-1" />
+                        Edit
+                      </button>
                     </div>
-                  ))}
+                  </div>
                 </div>
-              </div>
-            </div>
-          ))}
+
+                <div className="col-span-9">
+                  <div className="flex flex-wrap gap-3">
+                    {processTemplate?.documentTypes?.map((type) => (
+                      <motion.div
+                        key={type?._id || Math.random()}
+                        whileHover={{ y: -2 }}
+                        className="bg-gray-50 rounded-lg p-3 border border-gray-100 hover:border-blue-200 transition-all duration-200 flex-grow basis-[calc(50%-0.75rem)]"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-blue-500" />
+                            <span className="font-semibold text-base text-gray-900">{type?.name}</span>
+                          </div>
+                          {type?.required && (
+                            <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">
+                              Required
+                            </span>
+                          )}
+                        </div>
+
+                        {type?.questions?.length > 0 && (
+                          <div className="mb-3">
+                            <p className="text-xs font-medium text-gray-600 mb-2">Suggested Questions:</p>
+                            <div className="pl-3 border-l-2 border-gray-100 space-y-2">
+                              {type.questions.map((question, qIndex) => (
+                                <div key={qIndex} className="flex items-start gap-2">
+                                  <span className="text-gray-400 mt-1 text-xs">•</span>
+                                  <p className="text-xs text-gray-500 leading-relaxed">
+                                    {question.text}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {type?.validations?.length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-gray-600 mb-2">Validations:</p>
+                            <div className="pl-3 border-l-2 border-gray-100 space-y-2">
+                              {type.validations.map((validation, vIndex) => (
+                                <div key={vIndex} className="flex items-center gap-2">
+                                  <Check className="w-3 h-3 text-gray-400" />
+                                  <p className="text-xs text-gray-500">
+                                    {validation}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
         </div>
 
-        {showEditModal && editingProcessType && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        {showEditModal && editingProcessTemplate && (
+          <div className="fixed inset-0 bg-gray-500/20 backdrop-blur-sm flex items-center justify-center z-50">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4 shadow-xl border border-gray-200"
+            >
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold">Edit Process Type</h2>
+                <h2 className="text-xl font-semibold text-gray-900">Edit Process Template</h2>
                 <button onClick={() => setShowEditModal(false)} className="text-gray-500 hover:text-gray-700">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleUpdateProcessType} className="space-y-6">
+              <form onSubmit={handleUpdateProcessTemplate} className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Name</label>
                   <input
                     type="text"
-                    value={editingProcessType.name}
-                    onChange={(e) => setEditingProcessType({ 
-                      ...editingProcessType, 
+                    value={editingProcessTemplate.name}
+                    onChange={(e) => setEditingProcessTemplate({ 
+                      ...editingProcessTemplate, 
                       name: e.target.value 
                     })}
                     className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
@@ -672,9 +711,9 @@ const ProcessTypes = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Description</label>
                   <textarea
-                    value={editingProcessType.description}
-                    onChange={(e) => setEditingProcessType({ 
-                      ...editingProcessType, 
+                    value={editingProcessTemplate.description}
+                    onChange={(e) => setEditingProcessTemplate({ 
+                      ...editingProcessTemplate, 
                       description: e.target.value 
                     })}
                     className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
@@ -684,28 +723,28 @@ const ProcessTypes = () => {
 
                 <div className="space-y-6">
                   <div className="flex justify-between items-center">
-                    <label className="block text-sm font-medium text-gray-700">Document Types</label>
+                    <label className="block text-sm font-medium text-gray-700">Document List</label>
                     <button
                       type="button"
                       onClick={() => {
-                        const updatedTypes = [...editingProcessType.documentTypes, {
+                        const updatedTypes = [...editingProcessTemplate.documentTypes, {
                           name: '',
                           required: false,
                           questions: [{ text: '' }],
                           validations: ['']
                         }];
-                        setEditingProcessType({
-                          ...editingProcessType,
+                        setEditingProcessTemplate({
+                          ...editingProcessTemplate,
                           documentTypes: updatedTypes
                         });
                       }}
-                      className="text-sm text-primary-600 hover:text-primary-700"
+                      className="text-sm text-blue-600 hover:text-blue-700"
                     >
-                      + Add Document Type
+                      + Add Document
                     </button>
                   </div>
                   
-                  {editingProcessType.documentTypes.map((type, typeIndex) => (
+                  {editingProcessTemplate.documentTypes.map((type, typeIndex) => (
                     <div key={typeIndex} className="border rounded-lg p-4 space-y-4">
                       <div className="flex gap-4 items-start">
                         <div className="flex-1">
@@ -744,7 +783,7 @@ const ProcessTypes = () => {
                           <button
                             type="button"
                             onClick={() => handleEditAddQuestion(typeIndex)}
-                            className="text-xs text-primary-600 hover:text-primary-700"
+                            className="text-xs text-blue-600 hover:text-blue-700"
                           >
                             + Add Suggested Question
                           </button>
@@ -779,7 +818,7 @@ const ProcessTypes = () => {
                           <button
                             type="button"
                             onClick={() => handleEditAddValidation(typeIndex)}
-                            className="text-xs text-primary-600 hover:text-primary-700"
+                            className="text-xs text-blue-600 hover:text-blue-700"
                           >
                             + Add Validation
                           </button>
@@ -821,13 +860,13 @@ const ProcessTypes = () => {
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
                   >
-                    Update Process Type
+                    Update Process Template
                   </button>
                 </div>
               </form>
-            </div>
+            </motion.div>
           </div>
         )}
 
@@ -837,4 +876,4 @@ const ProcessTypes = () => {
   );
 };
 
-export default ProcessTypes; 
+export default ProcessTemplates; 

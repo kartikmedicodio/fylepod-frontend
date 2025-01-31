@@ -33,7 +33,12 @@ const CRM = () => {
       try {
         const response = await CRMService.getCompanyUsers();
         const users = response.data.users;
-        const filteredUsers = users.filter(u => u.company_name === user.company_name);
+        console.log("all users",users);
+        const filteredUsers = users.filter(u => 
+          u.company_name === user.company_name && 
+          u.role !== 'admin'  // Exclude admin users
+        );
+        console.log("filtered users",filteredUsers);
         setCompanyUsers(filteredUsers);
       } catch (err) {
         setError('Failed to fetch company users');
@@ -400,12 +405,12 @@ const CRM = () => {
       <div className="flex h-screen">
         {/* Left side - Company Details (Fixed) */}
         <div className="fixed w-1/4 bg-white border-r h-screen">
-          <div className="p-6 overflow-y-auto max-h-screen"> {/* Allow vertical scroll if content is too long */}
+          <div className="p-6 overflow-y-auto max-h-screen">
             <div className="mb-8">
               <h1 className="text-2xl font-bold text-gray-900 mb-2">Company Profile</h1>
               <div className="w-24 h-24 bg-primary-100 rounded-full flex items-center justify-center mb-6">
                 <span className="text-3xl font-bold text-primary-600">
-                  {user.company_name?.charAt(0)}
+                  {user?.company_id?.company_name?.charAt(0) || user.company_name?.charAt(0)}
                 </span>
               </div>
             </div>
@@ -413,7 +418,9 @@ const CRM = () => {
             <div className="space-y-6">
               <div>
                 <label className="text-sm text-gray-500 block mb-2">Company Name</label>
-                <p className="text-gray-900 font-medium break-words">{user.company_name}</p>
+                <p className="text-gray-900 font-medium break-words">
+                  {user?.company_id?.company_name || user.company_name}
+                </p>
               </div>
 
               <div>
@@ -449,7 +456,7 @@ const CRM = () => {
         </div>
 
         {/* Right side - Users List (Scrollable) */}
-        <div className="w-2/3 ml-[33.333333%]"> {/* Added specific width */}
+        <div className="w-2/3 ml-[33.333333%]">
           <div className="p-6 pb-0">
             <h2 className="text-xl font-semibold text-gray-900">Company Directory</h2>
             <p className="text-gray-500">All team members ({companyUsers.length})</p>
@@ -483,6 +490,10 @@ const CRM = () => {
                           <span>{user.phone}</span>
                         </div>
                       )}
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Building className="w-4 h-4 mr-2" />
+                        <span className="truncate">{user.company_id?.company_name}</span>
+                      </div>
                     </div>
                   </div>
                 </Link>

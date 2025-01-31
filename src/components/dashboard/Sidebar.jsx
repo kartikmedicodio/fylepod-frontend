@@ -33,14 +33,12 @@ const Sidebar = () => {
 
   const navigation = [
     { name: 'AI Chat', href: '/chat', icon: MessageSquare },
-    { name: 'CRM', href: '/crm', icon: Building },
+    { name: 'Corporation', href: '/crm', icon: Building },
   ];
 
-  // Management section links - only visible to admin
+  // Set Up section links - only visible to admin
   const managementLinks = [
-    { name: 'Users', href: '/users', icon: Users },
-    { name: 'Process Types', href: '/categories', icon: FolderTree },
-    { name: 'Assign', href: '/settings', icon: Settings },
+    { name: 'Knowledge Base', href: '/categories', icon: FolderTree },
   ];
 
   const isActive = (path) => {
@@ -131,11 +129,11 @@ const Sidebar = () => {
           </div>
         </div>
 
-        {/* Management Section - Only visible to admin */}
+        {/* Set Up Section - Only visible to admin */}
         {user?.role === 'admin' && (
           <div className="mt-8">
             <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Management
+              Set Up
             </h3>
             <div className="mt-2 space-y-1">
               {managementLinks.map((item) => {
