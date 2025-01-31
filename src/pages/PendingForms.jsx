@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useParams } from 'react-router-dom';
 import api from '../utils/api';
 import { Upload, Loader2, CheckCircle, Wand2, Camera, Files } from 'lucide-react';
 import Sidebar from '../components/dashboard/Sidebar';
@@ -9,6 +10,7 @@ import 'react-image-crop/dist/ReactCrop.css';
 
 const PendingProcesses = () => {
   const { user } = useAuth();
+  const { userId, applicationId } = useParams();
   const [pendingProcesses, setPendingProcesses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -40,7 +42,7 @@ const PendingProcesses = () => {
     if (user?._id) {
       Promise.all([fetchPendingProcesses(), fetchExistingDocuments()]);
     }
-  }, [user?._id]);
+  }, [user?._id, userId, applicationId]);
 
   const fetchExistingDocuments = async () => {
     try {
@@ -114,14 +116,25 @@ const PendingProcesses = () => {
   const fetchPendingProcesses = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/management/user/${user._id}`, {
+      
+      // If userId is provided in URL, use that instead of logged-in user's ID
+      const targetUserId = userId || user._id;
+      
+      const response = await api.get(`/management/user/${targetUserId}`, {
         params: {
           status: 'pending'
         }
       });
 
-      console.log('Fetched pending processes:', response.data);
-      setPendingProcesses(response.data.data.entries);
+      let processes = response.data.data.entries;
+
+      // If applicationId is provided, filter for that specific application
+      if (applicationId) {
+        processes = processes.filter(process => process._id === applicationId);
+      }
+
+      console.log('Fetched pending processes:', processes);
+      setPendingProcesses(processes);
     } catch (err) {
       console.error('Error fetching pending processes:', err);
       setError(err.response?.data?.message || 'Failed to fetch pending processes');
@@ -584,9 +597,17 @@ const PendingProcesses = () => {
       className="bg-white rounded-lg shadow p-6"
     >
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">
-          {process.categoryName}
-        </h2>
+        <div className='flex flex-col gap-2'>
+          <h2 className="text-xl font-semibold">
+            {process.categoryName}
+          </h2>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-600">Assigned to:</span>
+            <p className="text-base font-medium text-gray-700 px-3 py-1 bg-gray-100 rounded-md">
+              {process.userId?.name || 'Unknown User'}
+            </p>
+          </div>
+        </div>
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
             <span className="text-sm text-gray-500">
@@ -653,7 +674,7 @@ const PendingProcesses = () => {
     if (!user) {
       return (
         <div className="text-center text-gray-500">
-          Please log in to view your pending processes.
+          Please log in to view pending processes.
         </div>
       );
     }
@@ -677,33 +698,50 @@ const PendingProcesses = () => {
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">My Pending Processes</h1>
-          <button
-            onClick={() => handleAutoFill(existingDocuments)}
-            disabled={autoFilling || pendingProcesses.length === 0}
-            className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
-              ${(autoFilling || pendingProcesses.length === 0)
-                ? 'bg-gray-300 cursor-not-allowed text-gray-500'
-                : 'bg-primary-600 hover:bg-primary-700 text-white cursor-pointer'
-              }`}
-          >
-            {autoFilling ? (
-              <Loader2 className="w-4 h-4 animate-spin mr-2" />
-            ) : (
-              <Wand2 className="w-4 h-4 mr-2" />
-            )}
-            Auto-fill Documents
-          </button>
+          <h1 className="text-2xl font-bold">
+            {applicationId 
+              ? 'Pending Application Details'
+              : userId 
+                ? `${pendingProcesses[0]?.userId?.name || 'User'}'s Pending Processes`
+                : 'My Pending Processes'
+            }
+          </h1>
+          {/* Only show auto-fill button if not viewing a specific application */}
+          {!applicationId && (
+            <button
+              onClick={() => handleAutoFill(existingDocuments)}
+              disabled={autoFilling || pendingProcesses.length === 0}
+              className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
+                ${(autoFilling || pendingProcesses.length === 0)
+                  ? 'bg-gray-300 cursor-not-allowed text-gray-500'
+                  : 'bg-primary-600 hover:bg-primary-700 text-white cursor-pointer'
+                }`}
+            >
+              {autoFilling ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Wand2 className="w-4 h-4 mr-2" />
+              )}
+              Auto-fill Documents
+            </button>
+          )}
         </div>
         
         {pendingProcesses.length === 0 ? (
           <div className="text-center text-gray-500 p-8 bg-white rounded-lg shadow">
             <p className="text-lg">No pending processes found</p>
-            <p className="text-sm mt-2">You don't have any processes waiting for document uploads.</p>
+            <p className="text-sm mt-2">
+              {applicationId 
+                ? 'The requested application was not found or is not pending.'
+                : userId 
+                  ? 'This user has no pending processes.'
+                  : "You don't have any processes waiting for document uploads."
+              }
+            </p>
           </div>
         ) : (
           <div className="space-y-6">
-            {existingDocuments.length > 0 && (
+            {!applicationId && existingDocuments.length > 0 && (
               <div className="bg-blue-50 p-4 rounded-lg">
                 <p className="text-sm text-blue-700">
                   You have {existingDocuments.length} existing document{existingDocuments.length !== 1 ? 's' : ''} that might match your requirements.

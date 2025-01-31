@@ -19,7 +19,7 @@ const CRMService = {
   // Get completed applications for a specific user
   async getUserCompletedApplications(userId) {
     try {
-      const response = await axios.get(`${API_URL}/management/user/${userId}?status=completed`, {
+      const response = await axios.get(`${API_URL}/management/user/${userId}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
@@ -42,6 +42,14 @@ const CRMService = {
     } catch (error) {
       throw error;
     }
+  },
+
+  getUserPendingApplications: (userId) => {
+    return axios.get(`${API_URL}/users/${userId}/applications/pending`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+      },
+    });
   },
 };
 
