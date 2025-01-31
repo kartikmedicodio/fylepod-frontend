@@ -1,100 +1,159 @@
-import { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { User, Mail, Calendar } from 'lucide-react';
-import Sidebar from '../components/dashboard/Sidebar';
-import Header from '../components/dashboard/Header';
+import { useState, useEffect } from 'react';
+import { User, Mail, Calendar, Building, Shield, Settings } from 'lucide-react';
+import DashboardLayout from '../layouts/DashboardLayout';
+import { motion } from 'framer-motion';
+import api from '../utils/api';
 
 const MyProfile = () => {
-  const { user } = useAuth();
-  const [formData] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
-    joinedDate: user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : ''
-  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [profileData, setProfileData] = useState(null);
+
+  useEffect(() => {
+    fetchUserProfile();
+  }, []);
+
+  const fetchUserProfile = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/auth/me');
+      setProfileData(response.data.data.user);
+      setError(null);
+    } catch (err) {
+      setError('Failed to fetch profile data');
+      console.error('Profile fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const ProfileSection = ({ icon: Icon, label, value }) => (
+    <div className="flex items-center space-x-3 p-4 bg-white rounded-lg border border-gray-100 hover:border-blue-200 transition-all duration-200">
+      <div className="p-2 bg-blue-50 rounded-lg">
+        <Icon className="w-5 h-5 text-blue-500" />
+      </div>
+      <div>
+        <p className="text-sm text-gray-500">{label}</p>
+        <p className="text-base font-medium text-gray-900">{value}</p>
+      </div>
+    </div>
+  );
+
+  const FeatureCard = ({ feature, enabled }) => (
+    <div className={`p-3 rounded-lg border ${enabled ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
+      <span className={`text-sm font-medium ${enabled ? 'text-blue-700' : 'text-gray-500'}`}>
+        {feature}
+      </span>
+    </div>
+  );
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-screen">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout>
+        <div className="p-6">
+          <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-200">
+            {error}
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-3xl mx-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h1 className="text-2xl font-semibold text-gray-900">My Profile</h1>
-              <div className="flex items-center space-x-2">
-                <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center">
-                  <span className="text-lg font-medium text-primary-700">
-                    {(user?.name || 'U').charAt(0)}
-                  </span>
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-gray-900">{user?.name}</div>
-                  <div className="text-sm text-gray-500">{user?.email}</div>
-                </div>
-              </div>
+    <DashboardLayout>
+      <div className="p-6 max-w-7xl mx-auto">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-6"
+        >
+          {/* Header Section */}
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">My Profile</h1>
+              <p className="text-gray-600 mt-1">View your account information</p>
             </div>
-
-            <div className="bg-white shadow rounded-lg overflow-hidden">
-              {/* Account Information Section */}
-              <div className="p-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">Account Information</h2>
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Name Field */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        <div className="flex items-center mb-1">
-                          <User className="w-4 h-4 mr-1" />
-                          <span>Full Name</span>
-                        </div>
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.name}
-                        readOnly
-                        className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 bg-gray-50 text-gray-500"
-                      />
-                    </div>
-
-                    {/* Email Field */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">
-                        <div className="flex items-center mb-1">
-                          <Mail className="w-4 h-4 mr-1" />
-                          <span>Email Address</span>
-                        </div>
-                      </label>
-                      <input
-                        type="email"
-                        value={formData.email}
-                        readOnly
-                        className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 bg-gray-50 text-gray-500"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Joined Date (Read-only) */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      <div className="flex items-center mb-1">
-                        <Calendar className="w-4 h-4 mr-1" />
-                        <span>Member Since</span>
-                      </div>
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.joinedDate}
-                      readOnly
-                      className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 bg-gray-50 text-gray-500"
-                    />
-                  </div>
-                </div>
+            <div className="flex items-center space-x-3">
+              <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                {profileData?.role?.toUpperCase()}
+              </span>
+              <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center">
+                <span className="text-xl font-semibold text-blue-600">
+                  {(profileData?.name || 'U').charAt(0)}
+                </span>
               </div>
             </div>
           </div>
-        </main>
+
+          {/* Profile Information */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-900">Profile Information</h2>
+            </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <ProfileSection 
+                icon={User} 
+                label="Full Name" 
+                value={profileData?.name || 'N/A'} 
+              />
+              <ProfileSection 
+                icon={Mail} 
+                label="Email Address" 
+                value={profileData?.email || 'N/A'} 
+              />
+              <ProfileSection 
+                icon={Building} 
+                label="Company Name" 
+                value={profileData?.company_name || 'N/A'} 
+              />
+              <ProfileSection 
+                icon={Shield} 
+                label="Role" 
+                value={profileData?.role?.toUpperCase() || 'N/A'} 
+              />
+              <ProfileSection 
+                icon={Calendar} 
+                label="Member Since" 
+                value={profileData?.createdAt ? new Date(profileData.createdAt).toLocaleDateString() : 'N/A'} 
+              />
+            </div>
+          </div>
+
+          {/* Features Access */}
+          {profileData?.features && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100">
+                <div className="flex items-center">
+                  <Settings className="w-5 h-5 text-gray-500 mr-2" />
+                  <h2 className="text-lg font-semibold text-gray-900">Features Access</h2>
+                </div>
+              </div>
+              <div className="p-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <FeatureCard feature="AI Chat" enabled={profileData.features.aiChat} />
+                  <FeatureCard feature="CRM" enabled={profileData.features.crm} />
+                  <FeatureCard feature="Pending" enabled={profileData.features.pending} />
+                  <FeatureCard feature="Completed" enabled={profileData.features.completed} />
+                  <FeatureCard feature="Users" enabled={profileData.features.users} />
+                  <FeatureCard feature="Process Types" enabled={profileData.features.processTypes} />
+                  <FeatureCard feature="Assign" enabled={profileData.features.assign} />
+                </div>
+              </div>
+            </div>
+          )}
+        </motion.div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
 
