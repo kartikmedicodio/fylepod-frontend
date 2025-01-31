@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, Mail, Calendar, Building, Shield, Settings } from 'lucide-react';
+import { User, Mail, Calendar, Building, Shield } from 'lucide-react';
 import DashboardLayout from '../layouts/DashboardLayout';
 import { motion } from 'framer-motion';
 import api from '../utils/api';
@@ -36,14 +36,6 @@ const MyProfile = () => {
         <p className="text-sm text-gray-500">{label}</p>
         <p className="text-base font-medium text-gray-900">{value}</p>
       </div>
-    </div>
-  );
-
-  const FeatureCard = ({ feature, enabled }) => (
-    <div className={`p-3 rounded-lg border ${enabled ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
-      <span className={`text-sm font-medium ${enabled ? 'text-blue-700' : 'text-gray-500'}`}>
-        {feature}
-      </span>
     </div>
   );
 
@@ -128,29 +120,6 @@ const MyProfile = () => {
               />
             </div>
           </div>
-
-          {/* Features Access */}
-          {profileData?.features && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100">
-                <div className="flex items-center">
-                  <Settings className="w-5 h-5 text-gray-500 mr-2" />
-                  <h2 className="text-lg font-semibold text-gray-900">Features Access</h2>
-                </div>
-              </div>
-              <div className="p-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <FeatureCard feature="AI Chat" enabled={profileData.features.aiChat} />
-                  <FeatureCard feature="CRM" enabled={profileData.features.crm} />
-                  <FeatureCard feature="Pending" enabled={profileData.features.pending} />
-                  <FeatureCard feature="Completed" enabled={profileData.features.completed} />
-                  <FeatureCard feature="Users" enabled={profileData.features.users} />
-                  <FeatureCard feature="Process Types" enabled={profileData.features.processTypes} />
-                  <FeatureCard feature="Assign" enabled={profileData.features.assign} />
-                </div>
-              </div>
-            </div>
-          )}
         </motion.div>
       </div>
     </DashboardLayout>

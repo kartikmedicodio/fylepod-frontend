@@ -33,7 +33,7 @@ const Sidebar = () => {
 
   const navigation = [
     { name: 'AI Chat', href: '/chat', icon: MessageSquare },
-    { name: 'CRM', href: '/crm', icon: Building },
+    { name: 'Corporation', href: '/crm', icon: Building },
   ];
 
   // Set Up section links - only visible to admin
@@ -56,7 +56,7 @@ const Sidebar = () => {
   // Forms section renamed to Process/Applications section
   const processLinks = [
     { 
-      name: 'Pending', 
+      name: 'Active Process',
       href: '/pending-forms', 
       icon: ClipboardList,
       count: pendingFormsCount
