@@ -10,7 +10,8 @@ import {
   ClipboardList,
   FileCheck,
   FileArchive,
-  Building
+  Building,
+  ListTree 
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -42,7 +43,17 @@ const Sidebar = () => {
     { name: 'Assign', href: '/settings', icon: Settings },
   ];
 
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path) => {
+    // For exact matches
+    if (location.pathname === path) return true;
+    
+    // Special case for pending-forms routes
+    if (path === '/pending-forms') {
+      return location.pathname.startsWith('/pending-forms/');
+    }
+    
+    return false;
+  };
 
   // Forms section renamed to Process/Applications section
   const processLinks = [
@@ -53,9 +64,9 @@ const Sidebar = () => {
       count: pendingFormsCount
     },
     { 
-      name: 'Completed', 
+      name: 'Process List', 
       href: '/completed-forms', 
-      icon: FileCheck,
+      icon: FolderTree,
       count: 0
     },
   ];

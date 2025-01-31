@@ -104,6 +104,14 @@ const App = () => {
             }
           />
           <Route
+            path="/pending-forms/:userId/application/:applicationId"
+            element={
+              <PrivateRoute>
+                <PendingForms />
+              </PrivateRoute>
+            }
+          />
+          <Route
             path="/completed-forms"
             element={
               <PrivateRoute>

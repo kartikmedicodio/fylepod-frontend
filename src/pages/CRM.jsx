@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import CRMService from '../services/crm.service';
-import { Mail, Phone, Building, FileCheck, File, FileText, ArrowLeft } from 'lucide-react';
+import { Mail, Phone, Building, FileCheck, File, FileText, ArrowLeft, ChevronDown } from 'lucide-react';
 import Sidebar from '../components/dashboard/Sidebar';
 import Header from '../components/dashboard/Header';
 
@@ -18,6 +18,8 @@ const CRM = () => {
   const navigate = useNavigate();
   const { userId, applicationId, documentId } = useParams();
   const [selectedApplication, setSelectedApplication] = useState(null);
+  const [activeTab, setActiveTab] = useState('completed');
+  const [pendingApplications, setPendingApplications] = useState([]);
 
   useEffect(() => {
     const fetchCompanyUsers = async () => {
@@ -51,19 +53,28 @@ const CRM = () => {
 
   useEffect(() => {
     if (applicationId) {
-      const app = completedApplications.find(a => a._id === applicationId);
+      const app = activeTab === 'completed' 
+        ? completedApplications.find(a => a._id === applicationId)
+        : pendingApplications.find(a => a._id === applicationId);
       setSelectedApplication(app);
     }
-  }, [applicationId, completedApplications]);
+  }, [applicationId, completedApplications, pendingApplications, activeTab]);
 
   const handleUserClick = async (userId) => {
     const selectedUser = companyUsers.find(u => u._id === userId);
     setSelectedUser(selectedUser);
     try {
       const response = await CRMService.getUserCompletedApplications(userId);
-      setCompletedApplications(response.data.entries || []);
+      const allApplications = response.data.entries || [];
+      
+      // Filter applications based on categoryStatus
+      const completed = allApplications.filter(app => app.categoryStatus === 'completed');
+      const pending = allApplications.filter(app => app.categoryStatus === 'pending');
+      
+      setCompletedApplications(completed);
+      setPendingApplications(pending);
     } catch (err) {
-      console.error('Failed to fetch completed applications:', err);
+      console.error('Failed to fetch applications:', err);
     }
   };
 
@@ -95,91 +106,127 @@ const CRM = () => {
     if (!selectedUser) return null;
 
     return (
-      <div className="p-6">
-        <div className="mb-6 flex items-center">
-          <button 
-            onClick={() => navigate('/crm')}
-            className="mr-4 p-2 hover:bg-gray-100 rounded-full"
-          >
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">User Profile</h1>
-            <p className="text-gray-500">{selectedUser.name}</p>
-          </div>
-        </div>
-
-        {/* User Profile Card */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="flex items-start space-x-6">
-            <div className="w-24 h-24 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
+      <div className="flex h-screen bg-gray-50">
+        {/* Left Sidebar - User Details */}
+        <div className="w-80 border-r bg-white">
+          <div className="p-6">
+            {/* Profile Image */}
+            <div className="w-24 h-24 bg-primary-100 rounded-full flex items-center justify-center mb-4">
               <span className="text-3xl font-bold text-primary-600">
                 {selectedUser.name.charAt(0)}
               </span>
             </div>
-            <div className="flex-1">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                {selectedUser.name}
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* User Details */}
-                <div className="space-y-3">
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Mail className="w-4 h-4 mr-2" />
-                    <span>{selectedUser.email}</span>
-                  </div>
-                  {selectedUser.phone && (
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Phone className="w-4 h-4 mr-2" />
-                      <span>{selectedUser.phone}</span>
-                    </div>
-                  )}
+
+            {/* User Name */}
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">{selectedUser.name}</h2>
+
+            {/* User Details */}
+            <div className="space-y-6">
+              <div>
+                <label className="text-sm text-gray-500 block mb-1">Email</label>
+                <div className="flex items-center text-sm text-gray-900">
+                  <Mail className="w-4 h-4 mr-2 text-gray-500" />
+                  <span>{selectedUser.email}</span>
                 </div>
-                <div className="space-y-3">
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Building className="w-4 h-4 mr-2" />
-                    <span>Company: {selectedUser.company_name || 'N/A'}</span>
-                  </div>
-                  {selectedUser.lawfirm_name && (
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Building className="w-4 h-4 mr-2" />
-                      <span>Law Firm: {selectedUser.lawfirm_name}</span>
-                    </div>
-                  )}
+              </div>
+
+              <div>
+                <label className="text-sm text-gray-500 block mb-1">Company</label>
+                <div className="flex items-center text-sm text-gray-900">
+                  <Building className="w-4 h-4 mr-2 text-gray-500" />
+                  <span>{selectedUser?.company_id?.company_name || 'N/A'}</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Applications List */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Completed Applications</h2>
-          <div className="space-y-4">
-            {completedApplications.map((app) => (
-              <Link
-                key={app._id}
-                to={`/crm/user/${selectedUser._id}/application/${app._id}`}
-                className="block border rounded-lg p-4 hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-center space-x-3">
-                  <FileCheck className="w-5 h-5 text-green-500" />
-                  <div className="flex-1">
-                    <div className="flex justify-between items-start">
-                      <h3 className="font-medium">{app.categoryName}</h3>
-                      <span className="text-xs text-gray-500">
-                        {new Date(app.updatedAt).toLocaleDateString()}
-                      </span>
+        {/* Right Content Area */}
+        <div className="flex-1 overflow-auto">
+          {/* Content Area */}
+          <div className="p-6">
+            {/* Tabs */}
+            <div className="border-b mb-6">
+              <div className="flex space-x-8">
+                <button
+                  onClick={() => setActiveTab('completed')}
+                  className={`pb-4 px-2 border-b-2 transition-colors ${
+                    activeTab === 'completed'
+                      ? 'border-primary-500 text-primary-600 font-medium'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Completed Applications
+                </button>
+                <button
+                  onClick={() => setActiveTab('pending')}
+                  className={`pb-4 px-2 border-b-2 transition-colors ${
+                    activeTab === 'pending'
+                      ? 'border-primary-500 text-primary-600 font-medium'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Pending Applications
+                </button>
+              </div>
+            </div>
+
+            {/* Applications List */}
+            <div className="space-y-4">
+              {activeTab === 'completed' ? (
+                // Completed Applications
+                completedApplications.map((app) => (
+                  <Link
+                    key={app._id}
+                    to={`/crm/user/${selectedUser._id}/application/${app._id}`}
+                    className="block border rounded-lg p-4 hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <FileCheck className="w-5 h-5 text-green-500" />
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start">
+                          <h3 className="font-medium">{app.categoryName}</h3>
+                          <span className="text-xs text-gray-500">
+                            {new Date(app.updatedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div className="mt-2">
+                          <p className="text-sm text-gray-600">
+                            Documents: {app.documentTypes.length}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="mt-2">
-                      <p className="text-sm text-gray-600">
-                        Documents: {app.documentTypes.length}
-                      </p>
+                  </Link>
+                ))
+              ) : (
+                // Pending Applications
+                pendingApplications.map((app) => (
+                  <Link
+                    key={app._id}
+                    to={`/pending-forms/${selectedUser._id}/application/${app._id}`}
+                    className="block border rounded-lg p-4 hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <File className="w-5 h-5 text-orange-500" />
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start">
+                          <h3 className="font-medium">{app.categoryName}</h3>
+                          <span className="text-xs text-gray-500">
+                            {new Date(app.updatedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div className="mt-2">
+                          <p className="text-sm text-gray-600">
+                            Documents: {app.documentTypes.length}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              </Link>
-            ))}
+                  </Link>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>
