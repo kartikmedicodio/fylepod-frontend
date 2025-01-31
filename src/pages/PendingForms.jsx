@@ -157,23 +157,38 @@ const PendingProcesses = () => {
     }
   };
 
+  const validateFileType = (file) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+    if (!allowedTypes.includes(file.type)) {
+      throw new Error('Invalid file type. Please upload only images (JPG, PNG) or PDF files.');
+    }
+    return true;
+  };
+
   const handleFileUpload = async (managementId, documentTypeId, file) => {
     try {
+      // Validate file type before uploading
+      validateFileType(file);
+      
       setUploading(prev => ({ ...prev, [documentTypeId]: true }));
       setProcessingDocuments(prev => ({ ...prev, [documentTypeId]: true }));
       
       const process = pendingProcesses.find(f => f._id === managementId);
       const documentType = process?.documentTypes.find(d => d.documentTypeId === documentTypeId);
       
+      // Create unique filename with timestamp and original extension
+      const fileExtension = file.name.split('.').pop();
+      const timestamp = new Date().getTime();
+      const uniqueFilename = `${timestamp}-${documentType?.name.replace(/\s+/g, '_')}.${fileExtension}`;
+
       const formData = new FormData();
-      formData.append('file', file);
-      formData.append('name', file.name);
+      formData.append('file', file); // Backend handles file naming
+      formData.append('name', uniqueFilename);
       formData.append('type', documentType?.name || 'other');
       formData.append('form_category', process?.categoryName || 'other');
       formData.append('managementId', managementId);
       formData.append('documentTypeId', documentTypeId);
       formData.append('managementDocumentId', documentType._id);
-      formData.append('uploadedBy', user._id);
 
       const uploadResponse = await api.post('/documents', formData, {
         headers: {
@@ -183,7 +198,7 @@ const PendingProcesses = () => {
 
       console.log('Upload Response:', uploadResponse.data);
 
-      if (uploadResponse.data && uploadResponse.data.data.document) {
+      if (uploadResponse.data?.status === 'success' && uploadResponse.data.data.document) {
         const documentId = uploadResponse.data.data.document._id;
         
         setUploadedDocumentIds(prev => ({
@@ -191,6 +206,7 @@ const PendingProcesses = () => {
           [documentTypeId]: documentId
         }));
 
+        // Wait for document processing to complete
         const processingComplete = await checkDocumentProcessing(documentId, documentTypeId);
         
         if (processingComplete) {
@@ -218,11 +234,15 @@ const PendingProcesses = () => {
           [documentTypeId]: {
             managementId,
             documentTypeId,
-            uploaded: true
+            uploaded: true,
+            filePath: uploadResponse.data.data.document.filePath,
+            originalName: uploadResponse.data.data.document.originalName
           }
         }));
 
         await fetchExistingDocuments();
+      } else {
+        throw new Error('Upload failed: Invalid response from server');
       }
       return false;
     } catch (err) {
