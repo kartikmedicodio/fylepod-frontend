@@ -380,85 +380,95 @@ const AIChat = () => {
 
   return (
     <DashboardLayout>
-      <div className="h-full flex">
-        {/* Document List Sidebar */}
-        <div className="w-80 border-r bg-white flex flex-col h-screen sticky top-0">
+      <div className="h-full flex bg-gray-50">
+        {/* Document List Sidebar - Updated styling */}
+        <div className="w-96 border-r border-gray-200 bg-white flex flex-col h-screen sticky top-0">
           <div className="flex-1 overflow-y-auto">
-            <div className="p-4">
-              <div className="mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">Available Documents</h2>
-                <p className="text-sm text-gray-500">Select user and category to view documents</p>
+            <div className="p-6">
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">Documents</h2>
+                <p className="text-sm text-gray-500 mt-1">Select documents to start a conversation</p>
               </div>
 
-              {/* Users List */}
-              <div className="space-y-2">
+              {/* Users List - Updated styling */}
+              <div className="space-y-3">
                 {Object.entries(groupedByUsers).map(([userId, { uploaderName, categories }]) => (
-                  <div key={userId} className="border rounded-lg overflow-hidden">
-                    {/* User Header with Toggle */}
+                  <div key={userId} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                     <button
                       onClick={() => {
                         toggleSection(userId);
                         setSelectedUser(selectedUser === userId ? null : userId);
                         setSelectedCategory(null);
                       }}
-                      className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors"
+                      className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-gray-50 transition-all duration-200"
                     >
-                      <h3 className="text-sm font-medium text-gray-900">
-                        {uploaderName}
-                        <span className="ml-2 text-xs text-gray-500">
-                          ({Object.values(categories).flat().length} documents)
-                        </span>
-                      </h3>
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
+                          <span className="text-sm font-medium text-primary-700">
+                            {uploaderName.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="text-left">
+                          <h3 className="text-sm font-medium text-gray-900">{uploaderName}</h3>
+                          <span className="text-xs text-gray-500">
+                            {Object.values(categories).flat().length} documents
+                          </span>
+                        </div>
+                      </div>
                       {expandedSections[userId] ? (
-                        <ChevronDown className="w-4 h-4 text-gray-500" />
+                        <ChevronDown className="w-5 h-5 text-gray-400" />
                       ) : (
-                        <ChevronRight className="w-4 h-4 text-gray-500" />
+                        <ChevronRight className="w-5 h-5 text-gray-400" />
                       )}
                     </button>
 
-                    {/* Categories for Selected User */}
+                    {/* Categories - Updated styling */}
                     {expandedSections[userId] && (
-                      <div className="p-2 space-y-2 bg-white">
+                      <div className="p-3 space-y-2 bg-gray-50 border-t border-gray-100">
                         {Object.entries(categories).map(([category, docs]) => (
-                          <div key={category} className="border rounded-lg overflow-hidden">
+                          <div key={category} className="rounded-lg overflow-hidden bg-white shadow-sm">
                             <button
                               onClick={() => handleCategorySelect(category, docs)}
-                              className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50"
+                              className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-all duration-200"
                             >
                               <span className="text-sm font-medium text-gray-700">
                                 {category}
-                                <span className="ml-2 text-xs text-gray-500">
-                                  ({docs.length})
+                                <span className="ml-2 text-xs text-gray-400">
+                                  {docs.length}
                                 </span>
                               </span>
                               {selectedCategory === category ? (
-                                <ChevronDown className="w-4 h-4 text-gray-500" />
+                                <ChevronDown className="w-4 h-4 text-gray-400" />
                               ) : (
-                                <ChevronRight className="w-4 h-4 text-gray-500" />
+                                <ChevronRight className="w-4 h-4 text-gray-400" />
                               )}
                             </button>
 
-                            {/* Documents for Selected Category */}
+                            {/* Documents List - Updated styling */}
                             {selectedCategory === category && (
-                              <div className="p-2 space-y-2 bg-gray-50">
+                              <div className="p-2 space-y-2">
                                 {docs.map((doc) => (
                                   <div
                                     key={doc._id}
                                     onClick={() => handleDocumentSelect(doc)}
-                                    className={`p-3 rounded-lg cursor-pointer border transition-all ${
+                                    className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
                                       selectedDocs.some(d => d._id === doc._id)
-                                        ? 'bg-primary-50 border-primary-500'
-                                        : 'bg-white border-gray-200 hover:border-primary-300'
+                                        ? 'bg-primary-50 border-2 border-primary-200'
+                                        : 'bg-white border border-gray-200 hover:border-primary-200'
                                     } ${currentChat ? 'opacity-50 cursor-not-allowed' : ''}`}
                                   >
-                                    <div className="flex items-center gap-2">
-                                      <FileText className="w-4 h-4 text-gray-400" />
-                                      <span className="text-sm font-medium text-gray-700 truncate">
-                                        {doc.name || doc.originalname}
-                                      </span>
-                                    </div>
-                                    <div className="mt-1 text-xs text-gray-500">
-                                      Type: {doc.type || 'other'}
+                                    <div className="flex items-center gap-3">
+                                      <div className="p-2 bg-gray-100 rounded-lg">
+                                        <FileText className="w-4 h-4 text-primary-600" />
+                                      </div>
+                                      <div>
+                                        <span className="text-sm font-medium text-gray-900 block truncate">
+                                          {doc.name || doc.originalname}
+                                        </span>
+                                        <span className="text-xs text-gray-500">
+                                          {doc.type || 'Other'}
+                                        </span>
+                                      </div>
                                     </div>
                                   </div>
                                 ))}
@@ -470,63 +480,39 @@ const AIChat = () => {
                     )}
                   </div>
                 ))}
-
-                {Object.keys(groupedByUsers).length === 0 && (
-                  <div className="text-center p-4 text-gray-500 text-sm">
-                    No documents available
-                  </div>
-                )}
               </div>
             </div>
           </div>
 
-          {/* Sticky Buttons Section */}
+          {/* Action Buttons - Updated styling */}
           {!currentChat && (
-            <div className="sticky bottom-0 p-4 border-t bg-white space-y-2 shadow-md">
-              {/* Process Documents Button */}
-              <button
-                onClick={handleH1BFormFill}
-                disabled={selectedDocs.length === 0 || loading}
-                className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-                  selectedDocs.length === 0 || loading
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : 'bg-green-600 text-white hover:bg-green-700'
-                }`}
-              >
-                <FileText className="w-4 h-4" />
-                {loading ? 'PROCESSING...' : 'PROCESS DOCUMENTS'}
-              </button>
-
-              {/* Render Form Actions (including Fill Form button) */}
+            <div className="sticky bottom-0 p-6 border-t bg-white space-y-3">
               {renderFormActions()}
-
-              {/* Start Chat Button */}
               <button
                 onClick={handleStartChat}
                 disabled={selectedDocs.length === 0 || loading}
-                className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`w-full px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                   selectedDocs.length === 0 || loading
                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : 'bg-primary-600 text-white hover:bg-primary-700'
+                    : 'bg-primary-600 text-white hover:bg-primary-700 shadow-sm hover:shadow-md'
                 }`}
               >
                 {loading ? (
-                  <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                  <Loader2 className="w-5 h-5 animate-spin mx-auto" />
                 ) : (
-                  `Start Chat with ${selectedDocs.length} Document${selectedDocs.length !== 1 ? 's' : ''}`
+                  `Chat with ${selectedDocs.length} Document${selectedDocs.length !== 1 ? 's' : ''}`
                 )}
               </button>
             </div>
           )}
         </div>
 
-        {/* Chat Area */}
-        <div className="flex-1 flex flex-col bg-gray-50 relative">
-          {/* New Chat Button */}
+        {/* Chat Area - Updated styling */}
+        <div className="flex-1 flex flex-col relative">
           {currentChat && (
             <button
               onClick={handleNewChat}
-              className="absolute top-4 right-4 flex items-center px-3 py-2 bg-white rounded-full shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors z-10"
+              className="absolute top-6 right-6 flex items-center px-4 py-2 bg-white rounded-xl shadow-sm border border-gray-200 hover:bg-gray-50 transition-all duration-200 z-10"
             >
               <PlusCircle className="w-4 h-4 text-primary-600 mr-2" />
               <span className="text-sm font-medium text-gray-700">New Chat</span>
@@ -534,33 +520,39 @@ const AIChat = () => {
           )}
 
           {error && (
-            <div className="p-4 bg-red-50 border-b border-red-200">
+            <div className="p-4 m-4 bg-red-50 border border-red-200 rounded-xl">
               <p className="text-red-600 text-sm">{error}</p>
             </div>
           )}
 
           {!currentChat ? (
-            <div className="flex-1 flex items-center justify-center text-gray-500">
-              Select documents and start a chat to begin
+            <div className="flex-1 flex flex-col items-center justify-center p-6">
+              <div className="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center mb-4">
+                <Send className="w-8 h-8 text-primary-600" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Start a New Chat</h3>
+              <p className="text-gray-500 text-center max-w-md">
+                Select documents from the sidebar to begin a conversation with AI
+              </p>
             </div>
           ) : (
             <>
-              {/* Messages */}
-              <div className="flex-1 p-4 overflow-y-auto">
-                <div className="max-w-3xl mx-auto space-y-4 mt-12">
+              {/* Messages - Updated styling */}
+              <div className="flex-1 p-6 overflow-y-auto">
+                <div className="max-w-3xl mx-auto space-y-6">
                   {messages.map((message, index) => (
                     <div
                       key={index}
                       className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[80%] rounded-2xl px-4 py-2 ${
+                        className={`max-w-[80%] rounded-2xl px-5 py-3 ${
                           message.role === 'user'
                             ? 'bg-primary-600 text-white'
-                            : 'bg-white shadow-sm border border-gray-100'
+                            : 'bg-white shadow-sm border border-gray-200'
                         }`}
                       >
-                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
                       </div>
                     </div>
                   ))}
@@ -568,20 +560,20 @@ const AIChat = () => {
                 </div>
               </div>
 
-              {/* Suggested Questions */}
+              {/* Suggested Questions - Updated styling */}
               {suggestedQuestions.length > 0 && (
                 <div className="border-t border-gray-200 bg-white p-4">
                   <div className="max-w-3xl mx-auto">
-                    <div className="flex items-center mb-2">
+                    <div className="flex items-center mb-3">
                       <HelpCircle className="w-4 h-4 text-primary-600 mr-2" />
-                      <span className="text-sm font-medium text-gray-700">Suggested Questions</span>
+                      <span className="text-sm font-medium text-gray-700">Try asking</span>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {suggestedQuestions.map((question, index) => (
                         <button
                           key={index}
                           onClick={() => handleQuestionClick(question)}
-                          className="text-sm px-3 py-1.5 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
+                          className="text-sm px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-200"
                         >
                           {question}
                         </button>
@@ -591,22 +583,22 @@ const AIChat = () => {
                 </div>
               )}
 
-              {/* Input Area */}
-              <div className="border-t bg-white p-4">
+              {/* Input Area - Updated styling */}
+              <div className="border-t border-gray-200 bg-white p-6">
                 <div className="max-w-3xl mx-auto">
-                  <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+                  <form onSubmit={handleSendMessage} className="flex items-center gap-3">
                     <input
                       type="text"
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
-                      placeholder="Ask about your selected documents..."
-                      className="flex-1 px-4 py-2 rounded-full border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      placeholder="Type your message..."
+                      className="flex-1 px-5 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
                       disabled={loading}
                     />
                     <button
                       type="submit"
                       disabled={!input.trim() || loading}
-                      className="p-2 rounded-full bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="p-3 rounded-xl bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                     >
                       {loading ? (
                         <Loader2 className="h-5 w-5 animate-spin" />
