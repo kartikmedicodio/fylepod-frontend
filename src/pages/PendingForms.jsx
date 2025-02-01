@@ -746,8 +746,8 @@ const PendingProcesses = () => {
               bg-primary-600 hover:bg-primary-700 text-white cursor-pointer
               transition-colors duration-200 shadow-sm hover:shadow-md"
           >
-            <Files className="w-4 h-4 mr-2" />
-            Upload Documents
+            <Wand2 className="w-4 h-4 mr-2" />
+            Smart Upload
           </label>
           <input
             type="file"

@@ -8,6 +8,7 @@ const MyProfile = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [profileData, setProfileData] = useState(null);
+  const defaultCompanyName = "Lexon Legal Solutions";
 
   useEffect(() => {
     fetchUserProfile();
@@ -106,7 +107,7 @@ const MyProfile = () => {
               <ProfileSection 
                 icon={Building} 
                 label="Company Name" 
-                value={profileData?.company_name || 'N/A'} 
+                value={profileData?.company_name || defaultCompanyName} 
               />
               <ProfileSection 
                 icon={Shield} 

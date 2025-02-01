@@ -25,16 +25,21 @@ const Sidebar = () => {
       <Link to="/" className="flex items-center space-x-2">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Fylepod</h1>
-          <p className="text-xs text-gray-500">Document Management</p>
+          {/* <p className="text-xs text-gray-500">Document Management</p> */}
         </div>
       </Link>
     </div>
   );
 
-  const navigation = [
+  // Base navigation items (always shown)
+  const baseNavigation = [
     { name: 'AI Chat', href: '/chat', icon: MessageSquare },
-    { name: 'Corporation', href: '/crm', icon: Building },
   ];
+
+  // Add Corporation link only for admin users
+  const navigation = user?.role === 'admin' 
+    ? [...baseNavigation, { name: 'Corporation', href: '/crm', icon: Building }]
+    : baseNavigation;
 
   // Set Up section links - only visible to admin
   const managementLinks = [
@@ -45,7 +50,12 @@ const Sidebar = () => {
     // For exact matches
     if (location.pathname === path) return true;
     
-    // Special case for pending-forms routes
+    // For CRM routes
+    if (path === '/crm') {
+      return location.pathname.startsWith('/crm');
+    }
+    
+    // For pending-forms routes
     if (path === '/pending-forms') {
       return location.pathname.startsWith('/pending-forms/');
     }

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import CRMService from '../services/crm.service';
-import { Mail, Phone, Building, FileCheck, File, FileText, ArrowLeft, ChevronDown } from 'lucide-react';
+import { Mail, Phone, Building, Building2, FileCheck, File, FileText, ArrowLeft, ChevronDown, Globe, X } from 'lucide-react';
 import Sidebar from '../components/dashboard/Sidebar';
 import Header from '../components/dashboard/Header';
 import api from '../utils/api';
@@ -27,6 +27,9 @@ const CRM = () => {
   const dropdownRef = useRef(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [showHeaderText, setShowHeaderText] = useState(true);
 
   useEffect(() => {
     const fetchCompanyUsers = async () => {
@@ -54,6 +57,9 @@ const CRM = () => {
   useEffect(() => {
     if (userId) {
       handleUserClick(userId);
+      setShowHeaderText(false);
+    } else {
+      setShowHeaderText(true);
     }
   }, [userId]);
 
@@ -183,15 +189,42 @@ const CRM = () => {
       const allApplications = response.data.entries || [];
       setPendingApplications(allApplications.filter(app => app.categoryStatus === 'pending'));
       
-      // Show success message and reset selection
-      alert('Form assigned and invitation sent successfully!');
+      // Show success toast and reset selection
+      setToastMessage('Process created successfully!');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000); // Hide toast after 3 seconds
       setSelectedCategory(null);
+      
+      // Automatically switch to pending tab after creation
+      setActiveTab('pending');
     } catch (err) {
       console.error('Error:', err);
-      alert(err.response?.data?.message || 'Failed to assign form and send invitation');
+      setToastMessage(err.response?.data?.message || 'Failed to create process');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Helper function to safely format currency
+  const formatCurrency = (value) => {
+    return value != null ? `$${Number(value).toFixed(2)}` : '$0.00';
+  };
+
+  // Helper function to safely display numbers
+  const formatNumber = (value) => {
+    return value != null ? Number(value).toFixed(2) : '0';
+  };
+
+  // Helper function to format address
+  const formatAddress = (address) => {
+    if (typeof address === 'string') return address;
+    if (typeof address === 'object') {
+      const { street, city, state, zipcode } = address;
+      return `${street || ''} ${city || ''} ${state || ''} ${zipcode || ''}`.trim();
+    }
+    return 'N/A';
   };
 
   const renderUserProfile = () => {
@@ -199,35 +232,128 @@ const CRM = () => {
 
     return (
       <div className="flex h-screen bg-gray-50">
-        {/* Left Sidebar - User Details */}
-        <div className="w-80 border-r bg-white">
+        {/* Left Sidebar - Employee Details */}
+        <div className="w-96 border-r bg-white overflow-y-auto">
           <div className="p-6">
-            {/* Profile Image */}
-            <div className="w-24 h-24 bg-primary-100 rounded-full flex items-center justify-center mb-4">
-              <span className="text-3xl font-bold text-primary-600">
-                {selectedUser.name.charAt(0)}
-              </span>
+            {/* Back button */}
+            <button
+              onClick={() => {
+                navigate('/crm');
+                setSelectedUser(null);
+              }}
+              className="flex items-center mb-6 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Directory
+            </button>
+
+            {/* Profile Header */}
+            <div className="text-center mb-8">
+              <div className="w-24 h-24 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-3xl font-bold text-primary-600">
+                  {selectedUser.name.charAt(0)}
+                </span>
+              </div>
+              <h2 className="text-xl font-semibold text-gray-900">{selectedUser.name}</h2>
+              <p className="text-sm text-primary-600 mt-1">
+                {selectedUser.role === 'user' ? 'Employee' : selectedUser.role}
+              </p>
             </div>
 
-            {/* User Name */}
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">{selectedUser.name}</h2>
+            {/* Contact Information */}
+            <div className="bg-gray-50 rounded-lg p-4 mb-6">
+              <h3 className="text-sm font-medium text-gray-900 mb-3">Contact Information</h3>
+              <div className="space-y-3">
+                <div>
+                  <div className="flex items-center text-sm text-gray-900">
+                    <Mail className="w-4 h-4 mr-2 text-gray-500" />
+                    <span>{selectedUser.email}</span>
+                  </div>
+                </div>
+                {selectedUser.phone && (
+                  <div>
+                    <div className="flex items-center text-sm text-gray-900">
+                      <Phone className="w-4 h-4 mr-2 text-gray-500" />
+                      <span>{selectedUser.phone}</span>
+                    </div>
+                  </div>
+                )}
+                {selectedUser.address && (
+                  <div>
+                    <div className="flex items-start text-sm text-gray-900">
+                      <Building className="w-4 h-4 mr-2 mt-0.5 text-gray-500" />
+                      <span>{selectedUser.address}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
 
-            {/* User Details */}
-            <div className="space-y-6">
-              <div>
-                <label className="text-sm text-gray-500 block mb-1">Email</label>
-                <div className="flex items-center text-sm text-gray-900">
-                  <Mail className="w-4 h-4 mr-2 text-gray-500" />
-                  <span>{selectedUser.email}</span>
+            {/* Company Information */}
+            <div className="bg-gray-50 rounded-lg p-4 mb-6">
+              <h3 className="text-sm font-medium text-gray-900 mb-3">Company Details</h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-gray-500">Company Name</label>
+                  <div className="flex items-center text-sm text-gray-900">
+                    <Building2 className="w-4 h-4 mr-2 text-gray-500" />
+                    <span>{selectedUser?.company_id?.company_name || selectedUser.company_name}</span>
+                  </div>
+                </div>
+                {selectedUser.department && (
+                  <div>
+                    <label className="text-xs text-gray-500">Department</label>
+                    <p className="text-sm text-gray-900">{selectedUser.department}</p>
+                  </div>
+                )}
+                {selectedUser.position && (
+                  <div>
+                    <label className="text-xs text-gray-500">Position</label>
+                    <p className="text-sm text-gray-900">{selectedUser.position}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Account Information */}
+            <div className="bg-gray-50 rounded-lg p-4 mb-6">
+              <h3 className="text-sm font-medium text-gray-900 mb-3">Account Details</h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-gray-500">Account Status</label>
+                  <div className="flex items-center mt-1">
+                    <div className={`w-2 h-2 rounded-full ${selectedUser.status === 'active' ? 'bg-green-500' : 'bg-gray-500'} mr-2`}></div>
+                    <span className="text-sm capitalize">{selectedUser.status || 'Active'}</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">Member Since</label>
+                  <p className="text-sm text-gray-900">
+                    {new Date(selectedUser.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">Last Active</label>
+                  <p className="text-sm text-gray-900">
+                    {new Date().toLocaleDateString()}
+                  </p>
                 </div>
               </div>
+            </div>
 
-              <div>
-                <label className="text-sm text-gray-500 block mb-1">Company</label>
-                <div className="flex items-center text-sm text-gray-900">
-                  <Building className="w-4 h-4 mr-2 text-gray-500" />
-                  <span>{selectedUser?.company_id?.company_name || 'N/A'}</span>
-                </div>
+            {/* Statistics */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-primary-50 rounded-lg p-4 text-center">
+                <p className="text-2xl font-bold text-primary-600">
+                  {completedApplications.length}
+                </p>
+                <p className="text-xs text-gray-600">Completed Forms</p>
+              </div>
+              <div className="bg-primary-50 rounded-lg p-4 text-center">
+                <p className="text-2xl font-bold text-primary-600">
+                  {pendingApplications.length}
+                </p>
+                <p className="text-xs text-gray-600">Pending Forms</p>
               </div>
             </div>
           </div>
@@ -371,7 +497,7 @@ const CRM = () => {
                 pendingApplications.map((app) => (
                   <Link
                     key={app._id}
-                    to={`/pending-forms/${selectedUser._id}/application/${app._id}`}
+                    to={`/crm/user/${selectedUser._id}/application/${app._id}`}
                     className="block border rounded-lg p-4 hover:shadow-md transition-shadow"
                   >
                     <div className="flex items-center space-x-3">
@@ -408,16 +534,14 @@ const CRM = () => {
           <div className="p-6 overflow-y-auto max-h-screen">
             <div className="mb-8">
               <h1 className="text-2xl font-bold text-gray-900 mb-2">Company Profile</h1>
-              <div className="w-24 h-24 bg-primary-100 rounded-full flex items-center justify-center mb-6">
-                <span className="text-3xl font-bold text-primary-600">
-                  {user?.company_id?.company_name?.charAt(0) || user.company_name?.charAt(0)}
-                </span>
+              <div className="w-24 h-24 bg-primary-50 rounded-lg flex items-center justify-center mb-6">
+                <Building2 className="w-12 h-12 text-primary-600" />
               </div>
             </div>
 
             <div className="space-y-6">
               <div>
-                <label className="text-sm text-gray-500 block mb-2">Company Name</label>
+                <label className="text-sm text-gray-500 block mb-2">Lexon Legal Solutions</label>
                 <p className="text-gray-900 font-medium break-words">
                   {user?.company_id?.company_name || user.company_name}
                 </p>
@@ -434,7 +558,7 @@ const CRM = () => {
                 <label className="text-sm text-gray-500 block mb-2">Address</label>
                 <div className="flex items-start text-gray-900"> {/* Changed to items-start */}
                   <Building className="w-4 h-4 mr-2 flex-shrink-0 mt-1 text-gray-500" />
-                  <span className="break-words">{user.company_address || "123 Business Avenue, Suite 100, New York, NY 10001"}</span>
+                  <span className="break-words">{user.company_address || "1234 Lexington Ave, Suite 500, New York, NY 10022, USA"}</span>
                 </div>
               </div>
 
@@ -443,11 +567,11 @@ const CRM = () => {
                 <div className="space-y-2">
                   <div className="flex items-start text-gray-900"> {/* Changed to items-start */}
                     <Phone className="w-4 h-4 mr-2 flex-shrink-0 mt-1 text-gray-500" />
-                    <span className="break-words">{user.company_phone || "+1 (555) 123-4567"}</span>
+                    <span className="break-words">{user.company_phone || "+1 (212) 555-7890"}</span>
                   </div>
                   <div className="flex items-start text-gray-900"> {/* Changed to items-start */}
                     <Mail className="w-4 h-4 mr-2 flex-shrink-0 mt-1 text-gray-500" />
-                    <span className="break-words">{user.company_email || "contact@company.com"}</span>
+                    <span className="break-words">{user.company_email || "lexon.legal@gmail.com"}</span>
                   </div>
                 </div>
               </div>
@@ -455,44 +579,46 @@ const CRM = () => {
           </div>
         </div>
 
-        {/* Right side - Users List (Scrollable) */}
+        {/* Right side - Employees List (Scrollable) */}
         <div className="w-2/3 ml-[33.333333%]">
           <div className="p-6 pb-0">
             <h2 className="text-xl font-semibold text-gray-900">Company Directory</h2>
-            <p className="text-gray-500">All team members ({companyUsers.length})</p>
+            <p className="text-gray-500">Employees ({companyUsers.length})</p>
           </div>
 
           <div className="p-6 pt-4 overflow-y-auto">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {companyUsers.map((user) => (
+              {companyUsers.map((employee) => (
                 <Link
-                  key={user._id}
-                  to={`/crm/user/${user._id}`}
+                  key={employee._id}
+                  to={`/crm/user/${employee._id}`}
                   className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
                 >
                   <div className="flex flex-col items-center text-center">
                     <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mb-4">
                       <span className="text-2xl font-bold text-primary-600">
-                        {user.name.charAt(0)}
+                        {employee.name.charAt(0)}
                       </span>
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900">{user.name}</h3>
-                    <p className="text-sm text-gray-500 mb-2">{user.role}</p>
+                    <h3 className="text-lg font-semibold text-gray-900">{employee.name}</h3>
+                    <p className="text-sm text-gray-500 mb-2">
+                      {employee.role === 'user' ? 'Employee' : employee.role}
+                    </p>
                     
                     <div className="w-full space-y-2 mt-4">
                       <div className="flex items-center text-sm text-gray-600">
                         <Mail className="w-4 h-4 mr-2" />
-                        <span className="truncate">{user.email}</span>
+                        <span className="truncate">{employee.email}</span>
                       </div>
-                      {user.phone && (
+                      {employee.phone && (
                         <div className="flex items-center text-sm text-gray-600">
                           <Phone className="w-4 h-4 mr-2" />
-                          <span>{user.phone}</span>
+                          <span>{employee.phone}</span>
                         </div>
                       )}
                       <div className="flex items-center text-sm text-gray-600">
                         <Building className="w-4 h-4 mr-2" />
-                        <span className="truncate">{user.company_id?.company_name}</span>
+                        <span className="truncate">{employee.company_id?.company_name}</span>
                       </div>
                     </div>
                   </div>
@@ -539,7 +665,7 @@ const CRM = () => {
                 <div>
                   <h3 className="font-medium text-gray-900 capitalize">{doc.name}</h3>
                   <p className="text-sm text-gray-500">
-                    Status: <span className="text-green-600">{doc.status}</span>
+                    Status: <span className="text-green-600">Verified</span>
                   </p>
                 </div>
               </div>
@@ -560,20 +686,226 @@ const CRM = () => {
 
   const renderDocumentDetails = () => {
     if (!documentData) return null;
+    const currentDocument = selectedApplication?.documentTypes.find(doc => doc._id === documentId);
+    const extractedData = documentData.extractedData?.extracted_data;
+    const documentType = documentData.extractedData?.document_type;
+
+    // Passport-specific render function
+    const renderPassportDetails = () => (
+      <div className="space-y-6">
+        {/* Passport Information Card */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center space-x-4 mb-6">
+            <div className="p-3 bg-blue-50 rounded-full">
+              <FileText className="w-8 h-8 text-blue-600" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                {extractedData.surname}, {extractedData.given_names}
+              </h2>
+              <p className="text-lg text-blue-600">Passport #{extractedData.passport_number}</p>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Personal Details */}
+            <div className="space-y-4">
+              <h3 className="font-medium text-gray-900 border-b pb-2">Personal Information</h3>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Nationality</p>
+                  <p className="font-medium">{extractedData.nationality}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Sex</p>
+                  <p className="font-medium">{extractedData.sex}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Date of Birth</p>
+                  <p className="font-medium">{extractedData.date_of_birth}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Place of Birth</p>
+                  <p className="font-medium">{extractedData.place_of_birth}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Document Details */}
+            <div className="space-y-4">
+              <h3 className="font-medium text-gray-900 border-b pb-2">Document Information</h3>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Date of Issue</p>
+                  <p className="font-medium">{extractedData.date_of_issue}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Date of Expiration</p>
+                  <p className="font-medium text-red-600">{extractedData.date_of_expiration}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-sm text-gray-500">Issuing Authority</p>
+                  <p className="font-medium">{extractedData.authority}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Verification Status */}
+       
+      </div>
+    );
+
+    // Paystub-specific render function
+    const renderPaystubDetails = () => (
+      <div className="space-y-6">
+        {/* Header Card */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center space-x-4 mb-6">
+            <div className="p-3 bg-emerald-50 rounded-full">
+              <FileText className="w-8 h-8 text-emerald-600" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">{extractedData.employee_name || 'N/A'}</h2>
+              <p className="text-lg text-emerald-600">Paycheck #{extractedData.paycheck_number || 'N/A'}</p>
+            </div>
+          </div>
+
+          {/* Pay Period Info */}
+          <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg mb-4">
+            <div>
+              <p className="text-sm text-gray-500">Pay Date</p>
+              <p className="font-medium">{extractedData.pay_date || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Period Start</p>
+              <p className="font-medium">{extractedData.pay_period_start || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Period End</p>
+              <p className="font-medium">{extractedData.pay_period_end || 'N/A'}</p>
+            </div>
+          </div>
+
+          {/* Employer Details */}
+          <div className="border-t pt-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-500">Employer</p>
+                <p className="font-medium">{extractedData.employer_name || 'N/A'}</p>
+                <p className="text-sm text-gray-600">{formatAddress(extractedData.employer_address)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Employee Address</p>
+                <p className="text-sm text-gray-600">{formatAddress(extractedData.employee_address)}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Earnings Card */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Earnings</h3>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                <span className="text-gray-600">Hours Worked</span>
+                <span className="font-medium">{formatNumber(extractedData.hours_worked)}</span>
+              </div>
+              <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                <span className="text-gray-600">Hourly Rate</span>
+                <span className="font-medium">{formatCurrency(extractedData.hourly_rate)}</span>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center p-3 bg-emerald-50 rounded-lg">
+                <span className="text-gray-600">Gross Pay (This Period)</span>
+                <span className="font-medium text-emerald-600">
+                  {formatCurrency(extractedData.this_period_gross_pay)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center p-3 bg-emerald-50 rounded-lg">
+                <span className="text-gray-600">YTD Gross Pay</span>
+                <span className="font-medium text-emerald-600">
+                  {formatCurrency(extractedData.year_to_date_gross_pay)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Deductions Card */}
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Required Deductions */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Required Deductions</h3>
+            <div className="space-y-2">
+              {extractedData.required_deductions && Object.entries(extractedData.required_deductions).map(([key, value]) => (
+                <div key={key} className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
+                  <span className="text-gray-600 capitalize">{key.replace(/_/g, ' ')}</span>
+                  <span className="font-medium text-red-600">{formatCurrency(value)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Other Deductions */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Other Deductions</h3>
+            <div className="space-y-2">
+              {extractedData.other_deductions && Object.entries(extractedData.other_deductions).map(([key, value]) => (
+                <div key={key} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                  <span className="text-gray-600 capitalize">{key.replace(/_/g, ' ')}</span>
+                  <span className="font-medium">{formatCurrency(value)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Net Pay Card */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="flex justify-between items-center p-4 bg-emerald-100 rounded-lg">
+              <div>
+                <p className="text-lg font-medium text-emerald-800">Net Pay</p>
+                <p className="text-sm text-emerald-600">This Period</p>
+              </div>
+              <p className="text-2xl font-bold text-emerald-700">{formatCurrency(extractedData.net_pay)}</p>
+            </div>
+            <div className="flex justify-between items-center p-4 bg-gray-100 rounded-lg">
+              <div>
+                <p className="text-lg font-medium text-gray-800">YTD Deductions</p>
+                <p className="text-sm text-gray-600">Total</p>
+              </div>
+              <p className="text-2xl font-bold text-gray-700">
+                {formatCurrency(extractedData.total_year_to_date_deductions)}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
 
     return (
-      <div className="p-6">
-        <div className="mb-6 flex items-center">
+      <div className="p-6 max-w-7xl mx-auto">
+        {/* Header Section */}
+        <div className="mb-8 flex items-center">
           <button 
             onClick={() => navigate(`/crm/user/${userId}/application/${applicationId}`)}
-            className="mr-4 p-2 hover:bg-gray-100 rounded-full"
+            className="mr-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
           >
             <ArrowLeft className="w-6 h-6" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Document Details</h1>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {currentDocument?.name || documentType?.charAt(0).toUpperCase() + documentType?.slice(1)} Details
+            </h1>
             <p className="text-gray-500">
-              {selectedApplication?.categoryName} - Document View
+              {selectedApplication?.categoryName}
             </p>
           </div>
         </div>
@@ -582,35 +914,127 @@ const CRM = () => {
           <div className="flex justify-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
           </div>
-        ) : documentData.isAvailable ? (
-          <div className="space-y-6">
-            {/* Document Type */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-medium mb-3">Document Type</h3>
-              <p className="font-medium text-gray-700">
-                {documentData.extractedData?.document_type || documentData.type}
-              </p>
-            </div>
+        ) : documentData.isAvailable && extractedData ? (
+          // Render different layouts based on document type
+          documentType.toLowerCase() === 'passport' ? renderPassportDetails() :
+          documentType.toLowerCase() === 'paystub' ? renderPaystubDetails() : (
+            <div className="space-y-6">
+              {/* Personal Information Card */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div className="flex items-center space-x-4 mb-6">
+                  <div className="p-3 bg-primary-50 rounded-full">
+                    <FileText className="w-8 h-8 text-primary-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">{extractedData.full_name}</h2>
+                    <p className="text-lg text-primary-600">{extractedData.profession}</p>
+                  </div>
+                </div>
+                
+                <div className="grid md:grid-cols-3 gap-4 text-sm">
+                  {extractedData.contact_info?.phone && (
+                    <div className="flex items-center space-x-2">
+                      <Phone className="w-4 h-4 text-gray-400" />
+                      <span>{extractedData.contact_info.phone}</span>
+                    </div>
+                  )}
+                  {extractedData.contact_info?.address && (
+                    <div className="flex items-center space-x-2">
+                      <Building className="w-4 h-4 text-gray-400" />
+                      <span>{extractedData.contact_info.address}</span>
+                    </div>
+                  )}
+                  {extractedData.contact_info?.website && (
+                    <div className="flex items-center space-x-2">
+                      <Globe className="w-4 h-4 text-gray-400" />
+                      <span>{extractedData.contact_info.website}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
 
-            {/* Extracted Data */}
-            {documentData.extractedData?.extracted_data && (
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-medium mb-3">Extracted Data</h3>
-                <div className="grid grid-cols-1 gap-4">
-                  {Object.entries(documentData.extractedData.extracted_data).map(([key, value]) => (
-                    <div key={key} className="p-4 bg-gray-50 rounded-lg">
-                      <p className="text-sm text-gray-600 mb-1">{key}</p>
-                      <div className="font-medium text-gray-900">
-                        {typeof value === 'object' ? JSON.stringify(value, null, 2) : value}
+              {/* Experience Section */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Work Experience</h3>
+                <div className="space-y-4">
+                  {extractedData.experience?.map((exp, idx) => (
+                    <div key={idx} className="flex items-center space-x-4">
+                      <div className="p-3 bg-primary-50 rounded-full">
+                        <FileText className="w-8 h-8 text-primary-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">{exp.job_title}</h4>
+                        <p className="text-primary-600 text-sm mb-1">{exp.company}</p>
+                        <p className="text-gray-500 text-sm mb-2">{exp.years}</p>
+                        {exp.responsibilities && (
+                          <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                            {exp.responsibilities.map((resp, idx) => (
+                              <li key={idx}>{resp}</li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
-            )}
-          </div>
+
+              {/* Education Section */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Education</h3>
+                <h4 className="font-semibold text-gray-900">{extractedData.education?.degree}</h4>
+                <p className="text-primary-600 mb-4">{extractedData.education?.institution}</p>
+                {extractedData.education?.awards && (
+                  <div>
+                    <h5 className="font-medium text-gray-700 mb-2">Awards & Achievements</h5>
+                    <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                      {extractedData.education.awards.map((award, idx) => (
+                        <li key={idx}>{award}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {/* Skills & Hobbies */}
+              <div className="grid md:grid-cols-2 gap-6">
+                {extractedData.skills && (
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Skills</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {extractedData.skills.map((skill, idx) => (
+                        <span 
+                          key={idx}
+                          className="px-3 py-1 bg-primary-50 text-primary-700 rounded-full text-sm"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {extractedData.hobbies && (
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Hobbies</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {extractedData.hobbies.map((hobby, idx) => (
+                        <span 
+                          key={idx}
+                          className="px-3 py-1 bg-primary-50 text-primary-700 rounded-full text-sm"
+                        >
+                          {hobby}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
         ) : (
-          <div className="text-center py-8 bg-white rounded-lg shadow">
+          <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-100">
+            <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-900 font-medium mb-2">No Data Available</p>
             <p className="text-gray-500">{documentData.message}</p>
           </div>
         )}
@@ -650,11 +1074,39 @@ const CRM = () => {
     return renderCompanyDirectory();
   };
 
+  const Toast = ({ message, show }) => {
+    if (!show) return null;
+
+    return (
+      <div className="fixed top-4 right-4 z-50 animate-fade-in-down">
+        <div className="bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center">
+          <svg 
+            className="w-5 h-5 mr-2" 
+            fill="none" 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            strokeWidth="2" 
+            viewBox="0 0 24 24" 
+            stroke="currentColor"
+          >
+            <path d="M5 13l4 4L19 7"></path>
+          </svg>
+          <span className="font-medium">{message}</span>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="flex h-screen bg-gray-50">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
+        <Header 
+          showText={showHeaderText} 
+          selectedUser={selectedUser}
+          activeTab={applicationId ? undefined : activeTab}
+        />
+        <Toast message={toastMessage} show={showToast} />
         <main className="flex-1 overflow-y-auto">
           {renderContent()}
         </main>
