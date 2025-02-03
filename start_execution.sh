@@ -10,7 +10,7 @@ DEST_DIR="/var/www/relayzen/build"
 # Change to the project directory
 cd "$PROJECT_DIR"
 
-npm i 
+npm i --force
 # Build the application
 npm run build
 
