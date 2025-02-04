@@ -303,52 +303,42 @@ const PendingProcesses = () => {
     }
   };
 
-  const checkDocumentProcessing = async (documentId, documentTypeId) => {
-    if (processingQueue.has(documentTypeId)) {
-      return false;
-    }
+  const checkDocumentProcessing = async (documentId) => {
+    const maxAttempts = 20;
+    const baseInterval = 2000;
+    let attempts = 0;
 
-    try {
-      setProcessingQueue(prev => new Set([...prev, documentTypeId]));
-      
-      const maxAttempts = 20;
-      const baseInterval = 2000;
-      let attempts = 0;
-
-      while (attempts < maxAttempts) {
+    while (attempts < maxAttempts) {
+      try {
+        console.log(`Checking document ${documentId} - Attempt ${attempts + 1}/${maxAttempts}`);
+        
         const response = await api.get(`/documents/${documentId}`);
         const document = response.data.data.document;
 
-        // Add artificial delay to show processing steps (remove in production)
-        await new Promise(resolve => 
-          setTimeout(resolve, baseInterval)
-        );
-
         if (document.processingError || document.status === 'failed') {
-          throw new Error('Document processing failed');
+          console.log(`Document ${documentId} processing failed after ${attempts + 1} attempts`);
+          return null;
         }
 
         if (document.extractedData?.document_type) {
+          console.log(`Document ${documentId} processed successfully after ${attempts + 1} attempts`);
+          console.log('Extracted type:', document.extractedData.document_type);
           return document;
         }
 
         attempts++;
-        await new Promise(resolve => 
-          setTimeout(resolve, baseInterval * Math.min(Math.pow(1.5, attempts), 8))
-        );
+        const delay = baseInterval * Math.min(Math.pow(1.5, attempts), 8);
+        console.log(`Waiting ${delay}ms before next attempt...`);
+        
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } catch (err) {
+        console.error(`Error checking document status (Attempt ${attempts + 1}):`, err);
+        return null;
       }
-
-      throw new Error('Document processing timed out');
-    } catch (err) {
-      console.error('Error in document processing:', err);
-      return null;
-    } finally {
-      setProcessingQueue(prev => {
-        const next = new Set(prev);
-        next.delete(documentTypeId);
-        return next;
-      });
     }
+
+    console.log(`Document ${documentId} processing timed out after ${maxAttempts} attempts`);
+    return null;
   };
 
   const getCroppedImg = async (image, crop) => {
@@ -516,72 +506,121 @@ const PendingProcesses = () => {
   const handleMultipleFileUpload = async (files, processId) => {
     try {
       setProcessingProcessId(processId);
-      const uploadPromises = [];
-      const processedFiles = new Set();
-      const processedDocTypes = new Set();
-      let matchedCount = 0;
-
       const process = pendingProcesses.find(p => p._id === processId);
       if (!process) return;
 
-      for (const file of files) {
-        if (processedFiles.has(file.name)) continue;
-
-        for (const docType of process.documentTypes) {
-          const docTypeKey = `${process._id}-${docType.documentTypeId}`;
-          if (docType.status === 'completed' || processedDocTypes.has(docTypeKey)) continue;
+      // Step 1: Upload all files first with minimal metadata
+      const uploadPromises = files.map(async (file) => {
+        try {
+          if (!validateFileType(file)) return null;
           
-          const uploadPromise = (async () => {
-            try {
-              const response = await handleFileUpload(process._id, docType.documentTypeId, file);
-              if (response) {
-                processedFiles.add(file.name);
-                processedDocTypes.add(docTypeKey);
-                matchedCount++;
-              }
-            } catch (err) {
-              console.error(`Error processing ${file.name} for ${docType.name}:`, err);
-            }
-          })();
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('name', `${Date.now()}-${file.name}`);
+          formData.append('managementId', processId);
+          formData.append('form_category', process.categoryName || 'other');
+          formData.append('type', 'pending_extraction'); // Temporary type
+          
+          // Use first pending doc type for initial upload
+          const tempDocType = process.documentTypes.find(dt => dt.status !== 'completed');
+          if (tempDocType) {
+            formData.append('documentTypeId', tempDocType.documentTypeId);
+            formData.append('managementDocumentId', tempDocType._id);
+          }
 
-          uploadPromises.push(uploadPromise);
+          const response = await api.post('/documents', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+
+          if (response.data?.status === 'success' && response.data.data.document) {
+            return response.data.data.document;
+          }
+          return null;
+        } catch (err) {
+          console.error(`Error uploading file ${file.name}:`, err);
+          return null;
         }
+      });
+
+      // Wait for all uploads to complete
+      const uploadedDocs = (await Promise.all(uploadPromises)).filter(Boolean);
+      if (uploadedDocs.length === 0) {
+        toast.error('No files were uploaded successfully');
+        return;
       }
 
-      await Promise.all(uploadPromises);
-      
-      const updatedProcessesResponse = await fetchPendingProcesses();
-      if (updatedProcessesResponse?.data?.data?.entries) {
-        let updatedProcesses = updatedProcessesResponse.data.data.entries;
-        updatedProcesses = updatedProcesses.filter(process => {
-          const hasIncompleteDocuments = process.documentTypes.some(doc => doc.status !== 'completed');
-          return hasIncompleteDocuments;
+      // Step 2: Wait for all documents to be processed by OpenAI
+      const processedDocs = await Promise.all(
+        uploadedDocs.map(doc => checkDocumentProcessing(doc._id))
+      );
+
+      // Step 3: Match documents with required types and update statuses
+      const docTypeMatches = new Map();
+      const docsToDelete = new Set();
+
+      processedDocs.forEach(doc => {
+        if (!doc || !doc.extractedData?.document_type) {
+          if (doc?._id) docsToDelete.add(doc._id);
+          return;
+        }
+
+        const extractedType = doc.extractedData.document_type.toLowerCase().trim();
+        const matchingDocType = process.documentTypes.find(type => {
+          const typeName = type.name.toLowerCase().trim();
+          const typeMatches = typeName === extractedType || extractedType.includes(typeName);
+          return typeMatches && 
+                 type.status !== 'completed' && 
+                 !docTypeMatches.has(type.documentTypeId);
         });
-        setPendingProcesses(updatedProcesses);
-      }
-      
-      if (matchedCount > 0) {
+
+        if (matchingDocType) {
+          docTypeMatches.set(matchingDocType.documentTypeId, {
+            docId: doc._id,
+            extractedType,
+            expectedType: matchingDocType.name
+          });
+        } else {
+          docsToDelete.add(doc._id);
+        }
+      });
+
+      // Step 4: Update statuses for matched documents
+      if (docTypeMatches.size > 0) {
+        await Promise.all(
+          Array.from(docTypeMatches.entries()).map(([typeId, { docId, extractedType, expectedType }]) => {
+            console.log(`Matched document: Expected "${expectedType}", Got "${extractedType}"`);
+            return updateDocumentStatus(processId, typeId);
+          })
+        );
+
         toast.success(
           <div className="flex flex-col">
-            <span className="font-medium">Documents uploaded successfully!</span>
+            <span className="font-medium">Documents processed successfully!</span>
             <span className="text-sm">
-              {matchedCount} document{matchedCount !== 1 ? 's' : ''} processed
+              {docTypeMatches.size} document{docTypeMatches.size !== 1 ? 's' : ''} matched
             </span>
-          </div>,
-          {
-            duration: 4000,
-            position: 'top-right',
-            className: 'bg-white',
-            style: {
-              borderRadius: '10px',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-            },
-          }
+          </div>
         );
       }
 
+      // Step 5: Clean up unmatched documents
+      if (docsToDelete.size > 0) {
+        console.log(`Deleting ${docsToDelete.size} unmatched documents`);
+        await Promise.all(
+          Array.from(docsToDelete).map(docId =>
+            api.delete(`/documents/${docId}`).catch(err => 
+              console.error(`Error deleting document ${docId}:`, err)
+            )
+          )
+        );
+      }
+
+      // Step 6: Refresh the process list
+      await fetchPendingProcesses();
+
     } catch (err) {
       console.error('Error in multiple file upload:', err);
+      toast.error('Error processing documents');
     } finally {
       setProcessingProcessId(null);
     }
