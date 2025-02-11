@@ -2,10 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import CRMService from '../services/crm.service';
-import { Mail, Phone, Building, Building2, FileCheck, File, FileText, ArrowLeft, ChevronDown, Globe, X } from 'lucide-react';
+import { Mail, Phone, Building, Building2, FileCheck, File, FileText, ArrowLeft, ChevronDown, Globe, X, Upload, Loader2, CheckCircle, Wand2 } from 'lucide-react';
 import Sidebar from '../components/dashboard/Sidebar';
 import Header from '../components/dashboard/Header';
 import api from '../utils/api';
+import { toast } from 'react-hot-toast';
+import { Toaster } from 'react-hot-toast';
 
 
 const CRM = () => {
@@ -30,6 +32,8 @@ const CRM = () => {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [showHeaderText, setShowHeaderText] = useState(true);
+  const [processingQueue, setProcessingQueue] = useState(new Set());
+  const [processingProcessId, setProcessingProcessId] = useState(null);
 
   useEffect(() => {
     const fetchCompanyUsers = async () => {
@@ -282,7 +286,19 @@ const CRM = () => {
                   <div>
                     <div className="flex items-start text-sm text-gray-900">
                       <Building className="w-4 h-4 mr-2 mt-0.5 text-gray-500" />
-                      <span>{selectedUser.address}</span>
+                      <span>
+                        <div className="space-y-2">
+                          <span className="block">{selectedUser.address.streetNumber} {selectedUser.address.streetName}</span>
+                          {selectedUser.address.floorAptSuite && (
+                            <span className="block">{selectedUser.address.floorAptSuite}</span>
+                          )}
+                          {selectedUser.address.district && (
+                            <span className="block">{selectedUser.address.district}</span>
+                          )}
+                          <span className="block">{selectedUser.address.city}, {selectedUser.address.stateProvince} {selectedUser.address.zipCode}</span>
+                          <span className="block">{selectedUser.address.country}</span>
+                        </div>
+                      </span>
                     </div>
                   </div>
                 )}
@@ -631,54 +647,321 @@ const CRM = () => {
     );
   };
 
+  const validateFileType = (file) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+    return allowedTypes.includes(file.type);
+  };
+
+  const checkDocumentProcessing = async (documentId) => {
+    const maxAttempts = 20;
+    const baseInterval = 2000;
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      try {
+        console.log(`Checking document ${documentId} - Attempt ${attempts + 1}/${maxAttempts}`);
+        
+        const response = await api.get(`/documents/${documentId}`);
+        const document = response.data.data.document;
+
+        if (document.processingError || document.status === 'failed') {
+          console.log(`Document ${documentId} processing failed after ${attempts + 1} attempts`);
+          return null;
+        }
+
+        if (document.extractedData?.document_type) {
+          console.log(`Document ${documentId} processed successfully after ${attempts + 1} attempts`);
+          console.log('Extracted type:', document.extractedData.document_type);
+          return document;
+        }
+
+        attempts++;
+        const delay = baseInterval * Math.min(Math.pow(1.5, attempts), 8);
+        console.log(`Waiting ${delay}ms before next attempt...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } catch (err) {
+        console.error(`Error checking document status (Attempt ${attempts + 1}):`, err);
+        return null;
+      }
+    }
+
+    console.log(`Document ${documentId} processing timed out after ${maxAttempts} attempts`);
+    return null;
+  };
+
+  const updateDocumentStatus = async (managementId, documentTypeId) => {
+    try {
+      console.log('Updating status for:', { managementId, documentTypeId });
+      
+      const response = await api({
+        method: 'PATCH',
+        url: `/management/${managementId}/documents/${documentTypeId}/status`,
+        data: { status: 'completed' },
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.data.status === 'success') {
+        // Get the updated process to check all documents
+        const process = pendingApplications.find(p => p._id === managementId);
+        const allCompleted = process?.documentTypes.every(doc => 
+          doc._id === documentTypeId || doc.status === 'completed'
+        );
+
+        // If all documents are completed, update the management status
+        if (allCompleted) {
+          await api({
+            method: 'PATCH',
+            url: `/management/${managementId}/status`,
+            data: { status: 'completed' },
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
+        }
+
+        // Refresh the list
+        const updatedResponse = await CRMService.getUserCompletedApplications(userId);
+        const allApplications = updatedResponse.data.entries || [];
+        setPendingApplications(allApplications.filter(app => app.categoryStatus === 'pending'));
+      } else {
+        throw new Error(response.data.message || 'Failed to update status');
+      }
+    } catch (err) {
+      console.error('Error updating document status:', err);
+      throw err;
+    }
+  };
+
+  const handleMultipleFileUpload = async (files, processId) => {
+    try {
+      setProcessingProcessId(processId);
+      const process = pendingApplications.find(p => p._id === processId);
+      if (!process) return;
+
+      // Upload files
+      const uploadPromises = files.map(async (file) => {
+        try {
+          if (!validateFileType(file)) return null;
+          
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('name', `${Date.now()}-${file.name}`);
+          formData.append('managementId', processId);
+          formData.append('form_category', process.categoryName || 'other');
+          formData.append('type', 'pending_extraction');
+          
+          const tempDocType = process.documentTypes.find(dt => dt.status !== 'completed');
+          if (tempDocType) {
+            formData.append('documentTypeId', tempDocType.documentTypeId);
+            formData.append('managementDocumentId', tempDocType._id);
+          }
+
+          const response = await api.post('/documents', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+
+          return response.data?.status === 'success' ? response.data.data.document : null;
+        } catch (err) {
+          console.error(`Error uploading file ${file.name}:`, err);
+          return null;
+        }
+      });
+
+      const uploadedDocs = (await Promise.all(uploadPromises)).filter(Boolean);
+      if (uploadedDocs.length === 0) {
+        toast.error('No files were uploaded successfully');
+        return;
+      }
+
+      // Process documents
+      const processedDocs = await Promise.all(
+        uploadedDocs.map(doc => checkDocumentProcessing(doc._id))
+      );
+
+      // Match documents
+      const docTypeMatches = new Map();
+      const docsToDelete = new Set();
+
+      processedDocs.forEach(doc => {
+        if (!doc || !doc.extractedData?.document_type) {
+          if (doc?._id) docsToDelete.add(doc._id);
+          return;
+        }
+
+        const extractedType = doc.extractedData.document_type.toLowerCase().trim();
+        const matchingDocType = process.documentTypes.find(type => {
+          const typeName = type.name.toLowerCase().trim();
+          return (typeName === extractedType || extractedType.includes(typeName)) && 
+                 type.status !== 'completed' && 
+                 !docTypeMatches.has(type.documentTypeId);
+        });
+
+        if (matchingDocType) {
+          docTypeMatches.set(matchingDocType.documentTypeId, doc._id);
+        } else {
+          docsToDelete.add(doc._id);
+        }
+      });
+
+      // Update statuses
+      if (docTypeMatches.size > 0) {
+        // Update document statuses
+        await Promise.all(
+          Array.from(docTypeMatches.keys()).map(typeId =>
+            updateDocumentStatus(processId, typeId)
+          )
+        );
+
+        // Double check if all documents are completed
+        const updatedProcess = pendingApplications.find(p => p._id === processId);
+        const allDocumentsCompleted = updatedProcess?.documentTypes.every(doc => doc.status === 'completed');
+        
+        if (allDocumentsCompleted) {
+          // Update management status to completed
+          await api({
+            method: 'PATCH',
+            url: `/management/${processId}/status`,
+            data: { status: 'completed' },
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
+
+          toast.success('All documents processed and application completed!');
+        } else {
+          toast.success(`${docTypeMatches.size} document(s) processed successfully`);
+        }
+
+        // Refresh list
+        const response = await CRMService.getUserCompletedApplications(userId);
+        const allApplications = response.data.entries || [];
+        setPendingApplications(allApplications.filter(app => app.categoryStatus === 'pending'));
+      }
+
+      // Clean up unmatched documents
+      if (docsToDelete.size > 0) {
+        await Promise.all(
+          Array.from(docsToDelete).map(docId =>
+            api.delete(`/documents/${docId}`).catch(err => 
+              console.error(`Error deleting document ${docId}:`, err)
+            )
+          )
+        );
+      }
+
+    } catch (err) {
+      console.error('Error in multiple file upload:', err);
+      toast.error('Error processing documents');
+    } finally {
+      setProcessingProcessId(null);
+    }
+  };
+
   const renderApplicationDocuments = () => {
     if (!selectedApplication) return null;
 
+    // Helper function to get status color and text
+    const getStatusDisplay = (status) => {
+      switch (status) {
+        case 'completed':
+          return { color: 'text-green-600', text: 'Verified' };
+        case 'pending':
+          return { color: 'text-yellow-600', text: 'Pending' };
+        default:
+          return { color: 'text-gray-600', text: status };
+      }
+    };
+
     return (
       <div className="p-6">
-        <div className="mb-6 flex items-center">
-          <button 
-            onClick={() => navigate(`/crm/user/${userId}`)}
-            className="mr-4 p-2 hover:bg-gray-100 rounded-full"
-          >
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{selectedApplication.categoryName}</h1>
-            <p className="text-gray-500">
-              Completed on: {new Date(selectedApplication.updatedAt).toLocaleDateString()}
-            </p>
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center">
+            <button 
+              onClick={() => navigate(`/crm/user/${userId}`)}
+              className="mr-4 p-2 hover:bg-gray-100 rounded-full"
+            >
+              <ArrowLeft className="w-6 h-6" />
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">{selectedApplication.categoryName}</h1>
+              <p className="text-gray-500">
+                Status: {selectedApplication.categoryStatus}
+              </p>
+            </div>
           </div>
+
+          {/* Add Smart Upload button for pending applications */}
+          {selectedApplication.categoryStatus === 'pending' && (
+            <div className="flex items-center gap-3">
+              <label
+                htmlFor="smart-upload"
+                className="inline-flex items-center px-4 py-2.5 rounded-lg text-sm font-medium
+                  bg-primary-600 hover:bg-primary-700 text-white cursor-pointer
+                  transition-colors duration-200 shadow-sm hover:shadow-md"
+              >
+                <Wand2 className="w-4 h-4 mr-2" />
+                Smart Upload
+              </label>
+              <input
+                type="file"
+                id="smart-upload"
+                className="hidden"
+                multiple
+                onChange={async (e) => {
+                  if (e.target.files?.length) {
+                    await handleMultipleFileUpload(
+                      Array.from(e.target.files),
+                      selectedApplication._id
+                    );
+                  }
+                }}
+                accept="image/*,application/pdf"
+              />
+            </div>
+          )}
         </div>
 
+        {/* Processing indicator */}
+        {processingProcessId === selectedApplication._id && (
+          <div className="mb-4 p-4 bg-blue-50 rounded-lg flex items-center gap-3">
+            <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+            <span className="text-blue-700">Processing documents...</span>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {selectedApplication.documentTypes.map((doc) => (
-            <div
-              key={doc._id}
-              className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer"
-              onClick={() => navigate(`/crm/user/${userId}/application/${applicationId}/document/${doc._id}`)}
-            >
-              <div className="flex items-center space-x-4">
-                <div className="p-3 bg-primary-50 rounded-lg">
-                  <FileText className="w-8 h-8 text-primary-600" />
+          {selectedApplication.documentTypes.map((doc) => {
+            const statusDisplay = getStatusDisplay(doc.status);
+            
+            return (
+              <div
+                key={doc._id}
+                className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => navigate(`/crm/user/${userId}/application/${applicationId}/document/${doc._id}`)}
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="p-3 bg-primary-50 rounded-lg">
+                    <FileText className="w-8 h-8 text-primary-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-900 capitalize">{doc.name}</h3>
+                    <p className="text-sm text-gray-500">
+                      Status: <span className={statusDisplay.color}>{statusDisplay.text}</span>
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-medium text-gray-900 capitalize">{doc.name}</h3>
-                  <p className="text-sm text-gray-500">
-                    Status: <span className="text-green-600">Verified</span>
-                  </p>
-                </div>
+                
+                {doc.preview && (
+                  <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-600">Preview</p>
+                    <p className="text-xs text-gray-500 mt-1">{doc.preview}</p>
+                  </div>
+                )}
               </div>
-              
-              {/* Preview section if available */}
-              {doc.preview && (
-                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-600">Preview</p>
-                  <p className="text-xs text-gray-500 mt-1">{doc.preview}</p>
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
@@ -1106,7 +1389,7 @@ const CRM = () => {
           selectedUser={selectedUser}
           activeTab={applicationId ? undefined : activeTab}
         />
-        <Toast message={toastMessage} show={showToast} />
+        <Toaster />
         <main className="flex-1 overflow-y-auto">
           {renderContent()}
         </main>
