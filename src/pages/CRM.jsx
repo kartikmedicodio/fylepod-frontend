@@ -11,19 +11,93 @@ import { Toaster } from 'react-hot-toast';
 
 
 const CRM = () => {
-  const [companyUsers, setCompanyUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [completedApplications, setCompletedApplications] = useState([]);
-  const [documentData, setDocumentData] = useState(null);
-  const [documentLoading, setDocumentLoading] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
   const { userId, applicationId, documentId } = useParams();
+
+  // Initialize state from localStorage if available
+  const [companyUsers, setCompanyUsers] = useState(() => {
+    const saved = localStorage.getItem('companyUsers');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [selectedUser, setSelectedUser] = useState(() => {
+    const saved = localStorage.getItem('selectedUser');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const [completedApplications, setCompletedApplications] = useState(() => {
+    const saved = localStorage.getItem('completedApplications');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [pendingApplications, setPendingApplications] = useState(() => {
+    const saved = localStorage.getItem('pendingApplications');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [activeTab, setActiveTab] = useState(() => {
+    const saved = localStorage.getItem('activeTab');
+    return saved || 'completed';
+  });
+
+  // Save states to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem('companyUsers', JSON.stringify(companyUsers));
+  }, [companyUsers]);
+
+  useEffect(() => {
+    localStorage.setItem('selectedUser', JSON.stringify(selectedUser));
+  }, [selectedUser]);
+
+  useEffect(() => {
+    localStorage.setItem('completedApplications', JSON.stringify(completedApplications));
+  }, [completedApplications]);
+
+  useEffect(() => {
+    localStorage.setItem('pendingApplications', JSON.stringify(pendingApplications));
+  }, [pendingApplications]);
+
+  useEffect(() => {
+    localStorage.setItem('activeTab', activeTab);
+  }, [activeTab]);
+
+  // Load initial data if needed
+  useEffect(() => {
+    const loadInitialData = async () => {
+      if (userId && (!selectedUser || selectedUser._id !== userId)) {
+        const user = companyUsers.find(u => u._id === userId);
+        if (user) {
+          setSelectedUser(user);
+          await handleUserClick(userId);
+        }
+      }
+    };
+
+    loadInitialData();
+  }, [userId]);
+
+  // Clear stored state on logout
+  const clearStoredState = () => {
+    localStorage.removeItem('companyUsers');
+    localStorage.removeItem('selectedUser');
+    localStorage.removeItem('completedApplications');
+    localStorage.removeItem('pendingApplications');
+    localStorage.removeItem('activeTab');
+  };
+
+  // Add this to your logout handler
+  useEffect(() => {
+    if (!user) {
+      clearStoredState();
+    }
+  }, [user]);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [documentData, setDocumentData] = useState(null);
+  const [documentLoading, setDocumentLoading] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState(null);
-  const [activeTab, setActiveTab] = useState('completed');
-  const [pendingApplications, setPendingApplications] = useState([]);
   const [categories, setCategories] = useState([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -691,9 +765,9 @@ const CRM = () => {
 
   const updateDocumentStatus = async (managementId, documentTypeId) => {
     try {
-      console.log('Updating status for:', { managementId, documentTypeId });
+      console.log('[Status Update] Starting:', { managementId, documentTypeId });
       
-      const response = await api({
+      const docResponse = await api({
         method: 'PATCH',
         url: `/management/${managementId}/documents/${documentTypeId}/status`,
         data: { status: 'completed' },
@@ -702,34 +776,57 @@ const CRM = () => {
         }
       });
 
-      if (response.data.status === 'success') {
-        // Get the updated process to check all documents
-        const process = pendingApplications.find(p => p._id === managementId);
-        const allCompleted = process?.documentTypes.every(doc => 
-          doc._id === documentTypeId || doc.status === 'completed'
-        );
+      if (docResponse.data.status === 'success') {
+        console.log('[Status Update] Document status updated');
 
-        // If all documents are completed, update the management status
-        if (allCompleted) {
-          await api({
-            method: 'PATCH',
-            url: `/management/${managementId}/status`,
-            data: { status: 'completed' },
-            headers: {
-              'Content-Type': 'application/json'
+        try {
+          const processResponse = await api.get(`/management/${managementId}`);
+          
+          if (processResponse.data?.data) {
+            const process = processResponse.data.data;
+            console.log('[Status Update] Retrieved process data:', process);
+            
+            if (process.documentTypes && Array.isArray(process.documentTypes)) {
+              const allCompleted = process.documentTypes.every(doc => doc.status === 'completed');
+              console.log('[Status Update] All documents completed:', allCompleted);
+
+              if (allCompleted) {
+                console.log('[Status Update] Updating management status');
+                
+                const managementResponse = await api({
+                  method: 'PATCH',
+                  url: `/management/${managementId}/status`,
+                  data: { 
+                    status: 'completed',
+                    categoryStatus: 'completed'
+                  },
+                  headers: {
+                    'Content-Type': 'application/json'
+                  }
+                });
+
+                if (managementResponse.data.status === 'success') {
+                  console.log('[Status Update] Management status updated successfully');
+                }
+              }
             }
-          });
-        }
+          }
 
-        // Refresh the list
-        const updatedResponse = await CRMService.getUserCompletedApplications(userId);
-        const allApplications = updatedResponse.data.entries || [];
-        setPendingApplications(allApplications.filter(app => app.categoryStatus === 'pending'));
-      } else {
-        throw new Error(response.data.message || 'Failed to update status');
+          const updatedResponse = await CRMService.getUserCompletedApplications(userId);
+          const allApplications = updatedResponse.data.entries || [];
+          setPendingApplications(allApplications.filter(app => app.categoryStatus === 'pending'));
+          
+          console.log('[Status Update] Process completed');
+          return true;
+        } catch (processError) {
+          console.error('[Status Update] Error getting process data:', processError);
+          return true;
+        }
       }
+
+      return false;
     } catch (err) {
-      console.error('Error updating document status:', err);
+      console.error('[Status Update] Error:', err);
       throw err;
     }
   };
@@ -807,37 +904,43 @@ const CRM = () => {
 
       // Update statuses
       if (docTypeMatches.size > 0) {
-        // Update document statuses
-        await Promise.all(
-          Array.from(docTypeMatches.keys()).map(typeId =>
-            updateDocumentStatus(processId, typeId)
-          )
-        );
-
-        // Double check if all documents are completed
-        const updatedProcess = pendingApplications.find(p => p._id === processId);
-        const allDocumentsCompleted = updatedProcess?.documentTypes.every(doc => doc.status === 'completed');
-        
-        if (allDocumentsCompleted) {
-          // Update management status to completed
-          await api({
-            method: 'PATCH',
-            url: `/management/${processId}/status`,
-            data: { status: 'completed' },
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          });
-
-          toast.success('All documents processed and application completed!');
-        } else {
-          toast.success(`${docTypeMatches.size} document(s) processed successfully`);
+        let allSuccess = true;
+        for (const [typeId] of docTypeMatches) {
+          const success = await updateDocumentStatus(processId, typeId);
+          if (!success) {
+            allSuccess = false;
+          }
         }
 
-        // Refresh list
-        const response = await CRMService.getUserCompletedApplications(userId);
-        const allApplications = response.data.entries || [];
-        setPendingApplications(allApplications.filter(app => app.categoryStatus === 'pending'));
+        if (allSuccess) {
+          // Get fresh data after all updates
+          const response = await CRMService.getUserCompletedApplications(userId);
+          const allApplications = response.data.entries || [];
+          
+          // Update both completed and pending applications
+          const completed = allApplications.filter(app => app.categoryStatus === 'completed');
+          const pending = allApplications.filter(app => app.categoryStatus === 'pending');
+          
+          setCompletedApplications(completed);
+          setPendingApplications(pending);
+          
+          // Check if the process is now completed
+          const updatedProcess = allApplications.find(app => app._id === processId);
+          
+          if (updatedProcess?.categoryStatus === 'completed') {
+            toast.success(`${docTypeMatches.size} document(s) processed successfully`);
+            
+            // Only navigate if category status is completed
+            setTimeout(() => {
+              setActiveTab('completed');
+              if (userId) {
+                navigate(`/crm/user/${userId}`, { replace: true });
+              }
+            }, 100);
+          } else {
+            toast.success(`${docTypeMatches.size} document(s) processed`);
+          }
+        }
       }
 
       // Clean up unmatched documents
@@ -1387,7 +1490,9 @@ const CRM = () => {
         <Header 
           showText={showHeaderText} 
           selectedUser={selectedUser}
-          activeTab={applicationId ? undefined : activeTab}
+          activeTab={activeTab}
+          completedApplications={completedApplications}
+          pendingApplications={pendingApplications}
         />
         <Toaster />
         <main className="flex-1 overflow-y-auto">
