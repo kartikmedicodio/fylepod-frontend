@@ -117,7 +117,8 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
       await fetchPendingForms(userData._id);
       
-      window.location.href = '/pending-forms';
+      // Update the redirect URL to /crm
+      window.location.href = '/crm';
       return true;
     } catch (error) {
       console.error('Login failed:', error);
