@@ -499,7 +499,6 @@ const CompletedProcesses = () => {
                     >
                       Close
                     </button>
-                    <PDFGenerator managementId={selectedProcess._id} />
                   </div>
                 </div>
               </div>
