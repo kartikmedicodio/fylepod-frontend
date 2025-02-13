@@ -60,3 +60,13 @@ export const deleteDocument = async (id) => {
     throw error;
   }
 };
+
+export const getOrganizedDocuments = async (managementId) => {
+  try {
+    const response = await api.get(`/documents/management/${managementId}/organized-documents`);
+    return response.data.data;
+  } catch (error) {
+    console.error('Error fetching organized documents:', error);
+    throw error;
+  }
+};
