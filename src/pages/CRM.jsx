@@ -8,6 +8,7 @@ import Header from '../components/dashboard/Header';
 import api from '../utils/api';
 import { toast } from 'react-hot-toast';
 import { Toaster } from 'react-hot-toast';
+import PDFGenerator from '../components/PDFGenerator';
 
 
 const CRM = () => {
@@ -1060,19 +1061,24 @@ const CRM = () => {
     return (
       <div className="p-6">
         <div className="mb-6 flex items-center justify-between">
-          <div className="flex items-center">
-            <button 
-              onClick={() => navigate(`/crm/user/${userId}`)}
-              className="mr-4 p-2 hover:bg-gray-100 rounded-full"
-            >
-              <ArrowLeft className="w-6 h-6" />
-            </button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">{selectedApplication.categoryName}</h1>
-              <p className="text-gray-500">
-                Status: {selectedApplication.categoryStatus}
-              </p>
+          <div className="flex items-center justify-between w-full">
+            <div className='flex'>
+              <button 
+                onClick={() => navigate(`/crm/user/${userId}`)}
+                className="mr-4 p-2 hover:bg-gray-100 rounded-full"
+              >
+                <ArrowLeft className="w-6 h-6" />
+              </button>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">{selectedApplication.categoryName}</h1>
+                <p className="text-gray-500">
+                  Status: {selectedApplication.categoryStatus}
+                </p>
+              </div>
             </div>
+            {selectedApplication.categoryStatus === 'completed' && (
+              <PDFGenerator managementId={selectedApplication._id} />
+            )}
           </div>
 
           {/* Add Smart Upload button for pending applications */}
