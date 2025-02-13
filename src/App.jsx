@@ -22,7 +22,7 @@ const App = () => {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/" element={<Navigate to="/pending-forms" replace />} />
+          <Route path="/" element={<Navigate to="/crm" replace />} />
           <Route
             path="/documents"
             element={
