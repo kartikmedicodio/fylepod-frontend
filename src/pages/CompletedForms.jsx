@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
-import { FileCheck, ChevronLeft, ChevronRight, Search, Filter, Clock, User, Calendar, CheckCircle2, X, FileText, ChevronRight as ChevronRightIcon, Mail, Phone, Tag, Hash, Flag, ExternalLink, MessageSquare } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { FileCheck, ChevronLeft, ChevronRight, Search, Filter, Clock, User, Calendar, CheckCircle2, X, FileText, Mail, Phone, Tag, Hash, Flag, MessageSquare } from 'lucide-react';
 import { motion } from 'framer-motion';
 import api from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import DashboardLayout from '../layouts/DashboardLayout';
 import PDFGenerator from '../components/PDFGenerator';
+import { useNavigate } from 'react-router-dom';
 
 const CompletedProcesses = () => {
   const [processes, setProcesses] = useState([]);
@@ -17,8 +18,9 @@ const CompletedProcesses = () => {
   const itemsPerPage = 10; // Increased from 5 to 10
   const { user } = useAuth();
   const [selectedProcess, setSelectedProcess] = useState(null);
+  const navigate = useNavigate();
 
-  const fetchCompletedProcesses = async () => {
+  const fetchCompletedProcesses = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.get(`/management/user/${user.id}`, {
@@ -30,20 +32,19 @@ const CompletedProcesses = () => {
       const allProcesses = response.data.data.entries || [];
       setProcesses(allProcesses);
       setTotalPages(Math.ceil(allProcesses.length / itemsPerPage));
-      console.log("All processes.......", response.data.data.entries);
     } catch (err) {
       setError('Failed to fetch processes');
       console.error(err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, itemsPerPage]);
 
   useEffect(() => {
     if (user?.id) {
       fetchCompletedProcesses();
     }
-  }, [user?.id]);
+  }, [user?.id, fetchCompletedProcesses]);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -56,7 +57,7 @@ const CompletedProcesses = () => {
     }
   };
 
-  const getFilteredProcesses = () => {
+  const getFilteredProcesses = useCallback(() => {
     let filtered = processes;
     
     if (searchQuery.trim()) {
@@ -70,7 +71,7 @@ const CompletedProcesses = () => {
     }
 
     return filtered;
-  };
+  }, [processes, searchQuery, statusFilter]);
 
   // Get current page processes after filtering
   const getCurrentPageProcesses = () => {
@@ -85,7 +86,7 @@ const CompletedProcesses = () => {
     const filteredProcesses = getFilteredProcesses();
     setTotalPages(Math.ceil(filteredProcesses.length / itemsPerPage));
     setCurrentPage(1); // Reset to first page when search changes
-  }, [searchQuery, processes]);
+  }, [searchQuery, processes, getFilteredProcesses, itemsPerPage]);
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) {
@@ -94,7 +95,8 @@ const CompletedProcesses = () => {
   };
 
   const handleProcessClick = (process) => {
-    setSelectedProcess(process);
+    // First navigate to ensure we're on the CRM page
+    navigate(`/crm/user/${process.userId._id}/application/${process._id}`);
   };
 
   return (
