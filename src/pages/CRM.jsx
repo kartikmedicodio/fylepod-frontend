@@ -151,12 +151,17 @@ const CRM = () => {
 
   useEffect(() => {
     if (applicationId) {
-      const app = activeTab === 'completed' 
-        ? completedApplications.find(a => a._id === applicationId)
-        : pendingApplications.find(a => a._id === applicationId);
-      setSelectedApplication(app);
+      // Check both completed and pending applications
+      const app = completedApplications.find(a => a._id === applicationId) || 
+                  pendingApplications.find(a => a._id === applicationId);
+      
+      if (app) {
+        setSelectedApplication(app);
+        // Set activeTab based on the application's status
+        setActiveTab(app.categoryStatus === 'completed' ? 'completed' : 'pending');
+      }
     }
-  }, [applicationId, completedApplications, pendingApplications, activeTab]);
+  }, [applicationId, completedApplications, pendingApplications]);
 
   useEffect(() => {
     const fetchCategories = async () => {
