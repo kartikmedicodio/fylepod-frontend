@@ -37,8 +37,9 @@ const CRM = () => {
         const response = await CRMService.getCompanyUsers();
         const users = response.data.users;
         console.log("all users",users);
+        
         const filteredUsers = users.filter(u => 
-          u.company_name === user.company_name && 
+          u?.company_id?.company_name === user?.company_id?.company_name && 
           u.role !== 'admin'  // Exclude admin users
         );
         console.log("filtered users",filteredUsers);
@@ -52,16 +53,17 @@ const CRM = () => {
     };
 
     fetchCompanyUsers();
-  }, [user.company_name]);
+  }, [user?.company_id?.company_name]);
+
 
   useEffect(() => {
-    if (userId) {
+    if (userId && companyUsers.length > 0) {
       handleUserClick(userId);
       setShowHeaderText(false);
     } else {
       setShowHeaderText(true);
     }
-  }, [userId]);
+  }, [userId, companyUsers]);
 
   useEffect(() => {
     if (documentId) {
@@ -112,20 +114,45 @@ const CRM = () => {
   }, []);
 
   const handleUserClick = async (userId) => {
+    // Early return if no userId
+    if (!userId) return;
+
     const selectedUser = companyUsers.find(u => u._id === userId);
+    
+    // Early return if no selectedUser found
+    if (!selectedUser) {
+      console.error('No user found with ID:', userId);
+      setCompletedApplications([]);
+      setPendingApplications([]);
+      return;
+    }
+
     setSelectedUser(selectedUser);
+    
     try {
-      const response = await CRMService.getUserCompletedApplications(userId);
-      const allApplications = response.data.entries || [];
+      const response = await CRMService.getUserCompletedApplications(selectedUser._id);
       
-      // Filter applications based on categoryStatus
-      const completed = allApplications.filter(app => app.categoryStatus === 'completed');
-      const pending = allApplications.filter(app => app.categoryStatus === 'pending');
+      // Check if response exists and has data
+      if (!response?.data?.entries) {
+        // If no entries, set empty arrays for both completed and pending
+        setCompletedApplications([]);
+        setPendingApplications([]);
+        return;
+      }
+      
+      const allApplications = response.data.entries;
+      
+      // Filter applications based on categoryStatus, with null checks
+      const completed = allApplications.filter(app => app?.categoryStatus === 'completed') || [];
+      const pending = allApplications.filter(app => app?.categoryStatus === 'pending') || [];
       
       setCompletedApplications(completed);
       setPendingApplications(pending);
     } catch (err) {
       console.error('Failed to fetch applications:', err);
+      // Set empty arrays in case of error
+      setCompletedApplications([]);
+      setPendingApplications([]);
     }
   };
 
@@ -171,7 +198,7 @@ const CRM = () => {
       const managementResponse = await api.post('/management', {
         userId: selectedUser._id,
         categoryId: selectedCategory._id,
-        createdBy: JSON.parse(localStorage.getItem('user'))?._id
+        createdBy: JSON.parse(localStorage.getItem('user'))?.id
       });
 
       console.log('Management entry created:', managementResponse.data);
@@ -218,13 +245,39 @@ const CRM = () => {
   };
 
   // Helper function to format address
-  const formatAddress = (address) => {
-    if (typeof address === 'string') return address;
-    if (typeof address === 'object') {
-      const { street, city, state, zipcode } = address;
-      return `${street || ''} ${city || ''} ${state || ''} ${zipcode || ''}`.trim();
+  const formatAddress = (addressObj) => {
+    // If address is already a string, return it
+    if (typeof addressObj === 'string') return addressObj;
+    
+    // If address is an object, format it
+    if (typeof addressObj === 'object' && addressObj !== null) {
+      const {
+        floorAptSuite,
+        streetNumber,
+        streetName,
+        district,
+        city,
+        stateProvince,
+        country,
+        zipCode
+      } = addressObj;
+
+      return [
+        floorAptSuite,
+        streetNumber,
+        streetName,
+        district,
+        city,
+        stateProvince,
+        country,
+        zipCode
+      ]
+        .filter(Boolean) // Remove empty/null/undefined values
+        .join(', ');
     }
-    return 'N/A';
+
+    // Return a default value if address is invalid
+    return 'No address available';
   };
 
   const renderUserProfile = () => {
@@ -282,7 +335,7 @@ const CRM = () => {
                   <div>
                     <div className="flex items-start text-sm text-gray-900">
                       <Building className="w-4 h-4 mr-2 mt-0.5 text-gray-500" />
-                      <span>{selectedUser.address}</span>
+                      <span className="break-words">{formatAddress(selectedUser?.address)}</span>
                     </div>
                   </div>
                 )}
@@ -556,20 +609,22 @@ const CRM = () => {
 
               <div>
                 <label className="text-sm text-gray-500 block mb-2">Address</label>
-                <div className="flex items-start text-gray-900"> {/* Changed to items-start */}
+                <div className="flex items-start text-gray-900">
                   <Building className="w-4 h-4 mr-2 flex-shrink-0 mt-1 text-gray-500" />
-                  <span className="break-words">{user.company_address || "1234 Lexington Ave, Suite 500, New York, NY 10022, USA"}</span>
+                  <span className="break-words">
+                    {formatAddress(user?.company_address) || "1234 Lexington Ave, Suite 500, New York, NY 10022, USA"}
+                  </span>
                 </div>
               </div>
 
-              <div>
+              <div>x
                 <label className="text-sm text-gray-500 block mb-2">Contact</label>
                 <div className="space-y-2">
-                  <div className="flex items-start text-gray-900"> {/* Changed to items-start */}
+                  <div className="flex items-start text-gray-900">
                     <Phone className="w-4 h-4 mr-2 flex-shrink-0 mt-1 text-gray-500" />
                     <span className="break-words">{user.company_phone || "+1 (212) 555-7890"}</span>
                   </div>
-                  <div className="flex items-start text-gray-900"> {/* Changed to items-start */}
+                  <div className="flex items-start text-gray-900">
                     <Mail className="w-4 h-4 mr-2 flex-shrink-0 mt-1 text-gray-500" />
                     <span className="break-words">{user.company_email || "lexon.legal@gmail.com"}</span>
                   </div>
@@ -592,6 +647,11 @@ const CRM = () => {
                 <Link
                   key={employee._id}
                   to={`/crm/user/${employee._id}`}
+                  onClick={(e) => {
+                    e.preventDefault(); // Prevent default navigation
+                    handleUserClick(employee._id);
+                    navigate(`/crm/user/${employee._id}`); // Programmatically navigate after handling the click
+                  }}
                   className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
                 >
                   <div className="flex flex-col items-center text-center">

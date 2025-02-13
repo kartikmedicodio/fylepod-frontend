@@ -20,7 +20,7 @@ const CompletedProcesses = () => {
   const fetchCompletedProcesses = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/management/user/${user._id}`, {
+      const response = await api.get(`/management/user/${user.id}`, {
         params: {
           status: ['completed', 'pending']
         }
@@ -39,10 +39,10 @@ const CompletedProcesses = () => {
   };
 
   useEffect(() => {
-    if (user?._id) {
+    if (user?.id) {
       fetchCompletedProcesses();
     }
-  }, [user?._id]);
+  }, [user?.id]);
 
   const getStatusColor = (status) => {
     switch (status) {

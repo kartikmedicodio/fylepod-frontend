@@ -66,7 +66,7 @@ const PendingProcesses = () => {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   useEffect(() => {
-    if (user?._id) {
+    if (user?.id) {
       const loadInitialData = async () => {
         setIsInitialLoad(true);
         try {
@@ -170,7 +170,7 @@ const PendingProcesses = () => {
 
   const fetchPendingProcesses = async () => {
     try {
-      const targetUserId = userId || user._id;
+      const targetUserId = userId || user.id;
       const response = await api.get(`/management/user/${targetUserId}`, {
         params: { status: 'pending' }
       });
