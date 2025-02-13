@@ -1,8 +1,9 @@
+import PropTypes from 'prop-types';
 import { useAuth } from '../../contexts/AuthContext';
 import { Bell, Building, ChevronRight } from 'lucide-react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 
-const Header = ({ showText = true, selectedUser, activeTab }) => {
+const Header = ({ showText = true, selectedUser, activeTab, completedApplications = [], pendingApplications = [] }) => {
   const { user } = useAuth();
   const companyName = "Lexon Legal Solutions";
   const { applicationId } = useParams();
@@ -10,6 +11,11 @@ const Header = ({ showText = true, selectedUser, activeTab }) => {
   const location = useLocation();
 
   const isCorpRoute = location.pathname.includes('/crm');
+
+  // Function to determine if an application is completed
+  const isApplicationCompleted = (appId) => {
+    return completedApplications.some(app => app._id === appId);
+  };
 
   const renderBreadcrumb = () => {
     if (isCorpRoute) {
@@ -24,6 +30,7 @@ const Header = ({ showText = true, selectedUser, activeTab }) => {
             <span className="text-sm font-medium">{companyName}</span>
           </div>
 
+          {/* Show user name when a user is selected */}
           {!showText && selectedUser && (
             <>
               <ChevronRight className="w-4 h-4 text-gray-400" />
@@ -33,20 +40,12 @@ const Header = ({ showText = true, selectedUser, activeTab }) => {
             </>
           )}
 
-          {!showText && activeTab && (
-            <>
-              <ChevronRight className="w-4 h-4 text-gray-400" />
-              <span className="text-sm font-medium text-gray-700">
-                {activeTab === 'completed' ? 'Completed Applications' : 'Pending Applications'}
-              </span>
-            </>
-          )}
-
+          {/* Show Completed/Pending Application when viewing an application */}
           {!showText && applicationId && (
             <>
               <ChevronRight className="w-4 h-4 text-gray-400" />
               <span className="text-sm font-medium text-gray-700">
-                Documents
+                {isApplicationCompleted(applicationId) ? 'Completed Application' : 'Pending Application'}
               </span>
             </>
           )}
@@ -123,6 +122,16 @@ const Header = ({ showText = true, selectedUser, activeTab }) => {
       </div>
     </header>
   );
+};
+
+Header.propTypes = {
+  showText: PropTypes.bool,
+  selectedUser: PropTypes.shape({
+    name: PropTypes.string.isRequired,
+  }),
+  activeTab: PropTypes.string,
+  completedApplications: PropTypes.array,
+  pendingApplications: PropTypes.array
 };
 
 export default Header; 
