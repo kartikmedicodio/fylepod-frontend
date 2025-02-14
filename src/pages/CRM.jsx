@@ -9,7 +9,16 @@ import api from '../utils/api';
 import { toast } from 'react-hot-toast';
 import { Toaster } from 'react-hot-toast';
 import PDFGenerator from '../components/PDFGenerator';
+import { ResumeView, PaystubView, PassportView, NationalIDView } from '../components/DocumentTypes';
+import { motion, AnimatePresence } from 'framer-motion';
 
+// Update the processing steps to be shorter
+const processingSteps = [
+  { id: 1, text: "Analyzing..." },
+  { id: 2, text: "Validating..." },
+  { id: 3, text: "Processing..." },
+  { id: 4, text: "Verifying..." }
+];
 
 const CRM = () => {
   const { user } = useAuth();
@@ -109,6 +118,8 @@ const CRM = () => {
   const [showHeaderText, setShowHeaderText] = useState(true);
   const [processingQueue, setProcessingQueue] = useState(new Set());
   const [processingProcessId, setProcessingProcessId] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
 
   useEffect(() => {
     const fetchCompanyUsers = async () => {
@@ -143,12 +154,6 @@ const CRM = () => {
       setShowHeaderText(true);
     }
   }, [userId, companyUsers]);
-
-  useEffect(() => {
-    if (documentId) {
-      handleDocumentClick(documentId);
-    }
-  }, [documentId]);
 
   useEffect(() => {
     if (applicationId) {
@@ -240,38 +245,69 @@ const CRM = () => {
     }
   };
 
-  const handleDocumentClick = async (documentId) => {
-    setDocumentLoading(true);
-    try {
-      // Find the current document from the selected application
-      const currentDocument = selectedApplication?.documentTypes.find(doc => doc._id === documentId);
-      if (!currentDocument) {
-        throw new Error('Document not found');
-      }
+  useEffect(() => {
+    let isMounted = true;  // Add mounted flag
+    
+    const loadDocumentData = async () => {
+      if (!documentId || !userId || !applicationId) return;
 
-      // Use the document's actual ID for extraction
-      const response = await CRMService.getExtractedData(currentDocument.documentId || documentId);
-      console.log('Document data response:', response);
-      
-      if (response.data && response.data.isAvailable) {
-        setDocumentData(response.data);
-      } else {
+      setDocumentLoading(true);
+      try {
+        // First ensure we have the application data if it's missing
+        if (!selectedApplication) {
+          const response = await CRMService.getUserCompletedApplications(userId);
+          if (!isMounted) return;  // Check if still mounted
+          
+          if (response.data?.entries) {
+            const app = response.data.entries.find(a => a._id === applicationId);
+            if (app) {
+              setSelectedApplication(app);
+              setActiveTab(app.categoryStatus === 'completed' ? 'completed' : 'pending');
+            }
+          }
+        }
+
+        // Get the current document from the application
+        const currentDocument = selectedApplication?.documentTypes.find(doc => doc._id === documentId);
+        
+        // If we have a documentId but no currentDocument, try to get it directly
+        const docIdToUse = currentDocument?.documentId || documentId;
+        
+        const response = await CRMService.getExtractedData(docIdToUse);
+        if (!isMounted) return;  // Check if still mounted
+        
+        console.log('Document data response:', response);
+        
+        if (response.data && response.data.isAvailable) {
+          setDocumentData(response.data);
+        } else {
+          setDocumentData({
+            message: 'No extracted data available for this document',
+            isAvailable: false
+          });
+        }
+      } catch (err) {
+        if (!isMounted) return;  // Check if still mounted
+        console.error('Failed to fetch document data:', err);
         setDocumentData({
-          message: 'No extracted data available for this document',
-          isAvailable: false
+          message: 'Failed to fetch document data. Please try again later.',
+          isAvailable: false,
+          error: true
         });
+      } finally {
+        if (isMounted) {  // Only update state if still mounted
+          setDocumentLoading(false);
+        }
       }
-    } catch (err) {
-      console.error('Failed to fetch document data:', err);
-      setDocumentData({
-        message: 'Failed to fetch document data. Please try again later.',
-        isAvailable: false,
-        error: true
-      });
-    } finally {
-      setDocumentLoading(false);
-    }
-  };
+    };
+
+    loadDocumentData();
+
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
+  }, [documentId, applicationId, userId]); // Remove selectedApplication from dependencies
 
   const handleCategorySelect = (category) => {
     setSelectedCategory(category);
@@ -922,175 +958,118 @@ const CRM = () => {
 
   const handleMultipleFileUpload = async (files, processId) => {
     try {
+      setIsProcessing(true); // Start processing
       setProcessingProcessId(processId);
-      const process = pendingApplications.find(p => p._id === processId);
-      if (!process) return;
 
-      // First upload files with only required fields
+      // Step 1: Upload all files first with minimal metadata
       const uploadPromises = files.map(async (file) => {
         try {
-          if (!validateFileType(file)) {
-            toast.error(`Invalid file type: ${file.name}`);
-            return null;
-          }
+          if (!validateFileType(file)) return null;
           
           const formData = new FormData();
           formData.append('file', file);
           formData.append('name', `${Date.now()}-${file.name}`);
           formData.append('managementId', processId);
-          formData.append('form_category', process.categoryName || 'other');
+          formData.append('form_category', selectedApplication.categoryName || 'other');
           formData.append('type', 'pending_extraction');
           
-          // Use first document type's ID to satisfy schema requirement
-          const tempDocType = process.documentTypes[0];
-          formData.append('documentTypeId', tempDocType.documentTypeId);
-          
-          // Log the form data for debugging
-          console.log('Uploading file:', {
-            name: file.name,
-            managementId: processId,
-            documentTypeId: tempDocType.documentTypeId
-          });
-
-          const response = await api.post('/documents', formData, {
-            headers: { 
-              'Content-Type': 'multipart/form-data'
-            }
-          });
-
-          if (response.data?.status !== 'success') {
-            throw new Error(response.data?.message || 'Upload failed');
+          // Use first pending doc type for initial upload
+          const tempDocType = selectedApplication.documentTypes.find(dt => dt.status !== 'completed');
+          if (tempDocType) {
+            formData.append('documentTypeId', tempDocType.documentTypeId);
+            formData.append('managementDocumentId', tempDocType._id);
           }
 
-          return response.data?.data.document;
+          const response = await api.post('/documents', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+
+          if (response.data?.status === 'success' && response.data.data.document) {
+            return response.data.data.document;
+          }
+          return null;
         } catch (err) {
           console.error(`Error uploading file ${file.name}:`, err);
-          toast.error(`Failed to upload ${file.name}: ${err.message}`);
           return null;
         }
       });
 
+      // Wait for all uploads to complete
       const uploadedDocs = (await Promise.all(uploadPromises)).filter(Boolean);
       if (uploadedDocs.length === 0) {
         toast.error('No files were uploaded successfully');
         return;
       }
 
-      // Process documents to get their types
+      // Step 2: Wait for all documents to be processed by OpenAI
       const processedDocs = await Promise.all(
-        uploadedDocs.map(async (doc) => {
-          try {
-            const processedDoc = await checkDocumentProcessing(doc._id);
-            return processedDoc;
-          } catch (err) {
-            console.error(`Error processing document ${doc._id}:`, err);
-            return null;
-          }
-        })
+        uploadedDocs.map(doc => checkDocumentProcessing(doc._id))
       );
 
-      // Get available document types from the process
-      const availableDocTypes = [...process.documentTypes].filter(dt => dt.status !== 'completed');
+      // Step 3: Match documents with required types and update statuses
       const docTypeMatches = new Map();
       const docsToDelete = new Set();
 
-      // Match and update documents
-      for (const doc of processedDocs) {
+      processedDocs.forEach(doc => {
         if (!doc || !doc.extractedData?.document_type) {
           if (doc?._id) docsToDelete.add(doc._id);
-          continue;
+          return;
         }
 
         const extractedType = doc.extractedData.document_type.toLowerCase().trim();
-        
-        // Find matching document type from available types
-        const matchingDocTypeIndex = availableDocTypes.findIndex(type => {
+        const matchingDocType = selectedApplication.documentTypes.find(type => {
           const typeName = type.name.toLowerCase().trim();
-          return typeName === extractedType || extractedType.includes(typeName);
+          return typeName === extractedType && 
+                 type.status !== 'completed' && 
+                 !docTypeMatches.has(type.documentTypeId);
         });
 
-        if (matchingDocTypeIndex !== -1) {
-          const matchingDocType = availableDocTypes[matchingDocTypeIndex];
-          try {
-            // Update document with correct IDs
-            const updateResponse = await api.patch(`/documents/${doc._id}`, {
-              documentTypeId: matchingDocType.documentTypeId,
-              managementDocumentId: matchingDocType._id
-            });
-
-            if (updateResponse.data?.status === 'success') {
-              try {
-                // Update management document status
-                await api.patch(
-                  `/management/${processId}/documents/${matchingDocType.documentTypeId}/status`,
-                  { status: 'completed' }
-                );
-
-                docTypeMatches.set(matchingDocType.documentTypeId, {
-                  docId: doc._id,
-                  managementDocumentId: matchingDocType._id
-                });
-                
-                // Remove the matched type from available types
-                availableDocTypes.splice(matchingDocTypeIndex, 1);
-              } catch (managementErr) {
-                console.error(`Error updating management status for document ${doc._id}:`, managementErr);
-                docsToDelete.add(doc._id);
-              }
-            } else {
-              console.error(`Failed to update document ${doc._id}:`, updateResponse.data);
-              docsToDelete.add(doc._id);
-            }
-          } catch (err) {
-            console.error(`Error updating document ${doc._id}:`, err);
-            if (err.response?.status === 404) {
-              console.error('Document not found');
-            }
-            docsToDelete.add(doc._id);
-          }
+        if (matchingDocType) {
+          docTypeMatches.set(matchingDocType.documentTypeId, {
+            docId: doc._id,
+            extractedType,
+            expectedType: matchingDocType.name
+          });
         } else {
           docsToDelete.add(doc._id);
         }
-      }
+      });
 
-      // Refresh the application list
+      // Step 4: Update statuses for matched documents
       if (docTypeMatches.size > 0) {
-        const response = await CRMService.getUserCompletedApplications(userId);
-        const allApplications = response.data.entries || [];
-        
-        setCompletedApplications(allApplications.filter(app => app.categoryStatus === 'completed'));
-        setPendingApplications(allApplications.filter(app => app.categoryStatus === 'pending'));
-        
-        const updatedProcess = allApplications.find(app => app._id === processId);
-        
-        if (updatedProcess?.categoryStatus === 'completed') {
-          toast.success(`${docTypeMatches.size} document(s) processed successfully`);
-          setTimeout(() => {
-            setActiveTab('completed');
-            if (userId) navigate(`/crm/user/${userId}`, { replace: true });
-          }, 100);
-        } else {
-          toast.success(`${docTypeMatches.size} document(s) processed`);
-        }
-      } else {
-        toast.error('No documents were successfully processed');
+        await Promise.all(
+          Array.from(docTypeMatches.entries()).map(([typeId, { docId, extractedType, expectedType }]) => {
+            console.log(`Matched document: Expected "${expectedType}", Got "${extractedType}"`);
+            return updateDocumentStatus(processId, typeId);
+          })
+        );
+
+        toast.success(`${docTypeMatches.size} document${docTypeMatches.size !== 1 ? 's' : ''} processed successfully`);
       }
 
-      // Clean up unmatched or failed documents
+      // Step 5: Clean up unmatched documents
       if (docsToDelete.size > 0) {
         await Promise.all(
-          Array.from(docsToDelete).map(docId => 
-            api.delete(`/documents/${docId}`)
-              .catch(err => console.error(`Error deleting document ${docId}:`, err))
+          Array.from(docsToDelete).map(docId =>
+            api.delete(`/documents/${docId}`).catch(err => 
+              console.error(`Error deleting document ${docId}:`, err)
+            )
           )
         );
+      }
+
+      // Step 6: Refresh the application data
+      if (selectedApplication) {
+        await handleUserClick(userId);
       }
 
     } catch (err) {
       console.error('Error in multiple file upload:', err);
       toast.error('Error processing documents');
     } finally {
+      setIsProcessing(false); // End processing
       setProcessingProcessId(null);
+      setCurrentStep(0);
     }
   };
 
@@ -1132,11 +1111,14 @@ const CRM = () => {
             )}
           </div>
 
-          {/* Add Smart Upload button for pending applications */}
+          {/* Smart Upload button and Processing Indicator */}
           {selectedApplication.categoryStatus === 'pending' && (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
+              <AnimatePresence>
+                {isProcessing && <ProcessingIndicator />}
+              </AnimatePresence>
               <label
-                htmlFor="smart-upload"
+                htmlFor="file-upload"
                 className="inline-flex items-center px-4 py-2.5 rounded-lg text-sm font-medium
                   bg-primary-600 hover:bg-primary-700 text-white cursor-pointer
                   transition-colors duration-200 shadow-sm hover:shadow-md"
@@ -1146,30 +1128,22 @@ const CRM = () => {
               </label>
               <input
                 type="file"
-                id="smart-upload"
+                id="file-upload"
                 className="hidden"
-                multiple
-                onChange={async (e) => {
+                onChange={(e) => {
                   if (e.target.files?.length) {
-                    await handleMultipleFileUpload(
+                    handleMultipleFileUpload(
                       Array.from(e.target.files),
                       selectedApplication._id
                     );
                   }
                 }}
                 accept="image/*,application/pdf"
+                disabled={isProcessing}
               />
             </div>
           )}
         </div>
-
-        {/* Processing indicator */}
-        {processingProcessId === selectedApplication._id && (
-          <div className="mb-4 p-4 bg-blue-50 rounded-lg flex items-center gap-3">
-            <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-            <span className="text-blue-700">Processing documents...</span>
-          </div>
-        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {selectedApplication.documentTypes.map((doc) => {
@@ -1207,11 +1181,32 @@ const CRM = () => {
     );
   };
 
+  const renderDocumentContent = (documentData) => {
+    if (!documentData?.extractedData) return null;
+
+    const { document_type, data } = documentData.extractedData;
+
+    switch (document_type?.toLowerCase()) {
+      case 'resume':
+        return <ResumeView data={data} />;
+      case 'paystub':
+      case 'pay stub':  // Handle both formats
+        return <PaystubView data={data} />;
+      case 'passport':
+        return <PassportView data={data} />;
+      case 'national id card':  // Match the exact response format
+        return <NationalIDView data={data} />;
+      default:
+        return (
+          <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-4 rounded-lg overflow-auto">
+            {JSON.stringify(documentData.extractedData, null, 2)}
+          </pre>
+        );
+    }
+  };
+
   const renderDocumentDetails = () => {
-    if (!documentData) return null;
-    
-    const currentDocument = selectedApplication?.documentTypes.find(doc => doc._id === documentId);
-    const extractedData = documentData.extractedData || {};
+    if (!documentId) return null;
 
     return (
       <div className="p-6 max-w-7xl mx-auto">
@@ -1225,7 +1220,7 @@ const CRM = () => {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
-              {currentDocument?.name || 'Document'} Details
+              {selectedApplication?.documentTypes.find(doc => doc._id === documentId)?.name || 'Document'} Details
             </h1>
             <p className="text-gray-500">
               {selectedApplication?.categoryName}
@@ -1237,11 +1232,21 @@ const CRM = () => {
           <div className="flex justify-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
           </div>
+        ) : !documentData ? (
+          <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-100">
+            <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-900 font-medium mb-2">Document Not Found</p>
+            <p className="text-gray-500">The requested document could not be loaded.</p>
+            <button 
+              onClick={() => navigate(-1)} 
+              className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              Go Back
+            </button>
+          </div>
         ) : documentData.isAvailable ? (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-4 rounded-lg overflow-auto">
-              {JSON.stringify(extractedData, null, 2)}
-            </pre>
+            {renderDocumentContent(documentData)}
           </div>
         ) : (
           <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-100">
@@ -1307,6 +1312,83 @@ const CRM = () => {
         </div>
       </div>
     );
+  };
+
+  // Update the ProcessingIndicator component with more compact styling
+  const ProcessingIndicator = () => {
+    const [currentStep, setCurrentStep] = useState(0);
+
+    useEffect(() => {
+      const interval = setInterval(() => {
+        setCurrentStep((prev) => (prev + 1) % processingSteps.length);
+      }, 2000);
+      return () => clearInterval(interval);
+    }, []);
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center gap-3 bg-blue-50 px-4 py-2.5 rounded-lg border border-blue-100"
+      >
+        <div className="relative">
+          <div className="w-4 h-4"> {/* Slightly smaller spinner */}
+            <motion.div
+              className="absolute inset-0 border-2 border-blue-500 rounded-full"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            />
+            <motion.div
+              className="absolute inset-0.5 border-2 border-blue-300 rounded-full"
+              animate={{ rotate: -360 }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+            />
+          </div>
+        </div>
+        
+        <div className="flex flex-col">
+          <motion.span 
+            key={currentStep}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="text-sm font-medium text-blue-700 min-w-[90px]" // Changed to text-sm and increased min-width
+          >
+            {processingSteps[currentStep].text}
+          </motion.span>
+          <div className="flex gap-1 mt-0.5"> {/* Reduced top margin */}
+            {processingSteps.map((step, index) => (
+              <motion.div
+                key={step.id}
+                className={`h-0.5 rounded-full ${
+                  index === currentStep ? 'w-5 bg-blue-500' : 'w-1 bg-blue-200'
+                }`}
+                animate={{
+                  width: index === currentStep ? 20 : 4, // Adjusted pixel values
+                  backgroundColor: index === currentStep ? '#3B82F6' : '#BFDBFE'
+                }}
+                transition={{ duration: 0.3 }}
+              />
+            ))}
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
+
+  // Update the file upload handler
+  const handleFileUpload = async (file) => {
+    try {
+      setIsProcessing(true);
+      // Your existing upload logic here
+      await processFile(file);
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload document');
+    } finally {
+      setIsProcessing(false);
+      setCurrentStep(0);
+    }
   };
 
   return (

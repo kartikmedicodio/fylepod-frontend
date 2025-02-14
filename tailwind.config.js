@@ -20,7 +20,22 @@ export default {
           900: '#0c4a6e',
         },
       },
+      keyframes: {
+        shimmer: {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(100%)' }
+        },
+        pulse: {
+          '0%, 100%': { opacity: 1 },
+          '50%': { opacity: 0.5 }
+        }
+      },
+      animation: {
+        shimmer: 'shimmer 2s infinite linear',
+        'pulse-slow': 'pulse 3s infinite'
+      }
     },
   },
   plugins: [],
 } 
+
