@@ -243,7 +243,16 @@ const CRM = () => {
   const handleDocumentClick = async (documentId) => {
     setDocumentLoading(true);
     try {
-      const response = await CRMService.getExtractedData(documentId);
+      // Find the current document from the selected application
+      const currentDocument = selectedApplication?.documentTypes.find(doc => doc._id === documentId);
+      if (!currentDocument) {
+        throw new Error('Document not found');
+      }
+
+      // Use the document's actual ID for extraction
+      const response = await CRMService.getExtractedData(currentDocument.documentId || documentId);
+      console.log('Document data response:', response);
+      
       if (response.data && response.data.isAvailable) {
         setDocumentData(response.data);
       } else {
@@ -917,10 +926,13 @@ const CRM = () => {
       const process = pendingApplications.find(p => p._id === processId);
       if (!process) return;
 
-      // Upload files
+      // First upload files with only required fields
       const uploadPromises = files.map(async (file) => {
         try {
-          if (!validateFileType(file)) return null;
+          if (!validateFileType(file)) {
+            toast.error(`Invalid file type: ${file.name}`);
+            return null;
+          }
           
           const formData = new FormData();
           formData.append('file', file);
@@ -929,19 +941,31 @@ const CRM = () => {
           formData.append('form_category', process.categoryName || 'other');
           formData.append('type', 'pending_extraction');
           
-          const tempDocType = process.documentTypes.find(dt => dt.status !== 'completed');
-          if (tempDocType) {
-            formData.append('documentTypeId', tempDocType.documentTypeId);
-            formData.append('managementDocumentId', tempDocType._id);
-          }
-
-          const response = await api.post('/documents', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
+          // Use first document type's ID to satisfy schema requirement
+          const tempDocType = process.documentTypes[0];
+          formData.append('documentTypeId', tempDocType.documentTypeId);
+          
+          // Log the form data for debugging
+          console.log('Uploading file:', {
+            name: file.name,
+            managementId: processId,
+            documentTypeId: tempDocType.documentTypeId
           });
 
-          return response.data?.status === 'success' ? response.data.data.document : null;
+          const response = await api.post('/documents', formData, {
+            headers: { 
+              'Content-Type': 'multipart/form-data'
+            }
+          });
+
+          if (response.data?.status !== 'success') {
+            throw new Error(response.data?.message || 'Upload failed');
+          }
+
+          return response.data?.data.document;
         } catch (err) {
           console.error(`Error uploading file ${file.name}:`, err);
+          toast.error(`Failed to upload ${file.name}: ${err.message}`);
           return null;
         }
       });
@@ -952,85 +976,112 @@ const CRM = () => {
         return;
       }
 
-      // Process documents
+      // Process documents to get their types
       const processedDocs = await Promise.all(
-        uploadedDocs.map(doc => checkDocumentProcessing(doc._id))
+        uploadedDocs.map(async (doc) => {
+          try {
+            const processedDoc = await checkDocumentProcessing(doc._id);
+            return processedDoc;
+          } catch (err) {
+            console.error(`Error processing document ${doc._id}:`, err);
+            return null;
+          }
+        })
       );
 
-      // Match documents
+      // Get available document types from the process
+      const availableDocTypes = [...process.documentTypes].filter(dt => dt.status !== 'completed');
       const docTypeMatches = new Map();
       const docsToDelete = new Set();
 
-      processedDocs.forEach(doc => {
+      // Match and update documents
+      for (const doc of processedDocs) {
         if (!doc || !doc.extractedData?.document_type) {
           if (doc?._id) docsToDelete.add(doc._id);
-          return;
+          continue;
         }
 
         const extractedType = doc.extractedData.document_type.toLowerCase().trim();
-        const matchingDocType = process.documentTypes.find(type => {
+        
+        // Find matching document type from available types
+        const matchingDocTypeIndex = availableDocTypes.findIndex(type => {
           const typeName = type.name.toLowerCase().trim();
-          return (typeName === extractedType || extractedType.includes(typeName)) && 
-                 type.status !== 'completed' && 
-                 !docTypeMatches.has(type.documentTypeId);
+          return typeName === extractedType || extractedType.includes(typeName);
         });
 
-        if (matchingDocType) {
-          docTypeMatches.set(matchingDocType.documentTypeId, doc._id);
+        if (matchingDocTypeIndex !== -1) {
+          const matchingDocType = availableDocTypes[matchingDocTypeIndex];
+          try {
+            // Update document with correct IDs
+            const updateResponse = await api.patch(`/documents/${doc._id}`, {
+              documentTypeId: matchingDocType.documentTypeId,
+              managementDocumentId: matchingDocType._id
+            });
+
+            if (updateResponse.data?.status === 'success') {
+              try {
+                // Update management document status
+                await api.patch(
+                  `/management/${processId}/documents/${matchingDocType.documentTypeId}/status`,
+                  { status: 'completed' }
+                );
+
+                docTypeMatches.set(matchingDocType.documentTypeId, {
+                  docId: doc._id,
+                  managementDocumentId: matchingDocType._id
+                });
+                
+                // Remove the matched type from available types
+                availableDocTypes.splice(matchingDocTypeIndex, 1);
+              } catch (managementErr) {
+                console.error(`Error updating management status for document ${doc._id}:`, managementErr);
+                docsToDelete.add(doc._id);
+              }
+            } else {
+              console.error(`Failed to update document ${doc._id}:`, updateResponse.data);
+              docsToDelete.add(doc._id);
+            }
+          } catch (err) {
+            console.error(`Error updating document ${doc._id}:`, err);
+            if (err.response?.status === 404) {
+              console.error('Document not found');
+            }
+            docsToDelete.add(doc._id);
+          }
         } else {
           docsToDelete.add(doc._id);
         }
-      });
-
-      // Update statuses
-      if (docTypeMatches.size > 0) {
-        let allSuccess = true;
-        for (const [typeId] of docTypeMatches) {
-          const success = await updateDocumentStatus(processId, typeId);
-          if (!success) {
-            allSuccess = false;
-          }
-        }
-
-        if (allSuccess) {
-          // Get fresh data after all updates
-          const response = await CRMService.getUserCompletedApplications(userId);
-          const allApplications = response.data.entries || [];
-          
-          // Update both completed and pending applications
-          const completed = allApplications.filter(app => app.categoryStatus === 'completed');
-          const pending = allApplications.filter(app => app.categoryStatus === 'pending');
-          
-          setCompletedApplications(completed);
-          setPendingApplications(pending);
-          
-          // Check if the process is now completed
-          const updatedProcess = allApplications.find(app => app._id === processId);
-          
-          if (updatedProcess?.categoryStatus === 'completed') {
-            toast.success(`${docTypeMatches.size} document(s) processed successfully`);
-            
-            // Only navigate if category status is completed
-            setTimeout(() => {
-              setActiveTab('completed');
-              if (userId) {
-                navigate(`/crm/user/${userId}`, { replace: true });
-              }
-            }, 100);
-          } else {
-            toast.success(`${docTypeMatches.size} document(s) processed`);
-          }
-        }
       }
 
-      // Clean up unmatched documents
+      // Refresh the application list
+      if (docTypeMatches.size > 0) {
+        const response = await CRMService.getUserCompletedApplications(userId);
+        const allApplications = response.data.entries || [];
+        
+        setCompletedApplications(allApplications.filter(app => app.categoryStatus === 'completed'));
+        setPendingApplications(allApplications.filter(app => app.categoryStatus === 'pending'));
+        
+        const updatedProcess = allApplications.find(app => app._id === processId);
+        
+        if (updatedProcess?.categoryStatus === 'completed') {
+          toast.success(`${docTypeMatches.size} document(s) processed successfully`);
+          setTimeout(() => {
+            setActiveTab('completed');
+            if (userId) navigate(`/crm/user/${userId}`, { replace: true });
+          }, 100);
+        } else {
+          toast.success(`${docTypeMatches.size} document(s) processed`);
+        }
+      } else {
+        toast.error('No documents were successfully processed');
+      }
+
+      // Clean up unmatched or failed documents
       if (docsToDelete.size > 0) {
         await Promise.all(
-          Array.from(docsToDelete).map((docId) => 
+          Array.from(docsToDelete).map(docId => 
             api.delete(`/documents/${docId}`)
-              .catch((err) => {
-                console.error(`Error deleting document ${docId}:`, err);
-              })
+              .catch(err => console.error(`Error deleting document ${docId}:`, err))
           )
         );
       }
@@ -1158,209 +1209,9 @@ const CRM = () => {
 
   const renderDocumentDetails = () => {
     if (!documentData) return null;
+    
     const currentDocument = selectedApplication?.documentTypes.find(doc => doc._id === documentId);
-    const extractedData = documentData.extractedData?.extracted_data;
-    const documentType = documentData.extractedData?.document_type;
-
-    // Passport-specific render function
-    const renderPassportDetails = () => (
-      <div className="space-y-6">
-        {/* Passport Information Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center space-x-4 mb-6">
-            <div className="p-3 bg-blue-50 rounded-full">
-              <FileText className="w-8 h-8 text-blue-600" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">
-                {extractedData.surname}, {extractedData.given_names}
-              </h2>
-              <p className="text-lg text-blue-600">Passport #{extractedData.passport_number}</p>
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Personal Details */}
-            <div className="space-y-4">
-              <h3 className="font-medium text-gray-900 border-b pb-2">Personal Information</h3>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-500">Nationality</p>
-                  <p className="font-medium">{extractedData.nationality}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Sex</p>
-                  <p className="font-medium">{extractedData.sex}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Date of Birth</p>
-                  <p className="font-medium">{extractedData.date_of_birth}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Place of Birth</p>
-                  <p className="font-medium">{extractedData.place_of_birth}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Document Details */}
-            <div className="space-y-4">
-              <h3 className="font-medium text-gray-900 border-b pb-2">Document Information</h3>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-500">Date of Issue</p>
-                  <p className="font-medium">{extractedData.date_of_issue}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Date of Expiration</p>
-                  <p className="font-medium text-red-600">{extractedData.date_of_expiration}</p>
-                </div>
-                <div className="col-span-2">
-                  <p className="text-sm text-gray-500">Issuing Authority</p>
-                  <p className="font-medium">{extractedData.authority}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Verification Status */}
-       
-      </div>
-    );
-
-    // Paystub-specific render function
-    const renderPaystubDetails = () => (
-      <div className="space-y-6">
-        {/* Header Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <div className="flex items-center space-x-4 mb-6">
-            <div className="p-3 bg-emerald-50 rounded-full">
-              <FileText className="w-8 h-8 text-emerald-600" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">{extractedData.employee_name || 'N/A'}</h2>
-              <p className="text-lg text-emerald-600">Paycheck #{extractedData.paycheck_number || 'N/A'}</p>
-            </div>
-          </div>
-
-          {/* Pay Period Info */}
-          <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg mb-4">
-            <div>
-              <p className="text-sm text-gray-500">Pay Date</p>
-              <p className="font-medium">{extractedData.pay_date || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Period Start</p>
-              <p className="font-medium">{extractedData.pay_period_start || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Period End</p>
-              <p className="font-medium">{extractedData.pay_period_end || 'N/A'}</p>
-            </div>
-          </div>
-
-          {/* Employer Details */}
-          <div className="border-t pt-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-500">Employer</p>
-                <p className="font-medium">{extractedData.employer_name || 'N/A'}</p>
-                <p className="text-sm text-gray-600">{formatAddress(extractedData.employer_address)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Employee Address</p>
-                <p className="text-sm text-gray-600">{formatAddress(extractedData.employee_address)}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Earnings Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Earnings</h3>
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-3">
-              <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                <span className="text-gray-600">Hours Worked</span>
-                <span className="font-medium">{formatNumber(extractedData.hours_worked)}</span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                <span className="text-gray-600">Hourly Rate</span>
-                <span className="font-medium">{formatCurrency(extractedData.hourly_rate)}</span>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center p-3 bg-emerald-50 rounded-lg">
-                <span className="text-gray-600">Gross Pay (This Period)</span>
-                <span className="font-medium text-emerald-600">
-                  {formatCurrency(extractedData.this_period_gross_pay)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-emerald-50 rounded-lg">
-                <span className="text-gray-600">YTD Gross Pay</span>
-                <span className="font-medium text-emerald-600">
-                  {formatCurrency(extractedData.year_to_date_gross_pay)}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Deductions Card */}
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Required Deductions */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Required Deductions</h3>
-            <div className="space-y-2">
-              {extractedData.required_deductions && Object.entries(extractedData.required_deductions).map(([key, value]) => (
-                <div key={key} className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
-                  <span className="text-gray-600 capitalize">{key.replace(/_/g, ' ')}</span>
-                  <span className="font-medium text-red-600">{formatCurrency(value)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Other Deductions */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Other Deductions</h3>
-            <div className="space-y-2">
-              {extractedData.other_deductions && Object.entries(extractedData.other_deductions).map(([key, value]) => (
-                <div key={key} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                  <span className="text-gray-600 capitalize">{key.replace(/_/g, ' ')}</span>
-                  <span className="font-medium">{formatCurrency(value)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Net Pay Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="flex justify-between items-center p-4 bg-emerald-100 rounded-lg">
-              <div>
-                <p className="text-lg font-medium text-emerald-800">Net Pay</p>
-                <p className="text-sm text-emerald-600">This Period</p>
-              </div>
-              <p className="text-2xl font-bold text-emerald-700">{formatCurrency(extractedData.net_pay)}</p>
-            </div>
-            <div className="flex justify-between items-center p-4 bg-gray-100 rounded-lg">
-              <div>
-                <p className="text-lg font-medium text-gray-800">YTD Deductions</p>
-                <p className="text-sm text-gray-600">Total</p>
-              </div>
-              <p className="text-2xl font-bold text-gray-700">
-                {formatCurrency(extractedData.total_year_to_date_deductions)}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    const extractedData = documentData.extractedData || {};
 
     return (
       <div className="p-6 max-w-7xl mx-auto">
@@ -1374,7 +1225,7 @@ const CRM = () => {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
-              {currentDocument?.name || documentType?.charAt(0).toUpperCase() + documentType?.slice(1)} Details
+              {currentDocument?.name || 'Document'} Details
             </h1>
             <p className="text-gray-500">
               {selectedApplication?.categoryName}
@@ -1386,123 +1237,12 @@ const CRM = () => {
           <div className="flex justify-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
           </div>
-        ) : documentData.isAvailable && extractedData ? (
-          // Render different layouts based on document type
-          documentType.toLowerCase() === 'passport' ? renderPassportDetails() :
-          documentType.toLowerCase() === 'paystub' ? renderPaystubDetails() : (
-            <div className="space-y-6">
-              {/* Personal Information Card */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                <div className="flex items-center space-x-4 mb-6">
-                  <div className="p-3 bg-primary-50 rounded-full">
-                    <FileText className="w-8 h-8 text-primary-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900">{extractedData.full_name}</h2>
-                    <p className="text-lg text-primary-600">{extractedData.profession}</p>
-                  </div>
-                </div>
-                
-                <div className="grid md:grid-cols-3 gap-4 text-sm">
-                  {extractedData.contact_info?.phone && (
-                    <div className="flex items-center space-x-2">
-                      <Phone className="w-4 h-4 text-gray-400" />
-                      <span>{extractedData.contact_info.phone}</span>
-                    </div>
-                  )}
-                  {extractedData.contact_info?.address && (
-                    <div className="flex items-center space-x-2">
-                      <Building className="w-4 h-4 text-gray-400" />
-                      <span>{extractedData.contact_info.address}</span>
-                    </div>
-                  )}
-                  {extractedData.contact_info?.website && (
-                    <div className="flex items-center space-x-2">
-                      <Globe className="w-4 h-4 text-gray-400" />
-                      <span>{extractedData.contact_info.website}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Experience Section */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Work Experience</h3>
-                <div className="space-y-4">
-                  {extractedData.experience?.map((exp, idx) => (
-                    <div key={idx} className="flex items-center space-x-4">
-                      <div className="p-3 bg-primary-50 rounded-full">
-                        <FileText className="w-8 h-8 text-primary-600" />
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-gray-900">{exp.job_title}</h4>
-                        <p className="text-primary-600 text-sm mb-1">{exp.company}</p>
-                        <p className="text-gray-500 text-sm mb-2">{exp.years}</p>
-                        {exp.responsibilities && (
-                          <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
-                            {exp.responsibilities.map((resp, idx) => (
-                              <li key={idx}>{resp}</li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Education Section */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Education</h3>
-                <h4 className="font-semibold text-gray-900">{extractedData.education?.degree}</h4>
-                <p className="text-primary-600 mb-4">{extractedData.education?.institution}</p>
-                {extractedData.education?.awards && (
-                  <div>
-                    <h5 className="font-medium text-gray-700 mb-2">Awards & Achievements</h5>
-                    <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
-                      {extractedData.education.awards.map((award, idx) => (
-                        <li key={idx}>{award}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-
-              {/* Skills & Hobbies */}
-              <div className="grid md:grid-cols-2 gap-6">
-                {extractedData.skills && (
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Skills</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {extractedData.skills.map((skill, idx) => (
-                        <span 
-                          key={idx}
-                          className="px-3 py-1 bg-primary-50 text-primary-700 rounded-full text-sm"
-                        >
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {extractedData.hobbies && (
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Hobbies</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {extractedData.hobbies.map((hobby, idx) => (
-                        <span 
-                          key={idx}
-                          className="px-3 py-1 bg-primary-50 text-primary-700 rounded-full text-sm"
-                        >
-                          {hobby}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )
+        ) : documentData.isAvailable ? (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-4 rounded-lg overflow-auto">
+              {JSON.stringify(extractedData, null, 2)}
+            </pre>
+          </div>
         ) : (
           <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-100">
             <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
