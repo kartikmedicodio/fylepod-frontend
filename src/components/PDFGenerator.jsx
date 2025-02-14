@@ -1,12 +1,30 @@
 import { useState, useEffect } from 'react';
-import { Download, Loader2, AlertCircle } from 'lucide-react';
+import { Download, AlertCircle, FileText } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { getOrganizedDocuments } from '../services/document.service';
 import { PDFDocument } from 'pdf-lib';
+
+const processingSteps = [
+  { id: 1, text: "Analyzing document..." },
+  { id: 2, text: "Organizing content..." },
+  { id: 3, text: "Generating PDF..." }
+];
 
 const PDFGenerator = ({ managementId }) => {
   const [documentData, setDocumentData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [currentStep, setCurrentStep] = useState(0);
+
+  useEffect(() => {
+    if (!loading) return;
+
+    const interval = setInterval(() => {
+      setCurrentStep((prev) => (prev + 1) % processingSteps.length);
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [loading]);
 
   // Function to load the template PDF and fill it with data
   const fillPDFTemplate = async (data) => {
@@ -114,19 +132,67 @@ const PDFGenerator = ({ managementId }) => {
 
   if (loading) {
     return (
-      <button disabled className="flex items-center px-4 py-2 bg-gray-100 text-gray-400 rounded-lg">
-        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-        Loading...
-      </button>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center gap-4 bg-blue-50 px-6 py-3 rounded-lg border border-blue-100"
+      >
+        <div className="relative">
+          <div className="w-6 h-6">
+            <motion.div
+              className="absolute inset-0 border-2 border-blue-500 rounded-full"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            />
+            <motion.div
+              className="absolute inset-1 border-2 border-blue-300 rounded-full"
+              animate={{ rotate: -360 }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+            />
+          </div>
+        </div>
+        
+        <div className="flex flex-col">
+          <motion.span 
+            key={currentStep}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="text-sm font-medium text-blue-700"
+          >
+            {processingSteps[currentStep].text}
+          </motion.span>
+          <div className="flex gap-1 mt-1">
+            {processingSteps.map((step, index) => (
+              <motion.div
+                key={step.id}
+                className={`h-1 rounded-full ${
+                  index === currentStep ? 'w-8 bg-blue-500' : 'w-2 bg-blue-200'
+                }`}
+                animate={{
+                  width: index === currentStep ? 32 : 8,
+                  backgroundColor: index === currentStep ? '#3B82F6' : '#BFDBFE'
+                }}
+                transition={{ duration: 0.3 }}
+              />
+            ))}
+          </div>
+        </div>
+      </motion.div>
     );
   }
 
   if (error) {
     return (
-      <button disabled className="flex items-center px-4 py-2 bg-red-50 text-red-500 rounded-lg">
+      <motion.button 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        disabled 
+        className="flex items-center px-4 py-2.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+      >
         <AlertCircle className="w-4 h-4 mr-2" />
-        Error loading PDF
-      </button>
+        <span className="font-medium">Generation Failed</span>
+      </motion.button>
     );
   }
 
@@ -135,13 +201,17 @@ const PDFGenerator = ({ managementId }) => {
   }
 
   return (
-    <button
+    <motion.button
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
       onClick={handleDownload}
-      className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+      className="flex items-center px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
     >
-      <Download className="w-4 h-4 mr-2" />
-      Download PDF
-    </button>
+      <FileText className="w-4 h-4 mr-2" />
+      <span className="font-medium">Download PDF</span>
+    </motion.button>
   );
 };
 

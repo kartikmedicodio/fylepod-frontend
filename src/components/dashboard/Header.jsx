@@ -34,7 +34,10 @@ const Header = ({ showText = true, selectedUser, activeTab, completedApplication
           {!showText && selectedUser && (
             <>
               <ChevronRight className="w-4 h-4 text-gray-400" />
-              <span className="text-sm font-medium text-gray-700">
+              <span 
+                onClick={() => navigate(`/crm/user/${selectedUser._id}`)}
+                className="text-sm font-medium text-gray-700 cursor-pointer hover:text-gray-900"
+              >
                 {selectedUser.name}
               </span>
             </>
@@ -62,7 +65,10 @@ const Header = ({ showText = true, selectedUser, activeTab, completedApplication
           {!showText && selectedUser && (
             <>
               <ChevronRight className="w-4 h-4 text-gray-400" />
-              <span className="text-sm font-medium text-gray-700">
+              <span 
+                onClick={() => navigate(`/user/${selectedUser._id}`)}
+                className="text-sm font-medium text-gray-700 cursor-pointer hover:text-gray-900"
+              >
                 {selectedUser.name}
               </span>
             </>
