@@ -958,13 +958,16 @@ const CRM = () => {
 
   const handleMultipleFileUpload = async (files, processId) => {
     try {
-      setIsProcessing(true); // Start processing
+      setIsProcessing(true);
       setProcessingProcessId(processId);
-
+      
       // Step 1: Upload all files first with minimal metadata
       const uploadPromises = files.map(async (file) => {
         try {
-          if (!validateFileType(file)) return null;
+          if (!validateFileType(file)) {
+            toast.error(`Invalid file type: ${file.name}`);
+            return null;
+          }
           
           const formData = new FormData();
           formData.append('file', file);
@@ -972,13 +975,6 @@ const CRM = () => {
           formData.append('managementId', processId);
           formData.append('form_category', selectedApplication.categoryName || 'other');
           formData.append('type', 'pending_extraction');
-          
-          // Use first pending doc type for initial upload
-          const tempDocType = selectedApplication.documentTypes.find(dt => dt.status !== 'completed');
-          if (tempDocType) {
-            formData.append('documentTypeId', tempDocType.documentTypeId);
-            formData.append('managementDocumentId', tempDocType._id);
-          }
 
           const response = await api.post('/documents', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
@@ -1006,7 +1002,7 @@ const CRM = () => {
         uploadedDocs.map(doc => checkDocumentProcessing(doc._id))
       );
 
-      // Step 3: Match documents with required types and update statuses
+      // Step 3: Match documents with required types and update document references
       const docTypeMatches = new Map();
       const docsToDelete = new Set();
 
@@ -1027,20 +1023,29 @@ const CRM = () => {
         if (matchingDocType) {
           docTypeMatches.set(matchingDocType.documentTypeId, {
             docId: doc._id,
-            extractedType,
-            expectedType: matchingDocType.name
+            managementDocId: matchingDocType._id
           });
         } else {
           docsToDelete.add(doc._id);
         }
       });
 
-      // Step 4: Update statuses for matched documents
+      // Step 4: Update document references and statuses
       if (docTypeMatches.size > 0) {
         await Promise.all(
-          Array.from(docTypeMatches.entries()).map(([typeId, { docId, extractedType, expectedType }]) => {
-            console.log(`Matched document: Expected "${expectedType}", Got "${extractedType}"`);
-            return updateDocumentStatus(processId, typeId);
+          Array.from(docTypeMatches.entries()).map(async ([typeId, { docId, managementDocId }]) => {
+            try {
+              // First update the document with the correct management document ID
+              await api.patch(`/documents/${docId}`, {
+                documentTypeId: typeId,
+                managementDocumentId: managementDocId
+              });
+
+              // Then update the status
+              await updateDocumentStatus(processId, typeId);
+            } catch (err) {
+              console.error(`Error updating document ${docId}:`, err);
+            }
           })
         );
 
@@ -1050,10 +1055,9 @@ const CRM = () => {
       // Step 5: Clean up unmatched documents
       if (docsToDelete.size > 0) {
         await Promise.all(
-          Array.from(docsToDelete).map(docId =>
-            api.delete(`/documents/${docId}`).catch(err => 
-              console.error(`Error deleting document ${docId}:`, err)
-            )
+          Array.from(docsToDelete).map(docId => 
+            api.delete(`/documents/${docId}`)
+              .catch(err => console.error(`Error deleting document ${docId}:`, err))
           )
         );
       }
@@ -1067,7 +1071,7 @@ const CRM = () => {
       console.error('Error in multiple file upload:', err);
       toast.error('Error processing documents');
     } finally {
-      setIsProcessing(false); // End processing
+      setIsProcessing(false);
       setProcessingProcessId(null);
       setCurrentStep(0);
     }
@@ -1138,6 +1142,7 @@ const CRM = () => {
                     );
                   }
                 }}
+                multiple
                 accept="image/*,application/pdf"
                 disabled={isProcessing}
               />
@@ -1374,21 +1379,6 @@ const CRM = () => {
         </div>
       </motion.div>
     );
-  };
-
-  // Update the file upload handler
-  const handleFileUpload = async (file) => {
-    try {
-      setIsProcessing(true);
-      // Your existing upload logic here
-      await processFile(file);
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast.error('Failed to upload document');
-    } finally {
-      setIsProcessing(false);
-      setCurrentStep(0);
-    }
   };
 
   return (
