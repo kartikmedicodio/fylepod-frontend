@@ -1,17 +1,27 @@
+import { Link, useLocation } from 'react-router-dom';
 import { Search, Bell, ChevronRight } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
-import PropTypes from 'prop-types';
+import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 
 const Header = ({ sidebarCollapsed }) => {
   const location = useLocation();
+  const { currentBreadcrumb } = useBreadcrumb();
 
   // Convert path to breadcrumbs
   const getBreadcrumbs = () => {
     const paths = location.pathname.split('/').filter(Boolean);
-    return paths.map(path => ({
-      name: path.charAt(0).toUpperCase() + path.slice(1),
-      path: `/${paths.slice(0, paths.indexOf(path) + 1).join('/')}`
-    }));
+    return paths.map((path, index) => {
+      const fullPath = `/${paths.slice(0, index + 1).join('/')}`;
+      
+      // If this is a corporation ID and we have currentBreadcrumb
+      if (index === 1 && paths[0] === 'corporations' && currentBreadcrumb?.path === fullPath) {
+        return currentBreadcrumb;
+      }
+
+      return {
+        name: path.charAt(0).toUpperCase() + path.slice(1),
+        path: fullPath
+      };
+    });
   };
 
   const breadcrumbs = getBreadcrumbs();
@@ -30,10 +40,13 @@ const Header = ({ sidebarCollapsed }) => {
                       {index > 0 && (
                         <ChevronRight className="h-4 w-4 text-gray-500 mx-1" />
                       )}
-                      <span className={`text-sm font-medium text-gray-900 transition-all duration-300 
-                        ${sidebarCollapsed ? 'truncate max-w-[150px]' : 'truncate max-w-[200px]'}`}>
+                      <Link
+                        to={breadcrumb.path}
+                        className={`text-sm font-medium text-gray-900 hover:text-blue-600 transition-all duration-300 
+                          ${sidebarCollapsed ? 'truncate max-w-[150px]' : 'truncate max-w-[200px]'}`}
+                      >
                         {breadcrumb.name}
-                      </span>
+                      </Link>
                     </li>
                   ))}
                 </ol>
@@ -57,11 +70,6 @@ const Header = ({ sidebarCollapsed }) => {
       </div>
     </header>
   );
-};
-
-Header.propTypes = {
-  onMenuClick: PropTypes.func.isRequired,
-  sidebarCollapsed: PropTypes.bool.isRequired
 };
 
 export default Header; 
