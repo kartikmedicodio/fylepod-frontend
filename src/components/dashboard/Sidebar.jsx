@@ -1,185 +1,272 @@
 import { Link, useLocation } from 'react-router-dom';
 import { 
-  FileText, 
-  Database, 
-  MessageSquare,
-  Users,
+  LayoutDashboard, 
+  Building2, 
+  Users, 
   Settings,
+  TableOfContents,
+  PlusCircle,
+  MailIcon,
   LogOut,
-  FolderTree,
-  ClipboardList,
-  FileCheck,
-  FileArchive,
-  Building,
-  ListTree 
+  BriefcaseBusiness,
+  ChevronLeft,
+  ChevronRight,
+  CircleUserIcon,
+  MoreHorizontal,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import PropTypes from 'prop-types';
+import { useState, useEffect, useRef } from 'react';
 
-const Sidebar = () => {
+const Sidebar = ({ open, setOpen, collapsed, setCollapsed }) => {
   const location = useLocation();
-  const { logout, user, pendingFormsCount } = useAuth();
+  const { user, loading, logout } = useAuth();
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef(null);
+  const menuTimeoutRef = useRef(null);
 
-  // Logo Component
-  const Logo = () => (
-    <div className="mb-6 px-3">
-      <Link to="/" className="flex items-center space-x-2">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Fylepod</h1>
-          {/* <p className="text-xs text-gray-500">Document Management</p> */}
-        </div>
-      </Link>
-    </div>
-  );
+  // Handle click outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setShowMenu(false);
+      }
+    };
 
-  // Base navigation items (always shown)
-  const baseNavigation = [
-    { name: 'AI Chat', href: '/chat', icon: MessageSquare },
-  ];
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
-  // Add Corporation link only for admin users
-  const navigation = user?.role === 'admin' 
-    ? [...baseNavigation, { name: 'Corporation', href: '/crm', icon: Building }]
-    : baseNavigation;
-
-  // Set Up section links - only visible to admin
-  const managementLinks = [
-    { name: 'Knowledge Base', href: '/categories', icon: FolderTree },
-  ];
-
-  const isActive = (path) => {
-    // For exact matches
-    if (location.pathname === path) return true;
-    
-    // For CRM routes
-    if (path === '/crm') {
-      return location.pathname.startsWith('/crm');
+  // Auto-hide menu after 3 seconds
+  useEffect(() => {
+    if (showMenu) {
+      menuTimeoutRef.current = setTimeout(() => {
+        setShowMenu(false);
+      }, 3000);
     }
-    
-    // For pending-forms routes
-    if (path === '/pending-forms') {
-      return location.pathname.startsWith('/pending-forms/');
+    return () => {
+      if (menuTimeoutRef.current) {
+        clearTimeout(menuTimeoutRef.current);
+      }
+    };
+  }, [showMenu]);
+
+  // Reset timer when hovering over menu
+  const handleMenuMouseEnter = () => {
+    if (menuTimeoutRef.current) {
+      clearTimeout(menuTimeoutRef.current);
     }
-    
-    return false;
   };
 
-  // Forms section renamed to Process/Applications section
-  const processLinks = [
-    // { 
-    //   name: 'Active Process',
-    //   href: '/pending-forms', 
-    //   icon: ClipboardList,
-    //   count: pendingFormsCount
-    // },
+  const handleMenuMouseLeave = () => {
+    menuTimeoutRef.current = setTimeout(() => {
+      setShowMenu(false);
+    }, 3000);
+  };
+
+  const navigation = [
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Inbox', href: '/inbox', icon: MailIcon },
     { 
-      name: 'Process List', 
-      href: '/completed-forms', 
-      icon: FolderTree,
-      count: 0
+      section: 'Clients',
+      items: [
+        { name: 'Corporations', href: '/corporations', icon: Building2 },
+        { name: 'Individuals', href: '/individuals', icon: Users },
+      ]
+    },
+    {
+      section: 'Cases',
+      items: [
+        { name: 'Cases', href: '/cases', icon: BriefcaseBusiness },
+      ]
+    },
+    {
+      section: 'Setup',
+      items: [
+        { name: 'Account Info', href: '/account', icon: CircleUserIcon },
+        { name: 'Knowledge Base', href: '/knowledge', icon: TableOfContents },
+        { name: 'Reminder Settings', href: '/reminders', icon: Settings },
+      ]
     },
   ];
 
-  return (
-    <div className="w-64 bg-white border-r min-h-screen p-4">
-      <div className="flex flex-col h-full">
-        {/* Logo */}
-        <Logo />
+  const isActive = (href) => location.pathname === href;
 
-        {/* Main Navigation */}
-        <div className="space-y-1">
-          {navigation.map((item) => {
-            const Icon = item.icon;
-            return (
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setOpen(false);
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
+  return (
+    <div
+      className={`fixed inset-y-0 left-0 z-[60] transform border-r-2 border-gray-400/80 transition-all duration-300 ease-in-out bg-gradient-start/20 backdrop-blur-md
+      ${open ? 'translate-x-0' : '-translate-x-full'} 
+      ${collapsed ? 'w-16' : 'w-56'} 
+      lg:translate-x-0`}
+    >
+      <div className="flex h-full flex-col">
+        {/* Logo section */}
+        <div className="flex h-16 items-center">
+          {collapsed ? (
+            <div className="flex flex-col items-center w-full">
+              <span className="text-sm font-semibold text-black">Fyle</span>
+              <span className="text-sm font-medium text-black">Pod</span>
+            </div>
+          ) : (
+            <Link to="/dashboard" className="text-xl font-semibold text-black px-4">
+              Fylepod
+            </Link>
+          )}
+        </div>
+
+        {/* New button */}
+        <div className="px-4 mt-2">
+          <button className={`flex items-center justify-center w-full space-x-2 rounded-lg bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors duration-200 
+            ${collapsed ? 'px-2' : 'px-6'}`}
+          >
+            <PlusCircle className="h-4 w-4" />
+            {!collapsed && <span>New</span>}
+          </button>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 space-y-1 px-3 py-4">
+          {navigation.map((item, index) => (
+            item.section ? (
+              <div key={index} className="space-y-1 pt-5">
+                {!collapsed && (
+                  <h3 className="px-3 text-xs font-semibold text-black">
+                    {item.section}
+                  </h3>
+                )}
+                {item.items.map((subItem) => (
+                  <Link
+                    key={subItem.name}
+                    to={subItem.href}
+                    className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      isActive(subItem.href)
+                        ? 'bg-white text-black'
+                        : 'text-gray-900 hover:bg-white hover:text-black'
+                    } ${collapsed ? 'justify-center' : ''}`}
+                    title={collapsed ? subItem.name : ''}
+                  >
+                    <subItem.icon className="h-5 w-5 flex-shrink-0" />
+                    {!collapsed && <span className="ml-3">{subItem.name}</span>}
+                  </Link>
+                ))}
+              </div>
+            ) : (
               <Link
                 key={item.name}
                 to={item.href}
-                className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                   isActive(item.href)
-                    ? 'bg-primary-50 text-primary-700'
-                    : 'text-gray-700 hover:bg-gray-50'
-                }`}
+                    ? 'bg-white text-black'
+                    : 'text-gray-900 hover:bg-white hover:text-black'
+                } ${collapsed ? 'justify-center' : ''}`}
+                title={collapsed ? item.name : ''}
               >
-                <Icon className="w-5 h-5 mr-3" />
-                {item.name}
+                <item.icon className="h-5 w-5 flex-shrink-0" />
+                {!collapsed && (
+                  <>
+                    <span className="ml-3 flex-1">{item.name}</span>
+                    {item.badge && (
+                      <span className="ml-3 text-xs font-medium text-blue-600">
+                        {item.badge}
+                      </span>
+                    )}
+                  </>
+                )}
               </Link>
-            );
-          })}
-        </div>
+            )
+          ))}
+        </nav>
 
-        {/* Process/Applications Section */}
-        <div className="mt-8">
-          <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-            Process / Applications
-          </h3>
-          <div className="mt-2 space-y-1">
-            {processLinks.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    isActive(item.href)
-                      ? 'bg-primary-50 text-primary-700'
-                      : 'text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-center">
-                    <Icon className="w-5 h-5 mr-3" />
-                    {item.name}
-                  </div>
-                  {item.count > 0 && (
-                    <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-primary-100 bg-primary-600 rounded-full">
-                      {item.count}
-                    </span>
+        {/* User section */}
+        <div className="border-t border-gray-300/100 p-4">
+          <div className="flex items-center space-x-3">
+            <Link 
+              to="/profile" 
+              className="h-8 w-8 rounded-full overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all duration-200"
+            >
+              <img 
+                src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=random`} 
+                alt={user?.name || 'User'} 
+                className="h-full w-full object-cover"
+              />
+            </Link>
+            {!collapsed && (
+              <>
+                <Link to="/profile" className="flex-1 min-w-0 hover:text-blue-600 transition-colors duration-200">
+                  {loading ? (
+                    <div className="h-4 bg-gray-200 rounded animate-pulse w-24"></div>
+                  ) : (
+                    <p className="text-sm font-medium text-black truncate">
+                      {user?.name || 'Guest'}
+                    </p>
                   )}
                 </Link>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Set Up Section - Only visible to admin */}
-        {user?.role === 'admin' && (
-          <div className="mt-8">
-            <h3 className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Set Up
-            </h3>
-            <div className="mt-2 space-y-1">
-              {managementLinks.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.name}
-                    to={item.href}
-                    className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      isActive(item.href)
-                        ? 'bg-primary-50 text-primary-700'
-                        : 'text-gray-700 hover:bg-gray-50'
-                    }`}
+                <div className="relative" ref={menuRef}>
+                  <button
+                    onClick={() => setShowMenu(!showMenu)}
+                    className="p-2 rounded-lg bg-transparent hover:bg-white/80 text-black hover:text-blue-600 transition-all duration-200"
+                    title="Menu"
                   >
-                    <Icon className="w-5 h-5 mr-3" />
-                    {item.name}
-                  </Link>
-                );
-              })}
-            </div>
+                    <MoreHorizontal className="h-5 w-5" />
+                  </button>
+                  
+                  {/* Popup Menu */}
+                  {showMenu && (
+                    <div 
+                      className="absolute bottom-full right-0 mb-2 w-48 rounded-lg bg-white shadow-lg border border-gray-200 py-1"
+                      onMouseEnter={handleMenuMouseEnter}
+                      onMouseLeave={handleMenuMouseLeave}
+                    >
+                      <button
+                        onClick={() => {
+                          handleLogout();
+                          setShowMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        <span>Logout</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
-        )}
-
-        {/* Logout Button */}
-        <div className="mt-auto pt-8">
-          <button
-            onClick={logout}
-            className="flex items-center w-full px-3 py-2 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50"
-          >
-            <LogOut className="w-5 h-5 mr-3" />
-            Logout
-          </button>
         </div>
+
+        {/* Collapse toggle button */}
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 p-1.5 rounded-full bg-white shadow-md text-black hover:text-blue-600 transition-colors duration-200"
+        >
+          {collapsed ? (
+            <ChevronRight className="h-4 w-4" />
+          ) : (
+            <ChevronLeft className="h-4 w-4" />
+          )}
+        </button>
       </div>
     </div>
   );
+};
+
+Sidebar.propTypes = {
+  open: PropTypes.bool.isRequired,
+  setOpen: PropTypes.func.isRequired,
+  collapsed: PropTypes.bool.isRequired,
+  setCollapsed: PropTypes.func.isRequired
 };
 
 export default Sidebar; 

@@ -6,36 +6,49 @@ export default {
   ],
   theme: {
     extend: {
-      colors: {
-        primary: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          200: '#bae6fd',
-          300: '#7dd3fc',
-          400: '#38bdf8',
-          500: '#0ea5e9',
-          600: '#0284c7',
-          700: '#0369a1',
-          800: '#075985',
-          900: '#0c4a6e',
-        },
+      animation: {
+        'gradient-xy': 'gradient-xy 15s ease infinite',
+        'gradient-x': 'gradient-x 15s ease infinite',
+        'pulse': 'pulse 6s infinite',
+        'shake': 'shake 0.5s linear',
       },
       keyframes: {
-        shimmer: {
-          '0%': { transform: 'translateX(-100%)' },
-          '100%': { transform: 'translateX(100%)' }
+        'gradient-xy': {
+          '0%, 100%': {
+            'background-size': '400% 400%',
+            'background-position': 'left center'
+          },
+          '50%': {
+            'background-size': '200% 200%',
+            'background-position': 'right center'
+          }
         },
-        pulse: {
-          '0%, 100%': { opacity: 1 },
-          '50%': { opacity: 0.5 }
+        'gradient-x': {
+          '0%, 100%': {
+            'background-size': '200%',
+            'background-position': 'left center'
+          },
+          '50%': {
+            'background-size': '200%',
+            'background-position': 'right center'
+          }
+        },
+        'shake': {
+          '0%, 100%': { transform: 'translateX(0)' },
+          '10%, 30%, 50%, 70%, 90%': { transform: 'translateX(-2px)' },
+          '20%, 40%, 60%, 80%': { transform: 'translateX(2px)' },
         }
       },
-      animation: {
-        shimmer: 'shimmer 2s infinite linear',
-        'pulse-slow': 'pulse 3s infinite'
+      colors: {
+        gradient: {
+          start: '#E2EBED',
+          second: '#F4E8EA',
+          third: '#C2E4FF',
+          fourth: '#A6C8FF',
+          end: '#759CF3',
+        }
       }
     },
   },
   plugins: [],
 } 
-

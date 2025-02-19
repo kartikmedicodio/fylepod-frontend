@@ -1,23 +1,21 @@
-import axios from "axios";
+import axios from 'axios';
+import { getStoredToken, removeStoredToken } from './auth';
+
+const API_URL = import.meta.env.VITE_API_URL;
 
 const api = axios.create({
-  baseURL: "https://api-dev.relayzen.com/api",
+  baseURL: API_URL,
   headers: {
-    "Content-Type": "application/json",
+    'Content-Type': 'application/json',
   },
-  withCredentials: true
 });
 
-// Add request interceptor to add auth token
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("token");
+    const token = getStoredToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-    }
-    // Don't override Content-Type if it's multipart/form-data
-    if (config.headers["Content-Type"] === "multipart/form-data") {
-      delete config.headers["Content-Type"];
     }
     return config;
   },
@@ -26,17 +24,16 @@ api.interceptors.request.use(
   }
 );
 
-// Add response interceptor for better error handling
+// Response interceptor
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    console.error('API Error:', error.response || error);
+  async (error) => {
+    if (error.response?.status === 401) {
+      removeStoredToken();
+      window.location.href = '/login';
+    }
     return Promise.reject(error);
   }
 );
 
-export const getPendingForms = async () => {
-  return await axios.get('/api/forms/pending');
-};
-
-export default api;
+export default api; 

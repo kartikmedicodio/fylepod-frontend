@@ -1,20 +1,7 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import PrivateRoute from './components/PrivateRoute';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Documents from './pages/Documents';
-import ExtractedData from './pages/ExtractedData';
-import AIChat from './pages/AIChat';
-import Users from './pages/Users';
-import Settings from './pages/Settings';
-import Categories from './pages/Categories';
-import UploadDocuments from './pages/UploadDocuments';
-import UploadForm from './pages/UploadForm';
-import PendingForms from './pages/PendingForms';
-import CompletedForms from './pages/CompletedForms';
-import MyProfile from './pages/MyProfile';
-import CRM from './pages/CRM';
+import Layout from './components/dashboard/Layout';
 
 const App = () => {
   return (
@@ -22,107 +9,11 @@ const App = () => {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/" element={<Navigate to="/crm" replace />} />
-          <Route
-            path="/documents"
-            element={
-              <PrivateRoute>
-                <Documents />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/extracted"
-            element={
-              <PrivateRoute>
-                <ExtractedData />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/chat"
-            element={
-              <PrivateRoute>
-                <AIChat />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/users"
-            element={
-              <PrivateRoute>
-                <Users />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <PrivateRoute>
-                <Settings />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/categories"
-            element={
-              <PrivateRoute>
-                <Categories />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/upload/:categoryId"
-            element={
-              <PrivateRoute>
-                <UploadDocuments />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/upload-form/:categoryId"
-            element={
-              <PrivateRoute>
-                <UploadForm />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/pending-forms"
-            element={
-              <PrivateRoute>
-                <PendingForms />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/pending-forms/:userId/application/:applicationId"
-            element={
-              <PrivateRoute>
-                <PendingForms />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/completed-forms"
-            element={
-              <PrivateRoute>
-                <CompletedForms />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/profile"
-            element={
-              <PrivateRoute>
-                <MyProfile />
-              </PrivateRoute>
-            }
-          />
-          <Route path="/crm" element={<CRM />} />
-          <Route path="/crm/user/:userId" element={<CRM />} />
-          <Route path="/crm/user/:userId/application/:applicationId" element={<CRM />} />
-          <Route path="/crm/user/:userId/application/:applicationId/document/:documentId" element={<CRM />} />
+          <Route path="/*" element={
+            <Layout>
+              {/* Your other routes will go here */}
+            </Layout>
+          } />
         </Routes>
       </AuthProvider>
     </Router>
