@@ -1,8 +1,8 @@
-import { Menu, Search, Bell, ChevronRight } from 'lucide-react';
+import { Search, Bell, ChevronRight } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import PropTypes from 'prop-types';
 
-const Header = ({ onMenuClick, sidebarCollapsed }) => {
+const Header = ({ sidebarCollapsed }) => {
   const location = useLocation();
 
   // Convert path to breadcrumbs
@@ -22,13 +22,6 @@ const Header = ({ onMenuClick, sidebarCollapsed }) => {
         <div className="flex h-16 items-center justify-between px-6">
           {/* Left section */}
           <div className="flex items-center">
-            <button
-              type="button"
-              className="text-black hover:text-gray-700 lg:hidden px-4"
-              onClick={onMenuClick}
-            >
-              <Menu className="h-4 w-4" />
-            </button>
             <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-2' : 'ml-4 lg:ml-0'}`}>
               <div className="flex" aria-label="Breadcrumb">
                 <ol className="flex items-center space-x-2">

@@ -18,7 +18,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import PropTypes from 'prop-types';
 import { useState, useEffect, useRef } from 'react';
 
-const Sidebar = ({ open, setOpen, collapsed, setCollapsed }) => {
+const Sidebar = ({ collapsed, setCollapsed }) => {
   const location = useLocation();
   const { user, loading, logout } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
@@ -97,7 +97,6 @@ const Sidebar = ({ open, setOpen, collapsed, setCollapsed }) => {
   const handleLogout = async () => {
     try {
       await logout();
-      setOpen(false);
     } catch (error) {
       console.error('Logout failed:', error);
     }
@@ -105,10 +104,8 @@ const Sidebar = ({ open, setOpen, collapsed, setCollapsed }) => {
 
   return (
     <div
-      className={`fixed inset-y-0 left-0 z-[60] transform border-r-2 border-gray-400/80 transition-all duration-300 ease-in-out bg-gradient-start/20 backdrop-blur-md
-      ${open ? 'translate-x-0' : '-translate-x-full'} 
-      ${collapsed ? 'w-16' : 'w-56'} 
-      lg:translate-x-0`}
+      className={`fixed inset-y-0 left-0 z-50 border-r-2 border-gray-400/80 transition-all duration-300 ease-in-out bg-gradient-start/20 backdrop-blur-md
+      ${collapsed ? 'w-16' : 'w-56'}`}
     >
       <div className="flex h-full flex-col">
         {/* Logo section */}
@@ -174,14 +171,7 @@ const Sidebar = ({ open, setOpen, collapsed, setCollapsed }) => {
               >
                 <item.icon className="h-5 w-5 flex-shrink-0" />
                 {!collapsed && (
-                  <>
-                    <span className="ml-3 flex-1">{item.name}</span>
-                    {item.badge && (
-                      <span className="ml-3 text-xs font-medium text-blue-600">
-                        {item.badge}
-                      </span>
-                    )}
-                  </>
+                  <span className="ml-3 flex-1">{item.name}</span>
                 )}
               </Link>
             )
@@ -263,8 +253,6 @@ const Sidebar = ({ open, setOpen, collapsed, setCollapsed }) => {
 };
 
 Sidebar.propTypes = {
-  open: PropTypes.bool.isRequired,
-  setOpen: PropTypes.func.isRequired,
   collapsed: PropTypes.bool.isRequired,
   setCollapsed: PropTypes.func.isRequired
 };
