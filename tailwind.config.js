@@ -11,6 +11,7 @@ export default {
         'gradient-x': 'gradient-x 15s ease infinite',
         'pulse': 'pulse 6s infinite',
         'shake': 'shake 0.5s linear',
+        shimmer: 'shimmer 2s ease-in-out infinite',
       },
       keyframes: {
         'gradient-xy': {
@@ -37,6 +38,11 @@ export default {
           '0%, 100%': { transform: 'translateX(0)' },
           '10%, 30%, 50%, 70%, 90%': { transform: 'translateX(-2px)' },
           '20%, 40%, 60%, 80%': { transform: 'translateX(2px)' },
+        },
+        shimmer: {
+          '0%': { opacity: 0.5 },
+          '50%': { opacity: 1 },
+          '100%': { opacity: 0.5 },
         }
       },
       colors: {
