@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Building2, 
@@ -13,6 +13,7 @@ import {
   ChevronRight,
   CircleUserIcon,
   MoreHorizontal,
+  User,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import PropTypes from 'prop-types';
@@ -22,14 +23,20 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
   const location = useLocation();
   const { user, loading, logout } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
+  const [showNewMenu, setShowNewMenu] = useState(false);
   const menuRef = useRef(null);
+  const newMenuRef = useRef(null);
   const menuTimeoutRef = useRef(null);
+  const navigate = useNavigate();
 
-  // Handle click outside
+  // Handle click outside for both menus
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setShowMenu(false);
+      }
+      if (newMenuRef.current && !newMenuRef.current.contains(event.target)) {
+        setShowNewMenu(false);
       }
     };
 
@@ -39,11 +46,12 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
     };
   }, []);
 
-  // Auto-hide menu after 3 seconds
+  // Auto-hide menus after 3 seconds
   useEffect(() => {
-    if (showMenu) {
+    if (showMenu || showNewMenu) {
       menuTimeoutRef.current = setTimeout(() => {
         setShowMenu(false);
+        setShowNewMenu(false);
       }, 3000);
     }
     return () => {
@@ -51,9 +59,9 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
         clearTimeout(menuTimeoutRef.current);
       }
     };
-  }, [showMenu]);
+  }, [showMenu, showNewMenu]);
 
-  // Reset timer when hovering over menu
+  // Reset timer when hovering over either menu
   const handleMenuMouseEnter = () => {
     if (menuTimeoutRef.current) {
       clearTimeout(menuTimeoutRef.current);
@@ -63,6 +71,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
   const handleMenuMouseLeave = () => {
     menuTimeoutRef.current = setTimeout(() => {
       setShowMenu(false);
+      setShowNewMenu(false);
     }, 3000);
   };
 
@@ -104,7 +113,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
 
   return (
     <div
-      className={`fixed inset-y-0 left-0 z-50 border-r-2 border-gray-400/80 transition-all duration-300 ease-in-out bg-gradient-start/20 backdrop-blur-md
+      className={`fixed inset-y-0 left-0 z-50 border-r-2 border-[#c0c4d4] transition-all duration-300 ease-in-out bg-gradient-start/20 backdrop-blur-md
       ${collapsed ? 'w-16' : 'w-56'}`}
     >
       <div className="flex h-full flex-col">
@@ -122,14 +131,48 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
           )}
         </div>
 
-        {/* New button */}
-        <div className="px-4 mt-2">
-          <button className={`flex items-center justify-center w-full space-x-2 rounded-lg bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors duration-200 
-            ${collapsed ? 'px-2' : 'px-6'}`}
+        {/* New button with dropdown */}
+        <div className="px-4 mt-2 relative" ref={newMenuRef}>
+          <button 
+            className={`flex items-center justify-center w-full space-x-2 rounded-lg bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors duration-200 
+              ${collapsed ? 'px-2' : 'px-6'}`}
+            onClick={() => setShowNewMenu(!showNewMenu)}
+            onMouseEnter={handleMenuMouseEnter}
+            onMouseLeave={handleMenuMouseLeave}
           >
             <PlusCircle className="h-4 w-4" />
             {!collapsed && <span>New</span>}
           </button>
+
+          {/* Dropdown Menu */}
+          {showNewMenu && (
+            <div 
+              className="absolute left-full ml-2 top-0 w-48 rounded-lg bg-white shadow-lg border border-gray-200 py-1 z-50"
+              onMouseEnter={handleMenuMouseEnter}
+              onMouseLeave={handleMenuMouseLeave}
+            >
+              <button
+                onClick={() => {
+                  navigate('/customers/new');
+                  setShowNewMenu(false);
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+              >
+                <User className="h-4 w-4" />
+                <span>New Customer</span>
+              </button>
+              <button
+                onClick={() => {
+                  navigate('/cases/new');
+                  setShowNewMenu(false);
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+              >
+                <BriefcaseBusiness className="h-4 w-4" />
+                <span>New Case</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Navigation */}
@@ -179,7 +222,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
         </nav>
 
         {/* User section */}
-        <div className="border-t border-gray-300/100 p-4">
+        <div className="border-t border-[#c0c4d4] p-4">
           <div className="flex items-center space-x-3">
             <Link 
               to="/profile" 
