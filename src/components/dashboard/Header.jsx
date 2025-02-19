@@ -1,12 +1,21 @@
 import { Search, Bell, ChevronRight } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import PropTypes from 'prop-types';
+import { usePage } from '../../contexts/PageContext';
 
 const Header = ({ sidebarCollapsed }) => {
   const location = useLocation();
+  const { pageTitle } = usePage();
 
-  // Convert path to breadcrumbs
+  // Use pageTitle if available, otherwise fallback to path-based breadcrumbs
   const getBreadcrumbs = () => {
+    if (pageTitle) {
+      return [{
+        name: pageTitle,
+        path: location.pathname
+      }];
+    }
+
     const paths = location.pathname.split('/').filter(Boolean);
     return paths.map(path => ({
       name: path.charAt(0).toUpperCase() + path.slice(1),
@@ -18,7 +27,7 @@ const Header = ({ sidebarCollapsed }) => {
 
   return (
     <header className={`fixed top-0 right-0 transition-all duration-300 ${sidebarCollapsed ? 'left-16' : 'left-56'} z-50`}>
-      <div className="border-b-2 border-gray-400/80 bg-gradient-third/20 backdrop-blur-md">
+      <div className="border-b-2 border-gray-400/50 bg-gradient-third/20 backdrop-blur-md">
         <div className="flex h-16 items-center justify-between px-6">
           {/* Left section */}
           <div className="flex items-center">
@@ -60,7 +69,6 @@ const Header = ({ sidebarCollapsed }) => {
 };
 
 Header.propTypes = {
-  onMenuClick: PropTypes.func.isRequired,
   sidebarCollapsed: PropTypes.bool.isRequired
 };
 
