@@ -11,6 +11,8 @@ import { PageProvider } from './contexts/PageContext';
 import { BreadcrumbProvider } from './contexts/BreadcrumbContext';
 import KnowledgeBase from './pages/KnowledgeBase';
 import DocumentChecklist from './pages/DocumentChecklist';
+import EmployeeProfile from './pages/EmployeeProfile';
+import CaseDetails from './pages/CaseDetails';
 
 const App = () => {
   return (
@@ -36,6 +38,8 @@ const App = () => {
                       <Route path="/corporations/:corporationId" element={<CorporationDetails />} />
                       <Route path="/knowledge" element={<KnowledgeBase />} />
                       <Route path="/knowledge/checklist/:id" element={<DocumentChecklist />} />
+                      <Route path="/corporations/:corporationId/employee/:employeeId" element={<EmployeeProfile />} />
+                      <Route path="/corporations/:corporationId/employee/:employeeId/case/:caseId" element={<CaseDetails />} />
                       {/* Your other routes will go here */}
                     </Routes>
                   </Layout>
