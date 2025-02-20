@@ -51,6 +51,38 @@ const Header = ({ sidebarCollapsed }) => {
     navigate(path);
   };
 
+  const renderBreadcrumb = () => {
+    if (!currentBreadcrumb) return null;
+
+    return (
+      <div className="flex items-center gap-2">
+        <Link to="/corporations" className="text-gray-600 hover:text-gray-800">
+          Corporations
+        </Link>
+        <span className="text-gray-400">/</span>
+        
+        {currentBreadcrumb.parentBreadcrumb && (
+          <>
+            <Link 
+              to={currentBreadcrumb.parentBreadcrumb.path} 
+              className="text-gray-600 hover:text-gray-800"
+            >
+              {currentBreadcrumb.parentBreadcrumb.name}
+            </Link>
+            <span className="text-gray-400">/</span>
+          </>
+        )}
+        
+        <Link 
+          to={currentBreadcrumb.path} 
+          className="text-gray-800"
+        >
+          {currentBreadcrumb.name}
+        </Link>
+      </div>
+    );
+  };
+
   return (
     <header className={`fixed top-0 right-0 transition-all duration-300 ${sidebarCollapsed ? 'left-16' : 'left-56'} z-50`}>
       <div className="border-b-2 border-gray-400/50 bg-gradient-third/20 backdrop-blur-md">
@@ -59,23 +91,27 @@ const Header = ({ sidebarCollapsed }) => {
           <div className="flex items-center">
             <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-2' : 'ml-4 lg:ml-0'}`}>
               <div className="flex" aria-label="Breadcrumb">
-                <ol className="flex items-center space-x-2">
-                  {breadcrumbs.map((breadcrumb, index) => (
-                    <li key={breadcrumb.id || breadcrumb.path} className="flex items-center">
-                      {index > 0 && (
-                        <span className="mx-2 text-gray-400">{'>'}</span>
-                      )}
-                      <button
-                        onClick={() => handleBreadcrumbClick(breadcrumb.path, index, breadcrumbs.length)}
-                        className={`text-sm font-medium text-gray-600 hover:text-blue-600 transition-all duration-300 
-                          ${sidebarCollapsed ? 'truncate max-w-[150px]' : 'truncate max-w-[200px]'}
-                          ${index === breadcrumbs.length - 1 ? 'text-gray-900' : ''}`}
-                      >
-                        {breadcrumb.name}
-                      </button>
-                    </li>
-                  ))}
-                </ol>
+                {currentBreadcrumb ? (
+                  renderBreadcrumb()
+                ) : (
+                  <ol className="flex items-center space-x-2">
+                    {breadcrumbs.map((breadcrumb, index) => (
+                      <li key={breadcrumb.id || breadcrumb.path} className="flex items-center">
+                        {index > 0 && (
+                          <span className="mx-2 text-gray-400">{'>'}</span>
+                        )}
+                        <button
+                          onClick={() => handleBreadcrumbClick(breadcrumb.path, index, breadcrumbs.length)}
+                          className={`text-sm font-medium text-gray-600 hover:text-blue-600 transition-all duration-300 
+                            ${sidebarCollapsed ? 'truncate max-w-[150px]' : 'truncate max-w-[200px]'}
+                            ${index === breadcrumbs.length - 1 ? 'text-gray-900' : ''}`}
+                        >
+                          {breadcrumb.name}
+                        </button>
+                      </li>
+                    ))}
+                  </ol>
+                )}
               </div>
             </div>
           </div>
