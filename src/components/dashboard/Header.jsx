@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Search, Bell, ChevronRight } from 'lucide-react';
 import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 import PropTypes from 'prop-types';
@@ -6,11 +6,15 @@ import { usePage } from '../../contexts/PageContext';
 
 const Header = ({ sidebarCollapsed }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { currentBreadcrumb } = useBreadcrumb();
   const { pageTitle } = usePage();
 
-  // Use pageTitle if available, otherwise fallback to path-based breadcrumbs
   const getBreadcrumbs = () => {
+    if (currentBreadcrumb?.breadcrumbs) {
+      return currentBreadcrumb.breadcrumbs;
+    }
+
     if (pageTitle) {
       return [{
         name: pageTitle,
@@ -36,6 +40,17 @@ const Header = ({ sidebarCollapsed }) => {
 
   const breadcrumbs = getBreadcrumbs();
 
+  const handleBreadcrumbClick = (path, index, totalLength) => {
+    // If it's Process Templates breadcrumb, always navigate to /knowledge
+    if (index === 1 && currentBreadcrumb?.breadcrumbs?.[index]?.name === 'Process Templates') {
+      navigate('/knowledge');
+      return;
+    }
+    
+    // For other breadcrumbs, use their defined paths
+    navigate(path);
+  };
+
   return (
     <header className={`fixed top-0 right-0 transition-all duration-300 ${sidebarCollapsed ? 'left-16' : 'left-56'} z-50`}>
       <div className="border-b-2 border-gray-400/50 bg-gradient-third/20 backdrop-blur-md">
@@ -46,17 +61,18 @@ const Header = ({ sidebarCollapsed }) => {
               <div className="flex" aria-label="Breadcrumb">
                 <ol className="flex items-center space-x-2">
                   {breadcrumbs.map((breadcrumb, index) => (
-                    <li key={breadcrumb.path} className="flex items-center">
+                    <li key={breadcrumb.id || breadcrumb.path} className="flex items-center">
                       {index > 0 && (
-                        <ChevronRight className="h-4 w-4 text-gray-500 mx-1" />
+                        <span className="mx-2 text-gray-400">{'>'}</span>
                       )}
-                      <Link
-                        to={breadcrumb.path}
-                        className={`text-sm font-medium text-gray-900 hover:text-blue-600 transition-all duration-300 
-                          ${sidebarCollapsed ? 'truncate max-w-[150px]' : 'truncate max-w-[200px]'}`}
+                      <button
+                        onClick={() => handleBreadcrumbClick(breadcrumb.path, index, breadcrumbs.length)}
+                        className={`text-sm font-medium text-gray-600 hover:text-blue-600 transition-all duration-300 
+                          ${sidebarCollapsed ? 'truncate max-w-[150px]' : 'truncate max-w-[200px]'}
+                          ${index === breadcrumbs.length - 1 ? 'text-gray-900' : ''}`}
                       >
                         {breadcrumb.name}
-                      </Link>
+                      </button>
                     </li>
                   ))}
                 </ol>
