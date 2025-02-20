@@ -14,6 +14,7 @@ import {
   CircleUserIcon,
   MoreHorizontal,
   User,
+  BookOpen,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import PropTypes from 'prop-types';
@@ -95,13 +96,21 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       section: 'Setup',
       items: [
         { name: 'Account Info', href: '/account', icon: CircleUserIcon },
-        { name: 'Knowledge Base', href: '/knowledge', icon: TableOfContents },
+        { name: 'Knowledge Base', href: '/knowledge', icon: BookOpen },
         { name: 'Reminder Settings', href: '/reminders', icon: Settings },
       ]
     },
   ];
 
-  const isActive = (href) => location.pathname === href;
+  const isActive = (path) => {
+    // Special case for Knowledge Base - it should be active for all /knowledge routes
+    if (path === '/knowledge') {
+      return location.pathname.startsWith('/knowledge');
+    }
+    
+    // For other paths, exact match
+    return location.pathname === path;
+  };
 
   const handleLogout = async () => {
     try {
