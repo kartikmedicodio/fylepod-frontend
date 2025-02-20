@@ -9,6 +9,8 @@ import NewCase from './pages/cases/NewCase';
 import PrivateRoute from './components/auth/PrivateRoute';
 import { PageProvider } from './contexts/PageContext';
 import { BreadcrumbProvider } from './contexts/BreadcrumbContext';
+import KnowledgeBase from './pages/KnowledgeBase';
+import DocumentChecklist from './pages/DocumentChecklist';
 
 const App = () => {
   return (
@@ -32,6 +34,8 @@ const App = () => {
                       <Route path="/cases" element={<Cases />} />
                       <Route path="/corporations" element={<Corporations />} />
                       <Route path="/corporations/:corporationId" element={<CorporationDetails />} />
+                      <Route path="/knowledge" element={<KnowledgeBase />} />
+                      <Route path="/knowledge/checklist/:id" element={<DocumentChecklist />} />
                       {/* Your other routes will go here */}
                     </Routes>
                   </Layout>

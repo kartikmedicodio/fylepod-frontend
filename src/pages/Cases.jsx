@@ -64,6 +64,7 @@ const CasesSkeleton = () => {
 const Cases = () => {
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -71,14 +72,19 @@ const Cases = () => {
 
   const fetchCases = async (page, search = '') => {
     try {
-      setLoading(true);
-      let allCases = [];
+      if (search.trim()) {
+        setSearching(true);
+      } else {
+        setLoading(true);
+      }
 
-      if (search) {
+      let response;
+      
+      if (search.trim()) {
         // If searching, fetch all cases without pagination
-        const response = await api.get(`/management/all-managements?limit=1000`);
+        response = await api.get(`/management/all-managements?limit=1000`);
         if (response.data.status === 'success') {
-          allCases = response.data.data.managements;
+          const allCases = response.data.data.managements;
           
           // Filter cases based on search term
           const searchLower = search.toLowerCase();
@@ -89,44 +95,40 @@ const Cases = () => {
           );
           
           setFilteredCases(filtered);
-          // Update pagination for filtered results
           setPagination({
             ...response.data.data.pagination,
             total: filtered.length,
             totalPages: Math.ceil(filtered.length / response.data.data.pagination.limit)
           });
+          setCases(allCases);
         }
       } else {
         // If not searching, fetch with pagination
-        const response = await api.get(`/management/all-managements?page=${page}`);
+        response = await api.get(`/management/all-managements?page=${page}`);
         if (response.data.status === 'success') {
-          allCases = response.data.data.managements;
+          const allCases = response.data.data.managements;
           setFilteredCases(allCases);
           setPagination(response.data.data.pagination);
+          setCases(allCases);
         }
       }
-      
-      setCases(allCases);
     } catch (error) {
       console.error('Error fetching cases:', error);
     } finally {
       setLoading(false);
+      setSearching(false);
     }
   };
 
   // Initial fetch without search
   useEffect(() => {
-    if (!searchTerm) {
-      fetchCases(currentPage);
-    }
+    fetchCases(currentPage);
   }, [currentPage]);
 
   // Handle search with debounce
   useEffect(() => {
     const delayDebounce = setTimeout(() => {
-      if (searchTerm) {
-        fetchCases(1, searchTerm);
-      }
+      fetchCases(1, searchTerm);
     }, 500);
 
     return () => clearTimeout(delayDebounce);
@@ -143,8 +145,8 @@ const Cases = () => {
     setCurrentPage(1); // Reset to first page when searching
   };
 
-  // Update the return statement to show skeleton while loading
-  if (loading) {
+  // Only show skeleton for initial load, not during search
+  if (loading && !searching) {
     return (
       <div className="p-6">
         <CasesSkeleton />
@@ -248,6 +250,13 @@ const Cases = () => {
           </table>
         </div>
       </div>
+
+      {/* Optional loading indicator during search */}
+      {searching && (
+        <div className="absolute top-4 right-4">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+        </div>
+      )}
 
       {/* Pagination */}
       {pagination && filteredCases.length > 0 && (
