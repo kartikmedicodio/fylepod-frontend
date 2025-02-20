@@ -18,11 +18,15 @@ const NewCase = () => {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const [isAttorneyDropdownOpen, setIsAttorneyDropdownOpen] = useState(false);
-  const [selectedAttorneys, setSelectedAttorneys] = useState([]);
+  const [selectedAttorney, setSelectedAttorney] = useState(null);
   const [attorneys, setAttorneys] = useState([]);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedDocuments, setSelectedDocuments] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [tempSelectedDocuments, setTempSelectedDocuments] = useState([]);
+  const [templateSearch, setTemplateSearch] = useState('');
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [attorneySearch, setAttorneySearch] = useState('');
 
   const dropdownRefs = {
     template: useRef(null),
@@ -103,8 +107,11 @@ const NewCase = () => {
           throw new Error('No users data received');
         }
 
-        const customerUsers = response.data.data.users.filter(user => user.role === 'user');
-        setUsers(customerUsers);
+        // Filter for individuals and employees
+        const filteredUsers = response.data.data.users.filter(user => 
+          user.role === 'individual' || user.role === 'employee'
+        );
+        setUsers(filteredUsers);
       } catch (error) {
         setError(error.message);
       }
@@ -205,15 +212,8 @@ const NewCase = () => {
 
   const handleEditTemplate = () => {
     if (selectedTemplate) {
-      // Set initial selected documents from the template
-      const initialDocs = selectedTemplate.documentTypes.map(doc => ({
-        name: doc.name,
-        required: doc.required,
-        _id: doc._id,
-        questions: doc.questions,
-        validations: doc.validations
-      }));
-      setSelectedDocuments(initialDocs);
+      // Initialize with current selected documents instead of template documents
+      setTempSelectedDocuments([...selectedDocuments]); // Create a new array
       setIsEditModalOpen(true);
     }
   };
@@ -243,17 +243,12 @@ const NewCase = () => {
   };
 
   const handleAttorneySelect = (attorney) => {
-    setSelectedAttorneys(prev => {
-      const isAlreadySelected = prev.some(a => a._id === attorney._id);
-      if (isAlreadySelected) {
-        return prev.filter(a => a._id !== attorney._id);
-      }
-      return [...prev, attorney];
-    });
+    setSelectedAttorney(attorney);
+    handleDropdownOpen('attorney', isAttorneyDropdownOpen, setIsAttorneyDropdownOpen);
   };
 
   const handleDocumentToggle = (docName) => {
-    setSelectedDocuments(prev => {
+    setTempSelectedDocuments(prev => {
       const isSelected = prev.some(doc => doc.name === docName);
       if (isSelected) {
         // Remove document if it exists
@@ -271,8 +266,8 @@ const NewCase = () => {
 
   const handleCreateCase = async () => {
     try {
-      if (!selectedTemplate || !selectedCustomer || selectedAttorneys.length === 0) {
-        setError('Please select template, customer and at least one attorney');
+      if (!selectedTemplate || !selectedCustomer || !selectedAttorney) {
+        setError('Please select template, customer and attorney');
         return;
       }
 
@@ -285,7 +280,7 @@ const NewCase = () => {
         userId: selectedCustomer._id,
         categoryId: selectedTemplate._id,
         createdBy: selectedCustomer._id,
-        attorneys: selectedAttorneys.map(attorney => attorney._id),
+        attorneys: [selectedAttorney._id],
         documentTypeIds: selectedDocuments.map(doc => doc._id)
       };
 
@@ -297,6 +292,42 @@ const NewCase = () => {
     } catch (error) {
       setError(error.response?.data?.message || 'Failed to create case');
     }
+  };
+
+  const handleModalClose = () => {
+    setTempSelectedDocuments([]); // Clear temporary selection
+    setSearchQuery(''); // Clear search
+    setIsEditModalOpen(false);
+  };
+
+  const handleDoneClick = () => {
+    setSelectedDocuments([...tempSelectedDocuments]); // Create a new array to ensure state update
+    handleModalClose(); // Clean up and close modal
+  };
+
+  const getFilteredCategories = () => {
+    if (!templateSearch.trim()) return categories;
+    const search = templateSearch.toLowerCase();
+    return categories.filter(category => 
+      category.name.toLowerCase().includes(search)
+    );
+  };
+
+  const getFilteredUsers = () => {
+    if (!customerSearch.trim()) return users; // users are already filtered for individuals/employees
+    const search = customerSearch.toLowerCase();
+    return users.filter(user => 
+      user.name.toLowerCase().includes(search) || 
+      (user.company_name && user.company_name.toLowerCase().includes(search))
+    );
+  };
+
+  const getFilteredAttorneys = () => {
+    if (!attorneySearch.trim()) return attorneys;
+    const search = attorneySearch.toLowerCase();
+    return attorneys.filter(attorney => 
+      attorney.name.toLowerCase().includes(search)
+    );
   };
 
   if (loading) {
@@ -333,7 +364,7 @@ const NewCase = () => {
                 <button
                   type="button"
                   onClick={() => handleDropdownOpen('template', isTemplateDropdownOpen, setIsTemplateDropdownOpen)}
-                  className="w-[615px] h-[52px] bg-white border border-gray-200 rounded-lg px-4 text-sm text-gray-500 text-left flex items-center justify-between hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-[500px] h-[52px] bg-white border border-gray-200 rounded-lg px-4 text-sm text-gray-500 text-left flex items-center justify-between hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <span>{selectedTemplate?.name || 'Search template name...'}</span>
                   <ChevronDown className="h-4 w-4 text-gray-400" />
@@ -341,12 +372,25 @@ const NewCase = () => {
 
                 {isTemplateDropdownOpen && categories.length > 0 && (
                   <div 
-                    className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg"
+                    className="absolute z-10 w-[500px] mt-1 bg-white border border-gray-200 rounded-lg shadow-lg"
                     onMouseEnter={() => clearDropdownTimeout('template')}
                     onMouseLeave={() => startDropdownTimeout('template', setIsTemplateDropdownOpen)}
                   >
-                    <ul className="py-1 max-h-60 overflow-auto">
-                      {categories.map((category) => (
+                    <div className="p-2">
+                      <input
+                        type="text"
+                        value={templateSearch}
+                        onChange={(e) => {
+                          setTemplateSearch(e.target.value);
+                          clearDropdownTimeout('template'); // Clear timeout when typing
+                        }}
+                        onFocus={() => clearDropdownTimeout('template')} // Clear timeout when focused
+                        placeholder="Search templates..."
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <ul className="py-1 max-h-[240px] overflow-auto">
+                      {getFilteredCategories().map((category) => (
                         <li
                           key={category._id}
                           onClick={() => {
@@ -354,17 +398,22 @@ const NewCase = () => {
                             setSelectedDocuments(category.documentTypes);
                             handleDropdownOpen('template', isTemplateDropdownOpen, setIsTemplateDropdownOpen);
                           }}
-                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                          className="px-4 py-3 hover:bg-gray-100 cursor-pointer text-sm border-b border-gray-100 last:border-b-0"
                         >
                           {category.name}
                         </li>
                       ))}
+                      {getFilteredCategories().length === 0 && (
+                        <li className="px-4 py-2 text-sm text-gray-500">
+                          No templates found
+                        </li>
+                      )}
                     </ul>
                   </div>
                 )}
 
                 {isTemplateDropdownOpen && categories.length === 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
+                  <div className="absolute z-10 w-[500px] mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
                     <div className="px-4 py-2 text-sm text-gray-500">
                       No templates available
                     </div>
@@ -394,13 +443,12 @@ const NewCase = () => {
               <button
                 type="button"
                 onClick={() => handleDropdownOpen('customer', isCustomerDropdownOpen, setIsCustomerDropdownOpen)}
-                className="w-[615px] h-[52px] bg-white border border-gray-200 rounded-lg px-4 text-sm text-gray-500 text-left flex items-center justify-between hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-[500px] h-[52px] bg-white border border-gray-200 rounded-lg px-4 text-sm text-gray-500 text-left flex items-center justify-between hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <span>
                   {selectedCustomer ? (
                     <div className="flex items-center space-x-2">
                       <span>{selectedCustomer.name}</span>
-                      <span className="text-gray-400">({selectedCustomer.email})</span>
                     </div>
                   ) : (
                     'Search customer name...'
@@ -411,39 +459,64 @@ const NewCase = () => {
 
               {isCustomerDropdownOpen && users.length > 0 && (
                 <div 
-                  className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg"
+                  className="absolute z-10 w-[500px] mt-1 bg-white border border-gray-200 rounded-lg shadow-lg"
                   onMouseEnter={() => clearDropdownTimeout('customer')}
                   onMouseLeave={() => startDropdownTimeout('customer', setIsCustomerDropdownOpen)}
                 >
-                  <ul className="py-1 max-h-60 overflow-auto">
-                    {users.map((user) => (
+                  <div className="p-2">
+                    <input
+                      type="text"
+                      value={customerSearch}
+                      onChange={(e) => {
+                        setCustomerSearch(e.target.value);
+                        clearDropdownTimeout('customer');
+                      }}
+                      onFocus={() => clearDropdownTimeout('customer')}
+                      placeholder="Search customers..."
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <ul className="py-1 max-h-[240px] overflow-auto">
+                    {getFilteredUsers().map((user) => (
                       <li
                         key={user._id}
                         onClick={() => {
                           setSelectedCustomer(user);
                           handleDropdownOpen('customer', isCustomerDropdownOpen, setIsCustomerDropdownOpen);
                         }}
-                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm flex items-center justify-between border-b border-gray-100 last:border-b-0"
                       >
-                        <div className="flex flex-col">
-                          <div className="flex items-center space-x-2">
-                            <span className="font-medium">{user.name}</span>
-                            <span className="text-gray-400">({user.email})</span>
-                          </div>
-                          {user.company_name && (
-                            <span className="text-xs text-gray-500">
-                              {user.company_name}
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                            <span className="text-gray-600 text-xs">
+                              {user.name.charAt(0).toUpperCase()}
                             </span>
-                          )}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{user.name}</span>
+                            {user.company_name && (
+                              <span className="text-xs text-gray-500">
+                                {user.company_name}
+                              </span>
+                            )}
+                          </div>
                         </div>
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                          {user.company_name ? 'Corporation' : 'Individual'}
+                        </span>
                       </li>
                     ))}
+                    {getFilteredUsers().length === 0 && (
+                      <li className="px-4 py-2 text-sm text-gray-500">
+                        No customers found
+                      </li>
+                    )}
                   </ul>
                 </div>
               )}
 
               {isCustomerDropdownOpen && users.length === 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
+                <div className="absolute z-10 w-[500px] mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
                   <div className="px-4 py-2 text-sm text-gray-500">
                     No customers available
                   </div>
@@ -455,24 +528,21 @@ const NewCase = () => {
           {/* Attorney Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">
-              Select Attorneys
+              Select Attorney
             </label>
             <div className="relative" ref={dropdownRefs.attorney}>
               <button
                 type="button"
                 onClick={() => handleDropdownOpen('attorney', isAttorneyDropdownOpen, setIsAttorneyDropdownOpen)}
-                className="w-[615px] h-[52px] bg-white border border-gray-200 rounded-lg px-4 text-sm text-gray-500 text-left flex items-center justify-between hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-[500px] h-[52px] bg-white border border-gray-200 rounded-lg px-4 text-sm text-gray-500 text-left flex items-center justify-between hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <span>
-                  {selectedAttorneys.length > 0 ? (
-                    <div className="flex items-center space-x-2 overflow-hidden">
-                      <span>{selectedAttorneys.map(a => a.name).join(', ')}</span>
-                      <span className="text-gray-400">
-                        ({selectedAttorneys.length} selected)
-                      </span>
+                  {selectedAttorney ? (
+                    <div className="flex items-center space-x-2">
+                      <span>{selectedAttorney.name}</span>
                     </div>
                   ) : (
-                    'Select attorneys...'
+                    'Select attorney...'
                   )}
                 </span>
                 <ChevronDown className="h-4 w-4 text-gray-400" />
@@ -480,40 +550,53 @@ const NewCase = () => {
 
               {isAttorneyDropdownOpen && attorneys.length > 0 && (
                 <div 
-                  className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg"
+                  className="absolute z-10 w-[500px] mt-1 bg-white border border-gray-200 rounded-lg shadow-lg"
                   onMouseEnter={() => clearDropdownTimeout('attorney')}
                   onMouseLeave={() => startDropdownTimeout('attorney', setIsAttorneyDropdownOpen)}
                 >
-                  <ul className="py-1 max-h-60 overflow-auto">
-                    {attorneys.map((attorney) => {
-                      const isSelected = selectedAttorneys.some(a => a._id === attorney._id);
+                  <div className="p-2">
+                    <input
+                      type="text"
+                      value={attorneySearch}
+                      onChange={(e) => {
+                        setAttorneySearch(e.target.value);
+                        clearDropdownTimeout('attorney');
+                      }}
+                      onFocus={() => clearDropdownTimeout('attorney')}
+                      placeholder="Search attorneys..."
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <ul className="py-1 max-h-[240px] overflow-auto">
+                    {getFilteredAttorneys().map((attorney) => {
+                      const isSelected = selectedAttorney?._id === attorney._id;
                       return (
                         <li
                           key={attorney._id}
                           onClick={() => handleAttorneySelect(attorney)}
-                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm flex items-center justify-between border-b border-gray-100 last:border-b-0"
                         >
-                          <div className="flex items-center justify-between">
-                            <div className="flex flex-col">
-                              <div className="flex items-center space-x-2">
-                                <span className="font-medium">{attorney.name}</span>
-                                <span className="text-gray-400">({attorney.email})</span>
-                              </div>
-                              {attorney.company_name && (
-                                <span className="text-xs text-gray-500">
-                                  {attorney.company_name}
-                                </span>
-                              )}
+                          <div className="flex items-center space-x-3">
+                            <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                              <span className="text-gray-600 text-xs">
+                                {attorney.name.charAt(0).toUpperCase()}
+                              </span>
                             </div>
-                            {isSelected && (
-                              <svg className="w-5 h-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            )}
+                            <span className="font-medium">{attorney.name}</span>
                           </div>
+                          {isSelected && (
+                            <svg className="w-5 h-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          )}
                         </li>
                       );
                     })}
+                    {getFilteredAttorneys().length === 0 && (
+                      <li className="px-4 py-2 text-sm text-gray-500">
+                        No attorneys found
+                      </li>
+                    )}
                   </ul>
                 </div>
               )}
@@ -521,11 +604,11 @@ const NewCase = () => {
           </div>
 
           {/* Create Case Button */}
-          <div className="pt-4 ml-[495px]">
+          <div className="pt-4 ml-[380px]">
             <button
               type="button"
               onClick={handleCreateCase}
-              disabled={!selectedTemplate || !selectedCustomer || selectedAttorneys.length === 0}
+              disabled={!selectedTemplate || !selectedCustomer || !selectedAttorney}
               className="w-[120px] h-[44px] bg-blue-600 text-white rounded-lg px-4 text-sm font-medium hover:bg-blue-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
               Create Case
@@ -544,7 +627,7 @@ const NewCase = () => {
                   Edit document checklist
                 </h2>
                 <button
-                  onClick={() => setIsEditModalOpen(false)}
+                  onClick={handleModalClose}
                   className="text-gray-500 hover:text-gray-700"
                 >
                   <X className="h-5 w-5" />
@@ -571,15 +654,15 @@ const NewCase = () => {
               {/* Document List */}
               <div className="space-y-2 mb-6">
                 {getFilteredDocuments().map((doc) => {
-                  const isSelected = selectedDocuments.some(d => d.name === doc.name);
+                  const isSelected = tempSelectedDocuments.some(d => d.name === doc.name);
                   return (
                     <div
                       key={doc._id}
-                      className="flex items-center justify-between py-2"
+                      onClick={() => handleDocumentToggle(doc.name)}
+                      className="flex items-center py-2 cursor-pointer hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
                     >
-                      <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-3 w-full">
                         <button
-                          onClick={() => handleDocumentToggle(doc.name)}
                           className={`w-5 h-5 rounded-full border flex items-center justify-center
                             ${isSelected 
                               ? 'border-blue-500 bg-blue-500 text-white' 
@@ -600,12 +683,6 @@ const NewCase = () => {
                         </button>
                         <span className="text-sm">{doc.name}</span>
                       </div>
-                      <button
-                        onClick={() => handleDocumentToggle(doc.name)}
-                        className="text-gray-400 hover:text-gray-600"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
                     </div>
                   );
                 })}
@@ -620,9 +697,7 @@ const NewCase = () => {
 
               {/* Done Button */}
               <button
-                onClick={() => {
-                  setIsEditModalOpen(false);
-                }}
+                onClick={handleDoneClick}
                 className="w-full py-3 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors duration-200"
               >
                 Done
