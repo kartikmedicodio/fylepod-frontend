@@ -107,8 +107,11 @@ const NewCase = () => {
           throw new Error('No users data received');
         }
 
-        const customerUsers = response.data.data.users.filter(user => user.role === 'user');
-        setUsers(customerUsers);
+        // Filter for individuals and employees
+        const filteredUsers = response.data.data.users.filter(user => 
+          user.role === 'individual' || user.role === 'employee'
+        );
+        setUsers(filteredUsers);
       } catch (error) {
         setError(error.message);
       }
@@ -311,7 +314,7 @@ const NewCase = () => {
   };
 
   const getFilteredUsers = () => {
-    if (!customerSearch.trim()) return users;
+    if (!customerSearch.trim()) return users; // users are already filtered for individuals/employees
     const search = customerSearch.toLowerCase();
     return users.filter(user => 
       user.name.toLowerCase().includes(search) || 
