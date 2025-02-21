@@ -110,7 +110,6 @@ const IndividualCaseDetails = () => {
           return null;
         } catch (err) {
           console.error(`Error uploading ${file.name}:`, err);
-          console.error('Error response:', err.response?.data);
           toast.error(`Failed to upload ${file.name}`);
           return null;
         }
@@ -131,11 +130,25 @@ const IndividualCaseDetails = () => {
               throw new Error('Document processing failed');
             }
 
+            // Update document with management document ID
             if (processedDoc.extractedData?.document_type) {
-              await api.patch(`/documents/${doc._id}`, {
-                documentTypeId: doc.documentTypeId,
-                managementDocumentId: doc.managementDocumentId
+              const extractedType = processedDoc.extractedData.document_type.toLowerCase().trim();
+              const matchingDocType = caseData.documentTypes.find(type => {
+                return type.name.toLowerCase().trim() === extractedType && 
+                       type.status !== 'completed';
               });
+
+              if (matchingDocType) {
+                await api.patch(`/documents/${doc._id}`, {
+                  documentTypeId: matchingDocType.documentTypeId,
+                  managementDocumentId: matchingDocType._id
+                });
+
+                // Update document status
+                await api.patch(`/management/${caseId}/documents/${matchingDocType.documentTypeId}/status`, {
+                  status: 'completed'
+                });
+              }
             }
 
             return processedDoc;
@@ -146,61 +159,24 @@ const IndividualCaseDetails = () => {
         })
       );
 
-      // Match documents with required types
-      const docTypeMatches = new Map();
-      const docsToDelete = new Set();
-
-      processedDocs.forEach(doc => {
-        if (!doc || !doc.extractedData?.document_type) {
-          if (doc?._id) docsToDelete.add(doc._id);
-          return;
-        }
-
-        const extractedType = doc.extractedData.document_type.toLowerCase().trim();
-        const matchingDocType = caseData.documentTypes.find(type => {
-          return type.name.toLowerCase().trim() === extractedType && 
-                 type.status !== 'completed' && 
-                 !docTypeMatches.has(type.documentTypeId);
-        });
-
-        if (matchingDocType) {
-          docTypeMatches.set(matchingDocType.documentTypeId, doc._id);
-        } else {
-          docsToDelete.add(doc._id);
-        }
-      });
-
-      // Update document statuses
-      if (docTypeMatches.size > 0) {
-        await Promise.all(
-          Array.from(docTypeMatches.entries()).map(([typeId]) => 
-            api.patch(`/management/${caseId}/documents/${typeId}/status`, {
-              status: 'completed'
-            })
-          )
-        );
-
-        toast.success(`${docTypeMatches.size} document(s) processed successfully`);
-      }
-
-      // Clean up unmatched documents
-      if (docsToDelete.size > 0) {
-        await Promise.all(
-          Array.from(docsToDelete).map(docId =>
-            api.delete(`/documents/${docId}`).catch(err => 
-              console.error(`Error deleting document ${docId}:`, err)
-            )
-          )
-        );
-      }
-
-      // Refresh case data
+      // Check if all documents are completed
       const response = await api.get(`/management/${caseId}`);
       if (response.data.status === 'success') {
+        const allCompleted = response.data.data.entry.documentTypes.every(doc => doc.status === 'completed');
+        
+        if (allCompleted) {
+          await api.patch(`/management/${caseId}/status`, {
+            status: 'completed',
+            categoryStatus: 'completed'
+          });
+        }
+        
         setCaseData(response.data.data.entry);
       }
 
       setFiles([]);
+      toast.success('Documents processed successfully');
+
     } catch (err) {
       console.error('Error in file upload process:', err);
       toast.error('Error processing documents');
