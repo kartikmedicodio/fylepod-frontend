@@ -15,31 +15,24 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       try {
         const token = getStoredToken();
-        console.log('Checking auth - token:', token ? 'exists' : 'missing');
         
         if (!token) {
-          console.log('No token found during auth check');
           setIsAuthenticated(false);
           setUser(null);
           return;
         }
 
-        console.log('Token found, fetching user data...');
         const userData = await getCurrentUser();
-        console.log('User data received:', userData);
         
         if (userData) {
           setUser(userData);
           setIsAuthenticated(true);
-          console.log('Authentication successful');
         } else {
-          console.log('User data invalid, clearing auth state');
           setUser(null);
           setIsAuthenticated(false);
           removeStoredToken();
         }
       } catch (error) {
-        console.error('Auth check failed:', error);
         setUser(null);
         setIsAuthenticated(false);
         removeStoredToken();
@@ -54,7 +47,6 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials) => {
     setLoading(true);
     try {
-      console.log('Attempting login...');
       const response = await loginService(credentials);
       
       if (!response?.data?.token) {
@@ -67,15 +59,12 @@ export const AuthProvider = ({ children }) => {
 
       const { token, user } = response.data;
       
-      console.log('Setting auth data...');
       setStoredToken(token);
       setUser(user);
       setIsAuthenticated(true);
-      console.log('Login successful');
       
       return user;
     } catch (error) {
-      console.error('Login failed:', error);
       setIsAuthenticated(false);
       setUser(null);
       removeStoredToken();
@@ -104,11 +93,6 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
   };
-
-  // Don't show loading indicator for the whole app
-  // if (loading) {
-  //   return <div>Loading...</div>;
-  // }
 
   return (
     <AuthContext.Provider value={value}>
