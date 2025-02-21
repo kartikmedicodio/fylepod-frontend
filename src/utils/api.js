@@ -14,17 +14,12 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = getStoredToken();
-    console.log('API Request to:', config.url);
-    console.log('Token present:', !!token);
-    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      console.log('Added token to request headers');
     }
     return config;
   },
   (error) => {
-    console.error('Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
@@ -33,14 +28,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    console.error('API Error:', {
-      url: error.config?.url,
-      status: error.response?.status,
-      message: error.message
-    });
-    
     if (error.response?.status === 401) {
-      console.log('Unauthorized request, clearing token');
       removeStoredToken();
       window.location.href = '/login';
     }

@@ -14,7 +14,8 @@ import {
   CircleUserIcon,
   MoreHorizontal,
   User,
-  BookOpen,
+  FolderIcon,
+  User2Icon,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import PropTypes from 'prop-types';
@@ -30,6 +31,72 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
   const menuTimeoutRef = useRef(null);
   const navigate = useNavigate();
 
+  // Get navigation based on role
+  const getNavigation = () => {
+    if (!user?.role) return [];
+
+    // Individual/Employee navigation
+    const individualNavigation = [
+      { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      { name: 'Inbox', href: '/inbox', icon: MailIcon, badge: 15 },
+      { 
+        section: 'All Profiles',
+        items: [
+          { name: 'Alexandre Paiva', href: '/profile/alexandre', icon: CircleUserIcon },
+          { name: 'Thanawan Paiva', href: '/profile/thanawan', icon: CircleUserIcon },
+          { name: 'Justine Paiva', href: '/profile/justine', icon: CircleUserIcon },
+        ],
+        expandable: true
+      },
+      { 
+        section: 'Cases',
+        items: [
+          { name: 'All Cases', href: '/individual-cases', icon: BriefcaseBusiness },
+          { name: 'Document Library', href: '/documents', icon: FolderIcon },
+        ]
+      }
+    ];
+
+    // Admin/Attorney/Manager navigation
+    const adminNavigation = [
+      { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      { name: 'Inbox', href: '/inbox', icon: MailIcon },
+      { 
+        section: 'Clients',
+        items: [
+          { name: 'Corporations', href: '/corporations', icon: Building2 },
+          { name: 'Individuals', href: '/individuals', icon: Users },
+        ]
+      },
+      {
+        section: 'Cases',
+        items: [
+          { name: 'Cases', href: '/cases', icon: BriefcaseBusiness },
+        ]
+      },
+      {
+        section: 'Setup',
+        items: [
+          { name: 'Account Info', href: '/account', icon: User2Icon  },
+          { name: 'Knowledge Base', href: '/knowledge', icon: TableOfContents },
+          { name: 'Reminder Settings', href: '/reminders', icon: Settings },
+        ]
+      },
+    ];
+
+    switch (user.role) {
+      case 'admin':
+      case 'attorney':
+      case 'manager':
+        return adminNavigation;
+      case 'individual':
+      case 'employee':
+        return individualNavigation;
+      default:
+        return adminNavigation;
+    }
+  };
+
   // Handle click outside for both menus
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -42,9 +109,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
     };
 
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   // Auto-hide menus after 3 seconds
@@ -62,7 +127,6 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
     };
   }, [showMenu, showNewMenu]);
 
-  // Reset timer when hovering over either menu
   const handleMenuMouseEnter = () => {
     if (menuTimeoutRef.current) {
       clearTimeout(menuTimeoutRef.current);
@@ -76,40 +140,14 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
     }, 3000);
   };
 
-  const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Inbox', href: '/inbox', icon: MailIcon },
-    { 
-      section: 'Clients',
-      items: [
-        { name: 'Corporations', href: '/corporations', icon: Building2 },
-        { name: 'Individuals', href: '/individuals', icon: Users },
-      ]
-    },
-    {
-      section: 'Cases',
-      items: [
-        { name: 'Cases', href: '/cases', icon: BriefcaseBusiness },
-      ]
-    },
-    {
-      section: 'Setup',
-      items: [
-        { name: 'Account Info', href: '/account', icon: CircleUserIcon },
-        { name: 'Knowledge Base', href: '/knowledge', icon: BookOpen },
-        { name: 'Reminder Settings', href: '/reminders', icon: Settings },
-      ]
-    },
-  ];
-
-  const isActive = (path) => {
+  const isActive = (href) => {
     // Special case for Knowledge Base - it should be active for all /knowledge routes
-    if (path === '/knowledge') {
+    if (href === '/knowledge') {
       return location.pathname.startsWith('/knowledge');
     }
     
     // For other paths, exact match
-    return location.pathname === path;
+    return location.pathname === href;
   };
 
   const handleLogout = async () => {
@@ -120,9 +158,11 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
     }
   };
 
+  // Check if user should see the New button
+  const showNewButton = user?.role === 'admin' || user?.role === 'attorney' || user?.role === 'manager';
+
   return (
-    <div
-      className={`fixed inset-y-0 left-0 z-50 border-r-2 border-[#c0c4d4] transition-all duration-300 ease-in-out bg-gradient-start/20 backdrop-blur-md
+    <div className={`fixed inset-y-0 left-0 z-50 border-r-2 border-[#c0c4d4] transition-all duration-300 ease-in-out bg-gradient-start/20 backdrop-blur-md
       ${collapsed ? 'w-16' : 'w-56'}`}
     >
       <div className="flex h-full flex-col">
@@ -140,59 +180,67 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
           )}
         </div>
 
-        {/* New button with dropdown */}
-        <div className="px-4 mt-2 relative" ref={newMenuRef}>
-          <button 
-            className={`flex items-center justify-center w-full space-x-2 rounded-lg bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors duration-200 
-              ${collapsed ? 'px-2' : 'px-6'}`}
-            onClick={() => setShowNewMenu(!showNewMenu)}
-            onMouseEnter={handleMenuMouseEnter}
-            onMouseLeave={handleMenuMouseLeave}
-          >
-            <PlusCircle className="h-4 w-4" />
-            {!collapsed && <span>New</span>}
-          </button>
-
-          {/* Dropdown Menu */}
-          {showNewMenu && (
-            <div 
-              className="absolute left-full ml-2 top-0 w-48 rounded-lg bg-white shadow-lg border border-gray-200 py-1 z-50"
+        {/* New button - only show for admin/attorney/manager */}
+        {showNewButton && (
+          <div className="px-4 mt-2 relative" ref={newMenuRef}>
+            <button 
+              className={`flex items-center justify-center w-full space-x-2 rounded-lg bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors duration-200 
+                ${collapsed ? 'px-2' : 'px-6'}`}
+              onClick={() => setShowNewMenu(!showNewMenu)}
               onMouseEnter={handleMenuMouseEnter}
               onMouseLeave={handleMenuMouseLeave}
             >
-              <button
-                onClick={() => {
-                  navigate('/customers/new');
-                  setShowNewMenu(false);
-                }}
-                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+              <PlusCircle className="h-4 w-4" />
+              {!collapsed && <span>New</span>}
+            </button>
+
+            {showNewMenu && (
+              <div 
+                className="absolute left-full ml-2 top-0 w-48 rounded-lg bg-white shadow-lg border border-gray-200 py-1 z-50"
+                onMouseEnter={handleMenuMouseEnter}
+                onMouseLeave={handleMenuMouseLeave}
               >
-                <User className="h-4 w-4" />
-                <span>New Customer</span>
-              </button>
-              <button
-                onClick={() => {
-                  navigate('/cases/new');
-                  setShowNewMenu(false);
-                }}
-                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
-              >
-                <BriefcaseBusiness className="h-4 w-4" />
-                <span>New Case</span>
-              </button>
-            </div>
-          )}
-        </div>
+                <button
+                  onClick={() => {
+                    navigate('/customers/new');
+                    setShowNewMenu(false);
+                  }}
+                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+                >
+                  <User className="h-4 w-4" />
+                  <span>New Customer</span>
+                </button>
+                <button
+                  onClick={() => {
+                    navigate('/cases/new');
+                    setShowNewMenu(false);
+                  }}
+                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+                >
+                  <BriefcaseBusiness className="h-4 w-4" />
+                  <span>New Case</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Navigation */}
         <nav className="flex-1 space-y-1 px-3 py-4">
-          {navigation.map((item, index) => (
+          {getNavigation().map((item, index) => (
             item.section ? (
-              <div key={index} className="space-y-1 pt-5">
+              <div key={index} className="space-y-1">
                 {!collapsed && (
-                  <h3 className="px-3 text-xs font-semibold text-black">
-                    {item.section}
-                  </h3>
+                  <div className="flex items-center justify-between px-3">
+                    <h3 className="text-xs font-semibold text-gray-500">
+                      {item.section}
+                    </h3>
+                    {item.expandable && (
+                      <button className="text-xs text-gray-500 hover:text-gray-700">
+                        See More
+                      </button>
+                    )}
+                  </div>
                 )}
                 {item.items.map((subItem) => (
                   <Link
@@ -205,8 +253,17 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
                     } ${collapsed ? 'justify-center' : ''}`}
                     title={collapsed ? subItem.name : ''}
                   >
-                    <subItem.icon className="h-5 w-5 flex-shrink-0" />
+                    {subItem.icon === CircleUserIcon ? (
+                      <div className="h-5 w-5 rounded-full bg-gray-200 flex-shrink-0" />
+                    ) : (
+                      <subItem.icon className="h-5 w-5 flex-shrink-0" />
+                    )}
                     {!collapsed && <span className="ml-3">{subItem.name}</span>}
+                    {!collapsed && subItem.badge && (
+                      <span className="ml-auto bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-xs">
+                        {subItem.badge}
+                      </span>
+                    )}
                   </Link>
                 ))}
               </div>
@@ -223,7 +280,14 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
               >
                 <item.icon className="h-5 w-5 flex-shrink-0" />
                 {!collapsed && (
-                  <span className="ml-3 flex-1">{item.name}</span>
+                  <>
+                    <span className="ml-3">{item.name}</span>
+                    {item.badge && (
+                      <span className="ml-auto bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-xs">
+                        {item.badge}
+                      </span>
+                    )}
+                  </>
                 )}
               </Link>
             )
@@ -263,7 +327,6 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
                     <MoreHorizontal className="h-5 w-5" />
                   </button>
                   
-                  {/* Popup Menu */}
                   {showMenu && (
                     <div 
                       className="absolute bottom-full right-0 mb-2 w-48 rounded-lg bg-white shadow-lg border border-gray-200 py-1"
@@ -309,4 +372,4 @@ Sidebar.propTypes = {
   setCollapsed: PropTypes.func.isRequired
 };
 
-export default Sidebar; 
+export default Sidebar;

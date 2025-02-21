@@ -23,12 +23,29 @@ const Header = ({ sidebarCollapsed }) => {
     }
 
     const paths = location.pathname.split('/').filter(Boolean);
+    
+    // Handle case details breadcrumb
+    if (paths[0] === 'case') {
+      return [
+        { name: 'All Cases', path: '/individual-cases' },
+        { name: currentBreadcrumb?.name || 'Case Details', path: location.pathname }
+      ];
+    }
+
     return paths.map((path, index) => {
       const fullPath = `/${paths.slice(0, index + 1).join('/')}`;
       
       // If this is a corporation ID and we have currentBreadcrumb
       if (index === 1 && paths[0] === 'corporations' && currentBreadcrumb?.path === fullPath) {
         return currentBreadcrumb;
+      }
+
+      // Replace "Individual-cases" with "All Cases" in breadcrumb
+      if (path === 'individual-cases') {
+        return {
+          name: 'All Cases',
+          path: fullPath
+        };
       }
 
       return {

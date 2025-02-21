@@ -12,7 +12,9 @@ import { BreadcrumbProvider } from './contexts/BreadcrumbContext';
 import KnowledgeBase from './pages/KnowledgeBase';
 import DocumentChecklist from './pages/DocumentChecklist';
 import EmployeeProfile from './pages/EmployeeProfile';
+import IndividualCases from './pages/IndividualCases';
 import CaseDetails from './pages/CaseDetails';
+import IndividualCaseDetails from './pages/IndividualCaseDetails';
 
 const App = () => {
   return (
@@ -22,25 +24,28 @@ const App = () => {
           <BreadcrumbProvider>
             <Routes>
               <Route path="/login" element={<Login />} />
-              <Route path="/cases/new" element={
-                <PrivateRoute>
-                  <Layout>
-                    <NewCase />
-                  </Layout>
-                </PrivateRoute>
-              } />
               <Route path="/*" element={
                 <PrivateRoute>
                   <Layout>
                     <Routes>
+                      {/* Dashboard Routes */}
                       <Route path="/cases" element={<Cases />} />
+                      <Route path="/cases/new" element={<NewCase />} />
+                      <Route path="/case/:caseId" element={<CaseDetails />} />
+                      
+                      {/* Individual Cases Routes */}
+                      <Route path="/individual-cases" element={<IndividualCases />} />
+                      <Route path="/individuals/case/:caseId" element={<IndividualCaseDetails />} />
+                      
+                      {/* Corporation Routes */}
                       <Route path="/corporations" element={<Corporations />} />
                       <Route path="/corporations/:corporationId" element={<CorporationDetails />} />
-                      <Route path="/knowledge" element={<KnowledgeBase />} />
-                      <Route path="/knowledge/checklist/:id" element={<DocumentChecklist />} />
                       <Route path="/corporations/:corporationId/employee/:employeeId" element={<EmployeeProfile />} />
                       <Route path="/corporations/:corporationId/employee/:employeeId/case/:caseId" element={<CaseDetails />} />
-                      {/* Your other routes will go here */}
+                      
+                      {/* Knowledge Base Routes */}
+                      <Route path="/knowledge" element={<KnowledgeBase />} />
+                      <Route path="/knowledge/checklist/:id" element={<DocumentChecklist />} />
                     </Routes>
                   </Layout>
                 </PrivateRoute>
