@@ -1,306 +1,788 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { Check, Search, SlidersHorizontal, MoreVertical, Upload, X, Loader2, Camera, Files } from 'lucide-react';
-import CaseDetailsSidebar from '../components/cases/CaseDetailsSidebar';
-import caseService from '../services/caseService';
+import { 
+  Check, 
+  Search, 
+  SlidersHorizontal, 
+  MoreVertical, 
+  Loader2,
+  ChevronRight, 
+  Building2,
+  Users,
+  User,
+  FileText,
+  ClipboardList,
+  Phone,
+  Mail,
+  Globe,
+  MapPin,
+  Upload,
+  File,
+  X,
+  AlertCircle,
+  Filter
+} from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { motion, AnimatePresence } from 'framer-motion';
+import api from '../utils/api';
+import CaseDetailsSidebar from '../components/cases/CaseDetailsSidebar';
+
+// Define case progress steps
+const CASE_STEPS = [
+  { id: 'case-started', name: 'Case Started', completed: true },
+  { id: 'data-collection', name: 'Data Collection', completed: true },
+  { id: 'in-review', name: 'In Review', completed: false },
+  { id: 'preparation', name: 'Preparation', completed: false },
+  { id: 'filing', name: 'Filing', completed: false },
+];
+
+// Add a new status type to track document states
+const DOCUMENT_STATUS = {
+  PENDING: 'pending',
+  UPLOADED: 'uploaded',
+  APPROVED: 'approved'
+};
+
+const getInitials = (name) => {
+  return name
+    ? name
+        .split(' ')
+        .map(word => word[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
+    : '';
+};
 
 const CaseDetails = () => {
   const { caseId } = useParams();
   const [activeTab, setActiveTab] = useState('document-checklist');
-  const [caseDetails, setCaseDetails] = useState(null);
+  const [caseData, setCaseData] = useState(null);
+  const [profileData, setProfileData] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDocumentTab, setSelectedDocumentTab] = useState('pending');
-  const [documents, setDocuments] = useState({ uploaded: [], pending: [] });
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [selectedDocument, setSelectedDocument] = useState(null);
+  const [uploadStatus, setUploadStatus] = useState(DOCUMENT_STATUS.PENDING);
+  const [isDragging, setIsDragging] = useState(false);
+  const [files, setFiles] = useState([]);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const fileInputRef = React.useRef(null);
+  const fileInputRef = useRef(null);
 
-  const steps = [
-    { id: 'case-started', name: 'Case Started', completed: true },
-    { id: 'data-collection', name: 'Data Collection', completed: true },
-    { id: 'in-review', name: 'In Review', completed: false },
-    { id: 'preparation', name: 'Preparation', completed: false },
-    { id: 'filing', name: 'Filing', completed: false },
-  ];
-
-  useEffect(() => {
-    const fetchCaseDetails = async () => {
-      try {
-        const response = await caseService.getCaseDetails(caseId);
-        setCaseDetails(response.data.entry);
-        
-        // Segregate documents based on status
-        const documentTypes = response.data.entry.documentTypes || [];
-        const uploaded = documentTypes.filter(doc => doc.status === 'completed');
-        const pending = documentTypes.filter(doc => !doc.status || doc.status === 'pending' || doc.status === 'uploaded');
-        setDocuments({ uploaded, pending });
-        console.log('Documents:', { uploaded, pending });
-      } catch (error) {
-        console.error('Error fetching case details:', error);
-      }
-    };
-    
-    fetchCaseDetails();
-  }, [caseId]);
-
-  // Filter documents based on search query
-  const filteredDocuments = {
-    uploaded: documents.uploaded.filter(doc => 
-      doc.name?.toLowerCase().includes(searchQuery.toLowerCase())
-    ),
-    pending: documents.pending.filter(doc => 
-      doc.name?.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+  const validateFileType = (file) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+    return allowedTypes.includes(file.type);
   };
 
-  const handleUploadClick = () => {
-    fileInputRef.current?.click();
+  const checkDocumentProcessing = async (documentId) => {
+    const maxAttempts = 20;
+    const baseInterval = 2000;
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      try {
+        const response = await api.get(`/documents/${documentId}`);
+        const document = response.data.data.document;
+
+        if (document.processingError || document.status === 'failed') {
+          console.log(`Document ${documentId} processing failed`);
+          return null;
+        }
+
+        if (document.extractedData?.document_type) {
+          console.log('Document processed successfully');
+          return document;
+        }
+
+        attempts++;
+        await new Promise(resolve => setTimeout(resolve, baseInterval * Math.min(Math.pow(1.5, attempts), 8)));
+      } catch (err) {
+        console.error('Error checking document status:', err);
+        return null;
+      }
+    }
+
+    return null;
+  };
+
+  // Modify the handleDocumentApprove function to match the same structure
+  const handleDocumentApprove = async (documentTypeId, managementDocumentId) => {
+    try {
+      setIsProcessing(true);
+      
+      // Update to match the same structure as in handleFileUpload
+      await api.patch(`/management/${caseId}/documents/${documentTypeId}/status`, {
+        status: DOCUMENT_STATUS.APPROVED,
+        documentTypeId: documentTypeId,
+        managementDocumentId: managementDocumentId
+      });
+
+      // Refresh case data
+      const response = await api.get(`/management/${caseId}`);
+      if (response.data.status === 'success') {
+        setCaseData(response.data.data.entry);
+        toast.success('Document approved successfully');
+      }
+    } catch (error) {
+      console.error('Error approving document:', error);
+      toast.error('Failed to approve document');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Add the handler for requesting reupload
+  const handleRequestReupload = async (documentTypeId, managementDocumentId) => {
+    try {
+      setIsProcessing(true);
+      
+      await api.patch(`/management/${caseId}/documents/${documentTypeId}/status`, {
+        status: DOCUMENT_STATUS.PENDING,
+        documentTypeId: documentTypeId,
+        managementDocumentId: managementDocumentId
+      });
+
+      // Refresh case data
+      const response = await api.get(`/management/${caseId}`);
+      if (response.data.status === 'success') {
+        setCaseData(response.data.data.entry);
+        toast.success('Document sent for reupload');
+      }
+    } catch (error) {
+      console.error('Error requesting reupload:', error);
+      toast.error('Failed to request reupload');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleFileUpload = async (files) => {
     if (!files.length) return;
     
+    setIsProcessing(true);
     setIsUploading(true);
     setUploadProgress(0);
-    
+    const uploadedDocIds = [];
+
     try {
-      const formData = new FormData();
-      // Get the first file for now
-      const file = files[0];
-      formData.append('file', file);
-      formData.append('name', `${Date.now()}-${file.name}`);
-      formData.append('managementId', caseId);
-      formData.append('type', 'document');
-      formData.append('form_category', 'document_verification');
-      
-      const response = await caseService.uploadDocuments(formData, (progress) => {
-        setUploadProgress(Math.round(progress));
+      // Upload all files
+      const uploadPromises = files.map(async (file) => {
+        if (!validateFileType(file)) {
+          toast.error(`Invalid file type: ${file.name}`);
+          return null;
+        }
+
+        // Find a pending document type
+        const pendingDoc = caseData.documentTypes.find(dt => dt.status === 'pending');
+        if (!pendingDoc) {
+          toast.error('No pending documents available');
+          return null;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('originalName', file.name);
+        formData.append('name', `${Date.now()}-${file.name}`);
+        formData.append('type', pendingDoc.name);
+        formData.append('managementId', caseId);
+        formData.append('documentTypeId', pendingDoc.documentTypeId);
+        formData.append('managementDocumentId', pendingDoc._id);
+        formData.append('form_category', 'document_verification');
+        formData.append('mimeType', file.type);
+
+        try {
+          const response = await api.post('/documents', formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            },
+            onUploadProgress: (progressEvent) => {
+              const progress = (progressEvent.loaded / progressEvent.total) * 100;
+              setUploadProgress(Math.round(progress));
+            }
+          });
+
+          if (response.data?.status === 'success') {
+            const uploadedDoc = response.data.data.document;
+            uploadedDocIds.push(uploadedDoc._id);
+            return uploadedDoc;
+          }
+          return null;
+        } catch (err) {
+          console.error(`Error uploading ${file.name}:`, err);
+          console.error('Error response:', err.response?.data);
+          toast.error(`Failed to upload ${file.name}`);
+          return null;
+        }
       });
-      
-      if (response.status === 'success') {
-        toast.success('Documents uploaded successfully');
-        // Refresh documents list
-        const updatedCase = await caseService.getCaseDetails(caseId);
-        setCaseDetails(updatedCase.data.entry);
+
+      const uploadedDocs = (await Promise.all(uploadPromises)).filter(Boolean);
+      if (!uploadedDocs.length) {
+        toast.error('No files were uploaded successfully');
+        return;
       }
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast.error(error.response?.data?.message || 'Failed to upload documents');
+
+      // Process and verify documents
+      const processedDocs = await Promise.all(
+        uploadedDocs.map(async (doc) => {
+          try {
+            const processedDoc = await checkDocumentProcessing(doc._id);
+            if (!processedDoc) {
+              throw new Error('Document processing failed');
+            }
+
+            if (processedDoc.extractedData?.document_type) {
+              await api.patch(`/documents/${doc._id}`, {
+                documentTypeId: doc.documentTypeId,
+                managementDocumentId: doc.managementDocumentId
+              });
+            }
+
+            return processedDoc;
+          } catch (err) {
+            console.error(`Error processing document ${doc._id}:`, err);
+            return null;
+          }
+        })
+      );
+
+      // Match documents with required types
+      const docTypeMatches = new Map();
+      const docsToDelete = new Set();
+
+      processedDocs.forEach(doc => {
+        if (!doc || !doc.extractedData?.document_type) {
+          if (doc?._id) docsToDelete.add(doc._id);
+          return;
+        }
+
+        const extractedType = doc.extractedData.document_type.toLowerCase().trim();
+        const matchingDocType = caseData.documentTypes.find(type => {
+          return type.name.toLowerCase().trim() === extractedType && 
+                 type.status !== 'completed' && 
+                 !docTypeMatches.has(type.documentTypeId);
+        });
+
+        if (matchingDocType) {
+          docTypeMatches.set(matchingDocType.documentTypeId, doc._id);
+        } else {
+          docsToDelete.add(doc._id);
+        }
+      });
+
+      // Update document statuses
+      if (docTypeMatches.size > 0) {
+        await Promise.all(
+          Array.from(docTypeMatches.entries()).map(([typeId]) => 
+            api.patch(`/management/${caseId}/documents/${typeId}/status`, {
+              status: DOCUMENT_STATUS.UPLOADED
+            })
+          )
+        );
+
+        toast.success(`${docTypeMatches.size} document(s) uploaded successfully`);
+      }
+
+      // Clean up unmatched documents
+      if (docsToDelete.size > 0) {
+        await Promise.all(
+          Array.from(docsToDelete).map(docId =>
+            api.delete(`/documents/${docId}`).catch(err => 
+              console.error(`Error deleting document ${docId}:`, err)
+            )
+          )
+        );
+      }
+
+      // Refresh case data
+      const response = await api.get(`/management/${caseId}`);
+      if (response.data.status === 'success') {
+        setCaseData(response.data.data.entry);
+      }
+
+      setFiles([]);
+    } catch (err) {
+      console.error('Error in file upload process:', err);
+      toast.error('Error processing documents');
+      
+      // Clean up any uploaded documents on error
+      if (uploadedDocIds.length) {
+        await Promise.all(
+          uploadedDocIds.map(docId =>
+            api.delete(`/documents/${docId}`).catch(err => {
+              console.error(`Error deleting document ${docId}:`, err);
+            })
+          )
+        );
+      }
     } finally {
+      setIsProcessing(false);
       setIsUploading(false);
       setUploadProgress(0);
     }
   };
 
-  return (
-    <div className="flex h-full">
-      <CaseDetailsSidebar caseDetails={caseDetails} />
-      <div className="flex-1 p-8">
-        {/* Case Progress Steps */}
-          <h2 className="text-3xl font-medium mb-4 text-gray-700">Case Progress</h2>
-        <div className="mb-6 bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between">
-            {steps.map((step, index) => (
-              <React.Fragment key={step.id}>
-                {/* Step Circle */}
-                <div className="flex flex-col items-center relative group">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center border-2 
-                    ${step.completed 
-                      ? 'bg-blue-600 border-blue-600 shadow-md shadow-blue-100' 
-                      : 'border-gray-300 bg-white'
-                    }`}
-                  >
-                    {step.completed ? (
-                      <Check className="w-4 h-4 text-white" />
-                    ) : (
-                      <div className="w-2 h-2 rounded-full bg-gray-300 group-hover:bg-gray-400 transition-colors" />
-                    )}
-                  </div>
-                  <span className="mt-2 text-xs font-medium text-gray-600 group-hover:text-gray-900 transition-colors">
-                    {step.name}
-                  </span>
-                  {/* Tooltip */}
-                  <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-                    {step.completed ? 'Completed' : 'Pending'}
+  useEffect(() => {
+    const fetchCaseDetails = async () => {
+      try {
+        const response = await api.get(`/management/${caseId}`);
+        if (response.data.status === 'success') {
+          setCaseData(response.data.data.entry);
+        }
+      } catch (error) {
+        console.error('Error fetching case details:', error);
+      }
+    };
+
+    const fetchProfileData = async () => {
+      try {
+        const response = await api.get('/auth/me');
+        if (response.data.status === 'success') {
+          setProfileData(response.data.data.user);
+        }
+      } catch (error) {
+        console.error('Error fetching profile data:', error);
+      }
+    };
+
+    fetchCaseDetails();
+    fetchProfileData();
+  }, [caseId]);
+
+  if (!caseData || !profileData) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  // Modified progress steps
+  const ProgressSteps = () => (
+    <div className="flex items-center justify-center w-full py-8 bg-white">
+      <div className="flex items-center justify-between max-w-4xl w-full px-6">
+        {['Case Started', 'Data Collection', 'In Review', 'Preparation', 'Filing'].map((step, index) => (
+          <div key={step} className="flex items-center">
+            {/* Step circle with label */}
+            <div className="flex flex-col items-center relative">
+              {/* Connector line */}
+              {index < 4 && (
+                <div 
+                  className={`absolute left-[50px] top-[20px] h-[2px] w-[100px] ${
+                    index < 2 ? 'bg-blue-600' : 'bg-gray-200'
+                  }`}
+                />
+              )}
+              
+              {/* Circle */}
+              <div 
+                className={`
+                  w-10 h-10 rounded-full flex items-center justify-center 
+                  transition-all duration-300 relative z-10
+                  ${index < 2 
+                    ? 'bg-blue-600 text-white ring-4 ring-blue-100' 
+                    : index === 2
+                      ? 'bg-white border-2 border-blue-600 text-blue-600'
+                      : 'bg-gray-100 text-gray-400'
+                  }
+                `}
+              >
+                {index < 2 ? (
+                  <Check className="w-5 h-5" />
+                ) : (
+                  <span className="text-sm font-medium">{index + 1}</span>
+                )}
+              </div>
+
+              {/* Label */}
+              <span 
+                className={`mt-3 text-sm font-medium whitespace-nowrap ${
+                  index < 2 
+                    ? 'text-blue-600' 
+                    : index === 2
+                      ? 'text-blue-600'
+                      : 'text-gray-400'
+                }`}
+              >
+                {step}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // Enhanced tab navigation
+  const TabNavigation = () => (
+    <div className="border-b border-gray-200 px-6">
+      <div className="flex -mb-px">
+        {[
+          { name: 'Profile', icon: User },
+          { name: 'Document Checklist', icon: ClipboardList },
+          { name: 'Questionnaire', icon: FileText },
+          { name: 'Forms', icon: File },
+          { name: 'Queries', icon: AlertCircle }
+        ].map(({ name, icon: Icon }) => (
+          <button
+            key={name}
+            className={`flex items-center px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === name.toLowerCase().replace(' ', '-')
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
+            }`}
+            onClick={() => setActiveTab(name.toLowerCase().replace(' ', '-'))}
+          >
+            <Icon className="w-4 h-4 mr-2" />
+            {name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  // Enhanced document checklist
+  const DocumentsChecklistTab = () => {
+    const pendingDocuments = caseData.documentTypes.filter(doc => doc.status === DOCUMENT_STATUS.PENDING);
+    const uploadedDocuments = caseData.documentTypes.filter(
+      doc => doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
+    );
+
+    const renderDocumentsList = () => (
+      <div className="col-span-8 bg-white rounded-lg border border-gray-200 p-6">
+        <div className="flex gap-2 mb-6 border-b border-gray-100 pb-4">
+          <button 
+            onClick={() => setUploadStatus(DOCUMENT_STATUS.PENDING)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              uploadStatus === DOCUMENT_STATUS.PENDING
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            Upload Pending ({pendingDocuments.length})
+          </button>
+          <button 
+            onClick={() => setUploadStatus(DOCUMENT_STATUS.UPLOADED)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              uploadStatus === DOCUMENT_STATUS.UPLOADED
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            Uploaded ({uploadedDocuments.length})
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          {uploadStatus === DOCUMENT_STATUS.PENDING ? (
+            pendingDocuments.length > 0 ? (
+              pendingDocuments.map((doc) => (
+                <div key={doc._id} className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+                  <div className="flex justify-between items-start group">
+                    <div>
+                      <h4 className="font-medium text-sm mb-1">
+                        {doc.name}
+                        {doc.required && (
+                          <span className="ml-2 text-xs text-red-500">*Required</span>
+                        )}
+                      </h4>
+                      <p className="text-sm text-gray-500 leading-snug">
+                        Please upload your {doc.name.toLowerCase()} document
+                      </p>
+                    </div>
+                    <button className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Upload className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-                
-                {/* Connector Line */}
-                {index < steps.length - 1 && (
-                  <div className={`flex-1 h-[1px] mx-4
-                    ${steps[index].completed && steps[index + 1].completed 
-                      ? 'bg-blue-600 shadow-sm' 
-                      : 'bg-gray-200'
-                    }`} 
-                  />
-                )}
-              </React.Fragment>
-            ))}
+              ))
+            ) : (
+              <div className="text-gray-500 text-sm text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
+                All documents have been uploaded.
+              </div>
+            )
+          ) : (
+            uploadedDocuments.length > 0 ? (
+              uploadedDocuments.map((doc) => (
+                <div key={doc._id} className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-medium text-sm mb-1">{doc.name}</h4>
+                      <div className="flex items-center gap-2">
+                        <span className={`flex items-center text-sm ${
+                          doc.status === DOCUMENT_STATUS.APPROVED 
+                            ? 'text-green-600' 
+                            : 'text-blue-600'
+                        }`}>
+                          <Check className="w-4 h-4 mr-1" />
+                          {doc.status === DOCUMENT_STATUS.APPROVED ? 'Approved' : 'Uploaded'}
+                        </span>
+                        
+                        {doc.status === DOCUMENT_STATUS.UPLOADED && (
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => handleDocumentApprove(doc.documentTypeId, doc._id)}
+                              disabled={isProcessing}
+                              className={`px-3 py-1 text-xs font-medium rounded-full
+                                ${isProcessing 
+                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                                  : 'bg-green-50 text-green-600 hover:bg-green-100'
+                                }`}
+                            >
+                              {isProcessing ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                'Approve'
+                              )}
+                            </button>
+                            <button 
+                              onClick={() => handleRequestReupload(doc.documentTypeId, doc._id)}
+                              disabled={isProcessing}
+                              className={`px-3 py-1 text-xs font-medium rounded-full
+                                ${isProcessing 
+                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                                  : 'bg-red-50 text-red-600 hover:bg-red-100'
+                                }`}
+                            >
+                              {isProcessing ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                'Request Reupload'
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {new Date(doc.updatedAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-gray-500 text-sm text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
+                No documents have been uploaded yet.
+              </div>
+            )
+          )}
+        </div>
+      </div>
+    );
+
+    const renderSmartUpload = () => (
+      uploadStatus === DOCUMENT_STATUS.PENDING && (
+        <div className="col-span-4 bg-white rounded-lg border border-gray-200 p-6">
+          <div className="mb-4 pb-4 border-b border-gray-100">
+            <h4 className="font-medium text-sm">Smart Upload Files</h4>
+          </div>
+          
+          <div 
+            className={`flex flex-col items-center justify-center py-8 rounded-lg transition-colors
+              ${isDragging 
+                ? 'bg-blue-50 border-2 border-dashed border-blue-300' 
+                : 'bg-gray-50 border border-gray-200'
+              }`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            <input
+              type="file"
+              multiple
+              className="hidden"
+              id="file-upload"
+              onChange={handleFileSelect}
+            />
+            
+            {files.length > 0 ? (
+              <div className="w-full px-6">
+                <div className="mb-4 text-center">
+                  <span className="text-sm text-gray-500">{files.length} file(s) selected</span>
+                </div>
+                <div className="space-y-2 mb-6 max-h-40 overflow-y-auto">
+                  {files.map((file, index) => (
+                    <div 
+                      key={index} 
+                      className="flex items-center justify-between bg-white border border-gray-200 p-2 rounded-lg"
+                    >
+                      <div className="flex items-center">
+                        <File className="w-4 h-4 text-gray-400 mr-2" />
+                        <span className="text-sm truncate max-w-xs">{file.name}</span>
+                      </div>
+                      <button 
+                        onClick={() => setFiles(files.filter((_, i) => i !== index))}
+                        className="text-gray-400 hover:text-gray-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label 
+                    htmlFor="file-upload"
+                    className="bg-white border border-gray-200 text-gray-700 py-2.5 px-6 rounded-lg text-sm font-medium cursor-pointer hover:bg-gray-50 transition-colors text-center"
+                  >
+                    Browse More Files
+                  </label>
+                  <button 
+                    onClick={() => handleFileUpload(files)}
+                    disabled={isProcessing}
+                    className={`bg-blue-600 text-white py-2.5 px-6 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2
+                      ${isProcessing ? 'opacity-75 cursor-not-allowed' : ''}`}
+                  >
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      `Upload ${files.length} file${files.length !== 1 ? 's' : ''}`
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="w-12 h-12 bg-white rounded-full border border-gray-200 flex items-center justify-center mb-3">
+                  <Upload className="w-6 h-6 text-gray-400" />
+                </div>
+                <p className="text-sm text-gray-500 mb-2">
+                  {isDragging ? 'Drop files here' : 'Drag and drop files here'}
+                </p>
+                <p className="text-sm text-gray-400 mb-6">or</p>
+                <label 
+                  htmlFor="file-upload"
+                  className="bg-blue-600 text-white py-2.5 px-6 rounded-lg text-sm font-medium cursor-pointer hover:bg-blue-700 transition-colors"
+                >
+                  Browse Files
+                </label>
+              </>
+            )}
+          </div>
+        </div>
+      )
+    );
+
+    const renderQuestionnaire = () => (
+      <div className="w-1/3">
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <div className="mb-4">
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium text-sm">Questionnaire</h4>
+              <div className="text-blue-600 text-sm">53/70</div>
+            </div>
+            <div className="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-full bg-blue-600 rounded-full" style={{ width: '75%' }}></div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <div className="text-sm text-gray-500 mb-1">Salutation</div>
+              <div className="font-medium">Mr</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500 mb-1">First Name</div>
+              <div className="font-medium">John</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500 mb-1">Middle Name</div>
+              <div className="font-medium">Michael</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500 mb-1">Last Name</div>
+              <div className="font-medium">Doe</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500 mb-1">Nationality</div>
+              <div className="font-medium">American</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500 mb-1">Email Address</div>
+              <div className="font-medium">John@mail.com</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="relative w-80">
+            <input
+              type="text"
+              placeholder="Search documents..."
+              className="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all"
+            />
+            <Search className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" />
+          </div>
+          <div className="flex items-center gap-3">
+            <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+              <Filter className="w-4 h-4" />
+              All Filters
+            </button>
+            <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+              <SlidersHorizontal className="w-4 h-4" />
+              Sort
+            </button>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 bg-white p-1.5 rounded-xl shadow-sm border border-gray-100">
-          {['profile', 'document-checklist', 'questionnaire', 'forms', 'queries'].map((tab) => (
-            <button
-              key={tab}
-              className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                activeTab === tab 
-                  ? 'bg-blue-50 text-blue-700 shadow-sm' 
-                  : 'text-gray-600 hover:bg-gray-50'
-              }`}
-              onClick={() => setActiveTab(tab)}
-            >
-              {tab.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-            </button>
-          ))}
+        {/* Document list and upload sections with enhanced styling */}
+        <div className="grid grid-cols-12 gap-6">
+          {renderDocumentsList()}
+          {renderSmartUpload()}
+        </div>
+      </div>
+    );
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    setFiles(prevFiles => [...prevFiles, ...droppedFiles]);
+  };
+
+  const handleFileSelect = (e) => {
+    const selectedFiles = Array.from(e.target.files);
+    setFiles(prevFiles => [...prevFiles, ...selectedFiles]);
+  };
+
+  return (
+    <div className="flex h-screen bg-gray-50">
+      <CaseDetailsSidebar />
+      
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="bg-white border-b border-gray-200 shadow-sm">
+          <ProgressSteps />
         </div>
 
-        {/* Content based on active tab */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm min-h-[500px]">
-          {activeTab === 'document-checklist' && (
-            <div className="p-6 space-y-6">
-              {/* Search and Filters */}
-              <div className="flex items-center justify-between">
-                <div className="relative w-96">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                  <input
-                    type="text"
-                    placeholder="Search documents..."
-                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button className="px-4 py-2 border border-gray-200 rounded-lg flex items-center gap-2 text-sm hover:bg-gray-50">
-                    <SlidersHorizontal size={16} />
-                    All Filters
-                  </button>
-                  <button className="px-4 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
-                    Sort
-                  </button>
-                </div>
-              </div>
-
-              {/* Document Status Tabs */}
-              <div className="flex items-center justify-between">
-                <div className="flex gap-3">
-                  <button 
-                    onClick={() => setSelectedDocumentTab('uploaded')}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
-                      ${selectedDocumentTab === 'uploaded' 
-                        ? 'bg-blue-50 border border-blue-100 text-blue-600' 
-                        : 'bg-white border border-gray-200 text-gray-600'
-                      }`}
-                  >
-                    Uploaded ({documents.uploaded.length})
-                  </button>
-                  <button 
-                    onClick={() => setSelectedDocumentTab('pending')}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium
-                      ${selectedDocumentTab === 'pending' 
-                        ? 'bg-blue-50 border border-blue-100 text-blue-600' 
-                        : 'bg-white border border-gray-200 text-gray-600'
-                      }`}
-                  >
-                    Upload Pending ({documents.pending.length})
-                  </button>
-                </div>
-                {selectedDocumentTab === 'pending' && (
-                  <button 
-                    className="px-4 py-2 bg-gray-400 text-white rounded-lg text-sm flex items-center gap-2 cursor-not-allowed"
-                    onClick={handleUploadClick}
-                    disabled={true}
-                  >
-                    <Upload size={16} />
-                    Upload Documents (Coming Soon)
-                  </button>
-                )}
-              </div>
-
-              {/* Documents List */}
-              <div className="space-y-4">
-                {filteredDocuments[selectedDocumentTab].map((doc) => (
-                  <div key={doc._id} className="border border-gray-200 rounded-xl p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <span className="font-medium capitalize">{doc.name || 'Untitled Document'}</span>
-                        {doc.required && (
-                          <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">Required</span>
-                        )}
-                        <span className="text-xs text-gray-500">
-                          {doc.documentCategoryName}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {doc.status === 'completed' ? (
-                          <>
-                            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
-                              Approve
-                            </button>
-                            <button className="px-4 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
-                              Request for Reupload
-                            </button>
-                          </>
-                        ) : (!doc.status || doc.status === 'pending') ? (
-                         <></>
-                        ) : doc.status === 'uploaded' && (
-                          <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
-                            Uploaded
-                          </span>
-                        )}
-                        <button className="p-2 hover:bg-gray-100 rounded-lg">
-                          <MoreVertical size={16} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Document Verification Steps */}
-                    <div className="mt-4 flex items-center gap-2">
-                      {(!doc.status || doc.status === 'pending') ? (
-                        <>
-                          <div className="flex-1 h-1 bg-gray-200 rounded" />
-                          <div className="flex-1 h-1 bg-gray-200 rounded" />
-                          <div className="flex-1 h-1 bg-gray-200 rounded" />
-                          <div className="flex-1 h-1 bg-gray-200 rounded" />
-                        </>
-                      ) : doc.status === 'completed' ? (
-                        <>
-                          <div className="flex-1 h-1 bg-blue-600 rounded" />
-                          <div className="flex-1 h-1 bg-blue-600 rounded" />
-                          <div className="flex-1 h-1 bg-blue-200 rounded" />
-                          <div className="flex-1 h-1 bg-gray-200 rounded" />
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex-1 h-1 bg-blue-600 rounded" />
-                          <div className="flex-1 h-1 bg-blue-200 rounded" />
-                          <div className="flex-1 h-1 bg-gray-200 rounded" />
-                          <div className="flex-1 h-1 bg-gray-200 rounded" />
-                        </>
-                      )}
-                    </div>
-                   
-                  </div>
-                ))}
-                {filteredDocuments[selectedDocumentTab].length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    No {selectedDocumentTab} documents found
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-          {/* Other tab contents */}
+        <div className="flex-1 overflow-auto">
+          <TabNavigation />
+          
+          <div className="max-w-7xl mx-auto">
+            {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
+            {/* Add other tab contents as needed */}
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-export default CaseDetails; 
+export default CaseDetails;
+
+

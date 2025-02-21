@@ -24,28 +24,35 @@ const EmployeeProfile = () => {
       try {
         setLoading(prev => ({ ...prev, basic: true }));
         const response = await employeeService.getEmployeeBasicDetails(employeeId);
-
-        if (response.status=="success" && response.data) {
-          setBasicDetails(response.data.user);
+        console.log("response", response);
+        
+        // Add null check and ensure data exists before accessing
+        if (response?.success && response?.data) {
+          setBasicDetails(response.data);
           // Update breadcrumb with employee name
           setCurrentBreadcrumb({
-            name: response.data.user.name,
+            name: response.data.name || 'Employee Details', // Fallback name if name is undefined
             path: `/corporations/${corporationId}/employee/${employeeId}`,
             parentBreadcrumb: {
               name: 'Employee List',
               path: `/corporations/${corporationId}/employees`
             }
           });
+        } else {
+          console.error('Invalid response format:', response);
+          // Set some default state or error handling
+          setBasicDetails(null);
         }
       } catch (error) {
         console.error('Error fetching employee basic details:', error);
+        setBasicDetails(null);
       } finally {
         setLoading(prev => ({ ...prev, basic: false }));
       }
     };
 
     fetchBasicDetails();
-  }, [employeeId, corporationId]);
+  }, [employeeId, corporationId, setCurrentBreadcrumb]);
 
   // Fetch documents when profile tab is active
 //   useEffect(() => {
