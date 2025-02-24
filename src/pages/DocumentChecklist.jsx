@@ -4,8 +4,9 @@ import { Search, Edit, Plus } from 'lucide-react';
 import api from '../utils/api';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import EditChecklistModal from '../components/modals/EditChecklistModal';
+import PropTypes from 'prop-types';
 
-const DocumentChecklist = () => {
+const DocumentChecklist = ({ setCurrentBreadcrumb }) => {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -14,7 +15,7 @@ const DocumentChecklist = () => {
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Process Template');
-  const { setCurrentBreadcrumb } = useBreadcrumb();
+  const { setCurrentBreadcrumb: contextSetBreadcrumb } = useBreadcrumb();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   useEffect(() => {
@@ -24,20 +25,15 @@ const DocumentChecklist = () => {
   const fetchCategoryDetails = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/categories');
-      const selectedCategory = response.data.data.categories.find(cat => cat._id === id);
-      
-      if (selectedCategory) {
-        setCategory(selectedCategory);
-        setCurrentBreadcrumb({
-          breadcrumbs: [
-            { name: 'Knowledge Base', path: '/knowledge', id: 'kb' },
-            { name: 'Process Templates', path: '/knowledge', id: 'pt' },
-            { name: 'Document Checklist', path: `/knowledge/checklist/${id}`, id: 'dc' }
-          ]
-        });
-      } else {
-        setError('Category not found');
+      const response = await api.get(`/categories/${id}`);
+      if (response.data.status === 'success') {
+        setCategory(response.data.data.category);
+        // Use the prop instead of context
+        setCurrentBreadcrumb([
+          { label: 'Dashboard', link: '/' },
+          { label: 'Knowledge Base', link: '/knowledge' },
+          { label: response.data.data.category.name, link: '#' }
+        ]);
       }
     } catch (err) {
       setError('Failed to fetch category details');
@@ -293,6 +289,10 @@ const DocumentChecklist = () => {
       />
     </div>
   );
+};
+
+DocumentChecklist.propTypes = {
+  setCurrentBreadcrumb: PropTypes.func.isRequired
 };
 
 export default DocumentChecklist; 

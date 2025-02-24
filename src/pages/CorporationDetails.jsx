@@ -4,6 +4,7 @@ import corporationService from '../services/corporationService';
 import { Pencil, Save, Plus } from 'lucide-react';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import EmployeeList from '../components/employees/EmployeeList';
+import PropTypes from 'prop-types';
 
 const CorporationDetailsSkeleton = () => (
   <div className="p-4">
@@ -77,36 +78,25 @@ const CorporationDetailsSkeleton = () => (
   </div>
 );
 
-const CorporationDetails = () => {
+const CorporationDetails = ({ setCurrentBreadcrumb }) => {
   const { corporationId } = useParams();
   const navigate = useNavigate();
   const [corporation, setCorporation] = useState(null);
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const { setCurrentBreadcrumb } = useBreadcrumb();
+  const { setCurrentBreadcrumb: breadcrumbContextSetCurrentBreadcrumb } = useBreadcrumb();
   const [isEditing, setIsEditing] = useState(false);
   const [editedCorporation, setEditedCorporation] = useState(null);
 
   useEffect(() => {
-    if (corporation) {
-      if (activeTab === 'employees') {
-        setCurrentBreadcrumb({
-          name: 'Employee List',
-          path: `/corporations/${corporationId}/employees`,
-          parentBreadcrumb: {
-            name: corporation.company_name,
-            path: `/corporations/${corporationId}`
-          }
-        });
-      } else {
-        setCurrentBreadcrumb({
-          name: corporation.company_name,
-          path: `/corporations/${corporationId}`
-        });
-      }
-    }
-  }, [activeTab, corporation, corporationId]);
+    // Make sure this is inside a useEffect to avoid infinite renders
+    setCurrentBreadcrumb([
+      { label: 'Dashboard', link: '/' },
+      { label: 'Corporations', link: '/corporations' },
+      { label: 'Corporation Details', link: '#' }
+    ]);
+  }, []); // Add dependencies if needed
 
   useEffect(() => {
     fetchCorporationDetails();
@@ -448,6 +438,10 @@ const CorporationDetails = () => {
       )}
     </div>
   );
+};
+
+CorporationDetails.propTypes = {
+  setCurrentBreadcrumb: PropTypes.func.isRequired
 };
 
 export default CorporationDetails; 

@@ -4,23 +4,23 @@ import api from '../utils/api';
 import { usePage } from '../contexts/PageContext';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import { Link, useNavigate } from 'react-router-dom';
+import PropTypes from 'prop-types';
 
-const KnowledgeBase = () => {
+const KnowledgeBase = ({ setCurrentBreadcrumb }) => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Process Template');
   const { setPageTitle } = usePage();
-  const { setCurrentBreadcrumb } = useBreadcrumb();
   const navigate = useNavigate();
 
   useEffect(() => {
     setPageTitle('Knowledge Base');
-    setCurrentBreadcrumb({
-      name: 'Process Templates',
-      path: '/knowledge'
-    });
+    setCurrentBreadcrumb([
+      { label: 'Dashboard', link: '/' },
+      { label: 'Knowledge Base', link: '#' }
+    ]);
     fetchCategories();
   }, [setPageTitle, setCurrentBreadcrumb]);
 
@@ -184,6 +184,10 @@ const KnowledgeBase = () => {
       </div>
     </div>
   );
+};
+
+KnowledgeBase.propTypes = {
+  setCurrentBreadcrumb: PropTypes.func.isRequired
 };
 
 export default KnowledgeBase; 
