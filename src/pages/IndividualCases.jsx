@@ -56,7 +56,13 @@ const IndividualCases = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pagination, setPagination] = useState(null);
+  const [allCases, setAllCases] = useState([]); // Store all cases
+  const [pagination, setPagination] = useState({
+    total: 0,
+    currentPage: 1,
+    limit: 5,
+    totalPages: 0
+  });
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredCases, setFilteredCases] = useState([]);
   const navigate = useNavigate();
@@ -66,7 +72,7 @@ const IndividualCases = () => {
     console.log('Current user:', user);
   }, [user]);
 
-  const fetchUserCases = async (page, search = '') => {
+  const fetchUserCases = async (search = '') => {
     try {
       setLoading(true);
       
@@ -75,36 +81,40 @@ const IndividualCases = () => {
         return;
       }
 
-      // Add a console.log to check the params being sent
-      console.log('Fetching with params:', { page, limit: 5, search });
-
       const response = await api.get(`/management/user/${user.id}`, {
         params: {
-          page,
-          limit: 5,
           search,
-          // Add any other required params your API might need
-          sort: '-createdAt' // Optional: if you want newest first
+          sort: '-createdAt'
         }
-      });
-      
-      // Log the response to check what we're getting
-      console.log('API Response:', {
-        entries: response.data.data.entries?.length,
-        total: response.data.data.total,
-        page: page
       });
 
       if (response.data.status === 'success') {
-        // Ensure we only take 5 items even if API returns more
-        const cases = response.data.data.entries?.slice(0, 5) || [];
-        setFilteredCases(cases);
+        const cases = response.data.data.entries || [];
+        setAllCases(cases);
+        
+        // Filter and paginate cases
+        const filtered = search 
+          ? cases.filter(c => 
+              c.userName?.toLowerCase().includes(search.toLowerCase()) ||
+              c.categoryName?.toLowerCase().includes(search.toLowerCase()) ||
+              c._id?.toLowerCase().includes(search.toLowerCase())
+            )
+          : cases;
 
+        const total = filtered.length;
+        const totalPages = Math.ceil(total / 5);
+        
+        // Get current page slice
+        const startIndex = (currentPage - 1) * 5;
+        const endIndex = startIndex + 5;
+        const currentPageCases = filtered.slice(startIndex, endIndex);
+
+        setFilteredCases(currentPageCases);
         setPagination({
-          total: response.data.data.total,
-          currentPage: page,
+          total,
+          currentPage,
           limit: 5,
-          totalPages: Math.ceil(response.data.data.total / 5)
+          totalPages
         });
       }
     } catch (error) {
@@ -115,22 +125,51 @@ const IndividualCases = () => {
     }
   };
 
-  // Remove the duplicate useEffect and combine the logic
+  // Update filtered cases when page or search changes
+  useEffect(() => {
+    if (allCases.length > 0) {
+      const filtered = searchTerm 
+        ? allCases.filter(c => 
+            c.userName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            c.categoryName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            c._id?.toLowerCase().includes(searchTerm.toLowerCase())
+          )
+        : allCases;
+
+      const total = filtered.length;
+      const totalPages = Math.ceil(total / 5);
+      
+      // Get current page slice
+      const startIndex = (currentPage - 1) * 5;
+      const endIndex = startIndex + 5;
+      const currentPageCases = filtered.slice(startIndex, endIndex);
+
+      setFilteredCases(currentPageCases);
+      setPagination({
+        total,
+        currentPage,
+        limit: 5,
+        totalPages
+      });
+    }
+  }, [currentPage, searchTerm, allCases]);
+
+  // Fetch all cases initially
   useEffect(() => {
     if (user?.id) {
-      fetchUserCases(currentPage, searchTerm);
+      fetchUserCases(searchTerm);
     }
-  }, [currentPage, searchTerm, user?.id]);
+  }, [user?.id]);
 
   const handlePageChange = (newPage) => {
-    if (newPage >= 1 && newPage <= pagination?.totalPages) {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
       setCurrentPage(newPage);
     }
   };
 
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
-    setCurrentPage(1); // Reset to first page on search
+    setCurrentPage(1); // Reset to first page when searching
   };
 
   if (loading) {
@@ -263,7 +302,7 @@ const IndividualCases = () => {
       {pagination && filteredCases.length > 0 && (
         <div className="mt-4 flex justify-between items-center text-sm text-gray-600">
           <div>
-            Showing {(currentPage - 1) * pagination.limit + 1} - {Math.min(currentPage * pagination.limit, pagination.total)} of {pagination.total} results
+            Showing {((currentPage - 1) * pagination.limit) + 1} - {Math.min(currentPage * pagination.limit, pagination.total)} of {pagination.total} results
           </div>
           <div className="flex items-center gap-2">
             <button

@@ -11,6 +11,16 @@ const Header = ({ sidebarCollapsed }) => {
   const { pageTitle } = usePage();
 
   const getBreadcrumbs = () => {
+    const path = location.pathname;
+
+    // Add a special case for individual case details
+    if (path.includes('/individuals/case/')) {
+      return [{
+        name: 'Case Details',
+        path: path
+      }];
+    }
+
     if (currentBreadcrumb?.breadcrumbs) {
       return currentBreadcrumb.breadcrumbs;
     }
@@ -24,35 +34,43 @@ const Header = ({ sidebarCollapsed }) => {
 
     const paths = location.pathname.split('/').filter(Boolean);
     
-    // Handle case details breadcrumb
-    if (paths[0] === 'case') {
-      return [
-        { name: 'All Cases', path: '/individual-cases' },
-        { name: currentBreadcrumb?.name || 'Case Details', path: location.pathname }
-      ];
-    }
-
-    return paths.map((path, index) => {
-      const fullPath = `/${paths.slice(0, index + 1).join('/')}`;
+    // Handle different page types
+    switch(paths[0]) {
+      case 'case':
+        return [
+          { name: 'All Cases', path: '/individual-cases' },
+          { name: currentBreadcrumb?.name || 'Case Details', path: location.pathname }
+        ];
       
-      // If this is a corporation ID and we have currentBreadcrumb
-      if (index === 1 && paths[0] === 'corporations' && currentBreadcrumb?.path === fullPath) {
-        return currentBreadcrumb;
-      }
+      case 'individual-cases':
+        return [
+          { name: 'All Cases', path: '/individual-cases' }
+        ];
 
-      // Replace "Individual-cases" with "All Cases" in breadcrumb
-      if (path === 'individual-cases') {
-        return {
-          name: 'All Cases',
-          path: fullPath
-        };
-      }
+      case 'corporations':
+        return [
+          { name: 'Corporations', path: '/corporations' },
+          ...(currentBreadcrumb?.path === `/${paths.slice(0, 2).join('/')}` ? 
+            [currentBreadcrumb] : [])
+        ];
 
-      return {
-        name: path.charAt(0).toUpperCase() + path.slice(1),
-        path: fullPath
-      };
-    });
+      case 'knowledge':
+        return [
+          { name: 'Knowledge Base', path: '/knowledge' }
+        ];
+
+      default:
+        // For other pages, create breadcrumbs from the path
+        return paths.map((path, index) => {
+          const fullPath = `/${paths.slice(0, index + 1).join('/')}`;
+          return {
+            name: path.split('-')
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(' '),
+            path: fullPath
+          };
+        });
+    }
   };
 
   const breadcrumbs = getBreadcrumbs();
@@ -69,34 +87,24 @@ const Header = ({ sidebarCollapsed }) => {
   };
 
   const renderBreadcrumb = () => {
-    if (!currentBreadcrumb) return null;
-
     return (
-      <div className="flex items-center gap-2">
-        <Link to="/corporations" className="text-gray-600 hover:text-gray-800">
-          Corporations
-        </Link>
-        <span className="text-gray-400">/</span>
-        
-        {currentBreadcrumb.parentBreadcrumb && (
-          <>
-            <Link 
-              to={currentBreadcrumb.parentBreadcrumb.path} 
-              className="text-gray-600 hover:text-gray-800"
+      <ol className="flex items-center space-x-2">
+        {breadcrumbs.map((breadcrumb, index) => (
+          <li key={breadcrumb.id || breadcrumb.path} className="flex items-center">
+            {index > 0 && (
+              <span className="mx-2 text-gray-400">{'>'}</span>
+            )}
+            <button
+              onClick={() => handleBreadcrumbClick(breadcrumb.path, index, breadcrumbs.length)}
+              className={`text-sm font-medium text-gray-600 hover:text-blue-600 transition-all duration-300 
+                ${sidebarCollapsed ? 'truncate max-w-[150px]' : 'truncate max-w-[200px]'}
+                ${index === breadcrumbs.length - 1 ? 'text-gray-900' : ''}`}
             >
-              {currentBreadcrumb.parentBreadcrumb.name}
-            </Link>
-            <span className="text-gray-400">/</span>
-          </>
-        )}
-        
-        <Link 
-          to={currentBreadcrumb.path} 
-          className="text-gray-800"
-        >
-          {currentBreadcrumb.name}
-        </Link>
-      </div>
+              {breadcrumb.name}
+            </button>
+          </li>
+        ))}
+      </ol>
     );
   };
 
@@ -108,27 +116,7 @@ const Header = ({ sidebarCollapsed }) => {
           <div className="flex items-center">
             <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-2' : 'ml-4 lg:ml-0'}`}>
               <div className="flex" aria-label="Breadcrumb">
-                {currentBreadcrumb ? (
-                  renderBreadcrumb()
-                ) : (
-                  <ol className="flex items-center space-x-2">
-                    {breadcrumbs.map((breadcrumb, index) => (
-                      <li key={breadcrumb.id || breadcrumb.path} className="flex items-center">
-                        {index > 0 && (
-                          <span className="mx-2 text-gray-400">{'>'}</span>
-                        )}
-                        <button
-                          onClick={() => handleBreadcrumbClick(breadcrumb.path, index, breadcrumbs.length)}
-                          className={`text-sm font-medium text-gray-600 hover:text-blue-600 transition-all duration-300 
-                            ${sidebarCollapsed ? 'truncate max-w-[150px]' : 'truncate max-w-[200px]'}
-                            ${index === breadcrumbs.length - 1 ? 'text-gray-900' : ''}`}
-                        >
-                          {breadcrumb.name}
-                        </button>
-                      </li>
-                    ))}
-                  </ol>
-                )}
+                {renderBreadcrumb()}
               </div>
             </div>
           </div>

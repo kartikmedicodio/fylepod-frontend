@@ -3,14 +3,10 @@ import { createContext, useContext, useState } from 'react';
 const BreadcrumbContext = createContext();
 
 export const BreadcrumbProvider = ({ children }) => {
-  const [currentBreadcrumb, setCurrentBreadcrumb] = useState({
-    name: '',
-    path: '',
-    parentBreadcrumb: null
-  });
+  const [breadcrumb, setBreadcrumb] = useState(null);
 
   return (
-    <BreadcrumbContext.Provider value={{ currentBreadcrumb, setCurrentBreadcrumb }}>
+    <BreadcrumbContext.Provider value={{ breadcrumb, setBreadcrumb }}>
       {children}
     </BreadcrumbContext.Provider>
   );

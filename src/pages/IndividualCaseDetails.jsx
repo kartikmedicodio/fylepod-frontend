@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {  
   Loader2
@@ -26,6 +26,14 @@ const IndividualCaseDetails = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [messages, setMessages] = useState([{
+    role: 'assistant',
+    content: "Hello! I'm your AI assistant. I can help you analyze your uploaded documents and answer any questions you might have."
+  }]);
+  const [chatInput, setChatInput] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const messagesEndRef = useRef(null);
+  const [currentChat, setCurrentChat] = useState(null);
 
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
@@ -61,6 +69,30 @@ const IndividualCaseDetails = () => {
     }
 
     return null;
+  };
+
+  const refreshCaseData = async () => {
+    try {
+      const [caseResponse, documentsResponse] = await Promise.all([
+        api.get(`/management/${caseId}`),
+        api.get('/documents', { params: { managementId: caseId } })
+      ]);
+
+      if (caseResponse.data.status === 'success') {
+        setCaseData(caseResponse.data.data.entry);
+      }
+
+      // Reset chat if documents have changed
+      if (documentsResponse.data.status === 'success') {
+        setCurrentChat(null);
+        setMessages([{
+          role: 'assistant',
+          content: "Hello! I'm your AI assistant. I can help you analyze your uploaded documents and answer any questions you might have."
+        }]);
+      }
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    }
   };
 
   const handleFileUpload = async (files) => {
@@ -122,7 +154,7 @@ const IndividualCaseDetails = () => {
       }
 
       // Process and verify documents
-      const processedDocs = await Promise.all(
+      await Promise.all(
         uploadedDocs.map(async (doc) => {
           try {
             const processedDoc = await checkDocumentProcessing(doc._id);
@@ -159,21 +191,9 @@ const IndividualCaseDetails = () => {
         })
       );
 
-      // Check if all documents are completed
-      const response = await api.get(`/management/${caseId}`);
-      if (response.data.status === 'success') {
-        const allCompleted = response.data.data.entry.documentTypes.every(doc => doc.status === 'completed');
-        
-        if (allCompleted) {
-          await api.patch(`/management/${caseId}/status`, {
-            status: 'completed',
-            categoryStatus: 'completed'
-          });
-        }
-        
-        setCaseData(response.data.data.entry);
-      }
-
+      // Refresh data after successful upload
+      await refreshCaseData();
+      
       setFiles([]);
       toast.success('Documents processed successfully');
 
@@ -223,6 +243,120 @@ const IndividualCaseDetails = () => {
     fetchCaseDetails();
     fetchProfileData();
   }, [caseId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!chatInput.trim() || isSending) return;
+
+    const userMessage = { role: 'user', content: chatInput };
+    setMessages(prev => [...prev, userMessage]);
+    setChatInput('');
+    setIsSending(true);
+
+    try {
+      // 1. Get management entry to get document references
+      const managementResponse = await api.get(`/management/${caseId}`);
+      console.log('Management response:', managementResponse.data);
+
+      if (!managementResponse.data?.status === 'success') {
+        throw new Error('Failed to fetch management data');
+      }
+
+      // 2. Get all documents for this case
+      const documentsResponse = await api.get('/documents', {
+        params: { managementId: caseId }
+      });
+      console.log('Documents response:', documentsResponse.data);
+
+      if (!documentsResponse.data?.status === 'success') {
+        throw new Error('Failed to fetch documents');
+      }
+
+      // 3. Match completed document types with actual documents
+      const completedDocIds = managementResponse.data.data.entry.documentTypes
+        .filter(doc => doc.status === 'completed')
+        .map(docType => {
+          // Find matching document using managementDocumentId
+          const matchingDoc = documentsResponse.data.data.documents.find(
+            doc => doc.managementDocumentId === docType._id
+          );
+          
+          console.log('Matching document:', {
+            docTypeName: docType.name,
+            docTypeId: docType._id,
+            matchingDocId: matchingDoc?._id
+          });
+
+          return matchingDoc?._id;
+        })
+        .filter(Boolean);
+
+      console.log('Found document IDs:', completedDocIds);
+
+      if (completedDocIds.length === 0) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: "I don't see any uploaded documents yet. Please upload some documents first, and I'll be happy to help analyze them."
+        }]);
+        setIsSending(false);
+        return;
+      }
+
+      // 4. Create or get chat session
+      let chatId;
+      if (!currentChat) {
+        try {
+          console.log('Creating chat with documents:', completedDocIds);
+          const chatResponse = await api.post('/chat', {
+            documentIds: completedDocIds
+          });
+          
+          if (!chatResponse.data?.status === 'success' || !chatResponse.data?.data?.chat) {
+            throw new Error(chatResponse.data?.message || 'Failed to create chat');
+          }
+
+          const newChat = chatResponse.data.data.chat;
+          setCurrentChat(newChat);
+          chatId = newChat._id;
+        } catch (error) {
+          console.error('Chat creation error:', error);
+          throw new Error('Failed to create chat session');
+        }
+      } else {
+        chatId = currentChat._id;
+      }
+
+      // 5. Send message
+      try {
+        console.log('Sending message to chat:', chatId);
+        const messageResponse = await api.post(`/chat/${chatId}/messages`, {
+          message: chatInput
+        });
+
+        if (messageResponse.data?.status === 'success' && messageResponse.data.data.message) {
+          setMessages(prev => [...prev, messageResponse.data.data.message]);
+        } else {
+          throw new Error('Invalid message response');
+        }
+      } catch (error) {
+        console.error('Message sending error:', error);
+        throw new Error('Failed to send message');
+      }
+
+    } catch (err) {
+      console.error('Chat error:', err);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: err.message || "I'm sorry, I encountered an error. Please try again."
+      }]);
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   if (!caseData || !profileData) {
     return (
@@ -510,6 +644,76 @@ const IndividualCaseDetails = () => {
     );
   };
 
+  const renderAIChat = () => (
+    <div className="bg-white rounded-lg border border-gray-200 p-4">
+      <div className="flex items-center justify-between mb-4">
+        <h4 className="font-medium text-sm">AI Assistant</h4>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+          <span className="text-sm text-gray-500">Online</span>
+        </div>
+      </div>
+
+      {/* Chat Messages Container */}
+      <div className="h-[400px] overflow-y-auto mb-4 space-y-4 p-2">
+        {messages.map((message, index) => (
+          <div 
+            key={index}
+            className={`flex items-start gap-3 ${
+              message.role === 'user' ? 'justify-end' : ''
+            }`}
+          >
+            {message.role === 'assistant' && (
+              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <span className="text-sm font-medium text-blue-600">AI</span>
+              </div>
+            )}
+            
+            <div className={`rounded-lg p-3 max-w-[85%] ${
+              message.role === 'user' 
+                ? 'bg-blue-600 text-white' 
+                : 'bg-gray-100 text-gray-700'
+            }`}>
+              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+            </div>
+
+            {message.role === 'user' && (
+              <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                <span className="text-sm font-medium text-gray-600">U</span>
+              </div>
+            )}
+          </div>
+        ))}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Chat Input */}
+      <form onSubmit={handleSendMessage} className="relative">
+        <input
+          type="text"
+          value={chatInput}
+          onChange={(e) => setChatInput(e.target.value)}
+          placeholder="Type your message..."
+          className="w-full px-4 py-2 border border-gray-200 rounded-lg pr-12 focus:outline-none focus:border-blue-500"
+          disabled={isSending}
+        />
+        <button 
+          type="submit"
+          disabled={isSending || !chatInput.trim()}
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-blue-600 hover:text-blue-700 disabled:text-gray-400"
+        >
+          {isSending ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
+          )}
+        </button>
+      </form>
+    </div>
+  );
+
   return (
     <>
       {/* Profile Section */}
@@ -603,53 +807,13 @@ const IndividualCaseDetails = () => {
         )}
         {activeTab === 'documents-checklist' && (
           <div className="flex gap-6">
-            {/* Documents Checklist - Left Side */}
             <div className="w-[66%]">
               <div className="bg-white rounded-lg border border-gray-200">
                 <DocumentsChecklistTab />
               </div>
             </div>
-
-            {/* Questionnaire - Right Side */}
             <div className="w-[33%]">
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <div className="mb-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-sm">Questionnaire</h4>
-                    <div className="text-blue-600 text-sm">53/70</div>
-                  </div>
-                  <div className="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-600 rounded-full" style={{ width: '75%' }}></div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <div className="text-sm text-gray-500 mb-1">Salutation</div>
-                    <div className="font-medium">Mr</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-500 mb-1">First Name</div>
-                    <div className="font-medium">John</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-500 mb-1">Middle Name</div>
-                    <div className="font-medium">Michael</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-500 mb-1">Last Name</div>
-                    <div className="font-medium">Doe</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-500 mb-1">Nationality</div>
-                    <div className="font-medium">American</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-500 mb-1">Email Address</div>
-                    <div className="font-medium">John@mail.com</div>
-                  </div>
-                </div>
-              </div>
+              {renderAIChat()}
             </div>
           </div>
         )}
