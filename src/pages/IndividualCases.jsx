@@ -285,7 +285,9 @@ const IndividualCases = () => {
                       {'-'}
                     </td>
                     <td className="px-6 py-4 text-base text-gray-500">
-                      {`${caseItem.documentTypes.filter(doc => doc.status === 'completed').length} of ${caseItem.documentTypes.length} uploaded`}
+                      {`${caseItem.documentTypes.filter(doc => 
+                        doc.status === 'uploaded' || doc.status === 'approved'
+                      ).length} of ${caseItem.documentTypes.length} uploaded`}
                     </td>
                     <td className="px-6 py-4 text-base text-gray-900">
                       {caseItem.documentTypes.filter(doc => doc.status === 'pending').length}
@@ -327,4 +329,4 @@ const IndividualCases = () => {
   );
 };
 
-export default IndividualCases; 
+export default IndividualCases;     

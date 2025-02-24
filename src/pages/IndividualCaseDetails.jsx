@@ -90,6 +90,26 @@ const IndividualCaseDetails = () => {
           content: "Hello! I'm your AI assistant. I can help you analyze your uploaded documents and answer any questions you might have."
         }]);
       }
+
+      // Get valid document types from case
+      const validDocuments = caseResponse.data.data.entry.documentTypes
+        .filter(docType => docType.status === 'uploaded' || docType.status === 'approved')
+        .map(docType => ({
+          id: docType._id,
+          name: docType.name
+        }));
+
+      // Debug log for document mapping
+      console.log('Document mapping:', validDocuments.map(validDoc => {
+        const matchingDoc = documentsResponse.data.data.documents
+          .find(doc => doc.managementDocumentId === validDoc.id && doc.status === 'processed');
+        return {
+          documentName: validDoc.name,
+          managementDocumentId: validDoc.id,
+          matchingDocId: matchingDoc?._id || null
+        };
+      }));
+
     } catch (error) {
       console.error('Error refreshing data:', error);
     }
@@ -167,7 +187,7 @@ const IndividualCaseDetails = () => {
               const extractedType = processedDoc.extractedData.document_type.toLowerCase().trim();
               const matchingDocType = caseData.documentTypes.find(type => {
                 return type.name.toLowerCase().trim() === extractedType && 
-                       type.status !== 'completed';
+                       type.status !== 'uploaded';
               });
 
               if (matchingDocType) {
@@ -176,9 +196,9 @@ const IndividualCaseDetails = () => {
                   managementDocumentId: matchingDocType._id
                 });
 
-                // Update document status
+                // Update document status to 'uploaded'
                 await api.patch(`/management/${caseId}/documents/${matchingDocType.documentTypeId}/status`, {
-                  status: 'completed'
+                  status: 'uploaded'
                 });
               }
             }
@@ -258,46 +278,45 @@ const IndividualCaseDetails = () => {
     setIsSending(true);
 
     try {
-      // 1. Get management entry to get document references
-      const managementResponse = await api.get(`/management/${caseId}`);
-      console.log('Management response:', managementResponse.data);
+      console.log('Current case ID:', caseId);
+      
+      // First get the case details to get document types
+      const caseResponse = await api.get(`/management/${caseId}`);
+      console.log('Case response:', caseResponse.data);
 
-      if (!managementResponse.data?.status === 'success') {
-        throw new Error('Failed to fetch management data');
+      if (!caseResponse.data?.status === 'success') {
+        throw new Error('Failed to fetch case details');
       }
 
-      // 2. Get all documents for this case
+      // Get uploaded and approved document types from the case
+      const validDocuments = caseResponse.data.data.entry.documentTypes
+        .filter(docType => docType.status === 'uploaded' || docType.status === 'approved')
+        .map(docType => ({
+          id: docType._id,
+          name: docType.name
+        }));
+
+      console.log('Valid documents:', validDocuments);
+      
+      // Get all documents for this case
       const documentsResponse = await api.get('/documents', {
-        params: { managementId: caseId }
+        params: { 
+          managementId: caseId
+        }
       });
-      console.log('Documents response:', documentsResponse.data);
 
-      if (!documentsResponse.data?.status === 'success') {
-        throw new Error('Failed to fetch documents');
-      }
-
-      // 3. Match completed document types with actual documents
-      const completedDocIds = managementResponse.data.data.entry.documentTypes
-        .filter(doc => doc.status === 'completed')
-        .map(docType => {
-          // Find matching document using managementDocumentId
-          const matchingDoc = documentsResponse.data.data.documents.find(
-            doc => doc.managementDocumentId === docType._id
-          );
-          
-          console.log('Matching document:', {
-            docTypeName: docType.name,
-            docTypeId: docType._id,
-            matchingDocId: matchingDoc?._id
-          });
-
-          return matchingDoc?._id;
+      // Get document IDs by matching managementDocumentId
+      const uploadedDocIds = validDocuments
+        .map(validDoc => {
+          const matchingDoc = documentsResponse.data.data.documents
+            .find(doc => doc.managementDocumentId === validDoc.id && doc.status === 'processed');
+          return matchingDoc?._id || null;
         })
         .filter(Boolean);
 
-      console.log('Found document IDs:', completedDocIds);
+      console.log('Final selected document IDs:', uploadedDocIds);
 
-      if (completedDocIds.length === 0) {
+      if (uploadedDocIds.length === 0) {
         setMessages(prev => [...prev, {
           role: 'assistant',
           content: "I don't see any uploaded documents yet. Please upload some documents first, and I'll be happy to help analyze them."
@@ -310,9 +329,9 @@ const IndividualCaseDetails = () => {
       let chatId;
       if (!currentChat) {
         try {
-          console.log('Creating chat with documents:', completedDocIds);
+          console.log('Creating chat with documents:', uploadedDocIds);
           const chatResponse = await api.post('/chat', {
-            documentIds: completedDocIds
+            documentIds: uploadedDocIds
           });
           
           if (!chatResponse.data?.status === 'success' || !chatResponse.data?.data?.chat) {
@@ -437,8 +456,13 @@ const IndividualCaseDetails = () => {
   };
 
   const DocumentsChecklistTab = () => {
-    const pendingDocuments = caseData.documentTypes.filter(doc => doc.status === 'pending');
-    const uploadedDocuments = caseData.documentTypes.filter(doc => doc.status === 'completed');
+    const pendingDocuments = caseData.documentTypes.filter(doc => 
+      doc.status === 'pending'
+    );
+    
+    const uploadedDocuments = caseData.documentTypes.filter(doc => 
+      doc.status === 'uploaded' || doc.status === 'approved'
+    );
 
     const renderDocumentsList = () => (
       <div className="flex-1 border border-gray-200 rounded-lg p-4">
@@ -484,7 +508,7 @@ const IndividualCaseDetails = () => {
                           <svg className="w-4 h-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
                           </svg>
-                          Completed
+                          Uploaded
                         </span>
                         <button className="text-blue-600 text-sm hover:underline">
                           View
@@ -499,7 +523,7 @@ const IndividualCaseDetails = () => {
               ))
             ) : (
               <div className="text-gray-500 text-sm text-center py-8">
-                No documents have been completed yet.
+                No documents have been uploaded yet.
               </div>
             )
           )}
