@@ -4,8 +4,9 @@ import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import { Pencil } from 'lucide-react';
 import employeeService from '../services/employeeService';
 import EmployeeCaseList from '../components/employees/EmployeeCaseList';
+import PropTypes from 'prop-types';
 
-const EmployeeProfile = () => {
+const EmployeeProfile = ({ setCurrentBreadcrumb }) => {
   const { corporationId, employeeId } = useParams();
   const [activeTab, setActiveTab] = useState('profile');
   const [basicDetails, setBasicDetails] = useState(null);
@@ -16,7 +17,7 @@ const EmployeeProfile = () => {
     documents: true,
     cases: false
   });
-  const { setCurrentBreadcrumb } = useBreadcrumb();
+  const { setCurrentBreadcrumb: breadcrumbContextSetCurrentBreadcrumb } = useBreadcrumb();
 
   // Fetch basic details
   useEffect(() => {
@@ -289,6 +290,10 @@ const EmployeeProfile = () => {
       )}
     </div>
   );
+};
+
+EmployeeProfile.propTypes = {
+  setCurrentBreadcrumb: PropTypes.func.isRequired
 };
 
 export default EmployeeProfile; 
