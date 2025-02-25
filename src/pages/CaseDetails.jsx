@@ -20,20 +20,13 @@ import {
   File,
   X,
   AlertCircle,
-  Filter
+  Filter,
+  ChevronLeft
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
 import CaseDetailsSidebar from '../components/cases/CaseDetailsSidebar';
 
-// Define case progress steps
-const CASE_STEPS = [
-  { id: 'case-started', name: 'Case Started', completed: true },
-  { id: 'data-collection', name: 'Data Collection', completed: true },
-  { id: 'in-review', name: 'In Review', completed: false },
-  { id: 'preparation', name: 'Preparation', completed: false },
-  { id: 'filing', name: 'Filing', completed: false },
-];
 
 // Add a new status type to track document states
 const DOCUMENT_STATUS = {
@@ -53,6 +46,10 @@ const getInitials = (name) => {
     : '';
 };
 
+const checkAllDocumentsApproved = (documentTypes) => {
+  return documentTypes.every(doc => doc.status === DOCUMENT_STATUS.APPROVED);
+};
+
 const CaseDetails = () => {
   const { caseId } = useParams();
   const [activeTab, setActiveTab] = useState('document-checklist');
@@ -67,6 +64,16 @@ const CaseDetails = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef(null);
+  const [questionnaires, setQuestionnaires] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedQuestionnaire, setSelectedQuestionnaire] = useState(null);
+  const [questionnaireData, setQuestionnaireData] = useState(null);
+  const [isLoadingQuestionnaire, setIsLoadingQuestionnaire] = useState(false);
+  const [formData, setFormData] = useState({
+    Passport: {},
+    Resume: {}
+  });
+  const [forms, setForms] = useState([]);
 
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
@@ -343,9 +350,71 @@ const CaseDetails = () => {
       }
     };
 
+    const fetchQuestionnaires = async () => {
+      try {
+        const response = await api.get('/questionnaires');
+        console.log("response.data",response.data.data.templates);
+        if (response.data.status === 'success') {
+          setQuestionnaires(response.data.data.templates);
+
+        }
+      } catch (error) {
+        console.error('Error fetching questionnaires:', error);
+        toast.error('Failed to load questionnaires');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    const fetchForms = async () => {
+      try {
+        const response = await api.get('/forms');
+        if (response.data.status === 'success') {
+          setForms(response.data.data.forms);
+        }
+      } catch (error) {
+        console.error('Error fetching forms:', error);
+        toast.error('Failed to load forms');
+      }
+    };
+
     fetchCaseDetails();
     fetchProfileData();
+    fetchQuestionnaires();
+    fetchForms();
   }, [caseId]);
+
+  useEffect(() => {
+    if (questionnaireData?.responses?.[0]?.processedInformation) {
+      setFormData(questionnaireData.responses[0].processedInformation);
+    }
+  }, [questionnaireData]);
+
+  const handleInputChange = (section, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [field]: value
+      }
+    }));
+  };
+
+  const handleSave = async () => {
+    try {
+      const response = await api.put(`/questionnaire-responses/management/${caseId}`, {
+        templateId: selectedQuestionnaire._id,
+        processedInformation: formData
+      });
+
+      if (response.data.status === 'success') {
+        toast.success('Changes saved successfully');
+      }
+    } catch (error) {
+      console.error('Error saving questionnaire:', error);
+      toast.error('Failed to save changes');
+    }
+  };
 
   if (!caseData || !profileData) {
     return (
@@ -355,61 +424,75 @@ const CaseDetails = () => {
     );
   }
 
-  // Modified progress steps
-  const ProgressSteps = () => (
-    <div className="flex items-center justify-center w-full py-8 bg-white">
-      <div className="flex items-center justify-between max-w-4xl w-full px-6">
-        {['Case Started', 'Data Collection', 'In Review', 'Preparation', 'Filing'].map((step, index) => (
-          <div key={step} className="flex items-center">
-            {/* Step circle with label */}
-            <div className="flex flex-col items-center relative">
-              {/* Connector line */}
-              {index < 4 && (
-                <div 
-                  className={`absolute left-[50px] top-[20px] h-[2px] w-[100px] ${
-                    index < 2 ? 'bg-blue-600' : 'bg-gray-200'
-                  }`}
-                />
-              )}
-              
-              {/* Circle */}
-              <div 
-                className={`
-                  w-10 h-10 rounded-full flex items-center justify-center 
-                  transition-all duration-300 relative z-10
-                  ${index < 2 
-                    ? 'bg-blue-600 text-white ring-4 ring-blue-100' 
-                    : index === 2
-                      ? 'bg-white border-2 border-blue-600 text-blue-600'
-                      : 'bg-gray-100 text-gray-400'
-                  }
-                `}
-              >
-                {index < 2 ? (
-                  <Check className="w-5 h-5" />
-                ) : (
-                  <span className="text-sm font-medium">{index + 1}</span>
-                )}
-              </div>
+  // Update the ProgressSteps component
+  const ProgressSteps = () => {
+    // Check if all documents are approved
+    const allDocumentsApproved = checkAllDocumentsApproved(caseData.documentTypes);
 
-              {/* Label */}
-              <span 
-                className={`mt-3 text-sm font-medium whitespace-nowrap ${
-                  index < 2 
-                    ? 'text-blue-600' 
-                    : index === 2
-                      ? 'text-blue-600'
-                      : 'text-gray-400'
-                }`}
-              >
-                {step}
-              </span>
+    // Define steps with dynamic completion status
+    const steps = [
+      { name: 'Case Started', completed: true },
+      { name: 'Data Collection', completed: true },
+      { name: 'In Review', completed: allDocumentsApproved },
+      { name: 'Preparation', completed: false },
+      { name: 'Filing', completed: false }
+    ];
+
+    return (
+      <div className="flex items-center justify-center w-full py-8 bg-white">
+        <div className="flex items-center justify-between max-w-4xl w-full px-6">
+          {steps.map((step, index) => (
+            <div key={step.name} className="flex items-center">
+              {/* Step circle with label */}
+              <div className="flex flex-col items-center relative">
+                {/* Connector line */}
+                {index < steps.length - 1 && (
+                  <div 
+                    className={`absolute left-[50px] top-[20px] h-[2px] w-[100px] ${
+                      steps[index].completed ? 'bg-blue-600' : 'bg-gray-200'
+                    }`}
+                  />
+                )}
+                
+                {/* Circle */}
+                <div 
+                  className={`
+                    w-10 h-10 rounded-full flex items-center justify-center 
+                    transition-all duration-300 relative z-10
+                    ${step.completed 
+                      ? 'bg-blue-600 text-white ring-4 ring-blue-100' 
+                      : index === steps.findIndex(s => !s.completed)
+                        ? 'bg-white border-2 border-blue-600 text-blue-600'
+                        : 'bg-gray-100 text-gray-400'
+                    }
+                  `}
+                >
+                  {step.completed ? (
+                    <Check className="w-5 h-5" />
+                  ) : (
+                    <span className="text-sm font-medium">{index + 1}</span>
+                  )}
+                </div>
+
+                {/* Label */}
+                <span 
+                  className={`mt-3 text-sm font-medium whitespace-nowrap ${
+                    step.completed 
+                      ? 'text-blue-600' 
+                      : index === steps.findIndex(s => !s.completed)
+                        ? 'text-blue-600'
+                        : 'text-gray-400'
+                  }`}
+                >
+                  {step.name}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // Enhanced tab navigation
   const TabNavigation = () => (
@@ -761,6 +844,191 @@ const CaseDetails = () => {
     setFiles(prevFiles => [...prevFiles, ...selectedFiles]);
   };
 
+  // Update the QuestionnaireDetailView component
+  const QuestionnaireDetailView = ({ questionnaire, onBack }) => {
+    return (
+      <div className="p-6">
+        {/* Header with Back Button */}
+        <div className="mb-6">
+          <div className="flex items-center gap-3 mb-1">
+            <button 
+              onClick={onBack}
+              className="text-gray-600 hover:text-gray-800 transition-colors"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <h2 className="text-lg font-medium text-gray-900">Questionnaire</h2>
+          </div>
+          <p className="text-sm text-gray-600 ml-8">{questionnaire.questionnaire_name}</p>
+        </div>
+
+        {/* Form Content */}
+        <div className="space-y-6">
+          {/* Passport Information Section */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 className="text-sm font-medium text-gray-900 mb-4">Passport Information</h3>
+            <div className="grid grid-cols-3 gap-4">
+              {questionnaire.field_mappings
+                .filter(field => field.sourceDocument === 'Passport')
+                .map(field => (
+                  <div key={field._id}>
+                    <label className="block text-xs text-gray-500 mb-1">
+                      {field.fieldName}
+                      {field.required && <span className="text-red-500 ml-1">*</span>}
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.Passport?.[field.fieldName] || ''}
+                      onChange={(e) => handleInputChange('Passport', field.fieldName, e.target.value)}
+                      className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                    />
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          {/* Professional Information Section */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 className="text-sm font-medium text-gray-900 mb-4">Professional Information</h3>
+            <div className="grid grid-cols-2 gap-4">
+              {questionnaire.field_mappings
+                .filter(field => field.sourceDocument === 'Resume')
+                .map(field => (
+                  <div key={field._id}>
+                    <label className="block text-xs text-gray-500 mb-1">
+                      {field.fieldName}
+                      {field.required && <span className="text-red-500 ml-1">*</span>}
+                    </label>
+                    <input
+                      type={field.fieldName.toLowerCase().includes('email') ? 'email' : 'text'}
+                      value={formData.Resume?.[field.fieldName] || ''}
+                      onChange={(e) => handleInputChange('Resume', field.fieldName, e.target.value)}
+                      className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                    />
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Save Button */}
+        <div className="flex justify-end mt-6">
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // Update the QuestionnaireTab component to handle questionnaire selection
+  const QuestionnaireTab = () => {
+    const handleQuestionnaireClick = async (questionnaire) => {
+      setIsLoadingQuestionnaire(true);
+      setSelectedQuestionnaire(questionnaire);
+      
+      try {
+        const response = await api.get(`/questionnaire-responses/management/${caseId}`, {
+          templateId: questionnaire._id
+        });
+        
+        if (response.data.status === 'success') {
+          setQuestionnaireData(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching questionnaire details:', error);
+        toast.error('Failed to load questionnaire details');
+      } finally {
+        setIsLoadingQuestionnaire(false);
+      }
+    };
+
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        </div>
+      );
+    }
+
+    if (selectedQuestionnaire) {
+      if (isLoadingQuestionnaire) {
+        return (
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          </div>
+        );
+      }
+
+      return (
+        <QuestionnaireDetailView 
+          questionnaire={selectedQuestionnaire}
+          onBack={() => setSelectedQuestionnaire(null)}
+        />
+      );
+    }
+
+    return (
+      <div className="p-6">
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold text-gray-900">Questionnaire List</h2>
+        </div>
+
+        <div className="space-y-3">
+          {questionnaires.map((questionnaire) => (
+            <div 
+              key={questionnaire._id} 
+              className="bg-white rounded-lg border border-gray-200 p-4 hover:bg-gray-50 transition-all cursor-pointer"
+              onClick={() => handleQuestionnaireClick(questionnaire)}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-gray-900">{questionnaire.questionnaire_name}</h3>
+                <div className="flex items-center">
+                  <span className="text-sm text-gray-600">
+                    {questionnaire.field_mappings.length} Fields
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // Add this new component for the Forms tab
+  const FormsTab = () => {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        </div>
+      );
+    }
+
+    return (
+      <div className="p-6">
+        <div className="space-y-3">
+          {forms.map((form) => (
+            <div 
+              key={form._id}
+              className="bg-white rounded-lg border border-gray-200 p-4 hover:bg-gray-50 transition-all"
+            >
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <h3 className="text-sm font-medium text-gray-900">{form.form_name}</h3>
+                  </div>
+                </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="flex h-screen bg-gray-50">
       <CaseDetailsSidebar />
@@ -775,6 +1043,8 @@ const CaseDetails = () => {
           
           <div className="max-w-7xl mx-auto">
             {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
+            {activeTab === 'questionnaire' && <QuestionnaireTab />}
+            {activeTab === 'forms' && <FormsTab />}
             {/* Add other tab contents as needed */}
           </div>
         </div>
