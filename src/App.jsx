@@ -16,48 +16,60 @@ import IndividualCases from './pages/IndividualCases';
 import CaseDetails from './pages/CaseDetails';
 import IndividualCaseDetails from './pages/IndividualCaseDetails';
 import { useState } from 'react';
+import { Toaster } from 'react-hot-toast';
 
 const App = () => {
   const [currentBreadcrumb, setCurrentBreadcrumb] = useState([]);
 
   return (
-    <Router>
-      <AuthProvider>
-        <PageProvider>
-          <BreadcrumbProvider>
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/*" element={
-                <PrivateRoute>
-                  <Layout>
-                    <Routes>
-                      {/* Dashboard Routes */}
-                      <Route path="/cases" element={<Cases setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
-                      <Route path="/cases/new" element={<NewCase setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
-                      <Route path="/case/:caseId" element={<CaseDetails setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
-                      
-                      {/* Individual Cases Routes */}
-                      <Route path="/individual-cases" element={<IndividualCases setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
-                      <Route path="/individuals/case/:caseId" element={<IndividualCaseDetails setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
-                      
-                      {/* Corporation Routes */}
-                      <Route path="/corporations" element={<Corporations setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
-                      <Route path="/corporations/:corporationId" element={<CorporationDetails setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
-                      <Route path="/corporations/:corporationId/employee/:employeeId" element={<EmployeeProfile setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
-                      <Route path="/corporations/:corporationId/employee/:employeeId/case/:caseId" element={<CaseDetails setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
-                      
-                      {/* Knowledge Base Routes */}
-                      <Route path="/knowledge" element={<KnowledgeBase setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
-                      <Route path="/knowledge/checklist/:id" element={<DocumentChecklist setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
-                    </Routes>
-                  </Layout>
-                </PrivateRoute>
-              } />
-            </Routes>
-          </BreadcrumbProvider>
-        </PageProvider>
-      </AuthProvider>
-    </Router>
+    <>
+      <Toaster 
+        position="top-center"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            padding: '16px',
+          },
+        }}
+      />
+      <Router>
+        <AuthProvider>
+          <PageProvider>
+            <BreadcrumbProvider>
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/*" element={
+                  <PrivateRoute>
+                    <Layout>
+                      <Routes>
+                        {/* Dashboard Routes */}
+                        <Route path="/cases" element={<Cases setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
+                        <Route path="/cases/new" element={<NewCase setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
+                        <Route path="/case/:caseId" element={<CaseDetails setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
+                        
+                        {/* Individual Cases Routes */}
+                        <Route path="/individual-cases" element={<IndividualCases setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
+                        <Route path="/individuals/case/:caseId" element={<IndividualCaseDetails setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
+                        
+                        {/* Corporation Routes */}
+                        <Route path="/corporations" element={<Corporations setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
+                        <Route path="/corporations/:corporationId" element={<CorporationDetails setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
+                        <Route path="/corporations/:corporationId/employee/:employeeId" element={<EmployeeProfile setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
+                        <Route path="/corporations/:corporationId/employee/:employeeId/case/:caseId" element={<CaseDetails setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
+                        
+                        {/* Knowledge Base Routes */}
+                        <Route path="/knowledge" element={<KnowledgeBase setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
+                        <Route path="/knowledge/checklist/:id" element={<DocumentChecklist setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
+                      </Routes>
+                    </Layout>
+                  </PrivateRoute>
+                } />
+              </Routes>
+            </BreadcrumbProvider>
+          </PageProvider>
+        </AuthProvider>
+      </Router>
+    </>
   );
 };
 
