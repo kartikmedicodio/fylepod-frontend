@@ -20,6 +20,8 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import PropTypes from 'prop-types';
 import { useState, useEffect, useRef } from 'react';
+import api from '../../utils/api';
+// import { getStoredToken } from '../../utils/auth';
 
 const Sidebar = ({ collapsed, setCollapsed }) => {
   const location = useLocation();
@@ -30,6 +32,41 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
   const newMenuRef = useRef(null);
   const menuTimeoutRef = useRef(null);
   const navigate = useNavigate();
+  const [relationships, setRelationships] = useState([]);
+  const [loadingRelationships, setLoadingRelationships] = useState(false);
+  // Get token from auth context
+  // const token = localStorage.getItem('token'); // We'll keep this temporarily for debugging
+
+  // Fetch user relationships
+  useEffect(() => {
+    const fetchRelationships = async () => {
+      if (user && (user.role === 'individual' || user.role === 'employee')) {
+        try {
+          setLoadingRelationships(true);
+          
+          // Use the configured api instance instead of fetch
+          const response = await api.get(`/auth/user-relationships/${user.id}`);
+          
+          // api instance automatically handles the response.data
+          if (response.data.status === 'success') {
+            setRelationships(response.data.data.relationships || []);
+          } else {
+            setRelationships([]);
+          }
+        } catch (error) {
+          console.error('Error fetching relationships:', error);
+          setRelationships([]);
+        } finally {
+          setLoadingRelationships(false);
+        }
+      }
+    };
+
+    // Only fetch if we have a user
+    if (user) {
+      fetchRelationships();
+    }
+  }, [user]);
 
   // Get navigation based on role
   const getNavigation = () => {
@@ -42,11 +79,17 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       { 
         section: 'All Profiles',
         items: [
-          { name: 'Alexandre Paiva', href: '/profile/alexandre', icon: CircleUserIcon },
-          { name: 'Thanawan Paiva', href: '/profile/thanawan', icon: CircleUserIcon },
-          { name: 'Justine Paiva', href: '/profile/justine', icon: CircleUserIcon },
+          // Show the user's own profile
+          { name: user?.name || 'My Profile', href: `/profile/${user?._id}`, icon: CircleUserIcon },
+          // Show relationships from the API
+          ...relationships.map(rel => ({
+            name: rel.user_id.name,
+            href: `/profile/${rel.user_id._id}`,
+            icon: CircleUserIcon,
+            relationshipType: rel.relationshipType
+          }))
         ],
-        expandable: true
+        expandable: relationships.length > 2
       },
       { 
         section: 'Cases',
@@ -242,30 +285,51 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
                     )}
                   </div>
                 )}
-                {item.items.map((subItem) => (
-                  <Link
-                    key={subItem.name}
-                    to={subItem.href}
-                    className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                      isActive(subItem.href)
-                        ? 'bg-white text-black'
-                        : 'text-gray-900 hover:bg-white hover:text-black'
-                    } ${collapsed ? 'justify-center' : ''}`}
-                    title={collapsed ? subItem.name : ''}
-                  >
-                    {subItem.icon === CircleUserIcon ? (
-                      <div className="h-5 w-5 rounded-full bg-gray-200 flex-shrink-0" />
-                    ) : (
-                      <subItem.icon className="h-5 w-5 flex-shrink-0" />
-                    )}
-                    {!collapsed && <span className="ml-3">{subItem.name}</span>}
-                    {!collapsed && subItem.badge && (
-                      <span className="ml-auto bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-xs">
-                        {subItem.badge}
-                      </span>
-                    )}
-                  </Link>
-                ))}
+                {loadingRelationships && item.section === 'All Profiles' ? (
+                  // Show loading state for relationships
+                  <div className="px-3 py-2">
+                    <div className="h-5 bg-gray-200 rounded animate-pulse w-full mb-2"></div>
+                    <div className="h-5 bg-gray-200 rounded animate-pulse w-full"></div>
+                  </div>
+                ) : (
+                  item.items.map((subItem) => (
+                    <Link
+                      key={subItem.name + (subItem.relationshipType || '')}
+                      to={subItem.href}
+                      className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                        isActive(subItem.href)
+                          ? 'bg-white text-black'
+                          : 'text-gray-900 hover:bg-white hover:text-black'
+                      } ${collapsed ? 'justify-center' : ''}`}
+                      title={collapsed ? (subItem.relationshipType ? `${subItem.name} (${subItem.relationshipType})` : subItem.name) : ''}
+                    >
+                      {subItem.icon === CircleUserIcon ? (
+                        <div className="h-8 w-8 rounded-full overflow-hidden flex-shrink-0">
+                          <img 
+                            src={`https://ui-avatars.com/api/?name=${encodeURIComponent(subItem.name || 'U')}&background=random`}
+                            alt={subItem.name || 'User'}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <subItem.icon className="h-5 w-5 flex-shrink-0" />
+                      )}
+                      {!collapsed && (
+                        <div className="ml-3 flex-1 overflow-hidden">
+                          <span className="block truncate">{subItem.name}</span>
+                          {subItem.relationshipType && (
+                            <span className="text-xs text-gray-500">{subItem.relationshipType}</span>
+                          )}
+                        </div>
+                      )}
+                      {!collapsed && subItem.badge && (
+                        <span className="ml-auto bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-xs">
+                          {subItem.badge}
+                        </span>
+                      )}
+                    </Link>
+                  ))
+                )}
               </div>
             ) : (
               <Link
