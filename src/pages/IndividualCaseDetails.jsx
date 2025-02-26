@@ -1,10 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {  
-  Loader2
+  Loader2,
+  Bot,
+  FileUp,
+  SendHorizontal,
+  ChevronLeft
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
+import ReactDOM from 'react-dom';
+import PropTypes from 'prop-types';
 
 const getInitials = (name) => {
   return name
@@ -34,6 +40,15 @@ const IndividualCaseDetails = () => {
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef(null);
   const [currentChat, setCurrentChat] = useState(null);
+  const [showChatPopup, setShowChatPopup] = useState(false);
+  const [questionnaires, setQuestionnaires] = useState([]);
+  const [isLoadingQuestionnaires, setIsLoadingQuestionnaires] = useState(true);
+  const [selectedQuestionnaire, setSelectedQuestionnaire] = useState(null);
+  const [questionnaireData, setQuestionnaireData] = useState(null);
+  const [formData, setFormData] = useState({
+    Passport: {},
+    Resume: {}
+  });
 
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
@@ -242,6 +257,21 @@ const IndividualCaseDetails = () => {
         const response = await api.get(`/management/${caseId}`);
         if (response.data.status === 'success') {
           setCaseData(response.data.data.entry);
+          
+          // Use the user data included in the case as a basic profile
+          if (response.data.data.entry?.userId) {
+            // Set basic profile from case data
+            setProfileData({
+              _id: response.data.data.entry.userId._id,
+              name: response.data.data.entry.userName || response.data.data.entry.userId.name,
+              email: response.data.data.entry.userId.email,
+            });
+            
+            // Then try to fetch complete profile
+            if (response.data.data.entry.userId._id) {
+              fetchUserProfile(response.data.data.entry.userId._id);
+            }
+          }
         }
       } catch (error) {
         console.error('Error fetching case details:', error);
@@ -249,20 +279,46 @@ const IndividualCaseDetails = () => {
       }
     };
 
-    const fetchProfileData = async () => {
+    const fetchUserProfile = async (userId) => {
       try {
-        const response = await api.get('/auth/me');
-        if (response.data.status === 'success') {
-          setProfileData(response.data.data.user);
+        // Use the working endpoint
+        const response = await api.get(`/auth/users/${userId}`);
+        
+        // The API response format is what we verified in the logs
+        if (response.data.success) {
+          setProfileData(response.data.data.user || response.data.data);
+        } else {
+          console.error('API returned success:false for user profile');
         }
       } catch (error) {
-        console.error('Error fetching profile data:', error);
+        console.error('Error fetching user profile:', error);
+        // Don't show error toast since we already have basic profile data
+      }
+    };
+
+    const fetchQuestionnaires = async () => {
+      try {
+        const response = await api.get('/questionnaires');
+        if (response.data.status === 'success') {
+          setQuestionnaires(response.data.data.templates);
+        }
+      } catch (error) {
+        console.error('Error fetching questionnaires:', error);
+        toast.error('Failed to load questionnaires');
+      } finally {
+        setIsLoadingQuestionnaires(false);
       }
     };
 
     fetchCaseDetails();
-    fetchProfileData();
+    fetchQuestionnaires();
   }, [caseId]);
+
+  useEffect(() => {
+    if (questionnaireData?.responses?.[0]?.processedInformation) {
+      setFormData(questionnaireData.responses[0].processedInformation);
+    }
+  }, [questionnaireData]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -374,6 +430,32 @@ const IndividualCaseDetails = () => {
       }]);
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleInputChange = (section, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [field]: value
+      }
+    }));
+  };
+
+  const handleSave = async () => {
+    try {
+      const response = await api.put(`/questionnaire-responses/management/${caseId}`, {
+        templateId: selectedQuestionnaire._id,
+        processedInformation: formData
+      });
+
+      if (response.data.status === 'success') {
+        toast.success('Changes saved successfully');
+      }
+    } catch (error) {
+      console.error('Error saving questionnaire:', error);
+      toast.error('Failed to save changes');
     }
   };
 
@@ -611,9 +693,7 @@ const IndividualCaseDetails = () => {
             ) : (
               <>
                 <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mb-3">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <path d="M12 7v10M7 12h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                  </svg>
+                  <FileUp className="w-6 h-6 text-gray-500" />
                 </div>
                 <p className="text-sm text-gray-500 mb-2">
                   {isDragging ? 'Drop files here' : 'Drag and drop files here'}
@@ -668,76 +748,266 @@ const IndividualCaseDetails = () => {
     );
   };
 
-  const renderAIChat = () => (
-    <div className="bg-white rounded-lg border border-gray-200 p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h4 className="font-medium text-sm">AI Assistant</h4>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-          <span className="text-sm text-gray-500">Online</span>
+  const QuestionnaireTab = () => {
+    const handleQuestionnaireClick = async (questionnaire) => {
+      setSelectedQuestionnaire(questionnaire);
+      
+      try {
+        const response = await api.get(`/questionnaire-responses/management/${caseId}`, {
+          templateId: questionnaire._id
+        });
+        
+        if (response.data.status === 'success') {
+          setQuestionnaireData(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching questionnaire details:', error);
+        toast.error('Failed to load questionnaire details');
+      }
+    };
+
+    if (isLoadingQuestionnaires) {
+      return (
+        <div className="bg-white rounded-lg border border-gray-200 flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        </div>
+      );
+    }
+
+    if (selectedQuestionnaire) {
+      return (
+        <div className="bg-white rounded-lg border border-gray-200">
+          <QuestionnaireDetailView 
+            questionnaire={selectedQuestionnaire}
+            onBack={() => setSelectedQuestionnaire(null)}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div className="bg-white rounded-lg border border-gray-200">
+        <div className="p-6">
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold text-gray-900">Questionnaire List</h2>
+          </div>
+
+          <div className="space-y-3">
+            {questionnaires.map((questionnaire) => (
+              <div 
+                key={questionnaire._id} 
+                className="bg-gray-50 rounded-lg border border-gray-200 p-4 hover:bg-gray-100 transition-all cursor-pointer"
+                onClick={() => handleQuestionnaireClick(questionnaire)}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-medium text-gray-900">{questionnaire.questionnaire_name}</h3>
+                  <div className="flex items-center">
+                    <span className="text-sm text-gray-600">
+                      {questionnaire.field_mappings.length} Fields
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
+    );
+  };
 
-      {/* Chat Messages Container */}
-      <div className="h-[400px] overflow-y-auto mb-4 space-y-4 p-2">
-        {messages.map((message, index) => (
-          <div 
-            key={index}
-            className={`flex items-start gap-3 ${
-              message.role === 'user' ? 'justify-end' : ''
-            }`}
+  const QuestionnaireDetailView = ({ questionnaire, onBack }) => {
+    return (
+      <div className="p-6">
+        {/* Header with Back Button */}
+        <div className="mb-6">
+          <div className="flex items-center gap-3 mb-1">
+            <button 
+              onClick={onBack}
+              className="text-gray-600 hover:text-gray-800 transition-colors"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <h2 className="text-lg font-medium text-gray-900">Questionnaire</h2>
+          </div>
+          <p className="text-sm text-gray-600 ml-8">{questionnaire.questionnaire_name}</p>
+        </div>
+
+        {/* Form Content */}
+        <div className="space-y-6">
+          {/* Passport Information Section */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 className="text-sm font-medium text-gray-900 mb-4">Passport Information</h3>
+            <div className="grid grid-cols-3 gap-4">
+              {questionnaire.field_mappings
+                .filter(field => field.sourceDocument === 'Passport')
+                .map(field => (
+                  <div key={field._id}>
+                    <label className="block text-xs text-gray-500 mb-1">
+                      {field.fieldName}
+                      {field.required && <span className="text-red-500 ml-1">*</span>}
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.Passport?.[field.fieldName] || ''}
+                      onChange={(e) => handleInputChange('Passport', field.fieldName, e.target.value)}
+                      className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                    />
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          {/* Professional Information Section */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 className="text-sm font-medium text-gray-900 mb-4">Professional Information</h3>
+            <div className="grid grid-cols-2 gap-4">
+              {questionnaire.field_mappings
+                .filter(field => field.sourceDocument === 'Resume')
+                .map(field => (
+                  <div key={field._id}>
+                    <label className="block text-xs text-gray-500 mb-1">
+                      {field.fieldName}
+                      {field.required && <span className="text-red-500 ml-1">*</span>}
+                    </label>
+                    <input
+                      type={field.fieldName.toLowerCase().includes('email') ? 'email' : 'text'}
+                      value={formData.Resume?.[field.fieldName] || ''}
+                      onChange={(e) => handleInputChange('Resume', field.fieldName, e.target.value)}
+                      className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                    />
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Save Button */}
+        <div className="flex justify-end mt-6">
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors"
           >
-            {message.role === 'assistant' && (
-              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                <span className="text-sm font-medium text-blue-600">AI</span>
+            Save
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  QuestionnaireDetailView.propTypes = {
+    questionnaire: PropTypes.shape({
+      questionnaire_name: PropTypes.string,
+      field_mappings: PropTypes.arrayOf(
+        PropTypes.shape({
+          _id: PropTypes.string,
+          sourceDocument: PropTypes.string,
+          sourceField: PropTypes.string,
+          targetForm: PropTypes.string,
+          targetField: PropTypes.string
+        })
+      )
+    }).isRequired,
+    onBack: PropTypes.func.isRequired
+  };
+
+  // Create a portal for the chat button and popup
+  const renderChatPortal = () => {
+    return ReactDOM.createPortal(
+      <>
+        {/* Chat Button */}
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowChatPopup(prev => !prev);
+          }}
+          className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center shadow-lg hover:bg-blue-700 transition-colors z-[9999]"
+          aria-label="Toggle AI Chat"
+        >
+          <Bot className="w-7 h-7 text-white" />
+        </button>
+        
+        {/* Chat Popup */}
+        {showChatPopup && (
+          <div className="fixed bottom-24 right-8 w-80 md:w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-[9999] max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <span className="text-sm font-medium text-blue-600">AI</span>
+                </div>
+                <h4 className="font-medium">AI Assistant</h4>
               </div>
-            )}
+              <button onClick={() => setShowChatPopup(false)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
             
-            <div className={`rounded-lg p-3 max-w-[85%] ${
-              message.role === 'user' 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-gray-100 text-gray-700'
-            }`}>
-              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[300px]">
+              {messages.map((message, index) => (
+                <div 
+                  key={index}
+                  className={`flex items-start gap-3 ${
+                    message.role === 'user' ? 'justify-end' : ''
+                  }`}
+                >
+                  {message.role === 'assistant' && (
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-medium text-blue-600">AI</span>
+                    </div>
+                  )}
+                  
+                  <div className={`rounded-lg p-3 max-w-[85%] ${
+                    message.role === 'user' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                  </div>
+
+                  {message.role === 'user' && (
+                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-medium text-gray-600">
+                        {getInitials(profileData?.name || 'User')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
             </div>
 
-            {message.role === 'user' && (
-              <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                <span className="text-sm font-medium text-gray-600">U</span>
+            <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-200">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder="Type your message..."
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg pr-12 focus:outline-none focus:border-blue-500"
+                  disabled={isSending}
+                />
+                <button 
+                  type="submit"
+                  disabled={isSending || !chatInput.trim()}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-blue-600 hover:text-blue-700 disabled:text-gray-400"
+                >
+                  {isSending ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <SendHorizontal className="w-5 h-5" />
+                  )}
+                </button>
               </div>
-            )}
+            </form>
           </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
+        )}
+      </>,
+      document.body
+    );
+  };
 
-      {/* Chat Input */}
-      <form onSubmit={handleSendMessage} className="relative">
-        <input
-          type="text"
-          value={chatInput}
-          onChange={(e) => setChatInput(e.target.value)}
-          placeholder="Type your message..."
-          className="w-full px-4 py-2 border border-gray-200 rounded-lg pr-12 focus:outline-none focus:border-blue-500"
-          disabled={isSending}
-        />
-        <button 
-          type="submit"
-          disabled={isSending || !chatInput.trim()}
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-blue-600 hover:text-blue-700 disabled:text-gray-400"
-        >
-          {isSending ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-            </svg>
-          )}
-        </button>
-      </form>
-    </div>
-  );
-
+  // Main component return
   return (
     <>
       {/* Profile Section */}
@@ -745,11 +1015,11 @@ const IndividualCaseDetails = () => {
         <div className="w-1/2">
           <div className="bg-white rounded-lg border border-gray-200 p-4">
             <div className="flex items-start gap-6">
-              {/* Profile Picture with Initials */}
+              {/* Profile header with label */}
               <div className="flex-shrink-0">
                 <div className="w-20 h-20 rounded-full bg-blue-100 overflow-hidden flex items-center justify-center">
                   <span className="text-2xl font-medium text-blue-600">
-                    {getInitials(profileData.name)}
+                    {profileData ? getInitials(profileData.name) : '...'}
                   </span>
                 </div>
               </div>
@@ -760,17 +1030,17 @@ const IndividualCaseDetails = () => {
                 <div className="space-y-2">
                   <div>
                     <div className="text-sm text-gray-500">Name</div>
-                    <div className="font-medium">{profileData.name}</div>
+                    <div className="font-medium">{profileData?.name || '-'}</div>
                   </div>
                   <div>
                     <div className="text-sm text-gray-500">Phone Number</div>
                     <div className="font-medium">
-                      {profileData.contact?.mobileNumber || profileData.contact?.residencePhone || '-'}
+                      {profileData?.contact?.mobileNumber || profileData?.contact?.residencePhone || '-'}
                     </div>
                   </div>
                   <div>
                     <div className="text-sm text-gray-500">Email Address</div>
-                    <div className="font-medium">{profileData.email}</div>
+                    <div className="font-medium">{profileData?.email || '-'}</div>
                   </div>
                 </div>
 
@@ -778,23 +1048,25 @@ const IndividualCaseDetails = () => {
                 <div className="space-y-2">
                   <div>
                     <div className="text-sm text-gray-500">Nationality</div>
-                    <div className="font-medium">{profileData.address?.country || '-'}</div>
+                    <div className="font-medium">{profileData?.address?.country || '-'}</div>
                   </div>
                   <div>
                     <div className="text-sm text-gray-500">Address</div>
                     <div className="font-medium">
-                      {[
-                        profileData.address?.city,
-                        profileData.address?.country,
-                        profileData.address?.zipCode
-                      ]
-                        .filter(Boolean)
-                        .join(', ') || '-'}
+                      {profileData?.address ? 
+                        [
+                          profileData.address.city,
+                          profileData.address.country,
+                          profileData.address.zipCode
+                        ]
+                          .filter(Boolean)
+                          .join(', ') 
+                        : '-'}
                     </div>
                   </div>
                   <div>
                     <div className="text-sm text-gray-500">Passport Number</div>
-                    <div className="font-medium">{profileData.passport?.number || '-'}</div>
+                    <div className="font-medium">{profileData?.passport?.number || '-'}</div>
                   </div>
                 </div>
               </div>
@@ -837,7 +1109,7 @@ const IndividualCaseDetails = () => {
               </div>
             </div>
             <div className="w-[33%]">
-              {renderAIChat()}
+              <QuestionnaireTab />
             </div>
           </div>
         )}
@@ -847,6 +1119,9 @@ const IndividualCaseDetails = () => {
           </div>
         )}
       </div>
+
+      {/* Render chat portal to document.body */}
+      {renderChatPortal()}
     </>
   );
 };
