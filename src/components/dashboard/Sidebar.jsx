@@ -79,8 +79,8 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       { 
         section: 'All Profiles',
         items: [
-          // Show the user's own profile
-          { name: user?.name || 'My Profile', href: `/profile/${user?._id}`, icon: CircleUserIcon },
+          // Show the user's own profile - check both id properties
+          { name: user?.name || 'My Profile', href: `/profile/${user?.id || user?._id}`, icon: CircleUserIcon },
           // Show relationships from the API
           ...relationships.map(rel => ({
             name: rel.user_id.name,
@@ -362,7 +362,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
         <div className="border-t border-[#c0c4d4] p-4">
           <div className="flex items-center space-x-3">
             <Link 
-              to="/profile" 
+              to={`/profile/${user?.id || user?._id}`}
               className="h-8 w-8 rounded-full overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all duration-200"
             >
               <img 
@@ -373,7 +373,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
             </Link>
             {!collapsed && (
               <>
-                <Link to="/profile" className="flex-1 min-w-0 hover:text-blue-600 transition-colors duration-200">
+                <Link to={`/profile/${user?.id || user?._id}`} className="flex-1 min-w-0 hover:text-blue-600 transition-colors duration-200">
                   {loading ? (
                     <div className="h-4 bg-gray-200 rounded animate-pulse w-24"></div>
                   ) : (

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../utils/api';
-import { ChevronLeft, ChevronRight, ListFilter, ArrowDownUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ListFilter, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
@@ -64,27 +64,53 @@ const IndividualCases = () => {
     totalPages: 0
   });
   const [searchTerm, setSearchTerm] = useState('');
-  const [filteredCases, setFilteredCases] = useState([]);
+  // const [filteredCases, setFilteredCases] = useState([]); // Remove this unused state
+  // New states for sorting
+  const [sortField, setSortField] = useState('createdAt');
+  const [sortDirection, setSortDirection] = useState('desc');
+  // New state for status filter
+  const [statusFilter, setStatusFilter] = useState('');
+  
   const navigate = useNavigate();
 
-  // Add console.log to check user data
-  useEffect(() => {
-    console.log('Current user:', user);
-  }, [user]);
+  // Fetch related users
+  const fetchRelatedUsers = async () => {
+    try {
+      if (!user?.id) return;
+      
+      const response = await api.get(`/auth/user-relationships/${user.id}`);
+      
+      if (response.data.status === 'success') {
+        // Extract related user IDs and include current user
+        const relationships = response.data.data.relationships || [];
+        const relatedUserIds = relationships.map(rel => rel.user_id._id);
+        
+        // Include current user's ID
+        const allUsers = [user.id, ...relatedUserIds];
+        return allUsers;
+      }
+      return [user.id]; // Default to just the current user if no relationships
+    } catch (error) {
+      console.error('Error fetching user relationships:', error);
+      toast.error('Failed to fetch related users');
+      return [user.id]; // Default to just the current user
+    }
+  };
 
-  const fetchUserCases = async (search = '') => {
+  // Fetch all cases without any backend filtering or sorting
+  const fetchAllUsersCases = async (userIds) => {
     try {
       setLoading(true);
       
-      if (!user?.id) {
-        console.log('No user ID available');
+      if (!userIds.length) {
+        console.log('No user IDs available');
         return;
       }
 
-      const response = await api.get(`/management/user/${user.id}`, {
+      // Only pass userIds to backend - everything else will be handled in frontend
+      const response = await api.get('/management/users', {
         params: {
-          search,
-          sort: '-createdAt'
+          userIds: userIds.join(',')
         }
       });
 
@@ -92,30 +118,8 @@ const IndividualCases = () => {
         const cases = response.data.data.entries || [];
         setAllCases(cases);
         
-        // Filter and paginate cases
-        const filtered = search 
-          ? cases.filter(c => 
-              c.userName?.toLowerCase().includes(search.toLowerCase()) ||
-              c.categoryName?.toLowerCase().includes(search.toLowerCase()) ||
-              c._id?.toLowerCase().includes(search.toLowerCase())
-            )
-          : cases;
-
-        const total = filtered.length;
-        const totalPages = Math.ceil(total / 5);
-        
-        // Get current page slice
-        const startIndex = (currentPage - 1) * 5;
-        const endIndex = startIndex + 5;
-        const currentPageCases = filtered.slice(startIndex, endIndex);
-
-        setFilteredCases(currentPageCases);
-        setPagination({
-          total,
-          currentPage,
-          limit: 5,
-          totalPages
-        });
+        // Process all filtering and sorting here
+        processCases(cases);
       }
     } catch (error) {
       console.error('Error fetching cases:', error);
@@ -125,41 +129,83 @@ const IndividualCases = () => {
     }
   };
 
-  // Update filtered cases when page or search changes
-  useEffect(() => {
-    if (allCases.length > 0) {
-      const filtered = searchTerm 
-        ? allCases.filter(c => 
-            c.userName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            c.categoryName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            c._id?.toLowerCase().includes(searchTerm.toLowerCase())
-          )
-        : allCases;
-
-      const total = filtered.length;
-      const totalPages = Math.ceil(total / 5);
+  // Process cases with filtering, sorting, and pagination
+  const processCases = (cases) => {
+    // Step 1: Filter by search term
+    const searchFiltered = searchTerm 
+      ? cases.filter(c => 
+          c.userName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          c.categoryName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          c._id?.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      : cases;
       
-      // Get current page slice
-      const startIndex = (currentPage - 1) * 5;
-      const endIndex = startIndex + 5;
-      const currentPageCases = filtered.slice(startIndex, endIndex);
+    // Step 2: Filter by status if selected
+    const statusFiltered = statusFilter
+      ? searchFiltered.filter(c => c.categoryStatus === statusFilter)
+      : searchFiltered;
+    
+    // Step 3: Sort the filtered data
+    const sorted = [...statusFiltered].sort((a, b) => {
+      let aValue = a[sortField];
+      let bValue = b[sortField];
+      
+      // Handle nested fields (e.g., createdBy.name)
+      if (sortField.includes('.')) {
+        const parts = sortField.split('.');
+        aValue = parts.reduce((obj, key) => obj?.[key], a);
+        bValue = parts.reduce((obj, key) => obj?.[key], b);
+      }
+      
+      // Handle null/undefined values
+      if (aValue === undefined || aValue === null) return sortDirection === 'asc' ? -1 : 1;
+      if (bValue === undefined || bValue === null) return sortDirection === 'asc' ? 1 : -1;
+      
+      // Compare strings
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortDirection === 'asc' 
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      }
+      
+      // Compare numbers/dates
+      return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+    });
+    
+    // Step 4: Paginate the sorted data
+    const total = sorted.length;
+    const totalPages = Math.ceil(total / 5);
+    const startIndex = (currentPage - 1) * 5;
+    const endIndex = startIndex + 5;
+    const currentPageCases = sorted.slice(startIndex, endIndex);
+    
+    // Update state with processed data
+    setAllCases(currentPageCases);
+    setPagination({
+      total,
+      currentPage,
+      limit: 5,
+      totalPages
+    });
+  };
 
-      setFilteredCases(currentPageCases);
-      setPagination({
-        total,
-        currentPage,
-        limit: 5,
-        totalPages
-      });
-    }
-  }, [currentPage, searchTerm, allCases]);
-
-  // Fetch all cases initially
+  // Initial load - fetch related users and then their cases
   useEffect(() => {
     if (user?.id) {
-      fetchUserCases(searchTerm);
+      const loadData = async () => {
+        const userIds = await fetchRelatedUsers();
+        await fetchAllUsersCases(userIds);
+      };
+      loadData();
     }
   }, [user?.id]);
+
+  // Reprocess cases when filtering, sorting, or pagination changes
+  useEffect(() => {
+    if (allCases.length > 0) {
+      processCases(allCases);
+    }
+  }, [searchTerm, statusFilter, sortField, sortDirection, currentPage]);
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
@@ -170,6 +216,25 @@ const IndividualCases = () => {
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
     setCurrentPage(1); // Reset to first page when searching
+  };
+
+  // Handle column sort
+  const handleSort = (field) => {
+    // If clicking the same field, toggle direction
+    if (field === sortField) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // If clicking a new field, set it and default to ascending
+      setSortField(field);
+      setSortDirection('asc');
+    }
+    setCurrentPage(1); // Reset to first page when sorting
+  };
+
+  // Toggle status filter
+  const handleStatusFilter = (status) => {
+    setStatusFilter(status === statusFilter ? '' : status);
+    setCurrentPage(1); // Reset to first page when filtering
   };
 
   if (loading) {
@@ -202,15 +267,64 @@ const IndividualCases = () => {
             </span>
           </div>
 
-          {/* Filters and Sort */}
-          <button className="flex items-center gap-2 px-5 py-2.5 text-base bg-white rounded-lg border border-gray-300 hover:bg-gray-50 font-semibold">
-            <span>All Filters</span>
-            <ListFilter className="h-5 w-5 text-gray-500" />
-          </button>
-          <button className="flex items-center gap-2 px-5 py-2.5 text-base bg-white rounded-lg border border-gray-300 hover:bg-gray-50 font-semibold">
-            <span>Sort</span>
-            <ArrowDownUp className="h-5 w-5 text-gray-500" />
-          </button>
+          {/* Filters dropdown */}
+          <div className="relative">
+            <button 
+              className="flex items-center gap-2 px-5 py-2.5 text-base bg-white rounded-lg border border-gray-300 hover:bg-gray-50 font-semibold"
+              onClick={() => document.getElementById('statusFilterDropdown').classList.toggle('hidden')}
+            >
+              <span>All Filters</span>
+              <ListFilter className="h-5 w-5 text-gray-500" />
+            </button>
+            
+            {/* Status Filter Dropdown */}
+            <div id="statusFilterDropdown" className="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 hidden">
+              <div className="py-1">
+                <button 
+                  className={`block px-4 py-2 text-sm text-left w-full hover:bg-gray-100 ${statusFilter === 'pending' ? 'bg-blue-50 text-blue-600' : ''}`}
+                  onClick={() => handleStatusFilter('pending')}
+                >
+                  Pending
+                </button>
+                <button 
+                  className={`block px-4 py-2 text-sm text-left w-full hover:bg-gray-100 ${statusFilter === 'approved' ? 'bg-blue-50 text-blue-600' : ''}`}
+                  onClick={() => handleStatusFilter('approved')}
+                >
+                  Approved
+                </button>
+                {/* <button 
+                  className={`block px-4 py-2 text-sm text-left w-full hover:bg-gray-100 ${statusFilter === 'completed' ? 'bg-blue-50 text-blue-600' : ''}`}
+                  onClick={() => handleStatusFilter('completed')}
+                >
+                  Completed
+                </button> */}
+                <button 
+                  className={`block px-4 py-2 text-sm text-left w-full hover:bg-gray-100 ${statusFilter === 'uploaded' ? 'bg-blue-50 text-blue-600' : ''}`}
+                  onClick={() => handleStatusFilter('uploaded')}
+                >
+                  Uploaded
+                </button>
+                {statusFilter && (
+                  <button 
+                    className="block px-4 py-2 text-sm text-left w-full text-red-500 hover:bg-gray-100"
+                    onClick={() => setStatusFilter('')}
+                  >
+                    Clear Filter
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Sort button - now just a visual indicator */}
+          <div className="relative">
+            <button 
+              className="flex items-center gap-2 px-5 py-2.5 text-base bg-white rounded-lg border border-gray-300 hover:bg-gray-50 font-semibold"
+            >
+              <span>Sort: {sortField}</span>
+              {sortDirection === 'asc' ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
+            </button>
+          </div>
         </div>
 
         {/* Add New Button */}
@@ -232,23 +346,63 @@ const IndividualCases = () => {
           <table className="min-w-full">
             <thead>
               <tr className="border-b border-gray-200">
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase">
-                  Case Id
+                <th 
+                  className="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-50"
+                  onClick={() => handleSort('_id')}
+                >
+                  <div className="flex items-center">
+                    Case Id
+                    {sortField === '_id' && (
+                      sortDirection === 'asc' ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </div>
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase">
-                  Individual Name
+                <th 
+                  className="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-50"
+                  onClick={() => handleSort('userName')}
+                >
+                  <div className="flex items-center">
+                    Individual Name
+                    {sortField === 'userName' && (
+                      sortDirection === 'asc' ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </div>
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase">
-                  Case Manager
+                <th 
+                  className="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-50"
+                  onClick={() => handleSort('createdBy.name')}
+                >
+                  <div className="flex items-center">
+                    Case Manager
+                    {sortField === 'createdBy.name' && (
+                      sortDirection === 'asc' ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </div>
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase">
-                  Process Name
+                <th 
+                  className="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-50"
+                  onClick={() => handleSort('categoryName')}
+                >
+                  <div className="flex items-center">
+                    Process Name
+                    {sortField === 'categoryName' && (
+                      sortDirection === 'asc' ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </div>
                 </th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase">
                   Deadline
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase">
-                  Document Upload Status
+                <th 
+                  className="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-50"
+                  onClick={() => handleSort('categoryStatus')}
+                >
+                  <div className="flex items-center">
+                    Document Upload Status
+                    {sortField === 'categoryStatus' && (
+                      sortDirection === 'asc' ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />
+                    )}
+                  </div>
                 </th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase">
                   Queries Pending
@@ -256,14 +410,14 @@ const IndividualCases = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {filteredCases.length === 0 ? (
+              {allCases.length === 0 ? (
                 <tr>
                   <td colSpan="7" className="px-6 py-4 text-center text-base text-gray-500">
                     No cases found matching your search.
                   </td>
                 </tr>
               ) : (
-                filteredCases.map((caseItem) => (
+                allCases.map((caseItem) => (
                   <tr 
                     key={caseItem._id} 
                     className="hover:bg-gray-50 cursor-pointer"
@@ -301,10 +455,11 @@ const IndividualCases = () => {
       </div>
 
       {/* Pagination */}
-      {pagination && filteredCases.length > 0 && (
+      {pagination && allCases.length > 0 && (
         <div className="mt-4 flex justify-between items-center text-sm text-gray-600">
           <div>
             Showing {((currentPage - 1) * pagination.limit) + 1} - {Math.min(currentPage * pagination.limit, pagination.total)} of {pagination.total} results
+            {statusFilter && <span> • Filtered by status: <strong>{statusFilter}</strong></span>}
           </div>
           <div className="flex items-center gap-2">
             <button
