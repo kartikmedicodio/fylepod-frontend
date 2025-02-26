@@ -17,6 +17,7 @@
     "date-fns": "^4.1.0",
     "framer-motion": "^12.4.3",
     "lucide-react": "^0.475.0",
+    "pdf-lib": "^1.17.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hot-toast": "^2.5.2",

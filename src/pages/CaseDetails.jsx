@@ -21,11 +21,13 @@ import {
   X,
   AlertCircle,
   Filter,
-  ChevronLeft
+  ChevronLeft,
+  Download
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
 import CaseDetailsSidebar from '../components/cases/CaseDetailsSidebar';
+import { PDFDocument } from 'pdf-lib';
 
 
 // Add a new status type to track document states
@@ -74,6 +76,9 @@ const CaseDetails = () => {
     Resume: {}
   });
   const [forms, setForms] = useState([]);
+  const [isSavingQuestionnaire, setIsSavingQuestionnaire] = useState(false);
+  const [loadingFormId, setLoadingFormId] = useState(null);
+  const [error, setError] = useState(null);
 
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
@@ -111,12 +116,10 @@ const CaseDetails = () => {
     return null;
   };
 
-  // Modify the handleDocumentApprove function to match the same structure
   const handleDocumentApprove = async (documentTypeId, managementDocumentId) => {
     try {
       setIsProcessing(true);
       
-      // Update to match the same structure as in handleFileUpload
       await api.patch(`/management/${caseId}/documents/${documentTypeId}/status`, {
         status: DOCUMENT_STATUS.APPROVED,
         documentTypeId: documentTypeId,
@@ -137,7 +140,6 @@ const CaseDetails = () => {
     }
   };
 
-  // Add the handler for requesting reupload
   const handleRequestReupload = async (documentTypeId, managementDocumentId) => {
     try {
       setIsProcessing(true);
@@ -402,6 +404,7 @@ const CaseDetails = () => {
 
   const handleSave = async () => {
     try {
+      setIsSavingQuestionnaire(true);
       const response = await api.put(`/questionnaire-responses/management/${caseId}`, {
         templateId: selectedQuestionnaire._id,
         processedInformation: formData
@@ -409,10 +412,13 @@ const CaseDetails = () => {
 
       if (response.data.status === 'success') {
         toast.success('Changes saved successfully');
+        setActiveTab('forms');
       }
     } catch (error) {
       console.error('Error saving questionnaire:', error);
       toast.error('Failed to save changes');
+    } finally {
+      setIsSavingQuestionnaire(false);
     }
   };
 
@@ -521,6 +527,71 @@ const CaseDetails = () => {
       </div>
     </div>
   );
+
+  // Add this new component for the save button
+  const SaveQuestionnairesButton = ({ documentTypes, questionnaires, caseId }) => {
+    const [isSaving, setIsSaving] = useState(false);
+    const allDocumentsApproved = checkAllDocumentsApproved(documentTypes);
+
+    const handleSaveQuestionnaires = async () => {
+      setIsSaving(true);
+      try {
+        // Make API calls for each questionnaire
+        const responses = await Promise.all(
+          questionnaires.map(async (questionnaire) => {
+            try {
+              const response = await api.post(`/documents/management/${caseId}/organized`, {
+                templateId: questionnaire._id
+              });
+              return {
+                questionnaire,
+                data: response.data
+              };
+            } catch (error) {
+              console.error(`Error processing questionnaire ${questionnaire._id}:`, error);
+              return {
+                questionnaire,
+                error: true
+              };
+            }
+          })
+        );
+
+        // Check if all API calls were successful
+        const hasErrors = responses.some(response => response.error);
+        if (hasErrors) {
+          toast.error('Some questionnaires could not be processed');
+        } else {
+          toast.success('All questionnaires processed successfully');
+          setActiveTab('questionnaire');
+        }
+      } catch (error) {
+        console.error('Error saving questionnaires:', error);
+        toast.error('Failed to process questionnaires');
+      } finally {
+        setIsSaving(false);
+      }
+    };
+
+    if (!allDocumentsApproved) return null;
+
+    return (
+      <button
+        onClick={handleSaveQuestionnaires}
+        disabled={isSaving}
+        className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center gap-2"
+      >
+        {isSaving ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Processing...
+          </>
+        ) : (
+          'Process Questionnaires'
+        )}
+      </button>
+    );
+  };
 
   // Enhanced document checklist
   const DocumentsChecklistTab = () => {
@@ -801,6 +872,11 @@ const CaseDetails = () => {
             <Search className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" />
           </div>
           <div className="flex items-center gap-3">
+            <SaveQuestionnairesButton 
+              documentTypes={caseData?.documentTypes || []}
+              questionnaires={questionnaires}
+              caseId={caseId}
+            />
             <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
               <Filter className="w-4 h-4" />
               All Filters
@@ -849,17 +925,37 @@ const CaseDetails = () => {
     return (
       <div className="p-6">
         {/* Header with Back Button */}
-        <div className="mb-6">
-          <div className="flex items-center gap-3 mb-1">
+        <div className="mb-6 flex justify-between">
+          <div className="flex items-center gap-8">
             <button 
               onClick={onBack}
               className="text-gray-600 hover:text-gray-800 transition-colors"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <h2 className="text-lg font-medium text-gray-900">Questionnaire</h2>
+            <div>
+              <div className="flex items-center gap-8">
+                <h2 className="text-lg font-medium text-gray-900">Questionnaire</h2>
+              </div>
+              <p className="text-sm text-gray-600">{questionnaire.questionnaire_name}</p>
+            </div>
           </div>
-          <p className="text-sm text-gray-600 ml-8">{questionnaire.questionnaire_name}</p>
+          <div>
+            <button
+              onClick={handleSave}
+              disabled={isSavingQuestionnaire}
+              className="px-6 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isSavingQuestionnaire ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                'Save'
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Form Content */}
@@ -910,16 +1006,6 @@ const CaseDetails = () => {
             </div>
           </div>
         </div>
-
-        {/* Save Button */}
-        <div className="flex justify-end mt-6">
-          <button
-            onClick={handleSave}
-            className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors"
-          >
-            Save
-          </button>
-        </div>
       </div>
     );
   };
@@ -934,6 +1020,7 @@ const CaseDetails = () => {
         const response = await api.get(`/questionnaire-responses/management/${caseId}`, {
           templateId: questionnaire._id
         });
+        console.log(response.data)
         
         if (response.data.status === 'success') {
           setQuestionnaireData(response.data.data);
@@ -999,8 +1086,112 @@ const CaseDetails = () => {
     );
   };
 
-  // Add this new component for the Forms tab
+  // Update the FormsTab component to accept selectedQuestionnaire as a prop
   const FormsTab = () => {
+    const [loadingFormId, setLoadingFormId] = useState(null);
+    const [error, setError] = useState(null);
+
+    // Function to load the template PDF and fill it with data
+    const fillPDFTemplate = async (formId, data) => {
+      try {
+        const templateUrl = `/templates/testing.pdf`;
+        const templateBytes = await fetch(templateUrl).then(res => res.arrayBuffer());
+        
+        const pdfDoc = await PDFDocument.load(templateBytes);
+        const form = pdfDoc.getForm();
+
+        try {
+          const processedInfo = data?.responses?.processedInformation;
+
+          // Fill the form fields with exact field names from the PDF
+          form.getTextField('Name of the Applicant').setText(
+            processedInfo?.Passport?.firstName || 'N/A'
+          );
+          
+          // Details of Applicant section
+          form.getTextField('Passport No').setText(processedInfo?.Passport?.passportNumber || 'N/A');
+          form.getTextField('Place of Issue').setText(processedInfo?.Passport?.placeOfIssue || 'N/A');
+          form.getTextField('Date of Issue').setText(processedInfo?.Passport?.dateOfIssue || 'N/A');
+          form.getTextField('Date of Expiry').setText(processedInfo?.Passport?.dateOfExpiry || 'N/A');
+          form.getTextField('Mobile Phone').setText(processedInfo?.Resume?.cellNumber || 'N/A');
+          form.getTextField('EMail Address').setText(processedInfo?.Resume?.emailId || 'N/A');
+          
+          // Employment and Education section
+          form.getTextField('Name of the Current Employer').setText(
+            processedInfo?.Resume?.currentCompanyName || 'N/A'
+          );
+          form.getTextField('Applicants current Designation role  position').setText(
+            processedInfo?.Resume?.currentPosition || 'N/A'
+          );
+
+          // Handle educational qualification array - take the highest education
+          const highestEducation = processedInfo?.Resume?.educationalQualification?.[
+            processedInfo.Resume.educationalQualification.length - 1
+          ];
+          form.getTextField('Educational Qualification').setText(
+            highestEducation?.courseLevel || 'N/A'
+          );
+
+          form.getTextField('Specific details of Skills Experience').setText(
+            `${processedInfo?.Resume?.currentPosition || 'N/A'}, ${processedInfo?.Resume?.previousPosition || 'N/A'}`
+          );
+
+        } catch (fieldError) {
+          console.error('Error filling specific field:', fieldError);
+          toast.error('Error filling some fields in the form');
+        }
+
+        // Save and download the filled PDF
+        const pdfBytes = await pdfDoc.save();
+        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `form-${formId}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+
+      } catch (err) {
+        console.error('Error filling PDF:', err);
+        toast.error('Failed to generate PDF');
+        throw err;
+      }
+    };
+
+    const handleFormClick = async (form) => {
+      try {
+        setLoadingFormId(form._id);
+        setError(null);
+
+        // Fetch organized documents data with questionnaire ID
+        const response = await api.get(`/questionnaire-responses/management/${caseId}`, {
+          params: {
+            templateId: selectedQuestionnaire?._id
+          }
+        });
+        
+        if (!response.data.status === 'success' || !response.data.data.responses?.[0]) {
+          throw new Error('Failed to fetch questionnaire data');
+        }
+
+        // Get the first response from the array
+        const documentData = {
+          responses: response.data.data.responses[0]
+        };
+
+        // Fill and download the PDF
+        await fillPDFTemplate(form._id, documentData);
+      } catch (err) {
+        console.error('Error processing form:', err);
+        setError(err.message);
+        toast.error('Failed to process form');
+      } finally {
+        setLoadingFormId(null);
+      }
+    };
+
     if (isLoading) {
       return (
         <div className="flex items-center justify-center h-64">
@@ -1009,19 +1200,41 @@ const CaseDetails = () => {
       );
     }
 
+    if (!selectedQuestionnaire) {
+      return (
+        <div className="p-6">
+          <div className="text-center text-gray-500">
+            Please select a questionnaire first
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="p-6">
         <div className="space-y-3">
+          <h2 className="text-lg font-semibold text-gray-900">Forms</h2>
           {forms.map((form) => (
             <div 
               key={form._id}
-              className="bg-white rounded-lg border border-gray-200 p-4 hover:bg-gray-50 transition-all"
+              onClick={() => handleFormClick(form)}
+              className="bg-white rounded-lg border border-gray-200 p-4 hover:bg-gray-50 transition-all cursor-pointer"
             >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-sm font-medium text-gray-900">{form.form_name}</h3>
-                  </div>
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <h3 className="text-sm font-medium text-gray-900">{form.form_name}</h3>
                 </div>
+                <div>
+                  {loadingFormId === form._id ? (
+                    <div className="flex items-center text-gray-400">
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Processing...
+                    </div>
+                  ) : (
+                    <Download className="w-4 h-4 text-gray-400" />
+                  )}
+                </div>
+              </div>
             </div>
           ))}
         </div>
