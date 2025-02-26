@@ -1,5 +1,5 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Cases from './pages/Cases';
 import Layout from './components/dashboard/Layout';
@@ -15,11 +15,26 @@ import EmployeeProfile from './pages/EmployeeProfile';
 import IndividualCases from './pages/IndividualCases';
 import CaseDetails from './pages/CaseDetails';
 import IndividualCaseDetails from './pages/IndividualCaseDetails';
+import FNDashboard from './pages/FNDashboard';
 import { useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 
+// New component to handle home route redirects based on user role
+const HomeRedirect = () => {
+  const { user } = useAuth();
+  
+  // Check user role and redirect accordingly
+  // Assuming user.role is available - adjust the condition based on your actual data structure
+  if (user?.role === 'individual' || user?.role === 'employee') {
+    return <Navigate to="/fndashboard" replace />;
+  }
+  
+  // Default redirect for other user types
+  return <Navigate to="/cases" replace />;
+};
+
 const App = () => {
-  const [currentBreadcrumb, setCurrentBreadcrumb] = useState([]);
+  const [, setCurrentBreadcrumb] = useState([]);
 
   return (
     <>
@@ -42,14 +57,19 @@ const App = () => {
                   <PrivateRoute>
                     <Layout>
                       <Routes>
+                        {/* Home Route - Redirects based on user role */}
+                        <Route path="/" element={<HomeRedirect />} />
+                        
                         {/* Dashboard Routes */}
                         <Route path="/cases" element={<Cases setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
                         <Route path="/cases/new" element={<NewCase setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
                         <Route path="/case/:caseId" element={<CaseDetails setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
                         
-                        {/* Individual Cases Routes */}
                         <Route path="/individual-cases" element={<IndividualCases setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
                         <Route path="/individuals/case/:caseId" element={<IndividualCaseDetails setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
+                        
+                        {/* FN Dashboard Route */}
+                        <Route path="/fndashboard" element={<FNDashboard setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
                         
                         {/* Corporation Routes */}
                         <Route path="/corporations" element={<Corporations setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
