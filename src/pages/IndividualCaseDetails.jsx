@@ -23,6 +23,143 @@ const getInitials = (name) => {
     : '';
 };
 
+const processingSteps = [
+  { id: 1, text: "Analyzing document..." },
+  { id: 2, text: "Extracting information..." },
+  { id: 3, text: "Validating content..." },
+  { id: 4, text: "Verifying document type..." }
+];
+
+const ProcessingIndicator = ({ currentStep }) => {
+  const [localStep, setLocalStep] = useState(currentStep);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLocalStep((prev) => (prev + 1) % processingSteps.length);
+    }, 800);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px] flex items-center justify-center rounded-lg z-50">
+      <div className="bg-white rounded-lg p-5 shadow-lg max-w-xs w-full mx-4">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="relative flex-shrink-0">
+            <div className="w-10 h-10">
+              <div 
+                className="absolute inset-0 border-4 border-blue-500 rounded-full animate-spin" 
+                style={{ animationDuration: '1s' }} 
+              />
+              <div 
+                className="absolute inset-2 border-4 border-blue-300 rounded-full animate-spin" 
+                style={{ animationDuration: '0.8s', animationDirection: 'reverse' }} 
+              />
+            </div>
+          </div>
+          
+          <div className="flex-1 min-w-0">
+            <div className="h-6 relative overflow-hidden">
+              {processingSteps.map((step, index) => (
+                <div
+                  key={step.id}
+                  className={`absolute w-full transition-all duration-200 ${
+                    index === localStep ? 'opacity-100 transform-none' : 'opacity-0 -translate-y-2'
+                  }`}
+                >
+                  <span className="text-sm font-medium text-gray-900 whitespace-nowrap">
+                    {step.text}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-1.5 mt-2">
+              {processingSteps.map((step, index) => (
+                <div
+                  key={step.id}
+                  className={`h-1 rounded-full transition-all duration-300 ${
+                    index === localStep ? 'w-10 bg-blue-500' : 'w-2 bg-blue-100'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        <p className="text-xs text-gray-500 text-center">
+          Please wait while we process your documents...
+        </p>
+      </div>
+    </div>
+  );
+};
+
+ProcessingIndicator.propTypes = {
+  currentStep: PropTypes.number.isRequired
+};
+
+const DocumentProgressBar = ({ status }) => {
+  // Use the same steps as in the processing animation
+  const stages = [
+    { id: 1, name: 'Analyzed', color: 'bg-gradient-to-r from-blue-400 to-blue-600', textColor: 'text-blue-600' },
+    { id: 2, name: 'Extracted', color: 'bg-gradient-to-r from-indigo-400 to-indigo-600', textColor: 'text-indigo-600' },
+    { id: 3, name: 'Validated', color: 'bg-gradient-to-r from-purple-400 to-purple-600', textColor: 'text-purple-600' },
+    { id: 4, name: 'Verified', color: 'bg-gradient-to-r from-green-400 to-green-600', textColor: 'text-green-600' }
+  ];
+
+  // For the sample UI, show all steps as completed
+  const currentStage = 4;
+
+  return (
+    <div className="mt-4">
+      <div className="relative">
+        {/* Steps with checkmarks */}
+        <div className="flex justify-between relative">
+          {/* Progress connector lines - stylized to show completed progress */}
+          <div className="absolute top-3 left-0 right-0 h-1 bg-gray-100 rounded-full z-0"></div>
+          
+          {/* Completed progress - dynamic width based on currentStage */}
+          <div 
+            className="absolute top-3 left-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-green-500 rounded-full z-0 transition-all duration-500"
+            style={{ width: `${((currentStage - 1) / (stages.length - 1)) * 100}%` }}
+          ></div>
+          
+          {stages.map((stage) => (
+            <div key={stage.id} className="flex flex-col items-center z-10">
+              {/* Step circle with checkmark */}
+              <div 
+                className={`w-6 h-6 rounded-full flex items-center justify-center mb-1.5 shadow-md
+                  ${stage.id <= currentStage ? stage.color : 'bg-gray-200'} 
+                  ${stage.id <= currentStage ? 'ring-2 ring-white' : ''}`}
+              >
+                {stage.id <= currentStage ? (
+                  <svg className="w-3.5 h-3.5 text-white drop-shadow-sm" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+                )}
+              </div>
+              
+              {/* Step label */}
+              <span 
+                className={`text-xs ${stage.id <= currentStage ? stage.textColor : 'text-gray-400'} 
+                  ${stage.id <= currentStage ? 'font-medium' : ''}`}
+              >
+                {stage.name}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+DocumentProgressBar.propTypes = {
+  status: PropTypes.string.isRequired
+};
+
 const IndividualCaseDetails = () => {
   const { caseId } = useParams();
   const [activeTab, setActiveTab] = useState('case-details');
@@ -49,6 +186,7 @@ const IndividualCaseDetails = () => {
     Passport: {},
     Resume: {}
   });
+  const [processingStep, setProcessingStep] = useState(0);
 
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
@@ -163,6 +301,7 @@ const IndividualCaseDetails = () => {
         formData.append('mimeType', file.type);
 
         try {
+          setProcessingStep(0); // Start with analyzing
           const response = await api.post('/documents', formData, {
             headers: {
               'Content-Type': 'multipart/form-data'
@@ -189,23 +328,33 @@ const IndividualCaseDetails = () => {
       }
 
       // Process and verify documents
-      await Promise.all(
+      const processResults = await Promise.all(
         uploadedDocs.map(async (doc) => {
           try {
+            setProcessingStep(1); // Extracting information
             const processedDoc = await checkDocumentProcessing(doc._id);
             if (!processedDoc) {
+              // Delete document if processing failed
+              await api.delete(`/documents/${doc._id}`);
               throw new Error('Document processing failed');
             }
 
-            // Update document with management document ID
+            setProcessingStep(2); // Validating content
+
+            // Check if document type matches any pending document type
             if (processedDoc.extractedData?.document_type) {
+              setProcessingStep(3); // Verifying document type
               const extractedType = processedDoc.extractedData.document_type.toLowerCase().trim();
+              
+              // Find matching document type that's not already uploaded
               const matchingDocType = caseData.documentTypes.find(type => {
                 return type.name.toLowerCase().trim() === extractedType && 
-                       type.status !== 'uploaded';
+                       type.status !== 'uploaded' &&
+                       type.status !== 'approved';
               });
 
               if (matchingDocType) {
+                // Update document with correct management document ID
                 await api.patch(`/documents/${doc._id}`, {
                   documentTypeId: matchingDocType.documentTypeId,
                   managementDocumentId: matchingDocType._id
@@ -215,39 +364,64 @@ const IndividualCaseDetails = () => {
                 await api.patch(`/management/${caseId}/documents/${matchingDocType.documentTypeId}/status`, {
                   status: 'uploaded'
                 });
-              }
-            }
 
-            return processedDoc;
+                return { success: true, docId: doc._id };
+              } else {
+                // No matching pending document type found - delete the document
+                console.log(`No matching pending document type found for ${extractedType}. Deleting document ${doc._id}`);
+                await api.delete(`/documents/${doc._id}`);
+                return { success: false, docId: doc._id, error: 'Document type mismatch' };
+              }
+            } else {
+              // No document type extracted - delete the document
+              await api.delete(`/documents/${doc._id}`);
+              return { success: false, docId: doc._id, error: 'Could not extract document type' };
+            }
           } catch (err) {
             console.error(`Error processing document ${doc._id}:`, err);
-            return null;
+            // Attempt to delete the document on error
+            try {
+              await api.delete(`/documents/${doc._id}`);
+            } catch (deleteErr) {
+              console.error(`Error deleting failed document ${doc._id}:`, deleteErr);
+            }
+            return { success: false, docId: doc._id, error: err.message };
           }
         })
       );
 
-      // Refresh data after successful upload
+      // Count successful uploads
+      const successfulUploads = processResults.filter(result => result.success).length;
+      const failedUploads = processResults.filter(result => !result.success).length;
+
+      // Refresh data after processing
       await refreshCaseData();
       
       setFiles([]);
-      toast.success('Documents processed successfully');
+
+      // Show appropriate toast message
+      if (successfulUploads > 0) {
+        toast.success(`Successfully processed ${successfulUploads} document${successfulUploads !== 1 ? 's' : ''}`);
+      }
+      if (failedUploads > 0) {
+        toast.error(`${failedUploads} document${failedUploads !== 1 ? 's' : ''} failed verification`);
+      }
 
     } catch (err) {
       console.error('Error in file upload process:', err);
       toast.error('Error processing documents');
       
-      // Clean up any uploaded documents on error
-      if (uploadedDocIds.length) {
-        await Promise.all(
-          uploadedDocIds.map(docId =>
-            api.delete(`/documents/${docId}`).catch(err => {
-              console.error(`Error deleting document ${docId}:`, err);
-            })
-          )
-        );
-      }
+      // Clean up any remaining uploaded documents on error
+      await Promise.all(
+        uploadedDocIds.map(docId =>
+          api.delete(`/documents/${docId}`).catch(err => {
+            console.error(`Error deleting document ${docId}:`, err);
+          })
+        )
+      );
     } finally {
       setIsProcessing(false);
+      setProcessingStep(0);
     }
   };
 
@@ -552,24 +726,30 @@ const IndividualCaseDetails = () => {
           {uploadStatus === 'pending' ? (
             pendingDocuments.length > 0 ? (
               pendingDocuments.map((doc) => (
-                <div key={doc._id} className="bg-white rounded-lg shadow-sm p-4">
-                  <div className="flex justify-between items-start group">
-                    <div>
-                      <h4 className="font-medium text-sm mb-1">
-                        {doc.name}
-                        {doc.required && (
-                          <span className="ml-2 text-xs text-red-500">*Required</span>
-                        )}
-                      </h4>
-                      <p className="text-sm text-gray-500 leading-snug">
-                        Please upload your {doc.name.toLowerCase()} document
-                      </p>
+                <div key={doc._id} className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow border border-dashed border-gray-200">
+                  <div className="flex flex-col">
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-md bg-amber-50 flex items-center justify-center">
+                          <svg className="w-4 h-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-800">
+                            {doc.name}
+                            {doc.required && (
+                              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700">
+                                Required
+                              </span>
+                            )}
+                          </h4>
+                          <p className="text-sm text-gray-500 mt-0.5">
+                            Please upload your {doc.name.toLowerCase()}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <button className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                        <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                      </svg>
-                    </button>
                   </div>
                 </div>
               ))
@@ -581,25 +761,39 @@ const IndividualCaseDetails = () => {
           ) : (
             uploadedDocuments.length > 0 ? (
               uploadedDocuments.map((doc) => (
-                <div key={doc._id} className="bg-white rounded-lg shadow-sm p-4">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-medium text-sm mb-1">{doc.name}</h4>
-                      <div className="flex items-center gap-2">
-                        <span className="flex items-center text-sm text-green-600">
-                          <svg className="w-4 h-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                <div key={doc._id} className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow">
+                  <div className="flex flex-col">
+                    <div className="flex justify-between items-start">
+                      {/* Document icon and name */}
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-md bg-blue-50 flex items-center justify-center">
+                          <svg className="w-4 h-4 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
-                          Uploaded
-                        </span>
-                        <button className="text-blue-600 text-sm hover:underline">
-                          View
-                        </button>
+                        </div>
+                        <h4 className="font-medium text-gray-800">{doc.name}</h4>
                       </div>
+                      
+                      {/* Status tag - with dynamic status from backend */}
+                      <span 
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                          ${doc.status === 'approved' 
+                            ? 'bg-green-50 text-green-700' 
+                            : doc.status === 'uploaded' 
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'bg-gray-50 text-gray-700'
+                          }`}
+                      >
+                        {doc.status === 'approved' 
+                          ? 'Approved' 
+                          : doc.status === 'uploaded' 
+                            ? 'Uploaded' 
+                            : doc.status || 'Processing'}
+                      </span>
                     </div>
-                    <div className="text-sm text-gray-500">
-                      {new Date(doc.updatedAt).toLocaleDateString()}
-                    </div>
+                    
+                    {/* Keep the progress bar as is */}
+                    <DocumentProgressBar status={doc.status || 'uploaded'} />
                   </div>
                 </div>
               ))
@@ -615,98 +809,112 @@ const IndividualCaseDetails = () => {
 
     const renderSmartUpload = () => (
       uploadStatus === 'pending' && (
-        <div className="flex-1 border border-gray-200 rounded-lg p-4">
+        <div className="flex-1 border border-gray-200 rounded-lg p-4 relative">
+          {/* Processing overlay */}
+          {isProcessing && <ProcessingIndicator currentStep={processingStep} />}
+          
           <div className="mb-4">
             <h4 className="font-medium text-sm">Smart Upload Files</h4>
           </div>
           
-          <div 
-            className={`flex flex-col items-center justify-center py-8 rounded-lg h-[calc(100%-3rem)] transition-colors
-              ${isDragging 
-                ? 'bg-blue-50 border-2 border-dashed border-blue-300' 
-                : 'bg-gray-50'
+          <div className={`transition-all ${isProcessing ? 'blur-sm' : ''}`}>
+            <div 
+              className={`flex flex-col items-center justify-center py-10 px-6 rounded-lg transition-all duration-300 ${
+                isDragging 
+                  ? 'bg-blue-50 border-2 border-dashed border-blue-400 shadow-inner' 
+                  : 'bg-gray-50 border-2 border-dashed border-gray-200 hover:bg-gray-100 hover:border-gray-300'
               }`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            <input
-              type="file"
-              multiple
-              className="hidden"
-              id="file-upload"
-              onChange={handleFileSelect}
-            />
-            
-            {files.length > 0 ? (
-              <div className="w-full px-6">
-                <div className="mb-4 text-center">
-                  <span className="text-sm text-gray-500">{files.length} file(s) selected</span>
-                </div>
-                <div className="space-y-2 mb-6 max-h-40 overflow-y-auto">
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              {/* Upload Icon */}
+              <div className={`mb-4 p-5 rounded-full ${isDragging ? 'bg-blue-100' : 'bg-gray-100'}`}>
+                <svg 
+                  className={`w-8 h-8 ${isDragging ? 'text-blue-600' : 'text-gray-500'}`} 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+              </div>
+              
+              {/* Upload Instructions */}
+              <div className="text-center space-y-4">
+                <h3 className={`font-medium ${isDragging ? 'text-blue-700' : 'text-gray-700'}`}>
+                  {isDragging ? 'Drop files here' : 'Upload your documents'}
+                </h3>
+                <p className="text-sm text-gray-500 mb-2">
+                  Drag & drop files here or use the button below
+                </p>
+                
+                <label 
+                  htmlFor="smart-file-upload" 
+                  className="inline-flex items-center justify-center px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium rounded-lg cursor-pointer transition-colors"
+                >
+                  <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l-3-3m0 0l-3 3m3-3v12M3 17.25V21h18v-3.75M3 10.5V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v3" />
+                  </svg>
+                  Browse Files
+                </label>
+                
+                <p className="text-xs text-gray-400 mt-2">
+                  Supports JPG, PNG and PDF (max 10MB)
+                </p>
+              </div>
+              
+              {/* Hidden file input */}
+              <input 
+                type="file" 
+                multiple 
+                accept="image/jpeg,image/png,image/jpg,application/pdf" 
+                className="hidden" 
+                onChange={handleFileSelect}
+                id="smart-file-upload"
+              />
+              
+              {/* Selected files preview */}
+              {files.length > 0 && (
+                <div className="w-full mt-6 space-y-2">
+                  <div className="text-sm font-medium text-gray-700 mb-2">Selected files:</div>
                   {files.map((file, index) => (
-                    <div 
-                      key={index} 
-                      className="flex items-center justify-between bg-white p-2 rounded"
-                    >
+                    <div key={index} className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-200">
                       <div className="flex items-center">
-                        <svg className="w-4 h-4 text-gray-400 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                          <path d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />
-                        </svg>
-                        <span className="text-sm truncate max-w-xs">{file.name}</span>
+                        <div className="w-8 h-8 rounded-md bg-blue-50 flex items-center justify-center mr-3">
+                          <svg className="w-4 h-4 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-gray-800 truncate max-w-xs">{file.name}</div>
+                          <div className="text-xs text-gray-500">{(file.size / 1024 / 1024).toFixed(2)} MB</div>
+                        </div>
                       </div>
                       <button 
+                        className="text-gray-400 hover:text-red-500"
                         onClick={() => setFiles(files.filter((_, i) => i !== index))}
-                        className="text-gray-400 hover:text-gray-600"
                       >
-                        <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                       </button>
                     </div>
                   ))}
+                  
+                  <div className="flex justify-end mt-4">
+                    <button
+                      onClick={() => handleFileUpload(files)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      disabled={isProcessing}
+                    >
+                      {isProcessing ? 'Processing...' : 'Upload Files'}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <label 
-                    htmlFor="file-upload"
-                    className="bg-blue-600 text-white py-2.5 px-6 rounded-lg text-sm font-medium cursor-pointer hover:bg-blue-700 transition-colors text-center"
-                  >
-                    Browse More Files
-                  </label>
-                  <button 
-                    onClick={() => handleFileUpload(files)}
-                    disabled={isProcessing}
-                    className={`bg-blue-600 text-white py-2.5 px-6 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2
-                      ${isProcessing ? 'opacity-75 cursor-not-allowed' : ''}`}
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      `Upload ${files.length} file${files.length !== 1 ? 's' : ''}`
-                    )}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mb-3">
-                  <FileUp className="w-6 h-6 text-gray-500" />
-                </div>
-                <p className="text-sm text-gray-500 mb-2">
-                  {isDragging ? 'Drop files here' : 'Drag and drop files here'}
-                </p>
-                <p className="text-sm text-gray-400 mb-6">or</p>
-                <label 
-                  htmlFor="file-upload"
-                  className="bg-blue-600 text-white py-2.5 px-6 rounded-lg text-sm font-medium cursor-pointer hover:bg-blue-700 transition-colors"
-                >
-                  Browse Files
-                </label>
-              </>
-            )}
+              )}
+            </div>
           </div>
         </div>
       )
