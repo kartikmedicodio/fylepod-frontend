@@ -95,7 +95,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
         section: 'Cases',
         items: [
           { name: 'All Cases', href: '/individual-cases', icon: BriefcaseBusiness },
-          { name: 'Document Library', href: '/documents', icon: FolderIcon },
+          { name: 'Document Library', href: '/documents', icon: FolderIcon, disabled: true },
         ]
       }
     ];
