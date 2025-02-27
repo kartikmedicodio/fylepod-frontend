@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../utils/api';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import CaseDetails from './CaseDetails';
 
 // Add CasesSkeleton component at the top of the file
 const CasesSkeleton = () => {
@@ -69,6 +70,7 @@ const Cases = () => {
   const [pagination, setPagination] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredCases, setFilteredCases] = useState([]);
+  const [selectedCase, setSelectedCase] = useState(null);
 
   const fetchCases = async (page, search = '') => {
     try {
@@ -144,6 +146,21 @@ const Cases = () => {
     setSearchTerm(e.target.value);
     setCurrentPage(1); // Reset to first page when searching
   };
+
+  // Add this new function to handle case click
+  const handleCaseClick = (caseItem) => {
+    setSelectedCase(caseItem._id);
+  };
+
+  // Add this function to handle going back to cases list
+  const handleBackToCases = () => {
+    setSelectedCase(null);
+  };
+
+  // If a case is selected, show the CaseDetails component
+  if (selectedCase) {
+    return <CaseDetails caseId={selectedCase} onBack={handleBackToCases} />;
+  }
 
   // Only show skeleton for initial load, not during search
   if (loading && !searching) {
@@ -221,7 +238,11 @@ const Cases = () => {
                 </tr>
               ) : (
                 filteredCases.map((caseItem) => (
-                  <tr key={caseItem._id} className="hover:bg-gray-50">
+                  <tr 
+                    key={caseItem._id} 
+                    className="hover:bg-gray-50 cursor-pointer"
+                    onClick={() => handleCaseClick(caseItem)}
+                  >
                     <td className="px-6 py-4 text-sm text-gray-500">
                       {caseItem._id}
                     </td>

@@ -18,9 +18,9 @@ const CaseDetailsSidebar = ({ caseData, loading, error }) => {
   };
 
   return (
-    <div className="w-80 border-r border-gray-200 h-full overflow-y-auto">
+    <div className="w-80">
       {/* Case Details Section */}
-      <div className="p-6 bg-white mb-2 shadow-sm rounded-xl">
+      <div className="p-6 bg-white mb-4 shadow-sm rounded-xl">
         <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 text-gray-800">
           <Folder className="text-blue-600" size={20} />
           Case Details
@@ -63,7 +63,7 @@ const CaseDetailsSidebar = ({ caseData, loading, error }) => {
       </div>
 
       {/* Profile Section */}
-      <div className="p-6 rounded-xl bg-white shadow-sm border border-gray-100/50">
+      <div className="p-6 mb-4 rounded-xl bg-white shadow-sm border border-gray-100/50">
         <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 text-gray-800">
           <User className="text-blue-600" size={20} />
           Profile

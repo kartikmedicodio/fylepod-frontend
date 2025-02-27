@@ -52,8 +52,11 @@ const checkAllDocumentsApproved = (documentTypes) => {
   return documentTypes.every(doc => doc.status === DOCUMENT_STATUS.APPROVED);
 };
 
-const CaseDetails = () => {
-  const { caseId } = useParams();
+const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
+  // Get caseId from either props or URL params
+  const { caseId: paramsCaseId } = useParams();
+  const caseId = propsCaseId || paramsCaseId;
+
   const [activeTab, setActiveTab] = useState('document-checklist');
   const [caseData, setCaseData] = useState(null);
   const [profileData, setProfileData] = useState(null);
@@ -1292,11 +1295,27 @@ const CaseDetails = () => {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      <CaseDetailsSidebar 
-        caseData={caseData} 
-        loading={!caseData && !error} 
-        error={error}
-      />
+      <div className="flex flex-col min-w-[320px] bg-white border-r border-gray-200 shadow-sm relative">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="sticky top-4 left-4 p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-full transition-all duration-200 group flex items-center gap-2 z-10"
+            >
+              <ChevronLeft className="w-5 h-8 transition-transform group-hover:-translate-x-0.5" />
+              <span className="text-m font-medium ">
+                Back
+              </span>
+            </button>
+          )}
+          
+          <div className="overflow-y-auto flex-1">
+            <CaseDetailsSidebar 
+              caseData={caseData} 
+              loading={!caseData && !error} 
+              error={error}
+            />
+          </div>
+      </div>
       
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="bg-white border-b border-gray-200 shadow-sm">
