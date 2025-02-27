@@ -3,6 +3,8 @@ import api from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
 import { Check } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import PropTypes from 'prop-types';
 
 // Loading skeleton component
 const DashboardSkeleton = () => {
@@ -38,9 +40,9 @@ const DashboardSkeleton = () => {
 };
 
 const FNDashboard = ({ setCurrentBreadcrumb }) => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [allCases, setAllCases] = useState([]);
   const [currentUserCases, setCurrentUserCases] = useState([]);
   const [otherUserCases, setOtherUserCases] = useState({});
 
@@ -51,10 +53,10 @@ const FNDashboard = ({ setCurrentBreadcrumb }) => {
     ]);
   }, [setCurrentBreadcrumb]);
 
-  // Modified getStepMapping function to properly calculate previous and next steps
+  // Modified getStepMapping function to remove Filing step and show tick for Preparation
   const getStepMapping = (caseItem) => {
-    // Default steps for all case types
-    const defaultSteps = ['Case Started', 'Docs Collection', 'In Review', 'Preparation', 'Filing'];
+    // Updated steps array - removed Filing
+    const defaultSteps = ['Case Started', 'Docs Collection', 'In Review', 'Preparation'];
     
     // Calculate current step based on documents and status
     // Start with 1 (Document Collection) since Case Started (0) is always completed
@@ -63,9 +65,11 @@ const FNDashboard = ({ setCurrentBreadcrumb }) => {
     if (caseItem.documentTypes) {
       const totalDocs = caseItem.documentTypes.length;
       const uploadedDocs = caseItem.documentTypes.filter(doc => 
-        doc.status === 'uploaded' || doc.status === 'approved'
+        doc.status === 'uploaded'
       ).length;
-      
+      const approvedDocs = caseItem.documentTypes.filter(doc => 
+         doc.status === 'approved'
+      ).length;
       // Simple logic for the remaining steps
       if (uploadedDocs === 0) {
         currentStep = 1; // Starting at Docs Collection
@@ -76,14 +80,14 @@ const FNDashboard = ({ setCurrentBreadcrumb }) => {
       }
       
       // Could add more logic based on case status
-      if (caseItem.categoryStatus === 'approved') {
-        currentStep = 3; // Preparation
+      if (approvedDocs === totalDocs) {
+        currentStep = 4; // Set as 4 to make Preparation (index 3) show as completed
       }
     }
     
     // Correctly calculate previous and next steps based on current position
     const previousStep = currentStep > 0 ? defaultSteps[currentStep - 1] : 'Case initiation'; 
-    const nextStep = currentStep < defaultSteps.length - 1 ? defaultSteps[currentStep + 1] : 'Completion';
+    const nextStep = currentStep < defaultSteps.length ? 'Completion' : 'Completion';
     
     return {
       steps: defaultSteps,
@@ -148,8 +152,6 @@ const FNDashboard = ({ setCurrentBreadcrumb }) => {
 
   // Updated: Process cases and separate current user's cases from others
   const processAndSeparateCases = (cases) => {
-    setAllCases(cases);
-    
     // Get current user information (name, email, etc.) to identify their cases
     // This assumes user has name or email that can be matched with userName in cases
     const currentUserName = user?.name || user?.email || ''; 
@@ -198,6 +200,11 @@ const FNDashboard = ({ setCurrentBreadcrumb }) => {
     }
   }, [user?.id]);
 
+  // Add this new function to handle navigation
+  const handleCaseClick = (caseId) => {
+    navigate(`/individuals/case/${caseId}`);
+  };
+
   if (loading) {
     return <DashboardSkeleton />;
   }
@@ -214,66 +221,75 @@ const FNDashboard = ({ setCurrentBreadcrumb }) => {
           </div>
         )}
         
-        {/* Current User's Cases Section */}
+        {/* Current User's Cases Section with Simplified Design */}
         {currentUserCases.length > 0 && (
-          <div className="flex flex-col space-y-2">
-            {/* Add user's name above their cases */}
-            <div className="text-base font-medium text-gray-800">{user?.name || user?.email || 'My Profile'}</div>
+          <div className="flex flex-col space-y-3">
+            {/* User name with simpler styling */}
+            <div className="text-base font-medium text-gray-800 mb-1">
+              {user?.name || user?.email || 'My Profile'}
+            </div>
             
             {currentUserCases.map((caseItem) => (
-              <div key={caseItem._id} className="bg-white rounded-lg shadow-sm p-4">
+              <div 
+                key={caseItem._id} 
+                className="bg-white rounded-lg shadow-sm p-5 hover:shadow cursor-pointer border border-gray-100"
+                onClick={() => handleCaseClick(caseItem._id)}
+              >
                 <div className="flex justify-between items-center mb-6">
                   <div className="font-semibold text-gray-800">{caseItem.categoryName}</div>
-                  <div className="text-sm text-green-500 flex items-center border border-green-200 px-2 py-1 rounded-full bg-green-50">
-                    • {caseItem.categoryStatus || 'In Progress'}
+                  <div className="text-sm px-3 py-1 rounded-full bg-green-50 text-green-600 border border-green-100">
+                    {caseItem.categoryStatus || 'In Progress'}
                   </div>
                 </div>
                 
-                <div className="flex justify-between mb-5 relative">
+                {/* Simplified Progress Bar */}
+                <div className="flex justify-between mb-6 relative">
                   {caseItem.steps.map((step, stepIndex) => (
                     <div key={stepIndex} className="flex flex-col items-center relative w-full">
                       <div className="relative">
                         {/* Show checkmark for completed steps */}
                         {stepIndex < caseItem.currentStep && (
-                          <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center z-10">
+                          <div className="w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center z-10">
                             <Check className="w-4 h-4 text-white" />
                           </div>
                         )}
                         
                         {/* Current step */}
                         {stepIndex === caseItem.currentStep && (
-                          <div className="w-6 h-6 rounded-full border-2 border-blue-500 flex items-center justify-center z-10">
-                            <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
+                          <div className="w-7 h-7 rounded-full border-2 border-blue-500 flex items-center justify-center z-10 bg-white">
+                            <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                           </div>
                         )}
                         
                         {/* Future steps */}
                         {stepIndex > caseItem.currentStep && (
-                          <div className="w-6 h-6 rounded-full border border-gray-300 z-10">
+                          <div className="w-7 h-7 rounded-full border border-gray-200 bg-white z-10">
                           </div>
                         )}
                       </div>
                       
-                      <div className="text-xs text-gray-500 text-center whitespace-nowrap mt-2">{step}</div>
+                      <div className="text-xs text-gray-600 text-center whitespace-nowrap mt-2" style={{ maxWidth: '90px' }}>
+                        {step}
+                      </div>
                       
-                      {/* Shorter connecting lines */}
+                      {/* Cleaner connecting lines */}
                       {stepIndex < caseItem.steps.length - 1 && (
-                        <div className={`absolute top-3 left-[calc(50%+12px)] w-[calc(100%-24px)] h-0.5 
-                          ${stepIndex < caseItem.currentStep ? 'bg-blue-500' : 'bg-gray-200'}`}>
+                        <div className={`absolute top-3.5 left-[calc(50%+15px)] w-[calc(100%-30px)] h-0.5
+                                        ${stepIndex < caseItem.currentStep ? 'bg-blue-500' : 'bg-gray-200'}`}>
                         </div>
                       )}
                     </div>
                   ))}
                 </div>
                 
-                <div className="flex justify-between mt-4 text-xs">
-                  <div className="bg-gray-100 px-3 py-2 rounded-full">
-                    <span className="text-gray-600">Previous step - </span>
-                    <span className="font-medium text-gray-900">{caseItem.previousStep}</span>
+                <div className="flex justify-between mt-4 text-xs gap-3">
+                  <div className="bg-gray-50 px-3 py-2 rounded border border-gray-100 flex-1">
+                    <span className="text-gray-500">Previous: </span>
+                    <span className="font-medium text-gray-800">{caseItem.previousStep}</span>
                   </div>
-                  <div className="bg-gray-100 px-3 py-2 rounded-full">
-                    <span className="text-gray-600">Next step - </span>
-                    <span className="font-medium text-gray-900">{caseItem.nextStep}</span>
+                  <div className="bg-blue-50 px-3 py-2 rounded border border-blue-100 text-blue-700 flex-1">
+                    <span className="text-blue-500">Next: </span>
+                    <span className="font-medium">{caseItem.nextStep}</span>
                   </div>
                 </div>
               </div>
@@ -281,74 +297,81 @@ const FNDashboard = ({ setCurrentBreadcrumb }) => {
           </div>
         )}
         
-        {/* Separator - make more compact */}
+        {/* Simple separator */}
         {currentUserCases.length > 0 && Object.keys(otherUserCases).length > 0 && (
-          <div className="mt-3 border-t pt-3">
-            {/* No text content, just spacing and border */}
-          </div>
+          <div className="my-4 border-t border-gray-200"></div>
         )}
         
-        {/* Other Users' Cases Section */}
+        {/* Other Users' Cases Section with the same simplified design */}
         {Object.keys(otherUserCases).length > 0 && (
           <>
             {Object.entries(otherUserCases).map(([userName, userCases]) => (
-              <div key={userName} className="flex flex-col space-y-2">
-                <div className="text-base font-medium text-gray-800">{userName}</div>
+              <div key={userName} className="flex flex-col space-y-3">
+                <div className="text-base font-medium text-gray-800 mb-1">
+                  {userName}
+                </div>
                 
                 {userCases.map((caseItem) => (
-                  <div key={caseItem._id} className="bg-white rounded-lg shadow-sm p-4">
+                  <div 
+                    key={caseItem._id} 
+                    className="bg-white rounded-lg shadow-sm p-5 hover:shadow cursor-pointer border border-gray-100"
+                    onClick={() => handleCaseClick(caseItem._id)}
+                  >
                     <div className="flex justify-between items-center mb-6">
                       <div className="font-semibold text-gray-800">{caseItem.categoryName}</div>
-                      <div className="text-sm text-green-500 flex items-center border border-green-200 px-2 py-1 rounded-full bg-green-50">
-                        • {caseItem.categoryStatus || 'In Progress'}
+                      <div className="text-sm px-3 py-1 rounded-full bg-green-50 text-green-600 border border-green-100">
+                        {caseItem.categoryStatus || 'In Progress'}
                       </div>
                     </div>
                     
-                    <div className="flex justify-between mb-5 relative">
+                    {/* Simplified Progress Bar */}
+                    <div className="flex justify-between mb-6 relative">
                       {caseItem.steps.map((step, stepIndex) => (
                         <div key={stepIndex} className="flex flex-col items-center relative w-full">
                           <div className="relative">
                             {/* Show checkmark for completed steps */}
                             {stepIndex < caseItem.currentStep && (
-                              <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center z-10">
+                              <div className="w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center z-10">
                                 <Check className="w-4 h-4 text-white" />
                               </div>
                             )}
                             
                             {/* Current step */}
                             {stepIndex === caseItem.currentStep && (
-                              <div className="w-6 h-6 rounded-full border-2 border-blue-500 flex items-center justify-center z-10">
-                                <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
+                              <div className="w-7 h-7 rounded-full border-2 border-blue-500 flex items-center justify-center z-10 bg-white">
+                                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                               </div>
                             )}
                             
                             {/* Future steps */}
                             {stepIndex > caseItem.currentStep && (
-                              <div className="w-6 h-6 rounded-full border border-gray-300 z-10">
+                              <div className="w-7 h-7 rounded-full border border-gray-200 bg-white z-10">
                               </div>
                             )}
                           </div>
                           
-                          <div className="text-xs text-gray-500 text-center whitespace-nowrap mt-2">{step}</div>
+                          <div className="text-xs text-gray-600 text-center whitespace-nowrap mt-2" style={{ maxWidth: '90px' }}>
+                            {step}
+                          </div>
                           
-                          {/* Shorter connecting lines */}
+                          {/* Cleaner connecting lines */}
                           {stepIndex < caseItem.steps.length - 1 && (
-                            <div className={`absolute top-3 left-[calc(50%+12px)] w-[calc(100%-24px)] h-0.5 
-                              ${stepIndex < caseItem.currentStep ? 'bg-blue-500' : 'bg-gray-200'}`}>
+                            <div className={`absolute top-3.5 left-[calc(50%+15px)] w-[calc(100%-30px)] h-0.5
+                                            ${stepIndex < caseItem.currentStep ? 'bg-blue-500' : 'bg-gray-200'}`}>
                             </div>
                           )}
                         </div>
                       ))}
                     </div>
                     
-                    <div className="flex justify-between mt-4 text-xs">
-                      <div className="bg-gray-100 px-3 py-2 rounded-full">
-                        <span className="text-gray-600">Previous step - </span>
-                        <span className="font-medium text-gray-900">{caseItem.previousStep}</span>
+                    <div className="flex justify-between mt-4 text-xs gap-3">
+                      <div className="bg-gray-50 px-3 py-2 rounded border border-gray-100 flex-1">
+                        <span className="text-gray-500">Previous: </span>
+                        <span className="font-medium text-gray-800">{caseItem.previousStep}</span>
                       </div>
-                      <div className="bg-gray-100 px-3 py-2 rounded-full">
-                        <span className="text-gray-600">Next step - </span>
-                        <span className="font-medium text-gray-900">{caseItem.nextStep}</span>
+                      <div className="bg-blue-50 px-3 py-2 rounded border border-blue-100 text-blue-700 flex-1">
+                        <span className="text-blue-500">Next: </span>
+                        <span className="font-medium">{caseItem.nextStep}</span>
                       </div>
                     </div>
                   </div>
@@ -360,6 +383,11 @@ const FNDashboard = ({ setCurrentBreadcrumb }) => {
       </div>
     </div>
   );
+};
+
+// Add PropTypes validation
+FNDashboard.propTypes = {
+  setCurrentBreadcrumb: PropTypes.func.isRequired
 };
 
 export default FNDashboard;
