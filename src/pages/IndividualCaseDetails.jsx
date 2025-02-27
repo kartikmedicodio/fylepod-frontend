@@ -693,8 +693,10 @@ const IndividualCaseDetails = () => {
   );
 
   const QueriesTab = () => (
-    <div className="bg-white border border-gray-200 rounded-lg p-6">
-      <h3 className="text-lg font-semibold mb-6">Queries</h3>
+    <div className="bg-white border border-gray-200 rounded-lg p-6 opacity-70">
+      <h3 className="text-lg font-semibold mb-6">
+        Queries <span className="text-sm font-normal text-gray-500 ml-2">Coming Soon</span>
+      </h3>
       <div>Queries Content</div>
     </div>
   );
@@ -1295,7 +1297,7 @@ const IndividualCaseDetails = () => {
       {/* Tabs Navigation */}
       <div className="px-6 py-4">
         <div className="flex gap-2">
-          {['Case Details', 'Documents Checklist', 'Queries'].map((tab) => (
+          {['Case Details', 'Documents Checklist'].map((tab) => (
             <button
               key={tab}
               className={`px-6 py-3 text-base font-medium rounded-lg transition-colors ${
@@ -1308,6 +1310,13 @@ const IndividualCaseDetails = () => {
               {tab}
             </button>
           ))}
+          <button
+            key="Queries"
+            className="px-6 py-3 text-base font-medium rounded-lg transition-colors text-gray-400 cursor-not-allowed opacity-70"
+            disabled
+          >
+            Queries 
+          </button>
         </div>
       </div>
 
