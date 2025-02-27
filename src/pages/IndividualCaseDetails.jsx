@@ -127,7 +127,7 @@ const DocumentProgressBar = ({ status }) => {
   }
 
   // Log for debugging
-  console.log('Document status:', status, 'Normalized:', normalizedStatus, 'Stage:', currentStage);
+  // console.log('Document status:', status, 'Normalized:', normalizedStatus, 'Stage:', currentStage);
 
   return (
     <div className="mt-3">
@@ -543,79 +543,75 @@ const IndividualCaseDetails = () => {
 
       console.log('Valid documents:', validDocuments);
       
-      // Get all documents for this case
-      const documentsResponse = await api.get('/documents', {
-        params: { 
-          managementId: caseId
-        }
+      // Extract just the document type IDs
+      const validDocTypeIds = validDocuments.map(doc => doc.id);
+      console.log('Valid document type IDs:', validDocTypeIds);
+      
+      // Use the new API endpoint with POST instead of GET
+      const documentsResponse = await api.post('/documents/management-docs', {
+        managementId: caseId,
+        docTypeIds: validDocTypeIds // Send the array directly in the request body
       });
-
-      // Get document IDs by matching managementDocumentId
-      const uploadedDocIds = validDocuments
-        .map(validDoc => {
-          const matchingDoc = documentsResponse.data.data.documents
-            .find(doc => doc.managementDocumentId === validDoc.id && doc.status === 'processed');
-          return matchingDoc?._id || null;
-        })
-        .filter(Boolean);
-
-      console.log('Final selected document IDs:', uploadedDocIds);
-
-      if (uploadedDocIds.length === 0) {
+      
+      const validDocs = documentsResponse.data.data.documents;
+      console.log(`Found ${validDocs.length} valid documents for chat:`, validDocs);
+      
+      if (validDocs.length === 0) {
         setMessages(prev => [...prev, {
           role: 'assistant',
-          content: "I don't see any uploaded documents yet. Please upload some documents first, and I'll be happy to help analyze them."
+          content: "I don't see any processed documents yet. Please ensure documents are uploaded and processed."
         }]);
         setIsSending(false);
         return;
       }
+      
+      // Extract document IDs for chat creation
+      const docIds = validDocs.map(doc => doc._id);
+      console.log('Using these document IDs for chat:', docIds);
+      
+      // Now that we fixed the backend, we can simply create the chat with all documents
+      console.log('Creating chat with all documents:', docIds);
+      const chatResponse = await api.post('/chat', {
+        documentIds: docIds,
+        managementId: caseId
+      });
+      
+      console.log('Chat response:', chatResponse);
+      
+      if (!chatResponse.data?.status === 'success' || !chatResponse.data?.data?.chat) {
+        throw new Error(chatResponse.data?.message || 'Failed to create chat');
+      }
 
-      // 4. Create or get chat session
-      let chatId;
-      if (!currentChat) {
-        try {
-          console.log('Creating chat with documents:', uploadedDocIds);
-          const chatResponse = await api.post('/chat', {
-            documentIds: uploadedDocIds
-          });
-          
-          if (!chatResponse.data?.status === 'success' || !chatResponse.data?.data?.chat) {
-            throw new Error(chatResponse.data?.message || 'Failed to create chat');
-          }
+      const newChat = chatResponse.data.data.chat;
+      setCurrentChat(newChat);
+      const chatId = newChat._id;
+      
+      // Send initial message to chat
+      console.log('Sending message to chat:', chatId);
+      const messageResponse = await api.post(`/chat/${chatId}/messages`, {
+        message: chatInput
+      });
 
-          const newChat = chatResponse.data.data.chat;
-          setCurrentChat(newChat);
-          chatId = newChat._id;
-        } catch (error) {
-          console.error('Chat creation error:', error);
-          throw new Error('Failed to create chat session');
-        }
+      if (messageResponse.data?.status === 'success' && messageResponse.data.data.message) {
+        console.log('Message response:', messageResponse.data);
+        setMessages(prev => [...prev, messageResponse.data.data.message]);
       } else {
-        chatId = currentChat._id;
+        throw new Error('Invalid message response');
       }
 
-      // 5. Send message
-      try {
-        console.log('Sending message to chat:', chatId);
-        const messageResponse = await api.post(`/chat/${chatId}/messages`, {
-          message: chatInput
-        });
-
-        if (messageResponse.data?.status === 'success' && messageResponse.data.data.message) {
-          setMessages(prev => [...prev, messageResponse.data.data.message]);
-        } else {
-          throw new Error('Invalid message response');
-        }
-      } catch (error) {
-        console.error('Message sending error:', error);
-        throw new Error('Failed to send message');
+    } catch (error) {
+      console.error('Chat creation error:', error);
+      
+      // Get more details about the error
+      if (error.response) {
+        console.error('Error response data:', error.response.data);
+        console.error('Error response status:', error.response.status);
+        console.error('Error response headers:', error.response.headers);
       }
-
-    } catch (err) {
-      console.error('Chat error:', err);
+      
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: err.message || "I'm sorry, I encountered an error. Please try again."
+        content: error.response?.data?.message || error.message || "I'm sorry, I encountered an error creating the chat session."
       }]);
     } finally {
       setIsSending(false);
