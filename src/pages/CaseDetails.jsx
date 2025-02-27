@@ -79,6 +79,7 @@ const CaseDetails = () => {
   const [isSavingQuestionnaire, setIsSavingQuestionnaire] = useState(false);
   const [loadingFormId, setLoadingFormId] = useState(null);
   const [error, setError] = useState(null);
+  const [isQuestionnaireCompleted, setIsQuestionnaireCompleted] = useState(false);
 
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
@@ -439,6 +440,7 @@ const CaseDetails = () => {
 
       if (response.data.status === 'success') {
         toast.success('Changes saved successfully');
+        setIsQuestionnaireCompleted(true);
         setActiveTab('forms');
       }
     } catch (error) {
@@ -461,13 +463,16 @@ const CaseDetails = () => {
   const ProgressSteps = () => {
     // Check if all documents are approved
     const allDocumentsApproved = checkAllDocumentsApproved(caseData.documentTypes);
+    
+    // Check if preparation is complete (questionnaire completed and in forms tab)
+    const isPreparationComplete = activeTab === 'forms' && isQuestionnaireCompleted;
 
     // Define steps with dynamic completion status
     const steps = [
       { name: 'Case Started', completed: true },
       { name: 'Data Collection', completed: true },
       { name: 'In Review', completed: allDocumentsApproved },
-      { name: 'Preparation', completed: false },
+      { name: 'Preparation', completed: allDocumentsApproved && isPreparationComplete },
       { name: 'Filing', completed: false }
     ];
 
@@ -1230,6 +1235,24 @@ const CaseDetails = () => {
         <div className="p-6">
           <div className="text-center text-gray-500">
             Please select a questionnaire first
+          </div>
+        </div>
+      );
+    }
+
+    if (!isQuestionnaireCompleted) {
+      return (
+        <div className="p-6">
+          <div className="flex flex-col items-center justify-center h-64 text-center">
+            <div className="text-gray-500 mb-2">
+              Please complete the questionnaire first
+            </div>
+            <button
+              onClick={() => setActiveTab('questionnaire')}
+              className="text-blue-600 hover:text-blue-700 font-medium text-sm"
+            >
+              Go to Questionnaire
+            </button>
           </div>
         </div>
       );

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import corporationService from '../services/corporationService';
 import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, CirclePlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const CorporationsSkeleton = () => (
   <div className="p-4">
@@ -20,10 +21,10 @@ const CorporationsSkeleton = () => (
     </div>
 
     {/* Table Skeleton */}
-    <div className="bg-white rounded-lg border border-gray-200">
+    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
       <div className="grid grid-cols-4 px-6 py-3 border-b border-gray-200">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-5 bg-[#f9fafb] rounded animate-shimmer"></div>
+          <div key={i} className="h-5 bg-gradient-to-r from-gray-100 to-gray-200 rounded animate-pulse"></div>
         ))}
       </div>
       {[...Array(5)].map((_, i) => (
@@ -157,171 +158,209 @@ const Corporations = () => {
   } 
 
   return (
-    <div className="p-4">
-      {/* Header Section */}
-      <div className="mb-4">
-        <h1 className="text-xl font-medium text-gray-800">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="p-4"
+    >
+      {/* Header Section - Updated styling */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
           Corporation
         </h1>
       </div>
       
-      {/* Search and Actions Bar */}
+      {/* Search and Actions Bar - Enhanced styling */}
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2 flex-1">
-          {/* Search Input */}
-          <div className="relative">
+        <div className="flex items-center gap-3 flex-1">
+          <div className="relative group">
             <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-              <Search size={20} className="text-gray-400" />
+              <Search size={20} className="text-gray-400 group-focus-within:text-blue-500 transition-colors" />
             </div>
             <input
               type="text"
               placeholder="Search corporations..."
-              className="w-[400px] pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm
-                       focus:outline-none focus:border-blue-500"
+              className="w-[400px] pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm
+                       focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100
+                       transition-all duration-200"
               value={searchQuery}
               onChange={handleSearch}
             />
           </div>
 
-          {/* Simplified Filter Dropdown */}
+          {/* Enhanced Filter Button */}
           <div className="relative">
             <button 
               onClick={() => setShowFilters(!showFilters)}
-              className={`px-4 py-2 border rounded-lg flex items-center gap-2 ${
-                employeeFilter !== 'all'
-                  ? 'bg-blue-50 border-blue-200 text-blue-600'
-                  : 'border-gray-200'
-              }`}
+              className={`px-4 py-2.5 border rounded-xl bg-gray-50 flex items-center gap-2 transition-all duration-200
+                ${employeeFilter !== 'all'
+                  ? 'bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100'
+                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-100'
+                }`}
             >
               <SlidersHorizontal size={16} />
               <span>Filter</span>
             </button>
 
-            {showFilters && (
-              <div className="absolute top-full mt-1 left-0 w-48 bg-white border rounded-lg shadow-lg z-10 py-2">
-                <div className="px-3 py-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Number of Employees
-                  </label>
-                  <select
-                    value={employeeFilter}
-                    onChange={(e) => handleFilterChange(e.target.value)}
-                    className="w-full p-1.5 text-sm border rounded"
-                  >
-                    <option value="all">All</option>
-                    <option value="less5">Less than 5</option>
-                    <option value="5to10">5 to 10</option>
-                    <option value="more10">More than 10</option>
-                  </select>
-                </div>
+            <AnimatePresence>
+              {showFilters && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="absolute top-full mt-2 left-0 w-48 bg-white border rounded-xl shadow-lg z-10 py-2
+                           backdrop-blur-sm bg-white/95"
+                >
+                  <div className="px-3 py-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Number of Employees
+                    </label>
+                    <select
+                      value={employeeFilter}
+                      onChange={(e) => handleFilterChange(e.target.value)}
+                      className="w-full p-2 text-sm border rounded-lg focus:outline-none focus:border-blue-500
+                               focus:ring-2 focus:ring-blue-100 transition-all duration-200"
+                    >
+                      <option value="all">All</option>
+                      <option value="less5">Less than 5</option>
+                      <option value="5to10">5 to 10</option>
+                      <option value="more10">More than 10</option>
+                    </select>
+                  </div>
 
-                {employeeFilter !== 'all' && (
-                  <>
-                    <div className="border-t my-1" />
-                    <div className="px-3 py-2">
-                      <button
-                        onClick={resetFilter}
-                        className="text-sm text-blue-600 hover:text-blue-700"
-                      >
-                        Reset filter
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+                  {employeeFilter !== 'all' && (
+                    <>
+                      <div className="border-t my-1" />
+                      <div className="px-3 py-2">
+                        <button
+                          onClick={resetFilter}
+                          className="text-sm text-blue-600 hover:text-blue-700"
+                        >
+                          Reset filter
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
 
-        {/* Add New Individual Button */}
-        <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">
-            <CirclePlus />
+        {/* Enhanced Add New Button */}
+        <button className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm
+                          hover:bg-blue-700 transition-colors duration-200 shadow-sm hover:shadow
+                          active:transform active:scale-95">
+          <CirclePlus size={18} />
           Add new individual
         </button>
       </div>
 
-      {/* Table Section */}
-      <div className="bg-white rounded-lg border border-gray-200">
+      {/* Enhanced Table Section */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm"
+      >
         <table className="w-full">
           <thead>
-            <tr className="border-b border-gray-200">
-              <th className="px-6 py-3 text-left text-sm font-medium text-black">Corporation ID</th>
-              <th className="px-6 py-3 text-left text-sm font-medium text-black">Corporation name</th>
-              <th className="px-6 py-3 text-left text-sm font-medium text-black">Contact Name</th>
-              <th className="px-6 py-3 text-left text-sm font-medium text-black">No. of Employees</th>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Corporation ID</th>
+              <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Corporation name</th>
+              <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Contact Name</th>
+              <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">No. of Employees</th>
             </tr>
           </thead>
           <tbody>
             {getFilteredAndSortedCorporations()
               .slice((pagination.currentPage - 1) * pagination.itemsPerPage, pagination.currentPage * pagination.itemsPerPage)
               .map((corp) => (
-                <tr 
-                  key={corp._id} 
-                  className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer" 
+                <motion.tr 
+                  key={corp._id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="border-b border-gray-100 hover:bg-blue-50/50 cursor-pointer
+                           transition-colors duration-200" 
                   onClick={() => handleRowClick(corp._id)}
                 >
-                  <td className="px-6 py-3 text-sm">
-                    {truncateId(corp._id)}
-                  </td>
-                  <td className="px-6 py-3 text-sm">{corp.company_name}</td>
-                  <td className="px-6 py-3 text-sm">John Doe</td>
-                  <td className="px-6 py-3 text-sm">{corp.user_id?.length || 0}</td>
-                </tr>
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{truncateId(corp._id)}</td>
+                  <td className="px-6 py-4 text-sm text-gray-700">{corp.company_name}</td>
+                  <td className="px-6 py-4 text-sm text-gray-700">John Doe</td>
+                  <td className="px-6 py-4 text-sm text-gray-700">{corp.user_id?.length || 0}</td>
+                </motion.tr>
               ))}
           </tbody>
         </table>
 
-        {/* Pagination Section */}
-        <div className="px-6 py-3 border-t border-gray-100 flex justify-between items-center">
+        {/* Enhanced Pagination Section */}
+        <div className="px-6 py-4 border-t border-gray-100 flex justify-between items-center bg-gray-50">
           <span className="text-sm text-gray-600">
             Showing {((pagination.currentPage - 1) * pagination.itemsPerPage) + 1} - {Math.min(pagination.currentPage * pagination.itemsPerPage, getFilteredAndSortedCorporations().length)} of {getFilteredAndSortedCorporations().length}
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => handlePageChange(pagination.currentPage - 1)}
               disabled={pagination.currentPage === 1}
-              className={`p-1.5 rounded border ${
+              className={`p-2 rounded-lg border transition-all duration-200 ${
                 pagination.currentPage === 1
                   ? 'text-gray-300 border-gray-200 cursor-not-allowed'
-                  : 'text-gray-600 border-gray-200 hover:bg-gray-50'
+                  : 'text-gray-600 border-gray-200 hover:bg-gray-100 active:transform active:scale-95'
               }`}
             >
               <ChevronLeft size={18} />
             </button>
 
-            <span className="text-sm text-gray-600">
+            <span className="text-sm font-medium text-gray-700">
               Page {pagination.currentPage} of {Math.ceil(getFilteredAndSortedCorporations().length / pagination.itemsPerPage)}
             </span>
 
             <button
               onClick={() => handlePageChange(pagination.currentPage + 1)}
               disabled={pagination.currentPage === Math.ceil(getFilteredAndSortedCorporations().length / pagination.itemsPerPage)}
-              className={`p-1.5 rounded border ${
+              className={`p-2 rounded-lg border transition-all duration-200 ${
                 pagination.currentPage === Math.ceil(getFilteredAndSortedCorporations().length / pagination.itemsPerPage)
                   ? 'text-gray-300 border-gray-200 cursor-not-allowed'
-                  : 'text-gray-600 border-gray-200 hover:bg-gray-50'
+                  : 'text-gray-600 border-gray-200 hover:bg-gray-100 active:transform active:scale-95'
               }`}
             >
               <ChevronRight size={18} />
             </button>
           </div>
         </div>
-      </div>
+      </motion.div>
 
-      {/* Show "No results found" message when search yields no results */}
-      {!loading && getFilteredAndSortedCorporations().length === 0 && (
-        <div className="text-center py-8 text-gray-500">
-          No corporations found {searchQuery && `for "${searchQuery}"`}
-        </div>
-      )}
+      {/* Enhanced No Results Message */}
+      <AnimatePresence>
+        {!loading && getFilteredAndSortedCorporations().length === 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl mt-4"
+          >
+            <p className="text-lg">No corporations found {searchQuery && `for "${searchQuery}"`}</p>
+            <p className="text-sm text-gray-400 mt-1">Try adjusting your search or filters</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Loading State */}
-      {loading && (
-        <div className="absolute inset-0 bg-white/50 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-        </div>
-      )}
-    </div>
+      {/* Enhanced Loading State */}
+      <AnimatePresence>
+        {loading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center"
+          >
+            <div className="flex flex-col items-center">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+              <p className="text-sm text-gray-600 mt-2">Loading...</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 };
 
