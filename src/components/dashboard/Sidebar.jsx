@@ -75,7 +75,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
     // Individual/Employee navigation
     const individualNavigation = [
       { name: 'Dashboard', href: '/fndashboard', icon: LayoutDashboard },
-      { name: 'Inbox', href: '/inbox', icon: MailIcon, badge: 15 },
+      { name: 'Inbox', href: '/inbox', icon: MailIcon, badge: 15, disabled: true },
       { 
         section: 'All Profiles',
         items: [
@@ -103,12 +103,12 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
     // Admin/Attorney/Manager navigation
     const adminNavigation = [
       { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-      { name: 'Inbox', href: '/inbox', icon: MailIcon },
+      { name: 'Inbox', href: '/inbox', icon: MailIcon, disabled: true },
       { 
         section: 'Clients',
         items: [
           { name: 'Corporations', href: '/corporations', icon: Building2 },
-          { name: 'Individuals', href: '/individuals', icon: Users },
+          { name: 'Individuals', href: '/individuals', icon: Users, disabled: true },
         ]
       },
       {
@@ -120,9 +120,9 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       {
         section: 'Setup',
         items: [
-          { name: 'Account Info', href: '/account', icon: User2Icon  },
+          { name: 'Account Info', href: '/account', icon: User2Icon, disabled: true },
           { name: 'Knowledge Base', href: '/knowledge', icon: TableOfContents },
-          { name: 'Reminder Settings', href: '/reminders', icon: Settings },
+          { name: 'Reminder Settings', href: '/reminders', icon: Settings, disabled: true },
         ]
       },
     ];
@@ -293,67 +293,107 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
                   </div>
                 ) : (
                   item.items.map((subItem) => (
-                    <Link
-                      key={subItem.name + (subItem.relationshipType || '')}
-                      to={subItem.href}
-                      className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                        isActive(subItem.href)
-                          ? 'bg-white text-black'
-                          : 'text-gray-900 hover:bg-white hover:text-black'
-                      } ${collapsed ? 'justify-center' : ''}`}
-                      title={collapsed ? (subItem.relationshipType ? `${subItem.name} (${subItem.relationshipType})` : subItem.name) : ''}
-                    >
-                      {subItem.icon === CircleUserIcon ? (
-                        <div className="h-8 w-8 rounded-full overflow-hidden flex-shrink-0">
-                          <img 
-                            src={`https://ui-avatars.com/api/?name=${encodeURIComponent(subItem.name || 'U')}&background=random`}
-                            alt={subItem.name || 'User'}
-                            className="h-full w-full object-cover"
-                          />
-                        </div>
-                      ) : (
+                    subItem.disabled ? (
+                      <div
+                        key={subItem.name + (subItem.relationshipType || '')}
+                        className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg 
+                          text-gray-400 cursor-not-allowed ${collapsed ? 'justify-center' : ''}`}
+                        title={collapsed ? subItem.name : ''}
+                      >
                         <subItem.icon className="h-5 w-5 flex-shrink-0" />
-                      )}
-                      {!collapsed && (
-                        <div className="ml-3 flex-1 overflow-hidden">
-                          <span className="block truncate">{subItem.name}</span>
-                          {subItem.relationshipType && (
-                            <span className="text-xs text-gray-500">{subItem.relationshipType}</span>
-                          )}
-                        </div>
-                      )}
-                      {!collapsed && subItem.badge && (
-                        <span className="ml-auto bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-xs">
-                          {subItem.badge}
-                        </span>
-                      )}
-                    </Link>
+                        {!collapsed && (
+                          <div className="ml-3 flex-1 overflow-hidden">
+                            <span className="block truncate">{subItem.name}</span>
+                            {subItem.relationshipType && (
+                              <span className="text-xs text-gray-400">{subItem.relationshipType}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <Link
+                        key={subItem.name + (subItem.relationshipType || '')}
+                        to={subItem.href}
+                        className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                          isActive(subItem.href)
+                            ? 'bg-white text-black'
+                            : 'text-gray-900 hover:bg-white hover:text-black'
+                        } ${collapsed ? 'justify-center' : ''}`}
+                        title={collapsed ? (subItem.relationshipType ? `${subItem.name} (${subItem.relationshipType})` : subItem.name) : ''}
+                      >
+                        {subItem.icon === CircleUserIcon ? (
+                          <div className="h-8 w-8 rounded-full overflow-hidden flex-shrink-0">
+                            <img 
+                              src={`https://ui-avatars.com/api/?name=${encodeURIComponent(subItem.name || 'U')}&background=random`}
+                              alt={subItem.name || 'User'}
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <subItem.icon className="h-5 w-5 flex-shrink-0" />
+                        )}
+                        {!collapsed && (
+                          <div className="ml-3 flex-1 overflow-hidden">
+                            <span className="block truncate">{subItem.name}</span>
+                            {subItem.relationshipType && (
+                              <span className="text-xs text-gray-500">{subItem.relationshipType}</span>
+                            )}
+                          </div>
+                        )}
+                        {!collapsed && subItem.badge && (
+                          <span className="ml-auto bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-xs">
+                            {subItem.badge}
+                          </span>
+                        )}
+                      </Link>
+                    )
                   ))
                 )}
               </div>
             ) : (
-              <Link
-                key={item.name}
-                to={item.href}
-                className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  isActive(item.href)
-                    ? 'bg-white text-black'
-                    : 'text-gray-900 hover:bg-white hover:text-black'
-                } ${collapsed ? 'justify-center' : ''}`}
-                title={collapsed ? item.name : ''}
-              >
-                <item.icon className="h-5 w-5 flex-shrink-0" />
-                {!collapsed && (
-                  <>
-                    <span className="ml-3">{item.name}</span>
-                    {item.badge && (
-                      <span className="ml-auto bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-xs">
-                        {item.badge}
-                      </span>
-                    )}
-                  </>
-                )}
-              </Link>
+              item.disabled ? (
+                <div
+                  key={item.name}
+                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg
+                    text-gray-400 cursor-not-allowed ${collapsed ? 'justify-center' : ''}`}
+                  title={collapsed ? item.name : ''}
+                >
+                  <item.icon className="h-5 w-5 flex-shrink-0" />
+                  {!collapsed && (
+                    <>
+                      <span className="ml-3">{item.name}</span>
+                      {item.badge && (
+                        <span className="ml-auto bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full text-xs">
+                          {item.badge}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+              ) : (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    isActive(item.href)
+                      ? 'bg-white text-black'
+                      : 'text-gray-900 hover:bg-white hover:text-black'
+                  } ${collapsed ? 'justify-center' : ''}`}
+                  title={collapsed ? item.name : ''}
+                >
+                  <item.icon className="h-5 w-5 flex-shrink-0" />
+                  {!collapsed && (
+                    <>
+                      <span className="ml-3">{item.name}</span>
+                      {item.badge && (
+                        <span className="ml-auto bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-xs">
+                          {item.badge}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </Link>
+              )
             )
           ))}
         </nav>
