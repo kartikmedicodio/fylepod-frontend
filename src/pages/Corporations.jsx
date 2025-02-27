@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import corporationService from '../services/corporationService';
 import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, CirclePlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -52,10 +52,27 @@ const Corporations = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [employeeFilter, setEmployeeFilter] = useState('all');
   const navigate = useNavigate();
+  const filterRef = useRef(null);
 
   useEffect(() => {
     fetchCorporations();
   }, []);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (filterRef.current && !filterRef.current.contains(event.target)) {
+        setShowFilters(false);
+      }
+    }
+    
+    if (showFilters) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showFilters]);
 
   const fetchCorporations = async () => {
     try {
@@ -120,14 +137,6 @@ const Corporations = () => {
     }
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
   const truncateId = (id) => {
     return id.substring(0, 8);
   };
@@ -189,7 +198,7 @@ const Corporations = () => {
           </div>
 
           {/* Enhanced Filter Button */}
-          <div className="relative">
+          <div className="relative" ref={filterRef}>
             <button 
               onClick={() => setShowFilters(!showFilters)}
               className={`px-4 py-2.5 border rounded-xl bg-gray-50 flex items-center gap-2 transition-all duration-200
@@ -247,10 +256,12 @@ const Corporations = () => {
           </div>
         </div>
 
-        {/* Enhanced Add New Button */}
-        <button className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm
-                          hover:bg-blue-700 transition-colors duration-200 shadow-sm hover:shadow
-                          active:transform active:scale-95">
+        {/* Enhanced Add New Button - Disabled */}
+        <button 
+          className="flex items-center gap-2 px-5 py-2.5 bg-gray-300 text-gray-500 rounded-xl text-sm
+                    opacity-70 cursor-not-allowed"
+          disabled
+        >
           <CirclePlus size={18} />
           Add new individual
         </button>

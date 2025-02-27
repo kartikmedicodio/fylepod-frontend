@@ -99,7 +99,7 @@ const CorporationDetails = ({ setCurrentBreadcrumb }) => {
   const tabs = [
     { id: 'profile', label: 'Profile' },
     { id: 'employees', label: 'View Employees' },
-    { id: 'documents', label: 'Documents' }
+    { id: 'documents', label: 'Documents', disabled: true }
   ];
 
   useEffect(() => {
@@ -249,12 +249,19 @@ const CorporationDetails = ({ setCurrentBreadcrumb }) => {
                 transition-colors duration-200 z-10 whitespace-nowrap
                 ${activeTab === tab.id 
                   ? 'text-white'
-                  : 'text-gray-600 hover:text-gray-800'
+                  : tab.disabled 
+                    ? 'text-gray-400 cursor-not-allowed' 
+                    : 'text-gray-600 hover:text-gray-800'
                 }
               `}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => !tab.disabled && setActiveTab(tab.id)}
+              disabled={tab.disabled}
+              title={tab.disabled ? "Coming soon" : ""}
             >
               {tab.label}
+              {tab.disabled && (
+                <span className="ml-1 text-xs bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded"></span>
+              )}
             </button>
           ))}
         </div>
@@ -513,7 +520,6 @@ const CorporationDetails = ({ setCurrentBreadcrumb }) => {
               employees={corporation?.user_id?.map(user => ({
                 id: user._id,
                 name: user.name || 'John Doe',
-                queriesPending: user.queriesPending || 0
               })) || []}
             />
           </motion.div>
