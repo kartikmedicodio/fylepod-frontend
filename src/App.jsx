@@ -16,21 +16,16 @@ import IndividualCases from './pages/IndividualCases';
 import CaseDetails from './pages/CaseDetails';
 import IndividualCaseDetails from './pages/IndividualCaseDetails';
 import FNDashboard from './pages/FNDashboard';
+import Dashboard from './pages/Dashboard';
 import { useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 
-// New component to handle home route redirects based on user role
+// Update HomeRedirect component to redirect to dashboard
 const HomeRedirect = () => {
   const { user } = useAuth();
   
-  // Check user role and redirect accordingly
-  // Assuming user.role is available - adjust the condition based on your actual data structure
-  if (user?.role === 'individual' || user?.role === 'employee') {
-    return <Navigate to="/fndashboard" replace />;
-  }
-  
-  // Default redirect for other user types
-  return <Navigate to="/cases" replace />;
+  // All users should land on dashboard after login
+  return <Navigate to="/dashboard" replace />;
 };
 
 const App = () => {
@@ -57,10 +52,13 @@ const App = () => {
                   <PrivateRoute>
                     <Layout>
                       <Routes>
-                        {/* Home Route - Redirects based on user role */}
+                        {/* Home Route - Now redirects to dashboard */}
                         <Route path="/" element={<HomeRedirect />} />
                         
-                        {/* Dashboard Routes */}
+                        {/* Make dashboard the first route after home */}
+                        <Route path="/dashboard" element={<Dashboard />} />
+                        
+                        {/* Other existing routes */}
                         <Route path="/cases" element={<Cases setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
                         <Route path="/cases/new" element={<NewCase setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
                         <Route path="/case/:caseId" element={<CaseDetails setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
