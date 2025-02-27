@@ -287,7 +287,9 @@ const NewCase = () => {
       const response = await api.post('/management', requestBody);
       
       if (response.data.status === 'success') {
-        navigate('/cases');
+        
+        const caseId = response.data.data.management._id;
+        navigate(`/cases/${caseId}`);
       }
     } catch (error) {
       setError(error.response?.data?.message || 'Failed to create case');

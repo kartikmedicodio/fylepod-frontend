@@ -61,7 +61,7 @@ const App = () => {
                         {/* Other existing routes */}
                         <Route path="/cases" element={<Cases setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
                         <Route path="/cases/new" element={<NewCase setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
-                        <Route path="/case/:caseId" element={<CaseDetails setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
+                        <Route path="/cases/:caseId" element={<CaseDetails setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
                         
                         <Route path="/individual-cases" element={<IndividualCases setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
                         <Route path="/individuals/case/:caseId" element={<IndividualCaseDetails setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
