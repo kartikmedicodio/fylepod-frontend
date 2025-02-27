@@ -237,15 +237,42 @@ const CaseDetails = () => {
             if (!processedDoc) {
               throw new Error('Document processing failed');
             }
-
             if (processedDoc.extractedData?.document_type) {
-              await api.patch(`/documents/${doc._id}`, {
-                documentTypeId: doc.documentTypeId,
-                managementDocumentId: doc.managementDocumentId
+            
+              const extractedType = processedDoc.extractedData.document_type.toLowerCase().trim();
+             
+              // Find matching document type that's not already uploaded
+              const matchingDocType = caseData.documentTypes.find(type => {
+                return type.name.toLowerCase().trim() === extractedType &&
+                       type.status !== 'uploaded' &&
+                       type.status !== 'approved';
               });
+ 
+              if (matchingDocType) {
+                // Update document with correct management document ID
+                await api.patch(`/documents/${doc._id}`, {
+                  documentTypeId: matchingDocType.documentTypeId,
+                  managementDocumentId: matchingDocType._id
+                });
+ 
+                // Update document status to 'uploaded'
+                await api.patch(`/management/${caseId}/documents/${matchingDocType.documentTypeId}/status`, {
+                  status: 'uploaded'
+                });
+ 
+                return { success: true, docId: doc._id };
+              } else {
+                // No matching pending document type found - delete the document
+                console.log(`No matching pending document type found for ${extractedType}. Deleting document ${doc._id}`);
+                await api.delete(`/documents/${doc._id}`);
+                return { success: false, docId: doc._id, error: 'Document type mismatch' };
+              }
+            } else {
+              // No document type extracted - delete the document
+              await api.delete(`/documents/${doc._id}`);
+              return { success: false, docId: doc._id, error: 'Could not extract document type' };
             }
-
-            return processedDoc;
+      
           } catch (err) {
             console.error(`Error processing document ${doc._id}:`, err);
             return null;
@@ -1125,11 +1152,9 @@ const CaseDetails = () => {
           );
 
           // Handle educational qualification array - take the highest education
-          const highestEducation = processedInfo?.Resume?.educationalQualification?.[
-            processedInfo.Resume.educationalQualification.length - 1
-          ];
+          const highestEducation = processedInfo?.Resume?.educationalQualification
           form.getTextField('Educational Qualification').setText(
-            highestEducation?.courseLevel || 'N/A'
+            highestEducation || 'N/A'
           );
 
           form.getTextField('Specific details of Skills Experience').setText(
@@ -1244,7 +1269,11 @@ const CaseDetails = () => {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      <CaseDetailsSidebar />
+      <CaseDetailsSidebar 
+        caseData={caseData} 
+        loading={!caseData && !error} 
+        error={error}
+      />
       
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="bg-white border-b border-gray-200 shadow-sm">
