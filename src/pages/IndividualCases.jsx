@@ -56,7 +56,8 @@ const IndividualCases = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const [allCases, setAllCases] = useState([]); // Store all cases
+  const [displayCases, setDisplayCases] = useState([]);
+  const [allCases, setAllCases] = useState([]); // Keep this to store ALL cases
   const [pagination, setPagination] = useState({
     total: 0,
     currentPage: 1,
@@ -116,7 +117,7 @@ const IndividualCases = () => {
 
       if (response.data.status === 'success') {
         const cases = response.data.data.entries || [];
-        setAllCases(cases);
+        setAllCases(cases); // Store all cases
         
         // Process all filtering and sorting here
         processCases(cases);
@@ -174,17 +175,17 @@ const IndividualCases = () => {
     
     // Step 4: Paginate the sorted data
     const total = sorted.length;
-    const totalPages = Math.ceil(total / 5);
-    const startIndex = (currentPage - 1) * 5;
-    const endIndex = startIndex + 5;
+    const totalPages = Math.ceil(total / pagination.limit);
+    const startIndex = (currentPage - 1) * pagination.limit;
+    const endIndex = startIndex + pagination.limit;
     const currentPageCases = sorted.slice(startIndex, endIndex);
     
     // Update state with processed data
-    setAllCases(currentPageCases);
+    setDisplayCases(currentPageCases); // Set the display cases for current page
     setPagination({
       total,
       currentPage,
-      limit: 5,
+      limit: pagination.limit,
       totalPages
     });
   };
@@ -410,14 +411,14 @@ const IndividualCases = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {allCases.length === 0 ? (
+              {displayCases.length === 0 ? (
                 <tr>
                   <td colSpan="7" className="px-6 py-4 text-center text-base text-gray-500">
                     No cases found matching your search.
                   </td>
                 </tr>
               ) : (
-                allCases.map((caseItem) => (
+                displayCases.map((caseItem) => (
                   <tr 
                     key={caseItem._id} 
                     className="hover:bg-gray-50 cursor-pointer"
@@ -455,7 +456,7 @@ const IndividualCases = () => {
       </div>
 
       {/* Pagination */}
-      {pagination && allCases.length > 0 && (
+      {pagination && pagination.total > 0 && (
         <div className="mt-4 flex justify-between items-center text-sm text-gray-600">
           <div>
             Showing {((currentPage - 1) * pagination.limit) + 1} - {Math.min(currentPage * pagination.limit, pagination.total)} of {pagination.total} results
