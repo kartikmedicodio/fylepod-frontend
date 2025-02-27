@@ -3,7 +3,6 @@ import { useParams } from 'react-router-dom';
 import {  
   Loader2,
   Bot,
-  FileUp,
   SendHorizontal,
   ChevronLeft
 } from 'lucide-react';
@@ -99,58 +98,74 @@ ProcessingIndicator.propTypes = {
 };
 
 const DocumentProgressBar = ({ status }) => {
-  // Use the same steps as in the processing animation
+  // Updated stages with cyan for all stages and blue for the final stage
   const stages = [
-    { id: 1, name: 'Analyzed', color: 'bg-gradient-to-r from-blue-400 to-blue-600', textColor: 'text-blue-600' },
-    { id: 2, name: 'Extracted', color: 'bg-gradient-to-r from-indigo-400 to-indigo-600', textColor: 'text-indigo-600' },
-    { id: 3, name: 'Validated', color: 'bg-gradient-to-r from-purple-400 to-purple-600', textColor: 'text-purple-600' },
-    { id: 4, name: 'Verified', color: 'bg-gradient-to-r from-green-400 to-green-600', textColor: 'text-green-600' }
+    { id: 1, name: 'Document Scanned', color: 'bg-cyan-100', textColor: 'text-cyan-600', iconColor: 'text-cyan-600' },
+    { id: 2, name: 'Data Extracted', color: 'bg-cyan-100', textColor: 'text-cyan-600', iconColor: 'text-cyan-600' },
+    { id: 3, name: 'Document Type Detected', color: 'bg-cyan-100', textColor: 'text-cyan-600', iconColor: 'text-cyan-600' },
+    { id: 4, name: 'Content Validated', color: 'bg-cyan-100', textColor: 'text-cyan-600', iconColor: 'text-cyan-600' },
+    { id: 5, name: 'Verification Complete', color: 'bg-blue-100', textColor: 'text-blue-700', iconColor: 'text-blue-700' }
   ];
 
-  // For the sample UI, show all steps as completed
-  const currentStage = 4;
+  // Convert status to lowercase for more reliable comparison
+  const normalizedStatus = (status || '').toLowerCase().trim();
+  
+  // Calculate current stage based on normalized status
+  let currentStage = 1; // Default to first stage
+  
+  // Ensure both 'uploaded' and 'approved' show the green complete stage
+  if (normalizedStatus === 'uploaded' || normalizedStatus === 'approved') {
+    currentStage = 5;
+  } else if (normalizedStatus === 'validating') {
+    currentStage = 4;
+  } else if (normalizedStatus === 'detecting') {
+    currentStage = 3;
+  } else if (normalizedStatus === 'processing') {
+    currentStage = 2;
+  } else if (normalizedStatus === 'pending') {
+    currentStage = 1;
+  }
+
+  // Log for debugging
+  console.log('Document status:', status, 'Normalized:', normalizedStatus, 'Stage:', currentStage);
 
   return (
-    <div className="mt-4">
-      <div className="relative">
-        {/* Steps with checkmarks */}
-        <div className="flex justify-between relative">
-          {/* Progress connector lines - stylized to show completed progress */}
-          <div className="absolute top-3 left-0 right-0 h-1 bg-gray-100 rounded-full z-0"></div>
-          
-          {/* Completed progress - dynamic width based on currentStage */}
-          <div 
-            className="absolute top-3 left-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-green-500 rounded-full z-0 transition-all duration-500"
-            style={{ width: `${((currentStage - 1) / (stages.length - 1)) * 100}%` }}
-          ></div>
-          
-          {stages.map((stage) => (
-            <div key={stage.id} className="flex flex-col items-center z-10">
-              {/* Step circle with checkmark */}
-              <div 
-                className={`w-6 h-6 rounded-full flex items-center justify-center mb-1.5 shadow-md
-                  ${stage.id <= currentStage ? stage.color : 'bg-gray-200'} 
-                  ${stage.id <= currentStage ? 'ring-2 ring-white' : ''}`}
-              >
-                {stage.id <= currentStage ? (
-                  <svg className="w-3.5 h-3.5 text-white drop-shadow-sm" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                ) : (
-                  <span className="w-2 h-2 rounded-full bg-gray-400"></span>
-                )}
-              </div>
+    <div className="mt-3">
+      <div className="flex justify-between">
+        {stages.map((stage) => (
+          <div key={stage.id} className="flex items-center gap-1.5 px-1">
+            {/* Status tick/check icon */}
+            <div 
+              className={`w-5 h-5 rounded-full flex items-center justify-center relative
+                ${stage.id <= currentStage ? stage.color : 'bg-gray-100'}
+                ${stage.id <= currentStage ? 'shadow-sm' : ''}`}
+            >
+              {stage.id <= currentStage ? (
+                <svg className={`w-3 h-3 ${stage.iconColor}`} viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              ) : (
+                <span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
+              )}
               
-              {/* Step label */}
-              <span 
-                className={`text-xs ${stage.id <= currentStage ? stage.textColor : 'text-gray-400'} 
-                  ${stage.id <= currentStage ? 'font-medium' : ''}`}
-              >
-                {stage.name}
-              </span>
+              {/* Active indicator */}
+              {stage.id === currentStage && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-2 w-2">
+                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${stage.iconColor.replace('text-', 'bg-')}`}></span>
+                  <span className={`relative inline-flex rounded-full h-2 w-2 ${stage.iconColor.replace('text-', 'bg-')}`}></span>
+                </span>
+              )}
             </div>
-          ))}
-        </div>
+            
+            {/* Stage label */}
+            <span 
+              className={`text-xs ${stage.id <= currentStage ? stage.textColor : 'text-gray-400'} 
+                ${stage.id <= currentStage ? 'font-medium' : ''}`}
+            >
+              {stage.name}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -777,11 +792,9 @@ const IndividualCaseDetails = () => {
                       {/* Status tag - with dynamic status from backend */}
                       <span 
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                          ${doc.status === 'approved' 
+                          ${doc.status === 'approved' || doc.status === 'uploaded'
                             ? 'bg-green-50 text-green-700' 
-                            : doc.status === 'uploaded' 
-                              ? 'bg-blue-50 text-blue-700'
-                              : 'bg-gray-50 text-gray-700'
+                            : 'bg-gray-50 text-gray-700'
                           }`}
                       >
                         {doc.status === 'approved' 
