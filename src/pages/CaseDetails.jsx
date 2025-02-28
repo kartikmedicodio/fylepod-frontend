@@ -83,6 +83,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const [loadingFormId, setLoadingFormId] = useState(null);
   const [error, setError] = useState(null);
   const [isQuestionnaireCompleted, setIsQuestionnaireCompleted] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
 
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
@@ -454,6 +455,116 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     }
   };
 
+  const getLoadingMessage = () => {
+    const messages = [
+      "Analyzing docs...",
+      "Setting up fields...",
+      "Collecting data...",
+      "Mapping data...",
+      "Filling questionnaire...",
+      "Almost done..."
+    ];
+    return messages[loadingStep];
+  };
+
+  const handleSaveQuestionnaires = async () => {
+    try {
+      setIsSavingQuestionnaire(true);
+      setLoadingStep(0);
+
+      // Create a promise that resolves after showing all loading steps
+      const showLoadingSteps = new Promise((resolve) => {
+        let currentStep = 0;
+        const stepInterval = 2000; // 2 seconds per step
+
+        const interval = setInterval(() => {
+          if (currentStep >= 5) {
+            clearInterval(interval);
+            resolve();
+          } else {
+            currentStep++;
+            setLoadingStep(currentStep);
+          }
+        }, stepInterval);
+      });
+
+      // Wait for loading steps to complete and make API calls
+      await showLoadingSteps;
+
+      // Make API calls for each questionnaire
+      const responses = await Promise.all(
+        questionnaires.map(async (questionnaire) => {
+          try {
+            const response = await api.post(`/documents/management/${caseId}/organized`, {
+              templateId: questionnaire._id
+            });
+            return {
+              questionnaire,
+              data: response.data
+            };
+          } catch (error) {
+            console.error(`Error processing questionnaire ${questionnaire._id}:`, error);
+            return {
+              questionnaire,
+              error: true
+            };
+          }
+        })
+      );
+
+      // Check if all API calls were successful
+      const hasErrors = responses.some(response => response.error);
+      if (hasErrors) {
+        toast.error('Some questionnaires could not be processed');
+      } else {
+        // Show the final "Almost done..." message for 1 second
+        setLoadingStep(5);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        toast.success('All questionnaires processed successfully');
+        setActiveTab('questionnaire');
+      }
+    } catch (error) {
+      console.error('Error saving questionnaires:', error);
+      toast.error('Failed to process questionnaires');
+    } finally {
+      setIsSavingQuestionnaire(false);
+      setLoadingStep(0);
+    }
+  };
+
+  useEffect(() => {
+    let timeouts = [];
+    
+    if (isLoadingQuestionnaire) {
+      // Reset loading step when loading starts
+      setLoadingStep(0);
+      
+      // Schedule the loading states with 1 second intervals
+      timeouts.push(setTimeout(() => setLoadingStep(1), 1000));
+      timeouts.push(setTimeout(() => setLoadingStep(2), 2000));
+      
+      // After 3 seconds, restart the sequence if still loading
+      timeouts.push(setTimeout(() => {
+        const startNewSequence = () => {
+          setLoadingStep(0);
+          timeouts.push(setTimeout(() => setLoadingStep(1), 1000));
+          timeouts.push(setTimeout(() => setLoadingStep(2), 2000));
+          timeouts.push(setTimeout(startNewSequence, 3000));
+        };
+        startNewSequence();
+      }, 3000));
+    } else {
+      // Reset loading step when loading is complete
+      setLoadingStep(0);
+    }
+
+    // Cleanup timeouts on unmount or when loading state changes
+    return () => {
+      timeouts.forEach(timeout => clearTimeout(timeout));
+    };
+  }, [isLoadingQuestionnaire]);
+
   if (!caseData || !profileData) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -563,14 +674,48 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     </div>
   );
 
-  // Add this new component for the save button
+  // Update the SaveQuestionnairesButton component
   const SaveQuestionnairesButton = ({ documentTypes, questionnaires, caseId }) => {
     const [isSaving, setIsSaving] = useState(false);
+    const [loadingStep, setLoadingStep] = useState(0);
     const allDocumentsApproved = checkAllDocumentsApproved(documentTypes);
 
+    const getLoadingMessage = () => {
+      const messages = [
+        "Analyzing docs...",
+        "Setting up fields...",
+        "Collecting data...",
+        "Mapping data...",
+        "Filling questionnaire...",
+        "Almost done..."
+      ];
+      return messages[loadingStep];
+    };
+
     const handleSaveQuestionnaires = async () => {
-      setIsSaving(true);
       try {
+        setIsSaving(true);
+        setLoadingStep(0);
+
+        // Create a promise that resolves after showing all loading steps
+        const showLoadingSteps = new Promise((resolve) => {
+          let currentStep = 0;
+          const stepInterval = 2000; // 2 seconds per step
+
+          const interval = setInterval(() => {
+            if (currentStep >= 5) {
+              clearInterval(interval);
+              resolve();
+            } else {
+              currentStep++;
+              setLoadingStep(currentStep);
+            }
+          }, stepInterval);
+        });
+
+        // Wait for loading steps to complete and make API calls
+        await showLoadingSteps;
+
         // Make API calls for each questionnaire
         const responses = await Promise.all(
           questionnaires.map(async (questionnaire) => {
@@ -597,6 +742,10 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         if (hasErrors) {
           toast.error('Some questionnaires could not be processed');
         } else {
+          // Show the final "Almost done..." message for 1 second
+          setLoadingStep(5);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
           toast.success('All questionnaires processed successfully');
           setActiveTab('questionnaire');
         }
@@ -605,6 +754,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         toast.error('Failed to process questionnaires');
       } finally {
         setIsSaving(false);
+        setLoadingStep(0);
       }
     };
 
@@ -614,16 +764,28 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       <button
         onClick={handleSaveQuestionnaires}
         disabled={isSaving}
-        className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center gap-2"
+        className={`px-4 py-2 rounded text-sm font-medium transition-all duration-200 flex items-center gap-2 relative overflow-hidden
+          ${isSaving 
+            ? 'bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 bg-[length:200%_100%] animate-gradient text-white disabled:animate-gradient disabled:opacity-90' 
+            : 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400'
+          }`}
       >
-        {isSaving ? (
-          <>
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Processing...
-          </>
-        ) : (
-          'Process Questionnaires'
-        )}
+        <div className={`absolute inset-0 ${isSaving ? 'bg-blue-600/10 animate-pulse' : ''}`} />
+        <div className="relative flex items-center justify-center gap-2">
+          {isSaving ? (
+            <>
+              <div className="relative">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-400 rounded-full animate-ping" />
+              </div>
+              <span className="animate-fadeIn min-w-[140px] text-white">
+                {getLoadingMessage()}
+              </span>
+            </>
+          ) : (
+            'Process Questionnaires'
+          )}
+        </div>
       </button>
     );
   };
@@ -1052,12 +1214,15 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       setSelectedQuestionnaire(questionnaire);
       
       try {
+        // Start loading sequence
         const response = await api.get(`/questionnaire-responses/management/${caseId}`, {
           templateId: questionnaire._id
         });
-        console.log(response.data)
         
         if (response.data.status === 'success') {
+          // Wait for minimum 3 seconds of loading animation
+          // This ensures all loading steps are visible
+          await new Promise(resolve => setTimeout(resolve, 3000));
           setQuestionnaireData(response.data.data);
         }
       } catch (error) {
@@ -1079,8 +1244,19 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     if (selectedQuestionnaire) {
       if (isLoadingQuestionnaire) {
         return (
-          <div className="flex items-center justify-center h-64">
+          <div className="flex flex-col items-center justify-center h-64 space-y-4">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            <div className="text-gray-600 text-sm">
+              {/* Only show current loading state */}
+              <div className="flex items-center space-x-2 transition-all duration-300">
+                <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                <span>
+                  {loadingStep === 0 && "Loading questionnaire data..."}
+                  {loadingStep === 1 && "Mapping form fields..."}
+                  {loadingStep === 2 && "Processing responses..."}
+                </span>
+              </div>
+            </div>
           </div>
         );
       }
