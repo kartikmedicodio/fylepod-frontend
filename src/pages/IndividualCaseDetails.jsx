@@ -654,37 +654,116 @@ const IndividualCaseDetails = () => {
 
   const CaseDetailsTab = () => (
     <div className="bg-white border border-gray-200 rounded-lg p-6">
-      <div className="space-y-6">
-        <h3 className="text-lg font-semibold mb-4">Case Information</h3>
-        <div className="grid grid-cols-2 gap-6">
+      <div className="flex gap-8">
+        {/* Left Section - Case Information */}
+        <div className="flex-1 space-y-8">
           <div>
-            <div className="text-sm text-gray-500">Case Applicant</div>
-            <div className="font-medium">{caseData.userName}</div>
+            <h3 className="text-lg font-semibold mb-4">Case Information</h3>
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <div className="text-sm text-gray-500">Case Applicant</div>
+                <div className="font-medium">{caseData.userName}</div>
+              </div>
+              <div>
+                <div className="text-sm text-gray-500">Case Manager</div>
+                <div className="font-medium">{caseData.createdBy?.name || '-'}</div>
+              </div>
+              <div>
+                <div className="text-sm text-gray-500">Case Name</div>
+                <div className="font-medium">{caseData.categoryName}</div>
+              </div>
+              <div>
+                <div className="text-sm text-gray-500">Case Created Date</div>
+                <div className="font-medium">{new Date(caseData.createdAt).toLocaleDateString()}</div>
+              </div>
+            </div>
           </div>
+          
           <div>
-            <div className="text-sm text-gray-500">Case Manager</div>
-            <div className="font-medium">{caseData.createdBy?.name || '-'}</div>
-          </div>
-          <div>
-            <div className="text-sm text-gray-500">Case Name</div>
-            <div className="font-medium">{caseData.categoryName}</div>
-          </div>
-          <div>
-            <div className="text-sm text-gray-500">Case Created Date</div>
-            <div className="font-medium">{new Date(caseData.createdAt).toLocaleDateString()}</div>
+            <h3 className="text-lg font-semibold mb-4">Case Status</h3>
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <div className="text-sm text-gray-500">Current Status</div>
+                <div className="font-medium">{caseData.categoryStatus}</div>
+              </div>
+              <div>
+                <div className="text-sm text-gray-500">Last Updated</div>
+                <div className="font-medium">{new Date(caseData.updatedAt).toLocaleDateString()}</div>
+              </div>
+            </div>
           </div>
         </div>
-        
-        <div className="mt-8">
-          <h3 className="text-lg font-semibold mb-4">Case Status</h3>
-          <div className="grid grid-cols-2 gap-6">
-            <div>
-              <div className="text-sm text-gray-500">Current Status</div>
-              <div className="font-medium">{caseData.categoryStatus}</div>
+
+        {/* Right Section - AI Agents */}
+        <div className="w-[400px] border-l pl-8">
+          <div className="sticky top-5">
+            <div className="flex items-center gap-2 mb-6">
+              <h3 className="text-lg font-semibold">AI Agents</h3>
+              <div className="flex h-6 items-center">
+                <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium bg-blue-50 text-blue-700 rounded-full">2 Active</span>
+              </div>
             </div>
-            <div>
-              <div className="text-sm text-gray-500">Last Updated</div>
-              <div className="font-medium">{new Date(caseData.updatedAt).toLocaleDateString()}</div>
+            
+            <div className="space-y-5">
+              {/* Fiona - Case Creation Agent */}
+              <div className="relative overflow-hidden bg-gradient-to-r from-emerald-50/50 via-emerald-50/30 to-teal-50/50 rounded-2xl p-5 border border-emerald-100/50 shadow-sm">
+                <div className="relative z-10">
+                  <div className="flex items-center gap-4 mb-3">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 flex items-center justify-center shadow-md">
+                      <span className="text-lg font-semibold text-white">F</span>
+                    </div>
+                    <div>
+                      <h4 className="text-base font-semibold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                        Fiona
+                      </h4>
+                      <p className="text-sm text-gray-600">Case Creation Agent</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                      <span className="text-sm font-medium bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                        Processing Case
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Decorative Elements */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-500/5 to-teal-500/5 rounded-full transform translate-x-16 -translate-y-16"></div>
+                <div className="absolute bottom-0 right-0 w-20 h-20 bg-gradient-to-br from-emerald-500/5 to-teal-500/5 rounded-full transform translate-x-8 translate-y-8"></div>
+              </div>
+
+              {/* Diana - Document Collection Agent */}
+              <div className="relative overflow-hidden bg-gradient-to-r from-indigo-50/50 via-purple-50/30 to-pink-50/50 rounded-2xl p-5 border border-indigo-100/50 shadow-sm">
+                <div className="relative z-10">
+                  <div className="flex items-center gap-4 mb-3">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md">
+                      <span className="text-lg font-semibold text-white">D</span>
+                    </div>
+                    <div>
+                      <h4 className="text-base font-semibold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                        Diana
+                      </h4>
+                      <p className="text-sm text-gray-600">Document Collection Agent</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
+                      <span className="text-sm font-medium bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                        Collecting Documents
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Decorative Elements */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-500/5 to-pink-500/5 rounded-full transform translate-x-16 -translate-y-16"></div>
+                <div className="absolute bottom-0 right-0 w-20 h-20 bg-gradient-to-br from-indigo-500/5 to-pink-500/5 rounded-full transform translate-x-8 translate-y-8"></div>
+              </div>
             </div>
           </div>
         </div>
