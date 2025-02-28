@@ -176,7 +176,7 @@ const DocumentChecklist = ({ setCurrentBreadcrumb }) => {
           </div>
         </div>
 
-        {/* Category Header */}
+        {/* Category Header with Description and AI Banner */}
         <div className="px-6 pt-6">
           <div className="flex items-center justify-between">
             <div>
@@ -188,75 +188,62 @@ const DocumentChecklist = ({ setCurrentBreadcrumb }) => {
               </p>
             </div>
           </div>
+          
+          {/* AI Validation Banner */}
+          <div className="mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 p-3 rounded-lg border border-blue-100">
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-4 h-4">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4 text-blue-500">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </span>
+              <span className="text-sm font-medium bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                AI-Powered Document Validation
+              </span>
+            </div>
+            <p className="text-xs text-gray-600 mt-1 ml-6">
+              Our AI agent automatically verifies all document requirements during upload
+            </p>
+          </div>
         </div>
 
         {/* Document List */}
         <div className="px-6 pt-6 pb-6">
-          <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
-            {category?.documentTypes.map((doc, index) => (
-              <div key={doc._id} className="flex flex-col">
-                {/* Document Header */}
-                <div className="flex items-center gap-4 px-6 py-4">
-                  <div className="flex items-center h-5">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-gray-900">
-                      {doc.name}
-                    </div>
+          <div className="space-y-4">
+            {category?.documentTypes.map((doc) => (
+              <div key={doc._id} className="bg-white rounded-lg border border-gray-200 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-medium">{doc.name}</h3>
+                    {doc.validations && doc.validations.length > 0 && (
+                      <div className="mt-1">
+                        <div className="space-y-1.5 pl-2">
+                          {doc.validations.map((validation, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <div className="w-3 h-3 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center">
+                                <svg 
+                                  viewBox="0 0 24 24" 
+                                  fill="none" 
+                                  className="w-2 h-2 text-white"
+                                  stroke="currentColor"
+                                >
+                                  <path 
+                                    strokeLinecap="round" 
+                                    strokeLinejoin="round" 
+                                    strokeWidth="3" 
+                                    d="M13 10V3L4 14h7v7l9-11h-7z"
+                                  />
+                                </svg>
+                              </div>
+                              <span className="text-xs text-gray-600">{validation}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   {doc.required && (
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-green-100 text-green-800">
-                      Required
-                    </span>
-                  )}
-                </div>
-
-                {/* Questions and Validations */}
-                <div className="px-14 pb-4">
-                  {/* Questions Section */}
-                  {doc.questions && doc.questions.length > 0 && (
-                    <div className="mb-3">
-                      <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
-                        Questions
-                      </h4>
-                      <div className="space-y-2">
-                        {doc.questions.map((question, qIndex) => (
-                          <div 
-                            key={question._id} 
-                            className="flex items-start gap-2 text-sm text-gray-600"
-                          >
-                            <span className="text-gray-400">{qIndex + 1}.</span>
-                            <span>{question.text}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Validations Section */}
-                  {doc.validations && doc.validations.length > 0 && (
-                    <div>
-                      <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
-                        Validations
-                      </h4>
-                      <div className="space-y-2">
-                        {doc.validations.map((validation, vIndex) => (
-                          <div 
-                            key={vIndex}
-                            className="flex items-start gap-2 text-sm text-gray-600"
-                          >
-                            <div className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-50 flex items-center justify-center">
-                              <span className="text-xs text-blue-600">✓</span>
-                            </div>
-                            <span>{validation}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    <span className="text-xs text-green-600 font-medium">Required</span>
                   )}
                 </div>
               </div>
