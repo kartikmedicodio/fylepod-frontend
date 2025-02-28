@@ -12,6 +12,8 @@ export default {
         'pulse': 'pulse 6s infinite',
         'shake': 'shake 0.5s linear',
         shimmer: 'shimmer 2s ease-in-out infinite',
+        'gradient': 'gradient 3s linear infinite',
+        'fadeIn': 'fadeIn 0.2s ease-in',
       },
       keyframes: {
         'gradient-xy': {
@@ -43,6 +45,14 @@ export default {
           '0%': { opacity: 0.5 },
           '50%': { opacity: 1 },
           '100%': { opacity: 0.5 },
+        },
+        gradient: {
+          '0%, 100%': { 'background-position': '0% 50%' },
+          '50%': { 'background-position': '100% 50%' },
+        },
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
         }
       },
       colors: {
