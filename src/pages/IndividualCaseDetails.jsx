@@ -26,7 +26,8 @@ const processingSteps = [
   { id: 1, text: "Analyzing document" },
   { id: 2, text: "Extracting information" },
   { id: 3, text: "Validating content" },
-  { id: 4, text: "Verifying document" }
+  { id: 4, text: "Verifying document" },
+  { id: 5, text: "Document processed" }
 ];
 
 const ProcessingIndicator = ({ currentStep }) => {
@@ -94,22 +95,9 @@ ProcessingIndicator.propTypes = {
 };
 
 const DocumentProgressBar = ({ status }) => {
-  // Updated stages with cyan for all stages and blue for the final stage
-  const stages = [
-    { id: 1, name: 'Document Scanned', color: 'bg-cyan-100', textColor: 'text-cyan-600', iconColor: 'text-cyan-600' },
-    { id: 2, name: 'Data Extracted', color: 'bg-cyan-100', textColor: 'text-cyan-600', iconColor: 'text-cyan-600' },
-    { id: 3, name: 'Document Type Detected', color: 'bg-cyan-100', textColor: 'text-cyan-600', iconColor: 'text-cyan-600' },
-    { id: 4, name: 'Content Validated', color: 'bg-cyan-100', textColor: 'text-cyan-600', iconColor: 'text-cyan-600' },
-    { id: 5, name: 'Verification Complete', color: 'bg-blue-100', textColor: 'text-blue-700', iconColor: 'text-blue-700' }
-  ];
-
-  // Convert status to lowercase for more reliable comparison
   const normalizedStatus = (status || '').toLowerCase().trim();
+  let currentStage = 1;
   
-  // Calculate current stage based on normalized status
-  let currentStage = 1; // Default to first stage
-  
-  // Ensure both 'uploaded' and 'approved' show the green complete stage
   if (normalizedStatus === 'uploaded' || normalizedStatus === 'approved') {
     currentStage = 5;
   } else if (normalizedStatus === 'validating') {
@@ -122,43 +110,51 @@ const DocumentProgressBar = ({ status }) => {
     currentStage = 1;
   }
 
-  // Log for debugging
-  // console.log('Document status:', status, 'Normalized:', normalizedStatus, 'Stage:', currentStage);
-
   return (
     <div className="mt-3">
       <div className="flex justify-between">
-        {stages.map((stage) => (
+        {processingSteps.map((stage) => (
           <div key={stage.id} className="flex items-center gap-1.5 px-1">
-            {/* Status tick/check icon */}
+            {/* Status indicator */}
             <div 
               className={`w-5 h-5 rounded-full flex items-center justify-center relative
-                ${stage.id <= currentStage ? stage.color : 'bg-gray-100'}
+                ${stage.id <= currentStage ? 'bg-purple-500' : 'bg-gray-100'}
                 ${stage.id <= currentStage ? 'shadow-sm' : ''}`}
             >
               {stage.id <= currentStage ? (
-                <svg className={`w-3 h-3 ${stage.iconColor}`} viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
+                <div className="relative w-full h-full">
+                  {/* Animated ring for active stage - only show for current non-completed stage */}
+                  {stage.id === currentStage && stage.id !== 5 && (
+                    <div className="absolute -inset-1 bg-purple-500 rounded-full animate-spin" style={{ animationDuration: '3s' }}></div>
+                  )}
+                  <div className="absolute inset-0 bg-purple-500 rounded-full flex items-center justify-center">
+                    <svg className="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                </div>
               ) : (
                 <span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
               )}
               
-              {/* Active indicator */}
-              {stage.id === currentStage && (
+              {/* Active indicator pulse - only show for current non-completed stage */}
+              {stage.id === currentStage && stage.id !== 5 && (
                 <span className="absolute -right-0.5 -top-0.5 flex h-2 w-2">
-                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${stage.iconColor.replace('text-', 'bg-')}`}></span>
-                  <span className={`relative inline-flex rounded-full h-2 w-2 ${stage.iconColor.replace('text-', 'bg-')}`}></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 bg-purple-500"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
                 </span>
               )}
             </div>
             
             {/* Stage label */}
             <span 
-              className={`text-xs ${stage.id <= currentStage ? stage.textColor : 'text-gray-400'} 
-                ${stage.id <= currentStage ? 'font-medium' : ''}`}
+              className={`text-xs ${
+                stage.id <= currentStage 
+                  ? 'font-medium text-purple-600' 
+                  : 'text-gray-400'
+              }`}
             >
-              {stage.name}
+              {stage.text}
             </span>
           </div>
         ))}
@@ -888,33 +884,33 @@ const IndividualCaseDetails = () => {
 
     const renderDocumentsList = () => (
       <div className="flex-1 border border-gray-200 rounded-lg p-4">
-        <div className="space-y-3">
+        <div className="space-y-6">
           {uploadStatus === 'pending' ? (
             pendingDocuments.length > 0 ? (
               pendingDocuments.map((doc) => (
                 <div key={doc._id} className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow border border-dashed border-gray-200">
                   <div className="flex flex-col">
-                    <div className="flex justify-between items-start">
+                    <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-md bg-amber-50 flex items-center justify-center">
-                          <svg className="w-4 h-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <div className="w-10 h-10 rounded-lg bg-sky-50 flex items-center justify-center">
+                          <svg className="w-5 h-5 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
                         </div>
                         <div>
-                          <h4 className="font-medium text-gray-800">
+                          <h4 className="text-lg font-semibold text-gray-900">
                             {doc.name}
-                            {doc.required && (
-                              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-700">
-                                Required
-                              </span>
-                            )}
                           </h4>
                           <p className="text-sm text-gray-500 mt-0.5">
                             Please upload your {doc.name.toLowerCase()}
                           </p>
                         </div>
                       </div>
+                      {doc.required && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700">
+                          Required
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -927,20 +923,24 @@ const IndividualCaseDetails = () => {
           ) : (
             uploadedDocuments.length > 0 ? (
               uploadedDocuments.map((doc) => (
-                <div key={doc._id} className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow">
+                <div key={doc._id} className="bg-white rounded-lg shadow-sm p-5 hover:shadow-md transition-shadow">
                   <div className="flex flex-col">
-                    <div className="flex justify-between items-start">
+                    <div className="flex justify-between items-start mb-4">
                       {/* Document icon and name */}
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-md bg-blue-50 flex items-center justify-center">
-                          <svg className="w-4 h-4 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-sky-50 flex items-center justify-center">
+                          <svg className="w-5 h-5 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
                         </div>
-                        <h4 className="font-medium text-gray-800">{doc.name}</h4>
+                        <div>
+                          <h4 className="text-xl font-semibold text-gray-900">
+                            {doc.name}
+                          </h4>
+                        </div>
                       </div>
-                      
-                      {/* Status tag - with dynamic status from backend */}
+
+                      {/* Status tag moved to right corner */}
                       <span 
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                           ${doc.status === 'approved' || doc.status === 'uploaded'
@@ -956,7 +956,7 @@ const IndividualCaseDetails = () => {
                       </span>
                     </div>
                     
-                    {/* Keep the progress bar as is */}
+                    {/* Progress bar below the document name */}
                     <DocumentProgressBar status={doc.status || 'uploaded'} />
                   </div>
                 </div>
@@ -985,17 +985,17 @@ const IndividualCaseDetails = () => {
             <div 
               className={`flex flex-col items-center justify-center py-10 px-6 rounded-lg transition-all duration-300 ${
                 isDragging 
-                  ? 'bg-blue-50 border-2 border-dashed border-blue-400 shadow-inner' 
-                  : 'bg-gray-50 border-2 border-dashed border-gray-200 hover:bg-gray-100 hover:border-gray-300'
+                  ? 'bg-sky-100 border-2 border-dashed border-sky-300 shadow-inner' 
+                  : 'bg-sky-50 border-2 border-dashed border-sky-200 hover:bg-sky-100 hover:border-sky-300'
               }`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
               {/* Upload Icon */}
-              <div className={`mb-4 p-5 rounded-full ${isDragging ? 'bg-blue-100' : 'bg-gray-100'}`}>
+              <div className={`mb-4 p-5 rounded-full ${isDragging ? 'bg-sky-100' : 'bg-sky-50'}`}>
                 <svg 
-                  className={`w-8 h-8 ${isDragging ? 'text-blue-600' : 'text-gray-500'}`} 
+                  className={`w-8 h-8 ${isDragging ? 'text-sky-600' : 'text-sky-500'}`} 
                   viewBox="0 0 24 24" 
                   fill="none" 
                   stroke="currentColor" 
@@ -1007,7 +1007,7 @@ const IndividualCaseDetails = () => {
               
               {/* Upload Instructions */}
               <div className="text-center space-y-4">
-                <h3 className={`font-medium ${isDragging ? 'text-blue-700' : 'text-gray-700'}`}>
+                <h3 className={`font-medium ${isDragging ? 'text-sky-900' : 'text-sky-700'}`}>
                   {isDragging ? 'Drop files here' : 'Upload your documents'}
                 </h3>
                 <p className="text-sm text-gray-500 mb-2">
@@ -1016,7 +1016,7 @@ const IndividualCaseDetails = () => {
                 
                 <label 
                   htmlFor="smart-file-upload" 
-                  className="inline-flex items-center justify-center px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium rounded-lg cursor-pointer transition-colors"
+                  className="inline-flex items-center justify-center px-4 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-medium rounded-lg cursor-pointer transition-colors"
                 >
                   <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l-3-3m0 0l-3 3m3-3v12M3 17.25V21h18v-3.75M3 10.5V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v3" />
@@ -1046,8 +1046,8 @@ const IndividualCaseDetails = () => {
                   {files.map((file, index) => (
                     <div key={index} className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-200">
                       <div className="flex items-center">
-                        <div className="w-8 h-8 rounded-md bg-blue-50 flex items-center justify-center mr-3">
-                          <svg className="w-4 h-4 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <div className="w-8 h-8 rounded-md bg-sky-50 flex items-center justify-center mr-3">
+                          <svg className="w-4 h-4 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
                         </div>
@@ -1110,6 +1110,40 @@ const IndividualCaseDetails = () => {
           >
             Uploaded
           </button>
+        </div>
+
+        {/* Diana's AI Capabilities Section */}
+        <div className="mb-6 bg-white rounded-xl border border-gray-100 p-4 relative overflow-hidden">
+          <div className="flex items-start gap-4 relative z-10">
+            {/* Diana's Avatar */}
+            <div className="flex-shrink-0">
+              <div className="relative">
+                {/* Animated Background Ring */}
+                <div className="absolute inset-0 -m-2">
+                  <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 rounded-full blur-lg"></div>
+                </div>
+                {/* Avatar Container */}
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md relative">
+                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl"></div>
+                  <span className="relative text-sm font-semibold text-white">Diana</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Description Text */}
+            <div className="flex-1">
+              <h4 className="text-base font-semibold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-1">
+                Intelligent Document Processing
+              </h4>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                Agent Diana automatically identifies, sorts, and extracts relevant data from uploaded documents. It then performs human language-based validations to ensure the accuracy of the extracted data before storing it securely in the system.
+              </p>
+            </div>
+          </div>
+
+          {/* Decorative Background Elements */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-500/5 via-purple-500/5 to-pink-500/5 rounded-full transform translate-x-32 -translate-y-32"></div>
+          <div className="absolute bottom-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-500/5 via-purple-500/5 to-pink-500/5 rounded-full transform translate-x-16 translate-y-16"></div>
         </div>
 
         <div className="flex gap-6">
