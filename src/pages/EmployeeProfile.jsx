@@ -138,22 +138,29 @@ const EmployeeProfile = ({ setCurrentBreadcrumb }) => {
   useEffect(() => {
     const fetchBasicDetails = async () => {
       try {
-        setLoading(prev => ({ ...prev, basic: true }));
+        setLoading(prev => ({ ...prev, basic: true, documents: true })); // Set documents loading
         const response = await employeeService.getEmployeeBasicDetails(employeeId);
         console.log("response", response);
         
         // Add null check and ensure data exists before accessing
         if (response?.success && response?.data) {
           setBasicDetails(response.data);
+          // If passport data exists in basic details, use it for documents
+          if (response.data.passport) {
+            setDocuments({
+              rawDocuments: {
+                Passport: response.data.passport
+              }
+            });
+          }
+          
           // Update breadcrumb with employee name
-          setCurrentBreadcrumb({
-            name: response.data.name || 'Employee Details', // Fallback name if name is undefined
-            path: `/corporations/${corporationId}/employee/${employeeId}`,
-            parentBreadcrumb: {
-              name: 'Employee List',
-              path: `/corporations/${corporationId}/employees`
-            }
-          });
+          setCurrentBreadcrumb([
+            { label: 'Dashboard', link: '/' },
+            { label: 'Corporations', link: '/corporations' },
+            { label: corporationId ? `Corporation Details` : 'Employees', link: corporationId ? `/corporations/${corporationId}` : '/employees' },
+            { label: response.data.name || 'Employee Details', link: '#' }
+          ]);
         } else {
           console.error('Invalid response format:', response);
           // Set some default state or error handling
@@ -163,7 +170,7 @@ const EmployeeProfile = ({ setCurrentBreadcrumb }) => {
         console.error('Error fetching employee basic details:', error);
         setBasicDetails(null);
       } finally {
-        setLoading(prev => ({ ...prev, basic: false }));
+        setLoading(prev => ({ ...prev, basic: false, documents: false }));
       }
     };
 
@@ -215,46 +222,68 @@ const EmployeeProfile = ({ setCurrentBreadcrumb }) => {
 
   // Update the passport details section
   const renderPassportDetails = () => {
-    if (loading.documents) {
+    if (loading.basic || loading.documents) {
       return (
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <SkeletonLoader lines={4} headerText="Passport Details" />
+          <SkeletonLoader lines={6} headerText="Passport Details" />
         </div>
       );
     }
 
+    const passportData = basicDetails?.passport || (documents?.rawDocuments?.Passport);
+    
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold mb-6">Passport Details</h2>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Passport Number</label>
-            <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
-              {documents?.rawDocuments.Passport.passportNumber}
+        <h2 className="text-lg font-semibold mb-4">Passport Details</h2>
+        {passportData ? (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Passport Number</label>
+              <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                {passportData.number || 'N/A'}
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Date of Issue</label>
-            <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
-              {documents?.rawDocuments.Passport.dateOfIssue}
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Passport Type</label>
+              <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                {passportData.passportType || 'N/A'}
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Date of Expiry</label>
-            <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
-              {documents?.rawDocuments.Passport.dateOfExpiry}
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Date of Issue</label>
+              <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                {passportData.dateOfIssue ? new Date(passportData.dateOfIssue).toLocaleDateString() : 'N/A'}
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">Place of Issue</label>
-            <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
-              {documents?.rawDocuments.Passport.placeOfIssue}
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Date of Expiry</label>
+              <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                {passportData.dateOfExpiry ? new Date(passportData.dateOfExpiry).toLocaleDateString() : 'N/A'}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Place of Issue</label>
+              <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                {passportData.placeOfIssue || 'N/A'}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Issued By</label>
+              <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                {passportData.issuedBy || 'N/A'}
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="text-center py-4 text-gray-500">
+            No passport information available
+          </div>
+        )}
       </div>
     );
   };
@@ -264,18 +293,7 @@ const EmployeeProfile = ({ setCurrentBreadcrumb }) => {
     if (loading.documents) {
       return (
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <SkeletonLoader lines={3} headerText="Work History">
-            {/* Additional skeleton for work experience cards */}
-            <div className="space-y-4 mt-6">
-              {[...Array(2)].map((_, index) => (
-                <div key={index} className="p-4 border border-gray-200 rounded-lg">
-                  <div className="h-5 bg-gray-200 rounded w-1/3 mb-2 animate-pulse" />
-                  <div className="h-4 bg-gray-100 rounded w-1/4 mb-2 animate-pulse" />
-                  <div className="h-4 bg-gray-100 rounded w-1/2 animate-pulse" />
-                </div>
-              ))}
-            </div>
-          </SkeletonLoader>
+          <SkeletonLoader lines={3} headerText="Work History" />
         </div>
       );
     }
@@ -284,15 +302,20 @@ const EmployeeProfile = ({ setCurrentBreadcrumb }) => {
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h2 className="text-lg font-semibold mb-6">Work History</h2>
         <div className="space-y-4">
-          {documents?.rawDocuments.Resume.workExperience.map((exp, index) => (
-            <div key={index} className="p-4 border border-gray-200 rounded-lg">
-              <div className="font-medium">{exp.jobTitle}</div>
-              <div className="text-sm text-gray-600">{exp.companyName}</div>
-              <div className="text-sm text-gray-500">
-                {exp.fromDate} - {exp.toDate}
+          {basicDetails?.workHistory && basicDetails.workHistory.length > 0 ? (
+            basicDetails.workHistory.map((exp, index) => (
+              <div key={index} className="p-4 border border-gray-200 rounded-lg">
+                <div className="font-medium">{exp.jobTitle}</div>
+                <div className="text-sm text-gray-600">{exp.companyName}</div>
+                <div className="text-sm text-gray-500">
+                  {exp.fromDate ? new Date(exp.fromDate).toLocaleDateString() : 'N/A'} - 
+                  {exp.toDate ? new Date(exp.toDate).toLocaleDateString() : 'Present'}
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <div className="text-sm text-gray-500">No work history available</div>
+          )}
         </div>
       </div>
     );
@@ -303,18 +326,7 @@ const EmployeeProfile = ({ setCurrentBreadcrumb }) => {
     if (loading.documents) {
       return (
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <SkeletonLoader lines={2} headerText="Education History">
-            {/* Additional skeleton for education cards */}
-            <div className="space-y-4 mt-6">
-              {[...Array(2)].map((_, index) => (
-                <div key={index} className="p-4 border border-gray-200 rounded-lg">
-                  <div className="h-5 bg-gray-200 rounded w-1/3 mb-2 animate-pulse" />
-                  <div className="h-4 bg-gray-100 rounded w-1/2 mb-2 animate-pulse" />
-                  <div className="h-4 bg-gray-100 rounded w-1/4 animate-pulse" />
-                </div>
-              ))}
-            </div>
-          </SkeletonLoader>
+          <SkeletonLoader lines={2} headerText="Education History" />
         </div>
       );
     }
@@ -323,13 +335,20 @@ const EmployeeProfile = ({ setCurrentBreadcrumb }) => {
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h2 className="text-lg font-semibold mb-6">Education History</h2>
         <div className="space-y-4">
-          {documents?.rawDocuments.Resume.educationHistory.map((edu, index) => (
-            <div key={index} className="p-4 border border-gray-200 rounded-lg">
-              <div className="font-medium">{edu.courseLevel}</div>
-              <div className="text-sm text-gray-600">{edu.schoolUniversityCollege}</div>
-              <div className="text-sm text-gray-500">Graduated: {edu.passOutYear}</div>
-            </div>
-          ))}
+          {basicDetails?.educationHistory && basicDetails.educationHistory.length > 0 ? (
+            basicDetails.educationHistory.map((edu, index) => (
+              <div key={index} className="p-4 border border-gray-200 rounded-lg">
+                <div className="font-medium">{edu.courseLevel} in {edu.specialization}</div>
+                <div className="text-sm text-gray-600">{edu.institution}</div>
+                <div className="text-sm text-gray-500">GPA: {edu.gpa}</div>
+                <div className="text-sm text-gray-500">
+                  Graduated: {edu.passoutYear ? new Date(edu.passoutYear).toLocaleDateString() : 'N/A'}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-sm text-gray-500">No education history available</div>
+          )}
         </div>
       </div>
     );
@@ -349,7 +368,8 @@ const EmployeeProfile = ({ setCurrentBreadcrumb }) => {
     {
       id: 'documents',
       label: 'Documents',
-      count: null
+      count: null,
+      disabled: true
     }
   ];
 
@@ -370,18 +390,22 @@ const EmployeeProfile = ({ setCurrentBreadcrumb }) => {
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => !tab.disabled && setActiveTab(tab.id)}
+            disabled={tab.disabled}
             className={`
               relative flex items-center justify-center px-4 py-2 rounded-md
               font-medium text-sm transition-colors duration-200 min-w-[100px]
               ${activeTab === tab.id 
                 ? 'text-white'
-                : 'text-gray-600 hover:text-gray-800'
+                : tab.disabled
+                  ? 'text-gray-400 cursor-not-allowed'
+                  : 'text-gray-600 hover:text-gray-800'
               }
             `}
+            title={tab.disabled ? "Coming soon" : ""}
           >
             <span>{tab.label}</span>
-            {tab.count !== null && (
+            {tab.count !== null && !tab.disabled && (
               <span 
                 className={`
                   ml-2 px-1.5 py-0.5 text-xs rounded-full
@@ -394,6 +418,9 @@ const EmployeeProfile = ({ setCurrentBreadcrumb }) => {
               >
                 {tab.count}
               </span>
+            )}
+            {tab.disabled && (
+              <span className="ml-1 text-xs bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded"></span>
             )}
           </button>
         ))}
@@ -411,37 +438,17 @@ const EmployeeProfile = ({ setCurrentBreadcrumb }) => {
           
           {/* Passport Details Skeleton */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <SkeletonLoader lines={4} headerText="Passport Details" />
+            <SkeletonLoader lines={6} headerText="Passport Details" />
           </div>
           
           {/* Work History Skeleton */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <SkeletonLoader lines={3} headerText="Work History">
-              <div className="space-y-4 mt-6">
-                {[...Array(2)].map((_, index) => (
-                  <div key={index} className="p-4 border border-gray-200 rounded-lg">
-                    <div className="h-5 bg-gray-200 rounded w-1/3 mb-2 animate-pulse" />
-                    <div className="h-4 bg-gray-100 rounded w-1/4 mb-2 animate-pulse" />
-                    <div className="h-4 bg-gray-100 rounded w-1/2 animate-pulse" />
-                  </div>
-                ))}
-              </div>
-            </SkeletonLoader>
+            <SkeletonLoader lines={3} headerText="Work History" />
           </div>
           
           {/* Education History Skeleton */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <SkeletonLoader lines={2} headerText="Education History">
-              <div className="space-y-4 mt-6">
-                {[...Array(2)].map((_, index) => (
-                  <div key={index} className="p-4 border border-gray-200 rounded-lg">
-                    <div className="h-5 bg-gray-200 rounded w-1/3 mb-2 animate-pulse" />
-                    <div className="h-4 bg-gray-100 rounded w-1/2 mb-2 animate-pulse" />
-                    <div className="h-4 bg-gray-100 rounded w-1/4 animate-pulse" />
-                  </div>
-                ))}
-              </div>
-            </SkeletonLoader>
+            <SkeletonLoader lines={2} headerText="Education History" />
           </div>
         </div>
       </div>
@@ -450,12 +457,9 @@ const EmployeeProfile = ({ setCurrentBreadcrumb }) => {
 
   return (
     <div className="p-4">
-      {/* Replace the old tabs with new renderTabs */}
       {renderTabs()}
 
-      {/* Content sections with fade transition */}
       <div className="relative">
-        {/* Profile Content */}
         <div 
           className={`
             transition-all duration-300 
@@ -466,73 +470,121 @@ const EmployeeProfile = ({ setCurrentBreadcrumb }) => {
           `}
         >
           {activeTab === 'profile' && (
-            <div className="grid grid-cols-2 gap-6">
-              {/* Employee Details */}
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <div className="flex justify-between items-start mb-6">
-                  <h2 className="text-lg font-semibold">Employee Details</h2>
-                  <button className="flex items-center gap-2 text-blue-600 text-sm font-medium hover:text-blue-700 border border-blue-200 px-4 py-2 rounded-lg hover:bg-blue-50">
-                    <Pencil size={16} />
-                    Edit
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">Full Name</label>
-                    <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
-                      {basicDetails?.name}
-                    </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* First Column - Only Employee Details */}
+              <div>
+                {/* Employee Details */}
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
+                  <div className="mb-6">
+                    <h2 className="text-lg font-semibold">Employee Details</h2>
                   </div>
 
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">Email Address</label>
-                    <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
-                      {basicDetails?.email}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Full Name</label>
+                      <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                        {basicDetails?.name || 'N/A'}
+                      </div>
                     </div>
-                  </div>
 
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">Phone Number</label>
-                    <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
-                      {basicDetails?.contact?.mobileNumber}
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Gender</label>
+                      <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                        {basicDetails?.sex || 'N/A'}
+                      </div>
                     </div>
-                  </div>
 
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">Address</label>
-                    <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
-                      {basicDetails?.address && (
-                        `${basicDetails.address.floorAptSuite || ''} ${basicDetails.address.streetName || ''}, 
-                         ${basicDetails.address.cityOfBirth || ''}, ${basicDetails.address.countryOfBirth || ''}`
-                      )}
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Date of Birth</label>
+                      <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                        {basicDetails?.birthInfo?.dateOfBirth 
+                          ? new Date(basicDetails.birthInfo.dateOfBirth).toLocaleDateString() 
+                          : 'N/A'}
+                      </div>
                     </div>
-                  </div>
 
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">Company</label>
-                    <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
-                      {basicDetails?.company_name}
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Place of Birth</label>
+                      <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                        {basicDetails?.birthInfo?.cityOfBirth && basicDetails?.birthInfo?.countryOfBirth
+                          ? `${basicDetails.birthInfo.cityOfBirth}, ${basicDetails.birthInfo.countryOfBirth}`
+                          : 'N/A'}
+                      </div>
                     </div>
-                  </div>
 
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">Role</label>
-                    <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
-                      {basicDetails?.role}
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Email Address</label>
+                      <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                        {basicDetails?.email || basicDetails?.contact?.email || 'N/A'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Mobile Phone</label>
+                      <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                        {basicDetails?.contact?.mobileNumber || 'N/A'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Residence Phone</label>
+                      <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                        {basicDetails?.contact?.residencePhone || 'N/A'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Address</label>
+                      <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                        {basicDetails?.address ? (
+                          <>
+                            {basicDetails.address.floorAptSuite && `${basicDetails.address.floorAptSuite}, `}
+                            {basicDetails.address.streetNumber && `${basicDetails.address.streetNumber} `}
+                            {basicDetails.address.streetName && `${basicDetails.address.streetName}, `}
+                            {basicDetails.address.city && `${basicDetails.address.city}, `}
+                            {basicDetails.address.stateProvince && `${basicDetails.address.stateProvince}, `}
+                            {basicDetails.address.country && `${basicDetails.address.country} `}
+                            {basicDetails.address.zipCode && basicDetails.address.zipCode}
+                          </>
+                        ) : 'N/A'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Company</label>
+                      <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                        {basicDetails?.company_name || 'N/A'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Law Firm</label>
+                      <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                        {basicDetails?.lawfirm_name || 'N/A'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">Role</label>
+                      <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                        {basicDetails?.role || 'N/A'}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Passport Details */}
-              {renderPassportDetails()}
+              {/* Second Column - Passport, Education, and Work History */}
+              <div className="space-y-6">
+                {/* Passport Details */}
+                {renderPassportDetails()}
 
-              {/* Work History */}
-              {renderWorkHistory()}
+                {/* Education History */}
+                {renderEducationHistory()}
 
-              {/* Education History */}
-              {renderEducationHistory()}
+                {/* Work History - Moved here */}
+                {renderWorkHistory()}
+              </div>
             </div>
           )}
         </div>

@@ -60,20 +60,33 @@ const EmployeeCaseList = ({ cases = [] }) => {
           </div>
 
           {/* Filters Button */}
-          <button className="px-4 py-2 border border-gray-200 rounded-lg flex items-center gap-2 text-sm hover:bg-gray-50">
-            <SlidersHorizontal size={16} />
-            All Filters
-          </button>
-          <button className="px-4 py-2 border border-gray-200 rounded-lg flex items-center gap-2 text-sm hover:bg-gray-50">
-            Sort
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              className="px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-400 cursor-not-allowed"
+              disabled
+              title="This feature is coming soon"
+            >
+              All Filters
+            </button>
+            <button 
+              className="px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-400 cursor-not-allowed"
+              disabled
+              title="This feature is coming soon"
+            >
+              Sort
+            </button>
+          </div>
         </div>
 
         {/* Add New Case Button */}
-        <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
-          <Plus size={16} />
-          Add New Case
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
+            onClick={() => navigate('/add-new-case')}
+          >
+            Add New Case
+          </button>
+        </div>
       </div>
 
       {/* Cases Table */}
