@@ -37,6 +37,13 @@ const DOCUMENT_STATUS = {
   APPROVED: 'approved'
 };
 
+const processingSteps = [
+  { id: 1, text: "Analyzing document" },
+  { id: 2, text: "Extracting information" },
+  { id: 3, text: "Validating content" },
+  { id: 4, text: "Verifying document" }
+];
+
 const getInitials = (name) => {
   return name
     ? name
@@ -50,6 +57,66 @@ const getInitials = (name) => {
 
 const checkAllDocumentsApproved = (documentTypes) => {
   return documentTypes.every(doc => doc.status === DOCUMENT_STATUS.APPROVED);
+};
+
+const ProcessingIndicator = ({ currentStep }) => {
+  const [localStep, setLocalStep] = useState(currentStep);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLocalStep((prev) => (prev + 1) % processingSteps.length);
+    }, 800);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="absolute inset-0 bg-black/40 backdrop-blur-[3px] flex items-center justify-center rounded-lg z-50">
+      <div className="bg-white rounded-2xl p-4 shadow-2xl w-72 mx-auto border border-gray-100">
+        {/* Diana's Avatar Section */}
+        <div className="flex justify-center mb-4">
+          <div className="relative">
+            {/* Animated Background Rings */}
+            <div className="absolute inset-0 -m-4">
+              <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 rounded-full blur-xl"></div>
+            </div>
+            {/* Avatar Container */}
+            <div className="w-16 h-16 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg relative">
+              {/* Animated Processing Indicator */}
+              <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl animate-spin" style={{ animationDuration: '3s' }}></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl"></div>
+              <span className="relative text-sm font-semibold text-white">Diana</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 min-w-0">
+          {/* Step Text Animation */}
+          <div className="h-5 relative overflow-hidden text-center">
+            {processingSteps.map((step, index) => (
+              <div
+                key={step.id}
+                className={`absolute w-full transition-all duration-300 ${
+                  index === localStep 
+                    ? 'opacity-100 transform-none' 
+                    : 'opacity-0 -translate-y-2'
+                }`}
+              >
+                <span className="text-xs font-medium bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent inline-block">
+                  {step.text}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 flex justify-center gap-1">
+            <span className="w-1 h-1 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }}></span>
+            <span className="w-1 h-1 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }}></span>
+            <span className="w-1 h-1 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }}></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
@@ -84,6 +151,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const [error, setError] = useState(null);
   const [isQuestionnaireCompleted, setIsQuestionnaireCompleted] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
+  const [processingStep, setProcessingStep] = useState(0);
 
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
@@ -178,6 +246,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     const uploadedDocIds = [];
 
     try {
+      setProcessingStep(0); // Start with analyzing
       // Upload all files
       const uploadPromises = files.map(async (file) => {
         if (!validateFileType(file)) {
@@ -358,6 +427,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       setIsProcessing(false);
       setIsUploading(false);
       setUploadProgress(0);
+      setProcessingStep(0);
     }
   };
 
@@ -921,7 +991,9 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     const renderSmartUpload = () => (
       uploadStatus === DOCUMENT_STATUS.PENDING && (
-        <div className="col-span-4 bg-white rounded-lg border border-gray-200 p-6">
+        <div className="col-span-4 bg-white rounded-lg border border-gray-200 p-6 relative">
+          {isProcessing && <ProcessingIndicator currentStep={processingStep} />}
+          
           <div className="mb-4 pb-4 border-b border-gray-100">
             <h4 className="font-medium text-sm">Smart Upload Files</h4>
           </div>
