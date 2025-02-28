@@ -3,8 +3,9 @@ import { Search, Bell, ChevronRight } from 'lucide-react';
 import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 import PropTypes from 'prop-types';
 import { usePage } from '../../contexts/PageContext';
+import AgentIndicator from '../agents/AgentIndicator';
 
-const Header = ({ sidebarCollapsed }) => {
+const Header = ({ sidebarCollapsed, onAgentClick }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentBreadcrumb } = useBreadcrumb();
@@ -122,7 +123,10 @@ const Header = ({ sidebarCollapsed }) => {
           </div>
 
           {/* Right section */}
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-4">
+            {/* Agent Indicator */}
+            <AgentIndicator onAgentClick={onAgentClick} />
+
             {/* Search button */}
             <button className="p-1.5 bg-transparent hover:bg-white/80 rounded-lg text-black hover:text-blue-600 transition-all duration-200">
               <Search className="h-4 w-4" />
@@ -140,7 +144,8 @@ const Header = ({ sidebarCollapsed }) => {
 };
 
 Header.propTypes = {
-  sidebarCollapsed: PropTypes.bool.isRequired
+  sidebarCollapsed: PropTypes.bool.isRequired,
+  onAgentClick: PropTypes.func.isRequired
 };
 
 export default Header; 
