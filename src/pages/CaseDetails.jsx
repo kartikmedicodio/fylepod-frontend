@@ -700,7 +700,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     ];
 
     return (
-      <div className="flex items-center justify-center w-full py-12 bg-gradient-to-r from-slate-50 to-white">
+      <div className="flex items-center justify-center w-full py-8 bg-gradient-to-r from-slate-50 to-white">
         <div className="flex items-center justify-between max-w-5xl w-full px-8 relative">
           {/* AI Agent Animation Line */}
           <div className="absolute top-[20px] left-0 h-[3px] bg-gradient-to-r from-blue-600/20 to-blue-600/20 w-full">
@@ -1627,7 +1627,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             <button
               onClick={onBack}
               className="sticky top-4 left-4 p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-full transition-all duration-200 group flex items-center gap-2 z-10"
-            >
+            > 
               <ChevronLeft className="w-5 h-8 transition-transform group-hover:-translate-x-0.5" />
               <span className="text-m font-medium ">
                 Back
