@@ -946,6 +946,23 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       doc => doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
     );
 
+    const formatDate = (dateString) => {
+      if (!dateString) return '';
+      
+      try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return ''; // Return empty string for invalid dates
+        
+        return date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      } catch (error) {
+        return '';
+      }
+    };
+
     const renderDocumentsList = () => (
       <div className="col-span-8 bg-white rounded-lg border border-gray-200 p-6">
         <div className="flex gap-2 mb-6 border-b border-gray-100 pb-4">
@@ -1053,7 +1070,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                       </div>
                     </div>
                     <div className="text-sm text-gray-500">
-                      {new Date(doc.updatedAt).toLocaleDateString()}
+                      {formatDate(doc.updatedAt)}
                     </div>
                   </div>
                 </div>
