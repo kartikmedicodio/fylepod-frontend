@@ -964,7 +964,10 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     };
 
     const renderDocumentsList = () => (
-      <div className="col-span-8 bg-white rounded-lg border border-gray-200 p-6">
+      <div className={`${
+        // Take full width (12 columns) when in uploaded tab, otherwise take 8 columns
+        uploadStatus === DOCUMENT_STATUS.UPLOADED ? 'col-span-12' : 'col-span-8'
+      } bg-white rounded-lg border border-gray-200 p-6`}>
         <div className="flex gap-2 mb-6 border-b border-gray-100 pb-4">
           <button 
             onClick={() => setUploadStatus(DOCUMENT_STATUS.PENDING)}
@@ -987,6 +990,38 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             Uploaded ({uploadedDocuments.length})
           </button>
         </div>
+
+        {/* Show Diana's card only in the uploaded documents tab */}
+        {uploadStatus === DOCUMENT_STATUS.UPLOADED && (
+          <div className="bg-white rounded-2xl shadow-lg p-2 mb-4 hover:shadow-xl transition-shadow duration-300">
+            <div className="flex items-start gap-4 relative z-10">
+                {/* Diana's Avatar */}
+                <div className="flex-shrink-0">
+                  <div className="relative">
+                    {/* Animated Background Ring */}
+                    <div className="absolute inset-0 -m-2">
+                      <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 rounded-full blur-lg"></div>
+                    </div>
+                    {/* Avatar Container */}
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md relative">
+                      <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl"></div>
+                      <span className="relative text-sm font-semibold text-white">Diana</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Description Text */}
+                <div className="flex-1">
+                  <h4 className="text-base font-semibold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-1">
+                    Intelligent Document Processing
+                  </h4>
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    Agent Diana automatically identifies, sorts, and extracts relevant data from uploaded documents. It then performs human language-based validations to ensure the accuracy of the extracted data before storing it securely in the system.
+                  </p>
+                </div>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-3">
           {uploadStatus === DOCUMENT_STATUS.PENDING ? (
@@ -1227,7 +1262,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     return (
       <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-2">
           <div className="relative w-80">
             <input
               type="text"
