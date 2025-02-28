@@ -5,6 +5,13 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { getStoredToken } from '../../utils/auth';
 import api from '../../utils/api';
+import toast from 'react-hot-toast';
+
+const FionaIcon = () => (
+  <div className="w-6 h-6 rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 flex items-center justify-center text-white font-semibold text-sm">
+    F
+  </div>
+);
 
 const NewCase = () => {
   const { setPageTitle } = usePage();
@@ -281,6 +288,19 @@ const NewCase = () => {
       setIsCreatingCase(true);
       setLoadingStep(0);
 
+      // Show initial toast
+      const toastId = toast.loading('Fiona is creating your case...', {
+        position: 'top-right',
+        duration: 4000,
+        style: {
+          background: '#fff',
+          color: '#333',
+          padding: '16px',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+        },
+      });
+
       // Simulate steps with delays
       const steps = [
         { delay: 0, step: 0 },    // Initial - Fiona starting...
@@ -308,6 +328,29 @@ const NewCase = () => {
         
         if (response.data.status === 'success') {
           const caseId = response.data.data.management._id;
+          
+          // Update the loading toast with success message
+          toast.success(
+            <div className="flex flex-col gap-1">
+              <span className="font-medium">Case created successfully! ✨</span>
+              <span className="text-sm text-gray-600">
+                Fiona has prepared everything for you
+              </span>
+            </div>,
+            {
+              id: toastId,
+              duration: 5000,
+              style: {
+                background: '#fff',
+                color: '#333',
+                padding: '16px',
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+              },
+              icon: <FionaIcon />,
+            }
+          );
+
           navigate(`/cases/${caseId}`);
         }
       }, 4000);
@@ -316,6 +359,26 @@ const NewCase = () => {
       setError(error.response?.data?.message || 'Failed to create case');
       setIsCreatingCase(false);
       setLoadingStep(0);
+
+      // Show error toast
+      toast.error(
+        <div className="flex flex-col gap-1">
+          <span className="font-medium">Oops! Something went wrong</span>
+          <span className="text-sm text-gray-600">
+            Fiona couldn't create the case
+          </span>
+        </div>,
+        {
+          duration: 5000,
+          style: {
+            background: '#fff',
+            color: '#333',
+            padding: '16px',
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          },
+        }
+      );
     }
   };
 
@@ -564,7 +627,7 @@ const NewCase = () => {
           {/* Attorney Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-900 mb-2">
-              Select Attorney
+              Select Case Manager
             </label>
             <div className="relative" ref={dropdownRefs.attorney}>
               <button
@@ -578,7 +641,7 @@ const NewCase = () => {
                       <span>{selectedAttorney.name}</span>
                     </div>
                   ) : (
-                    'Select attorney...'
+                    'Select case manager...'
                   )}
                 </span>
                 <ChevronDown className="h-4 w-4 text-gray-400" />
