@@ -244,6 +244,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     setIsUploading(true);
     setUploadProgress(0);
     const uploadedDocIds = [];
+    let successfulUploads = 0;
+    let failedUploads = 0;
 
     try {
       setProcessingStep(0); // Start with analyzing
@@ -298,108 +300,143 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       });
 
       const uploadedDocs = (await Promise.all(uploadPromises)).filter(Boolean);
-      if (!uploadedDocs.length) {
-        toast.error('No files were uploaded successfully');
-        return;
-      }
-
+      
       // Process and verify documents
-      const processedDocs = await Promise.all(
+      const processResults = await Promise.all(
         uploadedDocs.map(async (doc) => {
           try {
+            setProcessingStep(1); // Extracting information
             const processedDoc = await checkDocumentProcessing(doc._id);
             if (!processedDoc) {
-              throw new Error('Document processing failed');
+              failedUploads++;
+              await api.delete(`/documents/${doc._id}`);
+              return { success: false };
             }
+
+            setProcessingStep(2); // Validating content
             if (processedDoc.extractedData?.document_type) {
-            
+              setProcessingStep(3); // Verifying document type
               const extractedType = processedDoc.extractedData.document_type.toLowerCase().trim();
-             
-              // Find matching document type that's not already uploaded
+              
               const matchingDocType = caseData.documentTypes.find(type => {
-                return type.name.toLowerCase().trim() === extractedType &&
+                return type.name.toLowerCase().trim() === extractedType && 
                        type.status !== 'uploaded' &&
                        type.status !== 'approved';
               });
- 
+
               if (matchingDocType) {
-                // Update document with correct management document ID
                 await api.patch(`/documents/${doc._id}`, {
                   documentTypeId: matchingDocType.documentTypeId,
                   managementDocumentId: matchingDocType._id
                 });
- 
-                // Update document status to 'uploaded'
+
                 await api.patch(`/management/${caseId}/documents/${matchingDocType.documentTypeId}/status`, {
                   status: 'uploaded'
                 });
- 
-                return { success: true, docId: doc._id };
-              } else {
-                // No matching pending document type found - delete the document
-                console.log(`No matching pending document type found for ${extractedType}. Deleting document ${doc._id}`);
-                await api.delete(`/documents/${doc._id}`);
-                return { success: false, docId: doc._id, error: 'Document type mismatch' };
+
+                successfulUploads++;
+                return { success: true };
               }
-            } else {
-              // No document type extracted - delete the document
-              await api.delete(`/documents/${doc._id}`);
-              return { success: false, docId: doc._id, error: 'Could not extract document type' };
             }
-      
+            
+            failedUploads++;
+            await api.delete(`/documents/${doc._id}`);
+            return { success: false };
+            
           } catch (err) {
             console.error(`Error processing document ${doc._id}:`, err);
-            return null;
+            failedUploads++;
+            return { success: false };
           }
         })
       );
 
-      // Match documents with required types
-      const docTypeMatches = new Map();
-      const docsToDelete = new Set();
-
-      processedDocs.forEach(doc => {
-        if (!doc || !doc.extractedData?.document_type) {
-          if (doc?._id) docsToDelete.add(doc._id);
-          return;
-        }
-
-        const extractedType = doc.extractedData.document_type.toLowerCase().trim();
-        const matchingDocType = caseData.documentTypes.find(type => {
-          return type.name.toLowerCase().trim() === extractedType && 
-                 type.status !== 'completed' && 
-                 !docTypeMatches.has(type.documentTypeId);
-        });
-
-        if (matchingDocType) {
-          docTypeMatches.set(matchingDocType.documentTypeId, doc._id);
-        } else {
-          docsToDelete.add(doc._id);
-        }
-      });
-
-      // Update document statuses
-      if (docTypeMatches.size > 0) {
-        await Promise.all(
-          Array.from(docTypeMatches.entries()).map(([typeId]) => 
-            api.patch(`/management/${caseId}/documents/${typeId}/status`, {
-              status: DOCUMENT_STATUS.UPLOADED
-            })
-          )
-        );
-
-        toast.success(`${docTypeMatches.size} document(s) uploaded successfully`);
+      // Show success toast if any documents were processed successfully
+      if (successfulUploads > 0) {
+        toast.custom((t) => (
+          <div className={`${
+            t.visible ? 'animate-enter' : 'animate-leave'
+          } max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
+            <div className="flex-1 w-0 p-4">
+              <div className="flex items-start">
+                <div className="flex-shrink-0 pt-0.5">
+                  <div className="relative">
+                    {/* Animated Background Rings */}
+                    <div className="absolute inset-0 -m-2">
+                      <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 rounded-full blur-lg"></div>
+                    </div>
+                    {/* Avatar Container */}
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md relative">
+                      <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-lg animate-spin" style={{ animationDuration: '3s' }}></div>
+                      <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-lg"></div>
+                      <span className="relative text-xs font-semibold text-white">Diana</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="ml-3 flex-1">
+                  <p className="text-sm font-medium text-gray-900">
+                    Diana successfully processed your documents
+                  </p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {successfulUploads} document{successfulUploads !== 1 ? 's' : ''} verified and uploaded
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex border-l border-gray-200">
+              <button
+                onClick={() => toast.dismiss(t.id)}
+                className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-indigo-600 hover:text-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        ), { duration: 5000 });
       }
 
-      // Clean up unmatched documents
-      if (docsToDelete.size > 0) {
-        await Promise.all(
-          Array.from(docsToDelete).map(docId =>
-            api.delete(`/documents/${docId}`).catch(err => 
-              console.error(`Error deleting document ${docId}:`, err)
-            )
-          )
-        );
+      // Show error toast if any documents failed
+      if (failedUploads > 0) {
+        toast.custom((t) => (
+          <div className={`${
+            t.visible ? 'animate-enter' : 'animate-leave'
+          } max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
+            <div className="flex-1 w-0 p-4">
+              <div className="flex items-start">
+                <div className="flex-shrink-0 pt-0.5">
+                  <div className="relative">
+                    {/* Animated Background Rings */}
+                    <div className="absolute inset-0 -m-2">
+                      <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-red-500/20 via-pink-500/20 to-rose-500/20 rounded-full blur-lg"></div>
+                    </div>
+                    {/* Avatar Container */}
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-red-500 via-pink-500 to-rose-500 flex items-center justify-center shadow-md relative">
+                      <div className="absolute -inset-0.5 bg-gradient-to-r from-red-500 via-pink-500 to-rose-500 rounded-lg animate-spin" style={{ animationDuration: '3s' }}></div>
+                      <div className="absolute inset-0 bg-gradient-to-r from-red-500 via-pink-500 to-rose-500 rounded-lg"></div>
+                      <span className="relative text-xs font-semibold text-white">Diana</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="ml-3 flex-1">
+                  <p className="text-sm font-medium text-gray-900">
+                    Diana encountered some issues
+                  </p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {failedUploads} document{failedUploads !== 1 ? 's' : ''} failed verification. Please try again.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex border-l border-gray-200">
+              <button
+                onClick={() => toast.dismiss(t.id)}
+                className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-red-600 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        ), { duration: 5000 });
       }
 
       // Refresh case data
@@ -412,17 +449,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     } catch (err) {
       console.error('Error in file upload process:', err);
       toast.error('Error processing documents');
-      
-      // Clean up any uploaded documents on error
-      if (uploadedDocIds.length) {
-        await Promise.all(
-          uploadedDocIds.map(docId =>
-            api.delete(`/documents/${docId}`).catch(err => {
-              console.error(`Error deleting document ${docId}:`, err);
-            })
-          )
-        );
-      }
     } finally {
       setIsProcessing(false);
       setIsUploading(false);
