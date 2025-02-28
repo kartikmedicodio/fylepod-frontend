@@ -132,7 +132,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const [uploadStatus, setUploadStatus] = useState(DOCUMENT_STATUS.PENDING);
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState([]);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef(null);
@@ -152,6 +151,9 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const [isQuestionnaireCompleted, setIsQuestionnaireCompleted] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [processingStep, setProcessingStep] = useState(0);
+
+  // Add a new state to track processing state for each document
+  const [processingDocuments, setProcessingDocuments] = useState({});
 
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
@@ -191,7 +193,11 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
   const handleDocumentApprove = async (documentTypeId, managementDocumentId) => {
     try {
-      setIsProcessing(true);
+      // Update processing state for this specific document
+      setProcessingDocuments(prev => ({
+        ...prev,
+        [managementDocumentId]: true
+      }));
       
       await api.patch(`/management/${caseId}/documents/${documentTypeId}/status`, {
         status: DOCUMENT_STATUS.APPROVED,
@@ -209,13 +215,20 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       console.error('Error approving document:', error);
       toast.error('Failed to approve document');
     } finally {
-      setIsProcessing(false);
+      // Clear processing state for this specific document
+      setProcessingDocuments(prev => ({
+        ...prev,
+        [managementDocumentId]: false
+      }));
     }
   };
 
   const handleRequestReupload = async (documentTypeId, managementDocumentId) => {
     try {
-      setIsProcessing(true);
+      setProcessingDocuments(prev => ({
+        ...prev,
+        [managementDocumentId]: true
+      }));
       
       await api.patch(`/management/${caseId}/documents/${documentTypeId}/status`, {
         status: DOCUMENT_STATUS.PENDING,
@@ -233,14 +246,16 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       console.error('Error requesting reupload:', error);
       toast.error('Failed to request reupload');
     } finally {
-      setIsProcessing(false);
+      setProcessingDocuments(prev => ({
+        ...prev,
+        [managementDocumentId]: false
+      }));
     }
   };
 
   const handleFileUpload = async (files) => {
     if (!files.length) return;
     
-    setIsProcessing(true);
     setIsUploading(true);
     setUploadProgress(0);
     const uploadedDocIds = [];
@@ -450,7 +465,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       console.error('Error in file upload process:', err);
       toast.error('Error processing documents');
     } finally {
-      setIsProcessing(false);
       setIsUploading(false);
       setUploadProgress(0);
       setProcessingStep(0);
@@ -967,14 +981,14 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                           <div className="flex items-center gap-2">
                             <button 
                               onClick={() => handleDocumentApprove(doc.documentTypeId, doc._id)}
-                              disabled={isProcessing}
+                              disabled={processingDocuments[doc._id]}
                               className={`px-3 py-1 text-xs font-medium rounded-full
-                                ${isProcessing 
+                                ${processingDocuments[doc._id] 
                                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
                                   : 'bg-green-50 text-green-600 hover:bg-green-100'
                                 }`}
                             >
-                              {isProcessing ? (
+                              {processingDocuments[doc._id] ? (
                                 <Loader2 className="w-3 h-3 animate-spin" />
                               ) : (
                                 'Approve'
@@ -982,14 +996,14 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                             </button>
                             <button 
                               onClick={() => handleRequestReupload(doc.documentTypeId, doc._id)}
-                              disabled={isProcessing}
+                              disabled={processingDocuments[doc._id]}
                               className={`px-3 py-1 text-xs font-medium rounded-full
-                                ${isProcessing 
+                                ${processingDocuments[doc._id] 
                                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
                                   : 'bg-red-50 text-red-600 hover:bg-red-100'
                                 }`}
                             >
-                              {isProcessing ? (
+                              {processingDocuments[doc._id] ? (
                                 <Loader2 className="w-3 h-3 animate-spin" />
                               ) : (
                                 'Request Reupload'
@@ -1018,7 +1032,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     const renderSmartUpload = () => (
       uploadStatus === DOCUMENT_STATUS.PENDING && (
         <div className="col-span-4 bg-white rounded-lg border border-gray-200 p-6 relative">
-          {isProcessing && <ProcessingIndicator currentStep={processingStep} />}
+          {isUploading && <ProcessingIndicator currentStep={processingStep} />}
           
           <div className="mb-4 pb-4 border-b border-gray-100">
             <h4 className="font-medium text-sm">Smart Upload Files</h4>
@@ -1075,11 +1089,11 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                   </label>
                   <button 
                     onClick={() => handleFileUpload(files)}
-                    disabled={isProcessing}
+                    disabled={isUploading}
                     className={`bg-blue-600 text-white py-2.5 px-6 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2
-                      ${isProcessing ? 'opacity-75 cursor-not-allowed' : ''}`}
+                      ${isUploading ? 'opacity-75 cursor-not-allowed' : ''}`}
                   >
-                    {isProcessing ? (
+                    {isUploading ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Processing...
