@@ -2,17 +2,14 @@ import { useState } from 'react';
 import PropTypes from 'prop-types';
 import Sidebar from './Sidebar';
 import Header from './Header';
-import AgentIndicator from '../agents/AgentIndicator';
-import AgentInfoModal from '../agents/AgentInfoModal';
-import { AGENT_INFO } from '../../constants/agentInfo';
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [selectedAgent, setSelectedAgent] = useState(null);
 
   const handleAgentClick = (agent) => {
-    setSelectedAgent(selectedAgent === agent ? null : agent);
+    // This can be used for any additional handling needed at the layout level
+    console.log('Agent clicked:', agent);
   };
 
   return (
@@ -27,6 +24,7 @@ const Layout = ({ children }) => {
         <Header 
           onMenuClick={() => setSidebarOpen(true)} 
           sidebarCollapsed={sidebarCollapsed}
+          onAgentClick={handleAgentClick}
         />
         
         {/* Main content */}
@@ -37,13 +35,6 @@ const Layout = ({ children }) => {
             </div>
           </main>
         </div>
-
-        <AgentIndicator onAgentClick={handleAgentClick} />
-        <AgentInfoModal 
-          agent={selectedAgent}
-          agentInfo={AGENT_INFO}
-          onClose={() => setSelectedAgent(null)}
-        />
       </div>
     </div>
   );

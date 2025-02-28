@@ -11,12 +11,12 @@ export const AGENT_INFO = {
   },
   fiona: {
     name: "Fiona",
-    title: "Process Assistant",
+    title: "Case Creation Agent",
     capabilities: [
-      "Process guidance",
-      "Query resolution",
-      "Status updates",
-      "Timeline tracking"
+      "Case initiation",
+      "Document checklist creation",
+      "Requirements analysis",
+      "Process automation"
     ]
   }
 }; 
