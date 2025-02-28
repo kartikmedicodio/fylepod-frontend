@@ -2,10 +2,18 @@ import { useState } from 'react';
 import PropTypes from 'prop-types';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import AgentIndicator from '../agents/AgentIndicator';
+import AgentInfoModal from '../agents/AgentInfoModal';
+import { AGENT_INFO } from '../../constants/agentInfo';
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [selectedAgent, setSelectedAgent] = useState(null);
+
+  const handleAgentClick = (agent) => {
+    setSelectedAgent(selectedAgent === agent ? null : agent);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-tr from-gradient-start/70 via-gradient-second/70 via-gradient-third/70 via-gradient-fourth/70 to-gradient-end/70">
@@ -29,6 +37,13 @@ const Layout = ({ children }) => {
             </div>
           </main>
         </div>
+
+        <AgentIndicator onAgentClick={handleAgentClick} />
+        <AgentInfoModal 
+          agent={selectedAgent}
+          agentInfo={AGENT_INFO}
+          onClose={() => setSelectedAgent(null)}
+        />
       </div>
     </div>
   );
