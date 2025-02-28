@@ -330,8 +330,8 @@ const IndividualCases = () => {
 
         {/* Add New Button */}
         <button 
-          onClick={() => navigate('/individuals/new')}
-          className="flex items-center gap-2 px-5 py-2.5 text-base bg-white rounded-lg border border-blue-600 text-blue-600 hover:bg-blue-50 ml-3 font-semibold"
+          disabled
+          className="flex items-center gap-2 px-5 py-2.5 text-base bg-gray-100 rounded-lg border border-gray-300 text-gray-400 cursor-not-allowed ml-3 font-semibold"
         >
           <svg width="20" height="20" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M8 3.33334V12.6667" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -391,9 +391,6 @@ const IndividualCases = () => {
                     )}
                   </div>
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase">
-                  Deadline
-                </th>
                 <th 
                   className="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase cursor-pointer hover:bg-gray-50"
                   onClick={() => handleSort('categoryStatus')}
@@ -407,6 +404,9 @@ const IndividualCases = () => {
                 </th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase">
                   Queries Pending
+                </th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase">
+                  Agents Working
                 </th>
               </tr>
             </thead>
@@ -436,9 +436,6 @@ const IndividualCases = () => {
                     <td className="px-6 py-4 text-base text-gray-900">
                       {caseItem.categoryName}
                     </td>
-                    <td className="px-6 py-4 text-base text-green-500">
-                      {'-'}
-                    </td>
                     <td className="px-6 py-4 text-base text-gray-500">
                       {`${caseItem.documentTypes.filter(doc => 
                         doc.status === 'uploaded' || doc.status === 'approved'
@@ -446,6 +443,11 @@ const IndividualCases = () => {
                     </td>
                     <td className="px-6 py-4 text-base text-gray-900">
                       {caseItem.documentTypes.filter(doc => doc.status === 'pending').length}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-base font-semibold inline-block bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-transparent bg-clip-text">
+                        2 agents active
+                      </span>
                     </td>
                   </tr>
                 ))
