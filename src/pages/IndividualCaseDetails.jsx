@@ -23,10 +23,10 @@ const getInitials = (name) => {
 };
 
 const processingSteps = [
-  { id: 1, text: "Analyzing document..." },
-  { id: 2, text: "Extracting information..." },
-  { id: 3, text: "Validating content..." },
-  { id: 4, text: "Verifying document type..." }
+  { id: 1, text: "Analyzing document" },
+  { id: 2, text: "Extracting information" },
+  { id: 3, text: "Validating content" },
+  { id: 4, text: "Verifying document" }
 ];
 
 const ProcessingIndicator = ({ currentStep }) => {
@@ -41,53 +41,49 @@ const ProcessingIndicator = ({ currentStep }) => {
   }, []);
 
   return (
-    <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px] flex items-center justify-center rounded-lg z-50">
-      <div className="bg-white rounded-lg p-5 shadow-lg max-w-xs w-full mx-4">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="relative flex-shrink-0">
-            <div className="w-10 h-10">
-              <div 
-                className="absolute inset-0 border-4 border-blue-500 rounded-full animate-spin" 
-                style={{ animationDuration: '1s' }} 
-              />
-              <div 
-                className="absolute inset-2 border-4 border-blue-300 rounded-full animate-spin" 
-                style={{ animationDuration: '0.8s', animationDirection: 'reverse' }} 
-              />
+    <div className="absolute inset-0 bg-black/40 backdrop-blur-[3px] flex items-center justify-center rounded-lg z-50">
+      <div className="bg-white rounded-2xl p-4 shadow-2xl w-72 mx-auto border border-gray-100">
+        {/* Diana's Avatar Section */}
+        <div className="flex justify-center mb-4">
+          <div className="relative">
+            {/* Animated Background Rings */}
+            <div className="absolute inset-0 -m-4">
+              <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 rounded-full blur-xl"></div>
             </div>
-          </div>
-          
-          <div className="flex-1 min-w-0">
-            <div className="h-6 relative overflow-hidden">
-              {processingSteps.map((step, index) => (
-                <div
-                  key={step.id}
-                  className={`absolute w-full transition-all duration-200 ${
-                    index === localStep ? 'opacity-100 transform-none' : 'opacity-0 -translate-y-2'
-                  }`}
-                >
-                  <span className="text-sm font-medium text-gray-900 whitespace-nowrap">
-                    {step.text}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-1.5 mt-2">
-              {processingSteps.map((step, index) => (
-                <div
-                  key={step.id}
-                  className={`h-1 rounded-full transition-all duration-300 ${
-                    index === localStep ? 'w-10 bg-blue-500' : 'w-2 bg-blue-100'
-                  }`}
-                />
-              ))}
+            {/* Avatar Container */}
+            <div className="w-16 h-16 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg relative">
+              {/* Animated Processing Indicator */}
+              <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl animate-spin" style={{ animationDuration: '3s' }}></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl"></div>
+              <span className="relative text-sm font-semibold text-white">Diana</span>
             </div>
           </div>
         </div>
-        
-        <p className="text-xs text-gray-500 text-center">
-          Please wait while we process your documents...
-        </p>
+
+        <div className="flex-1 min-w-0">
+          {/* Step Text Animation */}
+          <div className="h-5 relative overflow-hidden text-center">
+            {processingSteps.map((step, index) => (
+              <div
+                key={step.id}
+                className={`absolute w-full transition-all duration-300 ${
+                  index === localStep 
+                    ? 'opacity-100 transform-none' 
+                    : 'opacity-0 -translate-y-2'
+                }`}
+              >
+                <span className="text-xs font-medium bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent inline-block">
+                  {step.text}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 flex justify-center gap-1">
+            <span className="w-1 h-1 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }}></span>
+            <span className="w-1 h-1 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }}></span>
+            <span className="w-1 h-1 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }}></span>
+          </div>
+        </div>
       </div>
     </div>
   );
