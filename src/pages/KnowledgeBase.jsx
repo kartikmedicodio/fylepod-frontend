@@ -151,7 +151,7 @@ const KnowledgeBase = ({ setCurrentBreadcrumb }) => {
                       onClick={() => handleRowClick(category._id)}
                     >
                       <div className="text-sm text-gray-900">
-                        {category.name.split(' - ')[1] || category.name}
+                        {category.name}
                       </div>
                       <div className="text-sm text-gray-500">
                         {category.description}
