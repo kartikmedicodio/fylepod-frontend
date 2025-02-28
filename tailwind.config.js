@@ -9,15 +9,15 @@ export default {
       animation: {
         'gradient-xy': 'gradient-xy 15s ease infinite',
         'gradient-x': 'gradient-x 15s ease infinite',
-        'pulse': 'pulse 3s cubic-bezier(0, 0, 0.2, 1) infinite',
+        'pulse': 'pulse 6s infinite',
         'shake': 'shake 0.5s linear',
         shimmer: 'shimmer 2s ease-in-out infinite',
         'gradient': 'gradient 3s linear infinite',
-        'fadeIn': 'fadeIn 0.5s ease-in-out',
-        'progress': 'progress 1s ease-in-out infinite',
-        'ping': 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite',
-        'ping-slow': 'ping 3s cubic-bezier(0, 0, 0.2, 1) infinite',
-        'pulse-fast': 'pulse 2s cubic-bezier(0, 0, 0.2, 1) infinite',
+        'fadeIn': 'fadeIn 0.2s ease-in',
+        'step-ping-slow': 'step-ping 3s cubic-bezier(0, 0, 0.2, 1) infinite',
+        'step-ping': 'step-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite',
+        'step-pulse-fast': 'step-pulse 2s cubic-bezier(0, 0, 0.2, 1) infinite',
+        'step-pulse': 'step-pulse 3s cubic-bezier(0, 0, 0.2, 1) infinite',
       },
       keyframes: {
         'gradient-xy': {
@@ -58,17 +58,13 @@ export default {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
         },
-        progress: {
-          '0%': { transform: 'translateX(-100%)' },
-          '100%': { transform: 'translateX(100%)' },
-        },
-        ping: {
+        'step-ping': {
           '75%, 100%': {
             transform: 'scale(2)',
             opacity: '0',
           },
         },
-        pulse: {
+        'step-pulse': {
           '0%, 100%': {
             opacity: '0.5',
             transform: 'scale(1.1)',

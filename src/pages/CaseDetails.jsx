@@ -720,10 +720,10 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 {index === steps.findIndex(s => !s.completed) && (
                   <div className="absolute z-0 w-[44px] h-[44px] top-5 left-1/2 -translate-x-1/2 -translate-y-1/2">
                     {/* Multiple layers of pulse for enhanced effect */}
-                    <div className="absolute inset-0 rounded-full opacity-20 animate-ping-slow bg-blue-400/50" />
-                    <div className="absolute inset-0 rounded-full opacity-30 animate-ping bg-blue-500/50" />
-                    <div className="absolute inset-0 rounded-full opacity-40 animate-pulse-fast bg-blue-600/50" />
-                    <div className="absolute inset-0 rounded-full animate-pulse bg-blue-700/30 blur-[1px]" />
+                    <div className="absolute inset-0 rounded-full opacity-20 animate-step-ping-slow bg-blue-400/50" />
+                    <div className="absolute inset-0 rounded-full opacity-30 animate-step-ping bg-blue-500/50" />
+                    <div className="absolute inset-0 rounded-full opacity-40 animate-step-pulse-fast bg-blue-600/50" />
+                    <div className="absolute inset-0 rounded-full animate-step-pulse bg-blue-700/30 blur-[1px]" />
                   </div>
                 )}
 
