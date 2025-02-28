@@ -182,7 +182,7 @@ const IndividualCaseDetails = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [messages, setMessages] = useState([{
     role: 'assistant',
-    content: "Hello! I'm your AI assistant. I can help you analyze your uploaded documents and answer any questions you might have."
+    content: "Hi! I'm Diana, your AI assistant. I can help you analyze your uploaded documents and answer any questions you might have about your case."
   }]);
   const [chatInput, setChatInput] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -251,7 +251,7 @@ const IndividualCaseDetails = () => {
         setCurrentChat(null);
         setMessages([{
           role: 'assistant',
-          content: "Hello! I'm your AI assistant. I can help you analyze your uploaded documents and answer any questions you might have."
+          content: "Hi! I'm Diana, your AI assistant. I can help you analyze your uploaded documents and answer any questions you might have about your case."
         }]);
       }
 
@@ -412,10 +412,88 @@ const IndividualCaseDetails = () => {
 
       // Show appropriate toast message
       if (successfulUploads > 0) {
-        toast.success(`Successfully processed ${successfulUploads} document${successfulUploads !== 1 ? 's' : ''}`);
+        toast.custom((t) => (
+          <div className={`${
+            t.visible ? 'animate-enter' : 'animate-leave'
+          } max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
+            <div className="flex-1 w-0 p-4">
+              <div className="flex items-start">
+                <div className="flex-shrink-0 pt-0.5">
+                  <div className="relative">
+                    {/* Animated Background Rings */}
+                    <div className="absolute inset-0 -m-2">
+                      <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 rounded-full blur-lg"></div>
+                    </div>
+                    {/* Avatar Container */}
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md relative">
+                      <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-lg animate-spin" style={{ animationDuration: '3s' }}></div>
+                      <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-lg"></div>
+                      <span className="relative text-xs font-semibold text-white">Diana</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="ml-3 flex-1">
+                  <p className="text-sm font-medium text-gray-900">
+                    Diana successfully processed your documents
+                  </p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {successfulUploads} document{successfulUploads !== 1 ? 's' : ''} verified and uploaded
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex border-l border-gray-200">
+              <button
+                onClick={() => toast.dismiss(t.id)}
+                className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-indigo-600 hover:text-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        ), { duration: 5000 });
       }
       if (failedUploads > 0) {
-        toast.error(`${failedUploads} document${failedUploads !== 1 ? 's' : ''} failed verification`);
+        toast.custom((t) => (
+          <div className={`${
+            t.visible ? 'animate-enter' : 'animate-leave'
+          } max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
+            <div className="flex-1 w-0 p-4">
+              <div className="flex items-start">
+                <div className="flex-shrink-0 pt-0.5">
+                  <div className="relative">
+                    {/* Animated Background Rings */}
+                    <div className="absolute inset-0 -m-2">
+                      <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-red-500/20 via-pink-500/20 to-rose-500/20 rounded-full blur-lg"></div>
+                    </div>
+                    {/* Avatar Container */}
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-red-500 via-pink-500 to-rose-500 flex items-center justify-center shadow-md relative">
+                      <div className="absolute -inset-0.5 bg-gradient-to-r from-red-500 via-pink-500 to-rose-500 rounded-lg animate-spin" style={{ animationDuration: '3s' }}></div>
+                      <div className="absolute inset-0 bg-gradient-to-r from-red-500 via-pink-500 to-rose-500 rounded-lg"></div>
+                      <span className="relative text-xs font-semibold text-white">Diana</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="ml-3 flex-1">
+                  <p className="text-sm font-medium text-gray-900">
+                    Diana encountered some issues
+                  </p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {failedUploads} document{failedUploads !== 1 ? 's' : ''} failed verification. Please try again.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex border-l border-gray-200">
+              <button
+                onClick={() => toast.dismiss(t.id)}
+                className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-red-600 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        ), { duration: 5000 });
       }
 
     } catch (err) {
@@ -1214,8 +1292,8 @@ const IndividualCaseDetails = () => {
             e.stopPropagation();
             setShowChatPopup(prev => !prev);
           }}
-          className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center shadow-lg hover:bg-blue-700 transition-colors z-[9999]"
-          aria-label="Toggle AI Chat"
+          className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-lg hover:opacity-90 transition-opacity z-[9999]"
+          aria-label="Chat with Diana"
         >
           <Bot className="w-7 h-7 text-white" />
         </button>
@@ -1225,10 +1303,13 @@ const IndividualCaseDetails = () => {
           <div className="fixed bottom-24 right-8 w-80 md:w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-[9999] max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                  <span className="text-sm font-medium text-blue-600">AI</span>
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+                  <span className="text-sm font-medium text-white">D</span>
                 </div>
-                <h4 className="font-medium">AI Assistant</h4>
+                <div>
+                  <h4 className="font-medium">Diana</h4>
+                  <p className="text-xs text-gray-500">AI Assistant</p>
+                </div>
               </div>
               <button onClick={() => setShowChatPopup(false)} className="text-gray-400 hover:text-gray-600">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1246,15 +1327,15 @@ const IndividualCaseDetails = () => {
                   }`}
                 >
                   {message.role === 'assistant' && (
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-medium text-blue-600">AI</span>
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-medium text-white">D</span>
                     </div>
                   )}
                   
                   <div className={`rounded-lg p-3 max-w-[85%] ${
                     message.role === 'user' 
                       ? 'bg-blue-600 text-white' 
-                      : 'bg-gray-100 text-gray-700'
+                      : 'bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 text-gray-700'
                   }`}>
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                   </div>
@@ -1277,14 +1358,14 @@ const IndividualCaseDetails = () => {
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Type your message..."
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg pr-12 focus:outline-none focus:border-blue-500"
+                  placeholder="Ask Diana anything..."
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg pr-12 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
                   disabled={isSending}
                 />
                 <button 
                   type="submit"
                   disabled={isSending || !chatInput.trim()}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-blue-600 hover:text-blue-700 disabled:text-gray-400"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-indigo-600 hover:text-indigo-700 disabled:text-gray-400"
                 >
                   {isSending ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
