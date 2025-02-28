@@ -182,7 +182,7 @@ const IndividualCaseDetails = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [messages, setMessages] = useState([{
     role: 'assistant',
-    content: "Hello! I'm your AI assistant. I can help you analyze your uploaded documents and answer any questions you might have."
+    content: "Hi! I'm Diana, your AI assistant. I can help you analyze your uploaded documents and answer any questions you might have about your case."
   }]);
   const [chatInput, setChatInput] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -251,7 +251,7 @@ const IndividualCaseDetails = () => {
         setCurrentChat(null);
         setMessages([{
           role: 'assistant',
-          content: "Hello! I'm your AI assistant. I can help you analyze your uploaded documents and answer any questions you might have."
+          content: "Hi! I'm Diana, your AI assistant. I can help you analyze your uploaded documents and answer any questions you might have about your case."
         }]);
       }
 
@@ -1292,8 +1292,8 @@ const IndividualCaseDetails = () => {
             e.stopPropagation();
             setShowChatPopup(prev => !prev);
           }}
-          className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center shadow-lg hover:bg-blue-700 transition-colors z-[9999]"
-          aria-label="Toggle AI Chat"
+          className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-lg hover:opacity-90 transition-opacity z-[9999]"
+          aria-label="Chat with Diana"
         >
           <Bot className="w-7 h-7 text-white" />
         </button>
@@ -1303,10 +1303,13 @@ const IndividualCaseDetails = () => {
           <div className="fixed bottom-24 right-8 w-80 md:w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-[9999] max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                  <span className="text-sm font-medium text-blue-600">AI</span>
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+                  <span className="text-sm font-medium text-white">D</span>
                 </div>
-                <h4 className="font-medium">AI Assistant</h4>
+                <div>
+                  <h4 className="font-medium">Diana</h4>
+                  <p className="text-xs text-gray-500">AI Assistant</p>
+                </div>
               </div>
               <button onClick={() => setShowChatPopup(false)} className="text-gray-400 hover:text-gray-600">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1324,15 +1327,15 @@ const IndividualCaseDetails = () => {
                   }`}
                 >
                   {message.role === 'assistant' && (
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-medium text-blue-600">AI</span>
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-medium text-white">D</span>
                     </div>
                   )}
                   
                   <div className={`rounded-lg p-3 max-w-[85%] ${
                     message.role === 'user' 
                       ? 'bg-blue-600 text-white' 
-                      : 'bg-gray-100 text-gray-700'
+                      : 'bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 text-gray-700'
                   }`}>
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                   </div>
@@ -1355,14 +1358,14 @@ const IndividualCaseDetails = () => {
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Type your message..."
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg pr-12 focus:outline-none focus:border-blue-500"
+                  placeholder="Ask Diana anything..."
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg pr-12 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
                   disabled={isSending}
                 />
                 <button 
                   type="submit"
                   disabled={isSending || !chatInput.trim()}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-blue-600 hover:text-blue-700 disabled:text-gray-400"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-indigo-600 hover:text-indigo-700 disabled:text-gray-400"
                 >
                   {isSending ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
