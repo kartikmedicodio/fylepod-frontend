@@ -985,17 +985,17 @@ const IndividualCaseDetails = () => {
             <div 
               className={`flex flex-col items-center justify-center py-10 px-6 rounded-lg transition-all duration-300 ${
                 isDragging 
-                  ? 'bg-sky-100 border-2 border-dashed border-sky-300 shadow-inner' 
-                  : 'bg-sky-50 border-2 border-dashed border-sky-200 hover:bg-sky-100 hover:border-sky-300'
+                  ? 'bg-blue-100 border-2 border-dashed border-blue-300 shadow-inner' 
+                  : 'bg-blue-50 border-2 border-dashed border-blue-200 hover:bg-blue-100 hover:border-blue-300'
               }`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
               {/* Upload Icon */}
-              <div className={`mb-4 p-5 rounded-full ${isDragging ? 'bg-sky-100' : 'bg-sky-50'}`}>
+              <div className={`mb-4 p-5 rounded-full ${isDragging ? 'bg-blue-100' : 'bg-blue-50'}`}>
                 <svg 
-                  className={`w-8 h-8 ${isDragging ? 'text-sky-600' : 'text-sky-500'}`} 
+                  className={`w-8 h-8 ${isDragging ? 'text-blue-700' : 'text-blue-600'}`} 
                   viewBox="0 0 24 24" 
                   fill="none" 
                   stroke="currentColor" 
@@ -1007,18 +1007,18 @@ const IndividualCaseDetails = () => {
               
               {/* Upload Instructions */}
               <div className="text-center space-y-4">
-                <h3 className={`font-medium ${isDragging ? 'text-sky-900' : 'text-sky-700'}`}>
+                <h3 className={`font-medium ${isDragging ? 'text-blue-900' : 'text-blue-800'}`}>
                   {isDragging ? 'Drop files here' : 'Upload your documents'}
                 </h3>
-                <p className="text-sm text-gray-500 mb-2">
+                <p className="text-sm text-gray-600 mb-2">
                   Drag & drop files here or use the button below
                 </p>
                 
                 <label 
                   htmlFor="smart-file-upload" 
-                  className="inline-flex items-center justify-center px-4 py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-medium rounded-lg cursor-pointer transition-colors"
+                  className="inline-flex items-center justify-center px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg cursor-pointer transition-all duration-200 shadow-sm hover:shadow-md group"
                 >
-                  <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className="w-4 h-4 mr-2 text-white transition-transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l-3-3m0 0l-3 3m3-3v12M3 17.25V21h18v-3.75M3 10.5V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v3" />
                   </svg>
                   Browse Files
