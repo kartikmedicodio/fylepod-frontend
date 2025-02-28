@@ -74,7 +74,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
 
     // Individual/Employee navigation
     const individualNavigation = [
-      { name: 'Dashboard', href: '/fndashboard', icon: LayoutDashboard },
+      { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
       { name: 'Inbox', href: '/inbox', icon: MailIcon, badge: 15, disabled: true },
       { 
         section: 'All Profiles',
