@@ -19,6 +19,52 @@ const CaseDetailsSidebar = ({ caseData, loading, error }) => {
 
   return (
     <div className="w-80">
+      {/* AI Agents Section */}
+      <div className="p-4 bg-white mb-4 shadow-sm rounded-xl">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-gray-800">AI Agents</h2>
+          <span className="text-xs font-medium bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">2 Active</span>
+        </div>
+        
+        <div className="space-y-3">
+          {/* Fiona - Case Creation Agent */}
+          <div className="p-3 rounded-lg relative overflow-hidden backdrop-blur-sm border border-emerald-100">
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-100/80 via-emerald-50/50 to-transparent"></div>
+            <div className="relative flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center text-white font-semibold shadow-lg">
+                F
+              </div>
+              <div>
+                <h3 className="font-medium text-emerald-700 text-sm">Fiona</h3>
+                <p className="text-xs text-gray-600">Case Creation Agent</p>
+                <div className="flex items-center gap-2 text-xs text-emerald-600 mt-1">
+                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                  Processing Case
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Diana - Document Collection Agent */}
+          <div className="p-3 rounded-lg relative overflow-hidden backdrop-blur-sm border border-violet-100">
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-100/80 via-violet-50/50 to-transparent"></div>
+            <div className="relative flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-violet-400 to-violet-600 rounded-lg flex items-center justify-center text-white font-semibold shadow-lg">
+                D
+              </div>
+              <div>
+                <h3 className="font-medium text-violet-700 text-sm">Diana</h3>
+                <p className="text-xs text-gray-600">Document Collection Agent</p>
+                <div className="flex items-center gap-2 text-xs text-violet-600 mt-1">
+                  <span className="w-1.5 h-1.5 bg-violet-500 rounded-full animate-pulse"></span>
+                  Collecting Documents
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Case Details Section */}
       <div className="p-6 bg-white mb-4 shadow-sm rounded-xl">
         <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 text-gray-800">
