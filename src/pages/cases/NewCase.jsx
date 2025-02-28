@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { ChevronDown, Pencil, X } from 'lucide-react';
+import { ChevronDown, Pencil, X, Loader2 } from 'lucide-react';
 import { usePage } from '../../contexts/PageContext';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -27,6 +27,8 @@ const NewCase = () => {
   const [templateSearch, setTemplateSearch] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [attorneySearch, setAttorneySearch] = useState('');
+  const [isCreatingCase, setIsCreatingCase] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
 
   const dropdownRefs = {
     template: useRef(null),
@@ -276,23 +278,44 @@ const NewCase = () => {
         return;
       }
 
-      const requestBody = {
-        userId: selectedCustomer._id,
-        categoryId: selectedTemplate._id,
-        createdBy: selectedCustomer._id,
-        attorneys: [selectedAttorney._id],
-        documentTypeIds: selectedDocuments.map(doc => doc._id)
-      };
+      setIsCreatingCase(true);
+      setLoadingStep(0);
 
-      const response = await api.post('/management', requestBody);
-      
-      if (response.data.status === 'success') {
+      // Simulate steps with delays
+      const steps = [
+        { delay: 0, step: 0 },    // Initial - Fiona starting...
+        { delay: 1000, step: 1 }, // Creating template...
+        { delay: 2000, step: 2 }, // Processing documents...
+        { delay: 3000, step: 3 }, // Finalizing case...
+      ];
+
+      // Schedule all step updates
+      steps.forEach(({ delay, step }) => {
+        setTimeout(() => setLoadingStep(step), delay);
+      });
+
+      // Actual API call after delay to show all steps
+      setTimeout(async () => {
+        const requestBody = {
+          userId: selectedCustomer._id,
+          categoryId: selectedTemplate._id,
+          createdBy: selectedCustomer._id,
+          attorneys: [selectedAttorney._id],
+          documentTypeIds: selectedDocuments.map(doc => doc._id)
+        };
+
+        const response = await api.post('/management', requestBody);
         
-        const caseId = response.data.data.management._id;
-        navigate(`/cases/${caseId}`);
-      }
+        if (response.data.status === 'success') {
+          const caseId = response.data.data.management._id;
+          navigate(`/cases/${caseId}`);
+        }
+      }, 4000);
+
     } catch (error) {
       setError(error.response?.data?.message || 'Failed to create case');
+      setIsCreatingCase(false);
+      setLoadingStep(0);
     }
   };
 
@@ -330,6 +353,17 @@ const NewCase = () => {
     return attorneys.filter(attorney => 
       attorney.name.toLowerCase().includes(search)
     );
+  };
+
+  // Helper function to get loading message
+  const getLoadingMessage = () => {
+    const messages = [
+      "Fiona-AI agent is starting...",
+      "Creating template structure...",
+      "Processing documents...",
+      "Finalizing case setup..."
+    ];
+    return messages[loadingStep];
   };
 
   if (loading) {
@@ -610,10 +644,24 @@ const NewCase = () => {
             <button
               type="button"
               onClick={handleCreateCase}
-              disabled={!selectedTemplate || !selectedCustomer || !selectedAttorney}
-              className="w-[120px] h-[44px] bg-blue-600 text-white rounded-lg px-4 text-sm font-medium hover:bg-blue-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              disabled={!selectedTemplate || !selectedCustomer || !selectedAttorney || isCreatingCase}
+              className={`w-[240px] h-[44px] rounded-lg px-4 text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed flex items-center justify-center gap-2 relative overflow-hidden
+                ${isCreatingCase 
+                  ? 'bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 bg-[length:200%_100%] animate-gradient disabled:animate-gradient disabled:opacity-90' 
+                  : 'bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400'
+                }`}
             >
-              Create Case
+              <div className={`absolute inset-0 ${isCreatingCase ? 'bg-blue-600/10 animate-pulse' : ''}`} />
+              <div className="relative flex items-center justify-center gap-2 text-white">
+                {isCreatingCase ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="animate-fadeIn">{getLoadingMessage()}</span>
+                  </>
+                ) : (
+                  'Create Case'
+                )}
+              </div>
             </button>
           </div>
         </div>
