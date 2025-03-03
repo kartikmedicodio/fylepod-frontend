@@ -366,48 +366,65 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         })
       );
 
-      // Show success toast if any documents were processed successfully
+      // If any documents were uploaded successfully, process questionnaires
       if (successfulUploads > 0) {
-        toast.custom((t) => (
-          <div className={`${
-            t.visible ? 'animate-enter' : 'animate-leave'
-          } max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
-            <div className="flex-1 w-0 p-4">
-              <div className="flex items-start">
-                <div className="flex-shrink-0 pt-0.5">
-                  <div className="relative">
-                    {/* Animated Background Rings */}
-                    <div className="absolute inset-0 -m-2">
-                      <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 rounded-full blur-lg"></div>
-                    </div>
-                    {/* Avatar Container */}
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md relative">
-                      <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-lg animate-spin" style={{ animationDuration: '3s' }}></div>
-                      <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-lg"></div>
-                      <span className="relative text-xs font-semibold text-white">Diana</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="ml-3 flex-1">
-                  <p className="text-sm font-medium text-gray-900">
-                    Diana successfully processed your documents
-                  </p>
-                  <p className="mt-1 text-sm text-gray-500">
-                    {successfulUploads} document{successfulUploads !== 1 ? 's' : ''} verified and uploaded
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="flex border-l border-gray-200">
-              <button
-                onClick={() => toast.dismiss(t.id)}
-                className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-indigo-600 hover:text-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        ), { duration: 5000 });
+        try {
+          // Create a promise that resolves after showing all loading steps
+          const showLoadingSteps = new Promise((resolve) => {
+            let currentStep = 0;
+            const stepInterval = 2000; // 2 seconds per step
+
+            const interval = setInterval(() => {
+              if (currentStep >= 5) {
+                clearInterval(interval);
+                resolve();
+              } else {
+                currentStep++;
+                setLoadingStep(currentStep);
+              }
+            }, stepInterval);
+          });
+
+          // Wait for loading steps to complete and make API calls
+          await showLoadingSteps;
+
+          // Make API calls for each questionnaire
+          const questionnaireResponses = await Promise.all(
+            questionnaires.map(async (questionnaire) => {
+              try {
+                const response = await api.post(`/documents/management/${caseId}/organized`, {
+                  templateId: questionnaire._id
+                });
+                return {
+                  questionnaire,
+                  data: response.data
+                };
+              } catch (error) {
+                console.error(`Error processing questionnaire ${questionnaire._id}:`, error);
+                return {
+                  questionnaire,
+                  error: true
+                };
+              }
+            })
+          );
+
+          // Check if all API calls were successful
+          const hasErrors = questionnaireResponses.some(response => response.error);
+          if (hasErrors) {
+            toast.error('Some questionnaires could not be processed');
+          } else {
+            // Show the final "Almost done..." message for 1 second
+            setLoadingStep(5);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            toast.success('All questionnaires processed successfully');
+            setActiveTab('questionnaire');
+          }
+        } catch (error) {
+          console.error('Error processing questionnaires:', error);
+          toast.error('Failed to process questionnaires');
+        }
       }
 
       // Show error toast if any documents failed
@@ -823,122 +840,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     </div>
   );
 
-  // Update the SaveQuestionnairesButton component
-  const SaveQuestionnairesButton = ({ documentTypes, questionnaires, caseId }) => {
-    const [isSaving, setIsSaving] = useState(false);
-    const [loadingStep, setLoadingStep] = useState(0);
-    const allDocumentsApproved = checkAllDocumentsApproved(documentTypes);
-
-    const getLoadingMessage = () => {
-      const messages = [
-        "Analyzing docs...",
-        "Setting up fields...",
-        "Collecting data...",
-        "Mapping data...",
-        "Filling questionnaire...",
-        "Almost done..."
-      ];
-      return messages[loadingStep];
-    };
-
-    const handleSaveQuestionnaires = async () => {
-      try {
-        setIsSaving(true);
-        setLoadingStep(0);
-
-        // Create a promise that resolves after showing all loading steps
-        const showLoadingSteps = new Promise((resolve) => {
-          let currentStep = 0;
-          const stepInterval = 2000; // 2 seconds per step
-
-          const interval = setInterval(() => {
-            if (currentStep >= 5) {
-              clearInterval(interval);
-              resolve();
-            } else {
-              currentStep++;
-              setLoadingStep(currentStep);
-            }
-          }, stepInterval);
-        });
-
-        // Wait for loading steps to complete and make API calls
-        await showLoadingSteps;
-
-        // Make API calls for each questionnaire
-        const responses = await Promise.all(
-          questionnaires.map(async (questionnaire) => {
-            try {
-              const response = await api.post(`/documents/management/${caseId}/organized`, {
-                templateId: questionnaire._id
-              });
-              return {
-                questionnaire,
-                data: response.data
-              };
-            } catch (error) {
-              console.error(`Error processing questionnaire ${questionnaire._id}:`, error);
-              return {
-                questionnaire,
-                error: true
-              };
-            }
-          })
-        );
-
-        // Check if all API calls were successful
-        const hasErrors = responses.some(response => response.error);
-        if (hasErrors) {
-          toast.error('Some questionnaires could not be processed');
-        } else {
-          // Show the final "Almost done..." message for 1 second
-          setLoadingStep(5);
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          toast.success('All questionnaires processed successfully');
-          setActiveTab('questionnaire');
-        }
-      } catch (error) {
-        console.error('Error saving questionnaires:', error);
-        toast.error('Failed to process questionnaires');
-      } finally {
-        setIsSaving(false);
-        setLoadingStep(0);
-      }
-    };
-
-    if (!allDocumentsApproved) return null;
-
-    return (
-      <button
-        onClick={handleSaveQuestionnaires}
-        disabled={isSaving}
-        className={`px-4 py-2 rounded text-sm font-medium transition-all duration-200 flex items-center gap-2 relative overflow-hidden
-          ${isSaving 
-            ? 'bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 bg-[length:200%_100%] animate-gradient text-white disabled:animate-gradient disabled:opacity-90' 
-            : 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400'
-          }`}
-      >
-        <div className={`absolute inset-0 ${isSaving ? 'bg-blue-600/10 animate-pulse' : ''}`} />
-        <div className="relative flex items-center justify-center gap-2">
-          {isSaving ? (
-            <>
-              <div className="relative">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-400 rounded-full animate-ping" />
-              </div>
-              <span className="animate-fadeIn min-w-[140px] text-white">
-                {getLoadingMessage()}
-              </span>
-            </>
-          ) : (
-            'Process Questionnaires'
-          )}
-        </div>
-      </button>
-    );
-  };
-
   // Enhanced document checklist
   const DocumentsChecklistTab = () => {
     const pendingDocuments = caseData.documentTypes.filter(doc => doc.status === DOCUMENT_STATUS.PENDING);
@@ -1272,11 +1173,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             <Search className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" />
           </div>
           <div className="flex items-center gap-3">
-            <SaveQuestionnairesButton 
-              documentTypes={caseData?.documentTypes || []}
-              questionnaires={questionnaires}
-              caseId={caseId}
-            />
             <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
               <Filter className="w-4 h-4" />
               All Filters
@@ -1673,8 +1569,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <div className="flex flex-col min-w-[320px] bg-white border-r border-gray-200 shadow-sm relative">
+    <div className="flex h-screen bg-gray-50 rounded-xl">
+      <div className="flex flex-col min-w-[320px] bg-white border-r border-gray-200 shadow-sm relative rounded-xl">
           {onBack && (
             <button
               onClick={onBack}
@@ -1696,7 +1592,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           </div>
       </div>
       
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden rounded-xl">
         <div className="bg-white border-b border-gray-200 shadow-sm">
           <ProgressSteps />
         </div>
