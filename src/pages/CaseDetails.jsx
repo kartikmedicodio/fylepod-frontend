@@ -141,8 +141,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const [questionnaireData, setQuestionnaireData] = useState(null);
   const [isLoadingQuestionnaire, setIsLoadingQuestionnaire] = useState(false);
   const [formData, setFormData] = useState({
-    Passport: {},
-    Resume: {}
+    passport: {},
+    resume: {}
   });
   const [forms, setForms] = useState([]);
   const [isSavingQuestionnaire, setIsSavingQuestionnaire] = useState(false);
@@ -1269,8 +1269,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                     </label>
                     <input
                       type="text"
-                      value={formData.Passport?.[field.fieldName] || ''}
-                      onChange={(e) => handleInputChange('Passport', field.fieldName, e.target.value)}
+                      value={formData.passport?.[field.fieldName] || ''}
+                      onChange={(e) => handleInputChange('passport', field.fieldName, e.target.value)}
                       className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                     />
                   </div>
@@ -1292,8 +1292,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                     </label>
                     <input
                       type={field.fieldName.toLowerCase().includes('email') ? 'email' : 'text'}
-                      value={formData.Resume?.[field.fieldName] || ''}
-                      onChange={(e) => handleInputChange('Resume', field.fieldName, e.target.value)}
+                      value={formData.resume?.[field.fieldName] || ''}
+                      onChange={(e) => handleInputChange('resume', field.fieldName, e.target.value)}
                       className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                     />
                   </div>
@@ -1414,33 +1414,31 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
           // Fill the form fields with exact field names from the PDF
           form.getTextField('Name of the Applicant').setText(
-            processedInfo?.Passport?.firstName || 'N/A'
+            processedInfo?.passport?.firstName || 'N/A'
           );
           
           // Details of Applicant section
-          form.getTextField('Passport No').setText(processedInfo?.Passport?.passportNumber || 'N/A');
-          form.getTextField('Place of Issue').setText(processedInfo?.Passport?.placeOfIssue || 'N/A');
-          form.getTextField('Date of Issue').setText(processedInfo?.Passport?.dateOfIssue || 'N/A');
-          form.getTextField('Date of Expiry').setText(processedInfo?.Passport?.dateOfExpiry || 'N/A');
-          form.getTextField('Mobile Phone').setText(processedInfo?.Resume?.cellNumber || 'N/A');
-          form.getTextField('EMail Address').setText(processedInfo?.Resume?.emailId || 'N/A');
+          form.getTextField('Passport No').setText(processedInfo?.passport?.passportNumber || 'N/A');
+          form.getTextField('Place of Issue').setText(processedInfo?.passport?.placeOfIssue || 'N/A');
+          form.getTextField('Date of Issue').setText(processedInfo?.passport?.dateOfIssue || 'N/A');
+          form.getTextField('Date of Expiry').setText(processedInfo?.passport?.dateOfExpiry || 'N/A');
+          form.getTextField('Mobile Phone').setText(processedInfo?.resume?.cellNumber || 'N/A');
+          form.getTextField('EMail Address').setText(processedInfo?.resume?.emailId || 'N/A');
           
           // Employment and Education section
           form.getTextField('Name of the Current Employer').setText(
-            processedInfo?.Resume?.currentCompanyName || 'N/A'
+            processedInfo?.resume?.currentCompanyName || 'N/A'
           );
           form.getTextField('Applicants current Designation role  position').setText(
-            processedInfo?.Resume?.currentPosition || 'N/A'
+            processedInfo?.resume?.currentPosition || 'N/A'
           );
 
-          // Handle educational qualification array - take the highest education
-          const highestEducation = processedInfo?.Resume?.educationalQualification
           form.getTextField('Educational Qualification').setText(
-            highestEducation || 'N/A'
+            processedInfo?.resume?.educationalQualification[0]?.degree || 'N/A'
           );
 
           form.getTextField('Specific details of Skills Experience').setText(
-            `${processedInfo?.Resume?.currentPosition || 'N/A'}, ${processedInfo?.Resume?.previousPosition || 'N/A'}`
+            `${processedInfo?.resume?.currentPosition || 'N/A'}, ${processedInfo?.resume?.previousPosition || 'N/A'}`
           );
 
         } catch (fieldError) {
