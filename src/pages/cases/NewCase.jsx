@@ -59,6 +59,11 @@ const NewCase = () => {
   }, [isAuthenticated, loading, navigate]);
 
   useEffect(() => {
+    // Log auth state for debugging
+    console.log('Auth State:', { isAuthenticated, loading, user });
+  }, [isAuthenticated, loading, user]);
+
+  useEffect(() => {
     setPageTitle('Create New Case');
     return () => setPageTitle('');
   }, [setPageTitle]);
@@ -316,15 +321,29 @@ const NewCase = () => {
 
       // Actual API call after delay to show all steps
       setTimeout(async () => {
+        console.log('Selected Customer:', selectedCustomer);
+        console.log('Selected Template:', selectedTemplate);
+        console.log('Selected Documents:', selectedDocuments);
+        console.log('Current User:', user);
+
         const requestBody = {
           userId: selectedCustomer._id,
           categoryId: selectedTemplate._id,
-          createdBy: selectedCustomer._id,
-          attorneys: [selectedAttorney._id],
-          documentTypeIds: selectedDocuments.map(doc => doc._id)
+          createdBy: user.id,
+          userName: selectedCustomer.name,
+          categoryName: selectedTemplate.name,
+          documentTypes: selectedDocuments.map(doc => ({
+            documentTypeId: doc._id,
+            name: doc.name,
+            required: doc.required || false,
+            status: 'pending'
+          }))
         };
 
+        console.log('Request Body:', requestBody);
+
         const response = await api.post('/management', requestBody);
+        console.log('Response:', response);
         
         if (response.data.status === 'success') {
           const caseId = response.data.data.management._id;
