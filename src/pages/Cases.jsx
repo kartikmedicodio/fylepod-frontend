@@ -1,24 +1,88 @@
 import { useState, useEffect } from 'react';
 import api from '../utils/api';
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
 import CaseDetails from './CaseDetails';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// Components
+const SearchBar = ({ value, onChange, isSearching }) => (
+  <div className="flex-1 relative">
+    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+      <Search className="h-5 w-5 text-gray-400" />
+    </div>
+    <input
+      type="text"
+      placeholder="Search by Case ID or Individual Name"
+      value={value}
+      onChange={onChange}
+      className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+      aria-label="Search cases"
+    />
+    {isSearching && (
+      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+      </div>
+    )}
+  </div>
+);
+
+const TableHeader = () => (
+  <thead className="bg-gray-50">
+    <tr className="border-b border-gray-200">
+      {[
+        'Case Id', 'Individual Name', 'Case Manager', 'Process Name',
+        'Deadline', 'Document Upload Status', 'Queries Pending'
+      ].map((header) => (
+        <th key={header} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          {header}
+        </th>
+      ))}
+    </tr>
+  </thead>
+);
+
+const CaseRow = ({ caseItem, onClick }) => (
+  <motion.tr
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    className="hover:bg-gray-50 cursor-pointer transition-colors"
+    onClick={() => onClick(caseItem)}
+  >
+    <td className="px-6 py-4 text-sm text-gray-900">{caseItem._id?.substring(0, 6)}</td>
+    <td className="px-6 py-4 text-sm text-gray-900">{caseItem.userName}</td>
+    <td className="px-6 py-4 text-sm text-gray-900">{caseItem.createdBy?.name}</td>
+    <td className="px-6 py-4 text-sm text-gray-900">{caseItem.categoryName}</td>
+    <td className="px-6 py-4 text-sm text-gray-900">-</td>
+    <td className="px-6 py-4 text-sm">
+      <span className={`px-2 py-1 rounded-full text-xs ${
+        caseItem.categoryStatus === 'completed' 
+          ? 'bg-green-100 text-green-800'
+          : 'bg-yellow-100 text-yellow-800'
+      }`}>
+        {caseItem.categoryStatus}
+      </span>
+    </td>
+    <td className="px-6 py-4 text-sm text-gray-900">-</td>
+  </motion.tr>
+);
 
 // Add CasesSkeleton component at the top of the file
 const CasesSkeleton = () => {
   return (
-    <div className="animate-pulse">
+    <div className="p-6">
       {/* Header Skeleton */}
       <div className="mb-6">
-        <div className="h-8 w-24 bg-gray-200 rounded"></div>
+        <div className="h-8 w-24 bg-gray-100 rounded-lg animate-pulse" />
       </div>
 
       {/* Search and Filters Skeleton */}
       <div className="flex items-center gap-4 mb-6">
         <div className="flex-1">
-          <div className="h-10 bg-gray-200 rounded-lg"></div>
+          <div className="h-10 bg-gray-100 rounded-lg animate-pulse" />
         </div>
-        <div className="h-10 w-24 bg-gray-200 rounded-lg"></div>
-        <div className="h-10 w-24 bg-gray-200 rounded-lg"></div>
+        <div className="h-10 w-24 bg-gray-100 rounded-lg animate-pulse" />
+        <div className="h-10 w-24 bg-gray-100 rounded-lg animate-pulse" />
       </div>
 
       {/* Table Skeleton */}
@@ -29,7 +93,7 @@ const CasesSkeleton = () => {
               <tr className="border-b border-gray-200">
                 {[...Array(7)].map((_, index) => (
                   <th key={index} className="px-6 py-3">
-                    <div className="h-4 bg-gray-200 rounded"></div>
+                    <div className="h-4 bg-gray-100 rounded animate-pulse" />
                   </th>
                 ))}
               </tr>
@@ -39,7 +103,7 @@ const CasesSkeleton = () => {
                 <tr key={rowIndex} className="border-b border-gray-200">
                   {[...Array(7)].map((_, colIndex) => (
                     <td key={colIndex} className="px-6 py-4">
-                      <div className="h-4 bg-gray-200 rounded"></div>
+                      <div className="h-4 bg-gray-100 rounded animate-pulse" />
                     </td>
                   ))}
                 </tr>
@@ -51,10 +115,10 @@ const CasesSkeleton = () => {
 
       {/* Pagination Skeleton */}
       <div className="mt-4 flex items-center justify-between">
-        <div className="h-4 w-64 bg-gray-200 rounded"></div>
+        <div className="h-4 w-64 bg-gray-100 rounded animate-pulse" />
         <div className="flex items-center gap-2">
           {[...Array(3)].map((_, index) => (
-            <div key={index} className="h-8 w-8 bg-gray-200 rounded"></div>
+            <div key={index} className="h-8 w-8 bg-gray-100 rounded animate-pulse" />
           ))}
         </div>
       </div>
@@ -71,6 +135,7 @@ const Cases = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredCases, setFilteredCases] = useState([]);
   const [selectedCase, setSelectedCase] = useState(null);
+  const [error, setError] = useState(null);
 
   const fetchCases = async (page, search = '') => {
     try {
@@ -80,14 +145,12 @@ const Cases = () => {
         setLoading(true);
       }
 
-      let response;
+      const response = await api.get(`/management/all-managements?page=${page}`);
       
-      if (search.trim()) {
-        // If searching, fetch all cases without pagination
-        response = await api.get(`/management/all-managements?limit=1000`);
-        if (response.data.status === 'success') {
-          const allCases = response.data.data.managements;
-          
+      if (response.data.status === 'success') {
+        const allCases = response.data.data.managements;
+        
+        if (search.trim()) {
           // Filter cases based on search term
           const searchLower = search.toLowerCase();
           const filtered = allCases.filter(caseItem => 
@@ -102,36 +165,35 @@ const Cases = () => {
             total: filtered.length,
             totalPages: Math.ceil(filtered.length / response.data.data.pagination.limit)
           });
-          setCases(allCases);
-        }
-      } else {
-        // If not searching, fetch with pagination
-        response = await api.get(`/management/all-managements?page=${page}`);
-        if (response.data.status === 'success') {
-          const allCases = response.data.data.managements;
+        } else {
+          // If no search term, show all cases with pagination
           setFilteredCases(allCases);
           setPagination(response.data.data.pagination);
-          setCases(allCases);
         }
+        setCases(allCases);
       }
     } catch (error) {
       console.error('Error fetching cases:', error);
+      setError('Error loading cases. Please try again later.');
     } finally {
       setLoading(false);
       setSearching(false);
     }
   };
 
-  // Initial fetch without search
   useEffect(() => {
     fetchCases(currentPage);
   }, [currentPage]);
 
-  // Handle search with debounce
   useEffect(() => {
     const delayDebounce = setTimeout(() => {
-      fetchCases(1, searchTerm);
-    }, 500);
+      if (searchTerm) {
+        fetchCases(1, searchTerm);
+      } else {
+        // Reset to original state when search is cleared
+        fetchCases(1);
+      }
+    }, 300);
 
     return () => clearTimeout(delayDebounce);
   }, [searchTerm]);
@@ -144,25 +206,21 @@ const Cases = () => {
 
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
-    setCurrentPage(1); // Reset to first page when searching
+    setCurrentPage(1);
   };
 
-  // Add this new function to handle case click
   const handleCaseClick = (caseItem) => {
     setSelectedCase(caseItem._id);
   };
 
-  // Add this function to handle going back to cases list
   const handleBackToCases = () => {
     setSelectedCase(null);
   };
 
-  // If a case is selected, show the CaseDetails component
   if (selectedCase) {
     return <CaseDetails caseId={selectedCase} onBack={handleBackToCases} />;
   }
 
-  // Only show skeleton for initial load, not during search
   if (loading && !searching) {
     return (
       <div className="p-6">
@@ -171,168 +229,159 @@ const Cases = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="p-6 text-center">
+        <div className="text-red-600 mb-4">Error loading cases: {error}</div>
+        <button 
+          onClick={() => fetchCases(currentPage)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="p-6"
+    >
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-gray-900">Cases</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-gray-900">Cases</h1>
+        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+          + New Case
+        </button>
       </div>
 
       {/* Search and Filters */}
       <div className="flex items-center gap-4 mb-6">
-        <div className="flex-1 relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
-          </div>
-          <input
-            type="text"
-            placeholder="Search by Case ID or Individual Name"
-            value={searchTerm}
-            onChange={handleSearch}
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <button className="px-4 py-2 text-sm bg-white rounded-lg border border-gray-300 hover:bg-gray-50">
-          All Filters
+        <SearchBar value={searchTerm} onChange={handleSearch} isSearching={searching} />
+        
+        <button className="px-4 py-2 text-sm bg-white rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors flex items-center gap-2">
+          <SlidersHorizontal className="h-4 w-4" />
+          Filters
         </button>
-        <button className="px-4 py-2 text-sm bg-white rounded-lg border border-gray-300 hover:bg-gray-50">
+        
+        <button className="px-4 py-2 text-sm bg-white rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors flex items-center gap-2">
+          <ArrowUpDown className="h-4 w-4" />
           Sort
         </button>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-lg border border-gray-200">
+      {/* Table with integrated pagination */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm"
+      >
         <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead>
-              <tr className="border-b border-gray-200">
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Case Id
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Individual Name
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Case Manager
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Process Name
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Deadline
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Document Upload Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Queries Pending
-                </th>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                {[
+                  'Case Id', 'Individual Name', 'Case Manager', 'Process Name',
+                  'Deadline', 'Document Upload Status', 'Queries Pending'
+                ].map((header) => (
+                  <th key={header} className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">
+                    {header}
+                  </th>
+                ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredCases.length === 0 ? (
-                <tr>
-                  <td colSpan="7" className="px-6 py-4 text-center text-sm text-gray-500">
-                    No cases found matching your search.
-                  </td>
-                </tr>
-              ) : (
-                filteredCases.map((caseItem) => (
-                  <tr 
-                    key={caseItem._id} 
-                    className="hover:bg-gray-50 cursor-pointer"
-                    onClick={() => handleCaseClick(caseItem)}
-                  >
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {caseItem._id}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {caseItem.userName}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {caseItem.createdBy.name}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {caseItem.categoryName}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      -
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {caseItem.categoryStatus}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      -
+            <tbody className="divide-y divide-gray-100">
+              <AnimatePresence>
+                {filteredCases.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="px-6 py-8 text-center">
+                      <div className="flex flex-col items-center justify-center space-y-2">
+                        <p className="text-gray-500 text-sm font-medium">No cases found</p>
+                        <p className="text-gray-400 text-sm">Try adjusting your search criteria</p>
+                      </div>
                     </td>
                   </tr>
-                ))
-              )}
+                ) : (
+                  filteredCases.map((caseItem) => (
+                    <motion.tr
+                      key={caseItem._id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="hover:bg-blue-50/50 cursor-pointer transition-colors duration-200"
+                      onClick={() => handleCaseClick(caseItem)}
+                    >
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {caseItem._id?.substring(0, 6)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{caseItem.userName}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{caseItem.createdBy?.name}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{caseItem.categoryName}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">-</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                          caseItem.categoryStatus === 'completed' 
+                            ? 'bg-green-50 text-green-700 ring-1 ring-green-600/20'
+                            : 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-600/20'
+                        }`}>
+                          {caseItem.categoryStatus}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">-</td>
+                    </motion.tr>
+                  ))
+                )}
+              </AnimatePresence>
             </tbody>
           </table>
         </div>
-      </div>
 
-      {/* Optional loading indicator during search */}
-      {searching && (
-        <div className="absolute top-4 right-4">
-          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-        </div>
-      )}
+        {/* Enhanced Pagination */}
+        {pagination && filteredCases.length > 0 && (
+          <div className="px-6 py-3 border-t border-gray-100 flex justify-between items-center bg-gray-50/80 backdrop-blur-sm">
+            <span className="text-sm text-gray-600">
+              Showing <span className="font-medium text-gray-900">{(currentPage - 1) * pagination.limit + 1}</span>
+              {' '}-{' '}
+              <span className="font-medium text-gray-900">{Math.min(currentPage * pagination.limit, pagination.total)}</span>
+              {' '}of{' '}
+              <span className="font-medium text-gray-900">{pagination.total}</span>
+            </span>
+            
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className={`p-2 rounded-lg border transition-all duration-200 
+                  ${currentPage === 1
+                    ? 'text-gray-300 border-gray-200 cursor-not-allowed'
+                    : 'text-gray-600 border-gray-200 hover:bg-white hover:border-gray-300 hover:shadow-sm active:transform active:scale-95'
+                  }`}
+              >
+                <ChevronLeft size={18} />
+              </button>
 
-      {/* Pagination */}
-      {pagination && filteredCases.length > 0 && (
-        <div className="mt-4 flex items-center justify-between text-sm text-gray-700">
-          <div>
-            Showing {(currentPage - 1) * pagination.limit + 1} to {Math.min(currentPage * pagination.limit, pagination.total)} of {pagination.total} results
+              <span className="text-sm font-medium text-gray-900">
+                Page {currentPage} of {pagination.totalPages}
+              </span>
+
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === pagination.totalPages}
+                className={`p-2 rounded-lg border transition-all duration-200 
+                  ${currentPage === pagination.totalPages
+                    ? 'text-gray-300 border-gray-200 cursor-not-allowed'
+                    : 'text-gray-600 border-gray-200 hover:bg-white hover:border-gray-300 hover:shadow-sm active:transform active:scale-95'
+                  }`}
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="p-1 rounded hover:bg-gray-100 disabled:opacity-50"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            {Array.from({ length: pagination.totalPages }, (_, i) => i + 1)
-              .filter(page => {
-                // Show first page, last page, current page, and pages around current page
-                return (
-                  page === 1 ||
-                  page === pagination.totalPages ||
-                  Math.abs(page - currentPage) <= 1
-                );
-              })
-              .map((page, index, array) => (
-                <>
-                  {index > 0 && array[index - 1] !== page - 1 && (
-                    <span key={`ellipsis-${page}`} className="px-2">
-                      ...
-                    </span>
-                  )}
-                  <button
-                    key={page}
-                    onClick={() => handlePageChange(page)}
-                    className={`px-3 py-1 rounded ${
-                      currentPage === page
-                        ? 'bg-blue-600 text-white'
-                        : 'hover:bg-gray-100'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                </>
-              ))}
-            <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === pagination.totalPages}
-              className="p-1 rounded hover:bg-gray-100 disabled:opacity-50"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+        )}
+      </motion.div>
+    </motion.div>
   );
 };
 
