@@ -159,17 +159,10 @@ const Profile = ({ setCurrentBreadcrumb }) => {
   const [isSending, setIsSending] = useState(false);
   const [currentChat, setCurrentChat] = useState(null);
   const messagesEndRef = useRef(null);
+  const [processedDocs, setProcessedDocs] = useState([]);
 
-  // Add function to handle chat messages
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!chatInput.trim() || isSending) return;
-
-    const userMessage = { role: 'user', content: chatInput };
-    setMessages(prev => [...prev, userMessage]);
-    setChatInput('');
-    setIsSending(true);
-
+  // Add function to fetch documents
+  const fetchUserDocuments = async () => {
     try {
       // First get all management IDs for the user
       const managementResponse = await api.get(`/management/user/${profileId}`);
@@ -184,7 +177,7 @@ const Profile = ({ setCurrentBreadcrumb }) => {
       console.log('User management IDs:', userManagementIds);
 
       // Fetch documents for each management ID
-      const processedDocs = [];
+      const docs = [];
       
       for (const managementId of userManagementIds) {
         console.log('Fetching documents for management ID:', managementId);
@@ -196,15 +189,15 @@ const Profile = ({ setCurrentBreadcrumb }) => {
           console.log('API Response for management ID', managementId + ':', response.data);
           
           if (response.data.status === 'success' && response.data.data.documents) {
-            const docs = response.data.data.documents;
+            const documents = response.data.data.documents;
             
             // Add processed documents
-            docs.forEach(doc => {
+            documents.forEach(doc => {
               if (doc.status === 'processed' || doc.status === 'approved') {
                 // Check for duplicates before adding
-                const isDuplicate = processedDocs.some(existingDoc => existingDoc._id === doc._id);
+                const isDuplicate = docs.some(existingDoc => existingDoc._id === doc._id);
                 if (!isDuplicate) {
-                  processedDocs.push(doc);
+                  docs.push(doc);
                   console.log(`Added processed document: ${doc._id} (${doc.type}) for management ID ${managementId}`);
                 }
               }
@@ -216,87 +209,84 @@ const Profile = ({ setCurrentBreadcrumb }) => {
         }
       }
 
-      // Log final results
-      console.log('Final processed documents:', processedDocs.map(doc => ({
-        id: doc._id,
-        type: doc.type,
-        managementId: doc.managementId,
-        status: doc.status
-      })));
+      setProcessedDocs(docs);
+      return docs;
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+      throw error;
+    }
+  };
 
-      // Check if we have any documents at all
-      if (processedDocs.length === 0) {
-        throw new Error('No processed documents found. Please wait for your documents to be processed.');
-      }
+  // Add effect to reset chat and fetch documents when profile changes
+  useEffect(() => {
+    // Reset chat state when profile changes
+    setMessages([{
+      role: 'assistant',
+      content: "Hi! I'm Diana, your AI assistant. I can help you analyze your documents and answer any questions you might have."
+    }]);
+    setCurrentChat(null);
+    setChatInput('');
+    setIsSending(false);
+    setShowChatPopup(false);
+    setProcessedDocs([]); // Reset processed documents
+  }, [profileId]);
 
-      // Create or use existing chat
+  // Add function to handle chat messages
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!chatInput.trim() || isSending) return;
+
+    const userMessage = { role: 'user', content: chatInput };
+    setMessages(prev => [...prev, userMessage]);
+    setChatInput('');
+    setIsSending(true);
+
+    try {
       let chatId;
+      
+      // If no current chat, initialize it by fetching documents first
       if (!currentChat) {
-        try {
-          // Log the management entries for debugging
-          console.log('Management entries:', managementEntries);
-          
-          // Get all management IDs
-          const managementIds = managementEntries.map(entry => entry._id);
-          console.log('Available management IDs:', managementIds);
-
-          // Create new chat with all processed documents and user info
-          const chatRequest = {
-            documentIds: processedDocs.map(doc => doc._id),
-            managementId: managementEntries[0]._id, // Use first management ID as primary
-            userInfo: {
-              name: profileData.name,
-              email: profileData.email,
-              contact: profileData.contact || {},
-              address: profileData.address || {}
-            }
-          };
-
-          console.log('Creating chat with request:', {
-            documentCount: processedDocs.length,
-            documents: processedDocs.map(doc => ({
-              id: doc._id,
-              type: doc.type,
-              managementId: doc.managementId,
-              name: doc.name
-            })),
-            primaryManagementId: managementEntries[0]._id,
-            userName: profileData.name
-          });
-
-          const chatResponse = await api.post('/chat', chatRequest);
-          
-          if (!chatResponse.data?.status === 'success' || !chatResponse.data?.data?.chat) {
-            console.error('Chat creation response:', chatResponse.data);
-            throw new Error('Failed to create chat session');
-          }
-          
-          const newChat = chatResponse.data.data.chat;
-          setCurrentChat(newChat);
-          chatId = newChat._id;
-          console.log('Successfully created chat:', newChat);
-        } catch (error) {
-          console.error('Error creating chat:', error);
-          throw new Error(`Failed to create chat session: ${error.response?.data?.message || error.message}`);
+        const docs = processedDocs.length > 0 ? processedDocs : await fetchUserDocuments();
+        
+        if (docs.length === 0) {
+          throw new Error('No processed documents found. Please wait for your documents to be processed.');
         }
+
+        // Create new chat with the documents
+        const chatRequest = {
+          documentIds: docs.map(doc => doc._id),
+          managementId: docs[0].managementId, // Use first document's management ID as primary
+          userInfo: {
+            name: profileData.name,
+            email: profileData.email,
+            contact: profileData.contact || {},
+            address: profileData.address || {}
+          }
+        };
+
+        const chatResponse = await api.post('/chat', chatRequest);
+        
+        if (!chatResponse.data?.status === 'success' || !chatResponse.data?.data?.chat) {
+          console.error('Chat creation response:', chatResponse.data);
+          throw new Error('Failed to create chat session');
+        }
+        
+        const newChat = chatResponse.data.data.chat;
+        setCurrentChat(newChat);
+        chatId = newChat._id;
       } else {
         chatId = currentChat._id;
       }
 
       // Send message to chat
-      try {
-        const messageResponse = await api.post(`/chat/${chatId}/messages`, {
-          message: chatInput
-        });
+      const messageResponse = await api.post(`/chat/${chatId}/messages`, {
+        message: chatInput
+      });
 
-        if (messageResponse.data?.status === 'success' && messageResponse.data.data.message) {
-          setMessages(prev => [...prev, messageResponse.data.data.message]);
-        } else {
-          throw new Error('Failed to get response from AI assistant');
-        }
-      } catch (error) {
-        console.error('Error sending message:', error);
-        throw new Error(`Failed to send message: ${error.response?.data?.message || error.message}`);
+      if (messageResponse.data?.status === 'success' && messageResponse.data.data.message) {
+        setMessages(prev => [...prev, messageResponse.data.data.message]);
+      } else {
+        throw new Error('Failed to get response from AI assistant');
       }
 
     } catch (error) {
