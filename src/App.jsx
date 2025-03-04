@@ -16,6 +16,7 @@ import IndividualCases from './pages/IndividualCases';
 import CaseDetails from './pages/CaseDetails';
 import IndividualCaseDetails from './pages/IndividualCaseDetails';
 import DashboardRouter from './components/DashboardRouter';
+import Profile from './pages/Profile';
 import { useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 
@@ -54,6 +55,9 @@ const App = () => {
                         
                         {/* Dashboard route now uses DashboardRouter */}
                         <Route path="/dashboard" element={<DashboardRouter setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
+                        
+                        {/* Profile Route */}
+                        <Route path="/profile/:profileId" element={<Profile setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
                         
                         {/* Other existing routes */}
                         <Route path="/cases" element={<Cases setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
