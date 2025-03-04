@@ -14,16 +14,17 @@ const Header = ({ sidebarCollapsed, onAgentClick }) => {
   const getBreadcrumbs = () => {
     const path = location.pathname;
 
+    // If we have currentBreadcrumb array, use it
+    if (Array.isArray(currentBreadcrumb)) {
+      return currentBreadcrumb;
+    }
+
     // Add a special case for individual case details
     if (path.includes('/individuals/case/')) {
       return [{
         name: 'Case Details',
         path: path
       }];
-    }
-
-    if (currentBreadcrumb?.breadcrumbs) {
-      return currentBreadcrumb.breadcrumbs;
     }
 
     if (pageTitle) {
@@ -37,6 +38,11 @@ const Header = ({ sidebarCollapsed, onAgentClick }) => {
     
     // Handle different page types
     switch(paths[0]) {
+      case 'profile':
+        return [
+          { name: 'Profile', path: '/profile' }
+        ];
+      
       case 'case':
         return [
           { name: 'All Cases', path: '/individual-cases' },
