@@ -282,11 +282,10 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         formData.append('file', file);
         formData.append('originalName', file.name);
         formData.append('name', `${Date.now()}-${file.name}`);
-        formData.append('type', pendingDoc.name);
         formData.append('managementId', caseId);
         formData.append('documentTypeId', pendingDoc.documentTypeId);
         formData.append('managementDocumentId', pendingDoc._id);
-        formData.append('form_category', 'document_verification');
+        formData.append('form_category_id', caseData.categoryId?._id);
         formData.append('mimeType', file.type);
 
         try {
