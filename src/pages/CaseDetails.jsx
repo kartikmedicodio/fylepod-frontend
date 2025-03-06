@@ -1287,6 +1287,15 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 .map(field => {
                   // Special handling for educational qualifications
                   if (field.fieldName === 'educationalQualification') {
+                    // Convert to array if it's an object or string
+                    const educationData = Array.isArray(formData?.Resume?.educationalQualification)
+                      ? formData.Resume.educationalQualification
+                      : typeof formData?.Resume?.educationalQualification === 'string'
+                        ? [{ degree: formData.Resume.educationalQualification }]
+                        : formData?.Resume?.educationalQualification
+                          ? [formData.Resume.educationalQualification]
+                          : [];
+
                     return (
                       <div key={field._id} className="col-span-2">
                         <label className="block text-xs text-gray-500 mb-1">
@@ -1294,37 +1303,45 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                           {field.required && <span className="text-red-500 ml-1">*</span>}
                         </label>
                         <div className="space-y-2">
-                          {formData?.Resume?.educationalQualification?.map((edu, index) => (
+                          {educationData.map((edu, index) => (
                             <div key={index} className="grid grid-cols-3 gap-2">
                               <input
                                 type="text"
-                                value={edu.degree || ''}
+                                value={typeof edu === 'string' ? edu : edu.degree || ''}
                                 placeholder="Degree"
                                 onChange={(e) => {
-                                  const newEdu = [...(formData?.Resume?.educationalQualification || [])];
-                                  newEdu[index] = { ...newEdu[index], degree: e.target.value };
+                                  const newEdu = [...educationData];
+                                  newEdu[index] = typeof edu === 'string' 
+                                    ? e.target.value
+                                    : { ...newEdu[index], degree: e.target.value };
                                   handleInputChange('Resume', 'educationalQualification', newEdu);
                                 }}
                                 className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm"
                               />
                               <input
                                 type="text"
-                                value={edu.institution || ''}
+                                value={typeof edu === 'string' ? '' : edu.institution || ''}
                                 placeholder="Institution"
                                 onChange={(e) => {
-                                  const newEdu = [...(formData?.Resume?.educationalQualification || [])];
-                                  newEdu[index] = { ...newEdu[index], institution: e.target.value };
+                                  const newEdu = [...educationData];
+                                  newEdu[index] = { 
+                                    ...(typeof edu === 'string' ? { degree: edu } : newEdu[index]), 
+                                    institution: e.target.value 
+                                  };
                                   handleInputChange('Resume', 'educationalQualification', newEdu);
                                 }}
                                 className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm"
                               />
                               <input
                                 type="text"
-                                value={edu.duration || ''}
-                                placeholder="Duration"
+                                value={typeof edu === 'string' ? '' : (edu.years || edu.duration || '')}
+                                placeholder="Years"
                                 onChange={(e) => {
-                                  const newEdu = [...(formData?.Resume?.educationalQualification || [])];
-                                  newEdu[index] = { ...newEdu[index], duration: e.target.value };
+                                  const newEdu = [...educationData];
+                                  newEdu[index] = { 
+                                    ...(typeof edu === 'string' ? { degree: edu } : newEdu[index]), 
+                                    years: e.target.value 
+                                  };
                                   handleInputChange('Resume', 'educationalQualification', newEdu);
                                 }}
                                 className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm"
@@ -1487,7 +1504,26 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           );
 
           form.getTextField('Educational Qualification').setText(
-            processedInfo?.Resume?.educationalQualification[0]?.degree || 'N/A'
+            (() => {
+              const eduQual = processedInfo?.Resume?.educationalQualification;
+              if (!eduQual) return 'N/A';
+              
+              if (Array.isArray(eduQual)) {
+                return eduQual.map(edu => 
+                  typeof edu === 'string' 
+                    ? edu 
+                    : `${edu.degree || ''} - ${edu.institution || ''}`
+                ).join('; ');
+              }
+              
+              // Handle single object case
+              if (typeof eduQual === 'object') {
+                return `${eduQual.degree || ''} - ${eduQual.institution || ''}`;
+              }
+              
+              // Handle string case
+              return eduQual;
+            })() || 'N/A'
           );
 
           form.getTextField('Specific details of Skills Experience').setText(
