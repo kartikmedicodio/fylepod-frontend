@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
-import { Check } from 'lucide-react';
+import { Check, FileText, Users, ClipboardCheck, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 
@@ -37,6 +37,125 @@ const DashboardSkeleton = () => {
       ))}
     </div>
   );
+};
+
+const getStepIcon = (step) => {
+  switch (step) {
+    case 'Case Started':
+      return <FileText className="w-4 h-4" />;
+    case 'Docs Collection':
+      return <ClipboardCheck className="w-4 h-4" />;
+    case 'In Review':
+      return <Users className="w-4 h-4" />;
+    case 'Preparation':
+      return <Clock className="w-4 h-4" />;
+    default:
+      return null;
+  }
+};
+
+const CaseProgressCard = ({ caseItem, onClick }) => {
+  return (
+    <div 
+      className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-all duration-300 cursor-pointer border border-gray-100/80 group relative overflow-hidden"
+      onClick={onClick}
+    >
+      {/* Background decoration */}
+      <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-blue-50/20 via-indigo-50/20 to-transparent rounded-bl-[120px] -z-1" />
+      
+      <div className="flex justify-between items-start mb-8">
+        <div>
+          <h3 className="font-semibold text-gray-800 text-lg group-hover:text-blue-600 transition-colors">
+            {caseItem.categoryName}
+          </h3>
+          <div className="flex items-center gap-2 mt-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+            <span className="text-sm text-gray-500">Case #{caseItem._id.slice(-6)}</span>
+          </div>
+        </div>
+        <div className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors
+          ${caseItem.currentStep === caseItem.steps.length ? 
+            'bg-green-50 text-green-700 border border-green-100 group-hover:bg-green-100' : 
+            'bg-blue-50 text-blue-700 border border-blue-100 group-hover:bg-blue-100'}`}>
+          {caseItem.categoryStatus || 'In Progress'}
+        </div>
+      </div>
+      
+      {/* Steps Timeline */}
+      <div className="flex justify-between relative mb-8">
+        {caseItem.steps.map((step, stepIndex) => (
+          <div key={stepIndex} className="flex flex-col items-center relative w-full">
+            <div className="relative">
+              {/* Completed steps */}
+              {stepIndex < caseItem.currentStep && (
+                <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center z-10 shadow-sm transform transition-all duration-300 group-hover:scale-110 group-hover:shadow-md">
+                  <Check className="w-[18px] h-[18px] text-white" />
+                </div>
+              )}
+              
+              {/* Current step */}
+              {stepIndex === caseItem.currentStep && (
+                <div className="w-9 h-9 rounded-full border-2 border-blue-500 flex items-center justify-center z-10 bg-white transform transition-all duration-300 group-hover:scale-110 group-hover:border-blue-600 group-hover:text-blue-600">
+                  {getStepIcon(step)}
+                </div>
+              )}
+              
+              {/* Future steps */}
+              {stepIndex > caseItem.currentStep && (
+                <div className="w-9 h-9 rounded-full border border-gray-200 bg-white z-10 flex items-center justify-center text-gray-400 transition-colors group-hover:border-gray-300">
+                  {getStepIcon(step)}
+                </div>
+              )}
+            </div>
+            
+            <div className="text-xs font-medium text-center whitespace-nowrap mt-3 px-1">
+              <span className={`transition-colors ${stepIndex <= caseItem.currentStep ? 'text-gray-700' : 'text-gray-400'}`}>
+                {step}
+              </span>
+            </div>
+            
+            {/* Connecting lines with gradient */}
+            {stepIndex < caseItem.steps.length - 1 && (
+              <div className="absolute top-[18px] left-[calc(50%+18px)] w-[calc(100%-36px)] h-[2px] transition-all duration-300"
+                style={{
+                  background: `linear-gradient(to right, 
+                    ${stepIndex < caseItem.currentStep ? '#3B82F6' : '#E5E7EB'} 50%, 
+                    ${stepIndex + 1 <= caseItem.currentStep ? '#3B82F6' : '#E5E7EB'} 50%
+                  )`,
+                  opacity: stepIndex < caseItem.currentStep ? '1' : '0.7'
+                }}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+      
+      {/* Previous/Next Steps */}
+      <div className="flex justify-between gap-4 text-sm">
+        <div className="flex-1 bg-gray-50/70 rounded-lg p-3 border border-gray-100 transition-colors group-hover:bg-gray-50">
+          <span className="text-gray-500 block mb-1 text-xs">Previous Step</span>
+          <span className="font-medium text-gray-800">{caseItem.previousStep}</span>
+        </div>
+        <div className="flex-1 bg-blue-50/70 rounded-lg p-3 border border-blue-100 transition-colors group-hover:bg-blue-50">
+          <span className="text-blue-600/90 block mb-1 text-xs">Next Step</span>
+          <span className="font-medium text-blue-800">{caseItem.nextStep}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+CaseProgressCard.propTypes = {
+  caseItem: PropTypes.shape({
+    _id: PropTypes.string.isRequired,
+    categoryName: PropTypes.string.isRequired,
+    categoryStatus: PropTypes.string,
+    currentStep: PropTypes.number.isRequired,
+    steps: PropTypes.arrayOf(PropTypes.string).isRequired,
+    previousStep: PropTypes.string.isRequired,
+    nextStep: PropTypes.string.isRequired,
+  }).isRequired,
+  onClick: PropTypes.func.isRequired,
 };
 
 const FNDashboard = ({ setCurrentBreadcrumb }) => {
@@ -213,180 +332,85 @@ const FNDashboard = ({ setCurrentBreadcrumb }) => {
     <div className="p-5 flex">
       {/* Left Section - Progress Cards */}
       <div className="w-1/2 pr-6">
-        <h1 className="text-xl font-semibold mb-6 text-gray-800">Case Progress</h1>
-        
-        <div className="flex flex-col space-y-4">
-          {/* No cases message */}
-          {currentUserCases.length === 0 && Object.keys(otherUserCases).length === 0 && (
-            <div className="bg-white rounded-lg shadow-sm p-4 text-center text-gray-500">
-              No cases found. Start by creating a new case.
+        <div className="sticky top-5">
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-semibold text-gray-800">Case Progress</h1>
+            <div className="text-sm text-gray-500">
+              {currentUserCases.length + Object.values(otherUserCases).flat().length} Active Cases
             </div>
-          )}
+          </div>
           
-          {/* Current User's Cases Section */}
-          {currentUserCases.length > 0 && (
-            <div className="flex flex-col space-y-3">
-              <div className="text-base font-medium text-gray-800 mb-1">
-                {user?.name || user?.email || 'My Profile'}
-              </div>
-              
-              {currentUserCases.map((caseItem) => (
-                <div 
-                  key={caseItem._id} 
-                  className="bg-white rounded-lg shadow-sm p-5 hover:shadow cursor-pointer border border-gray-100"
-                  onClick={() => handleCaseClick(caseItem._id)}
-                >
-                  <div className="flex justify-between items-center mb-6">
-                    <div className="font-semibold text-gray-800">{caseItem.categoryName}</div>
-                    <div className="text-sm px-3 py-1 rounded-full bg-green-50 text-green-600 border border-green-100">
-                      {caseItem.categoryStatus || 'In Progress'}
-                    </div>
-                  </div>
-                  
-                  {/* Progress Bar Section */}
-                  <div>
-                    {/* Simplified Progress Bar */}
-                    <div className="flex justify-between mb-6 relative">
-                      {caseItem.steps.map((step, stepIndex) => (
-                        <div key={stepIndex} className="flex flex-col items-center relative w-full">
-                          <div className="relative">
-                            {/* Show checkmark for completed steps */}
-                            {stepIndex < caseItem.currentStep && (
-                              <div className="w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center z-10">
-                                <Check className="w-4 h-4 text-white" />
-                              </div>
-                            )}
-                            
-                            {/* Current step */}
-                            {stepIndex === caseItem.currentStep && (
-                              <div className="w-7 h-7 rounded-full border-2 border-blue-500 flex items-center justify-center z-10 bg-white">
-                                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                              </div>
-                            )}
-                            
-                            {/* Future steps */}
-                            {stepIndex > caseItem.currentStep && (
-                              <div className="w-7 h-7 rounded-full border border-gray-200 bg-white z-10">
-                              </div>
-                            )}
-                          </div>
-                          
-                          <div className="text-xs text-gray-600 text-center whitespace-nowrap mt-2" style={{ maxWidth: '90px' }}>
-                            {step}
-                          </div>
-                          
-                          {/* Cleaner connecting lines */}
-                          {stepIndex < caseItem.steps.length - 1 && (
-                            <div className={`absolute top-3.5 left-[calc(50%+15px)] w-[calc(100%-30px)] h-0.5
-                                            ${stepIndex < caseItem.currentStep ? 'bg-blue-500' : 'bg-gray-200'}`}>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                    
-                    <div className="flex justify-between mt-4 text-xs gap-3">
-                      <div className="bg-gray-50 px-3 py-2 rounded border border-gray-100 flex-1">
-                        <span className="text-gray-500">Previous: </span>
-                        <span className="font-medium text-gray-800">{caseItem.previousStep}</span>
-                      </div>
-                      <div className="bg-blue-50 px-3 py-2 rounded border border-blue-100 text-blue-700 flex-1">
-                        <span className="text-blue-500">Next: </span>
-                        <span className="font-medium">{caseItem.nextStep}</span>
-                      </div>
-                    </div>
-                  </div>
+          <div className="flex flex-col space-y-6">
+            {/* No cases message */}
+            {currentUserCases.length === 0 && Object.keys(otherUserCases).length === 0 && (
+              <div className="bg-white rounded-xl shadow-sm p-8 text-center">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FileText className="w-8 h-8 text-gray-400" />
                 </div>
-              ))}
-            </div>
-          )}
-          
-          {/* Simple separator */}
-          {currentUserCases.length > 0 && Object.keys(otherUserCases).length > 0 && (
-            <div className="my-4 border-t border-gray-200"></div>
-          )}
-          
-          {/* Other Users' Cases Section */}
-          {Object.keys(otherUserCases).length > 0 && (
-            <>
-              {Object.entries(otherUserCases).map(([userName, userCases]) => (
-                <div key={userName} className="flex flex-col space-y-3">
-                  <div className="text-base font-medium text-gray-800 mb-1">
-                    {userName}
+                <h3 className="text-gray-800 font-medium mb-2">No Active Cases</h3>
+                <p className="text-gray-500 text-sm">Start by creating a new case to track its progress.</p>
+              </div>
+            )}
+            
+            {/* Current User's Cases Section */}
+            {currentUserCases.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 px-1">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center">
+                    <span className="text-white font-medium">
+                      {(user?.name || user?.email || '?')[0].toUpperCase()}
+                    </span>
                   </div>
-                  
-                  {userCases.map((caseItem) => (
-                    <div 
-                      key={caseItem._id} 
-                      className="bg-white rounded-lg shadow-sm p-5 hover:shadow cursor-pointer border border-gray-100"
+                  <h2 className="text-lg font-medium text-gray-800">
+                    {user?.name || user?.email || 'My Profile'}
+                  </h2>
+                </div>
+                
+                <div className="space-y-4">
+                  {currentUserCases.map((caseItem) => (
+                    <CaseProgressCard
+                      key={caseItem._id}
+                      caseItem={caseItem}
                       onClick={() => handleCaseClick(caseItem._id)}
-                    >
-                      <div className="flex justify-between items-center mb-6">
-                        <div className="font-semibold text-gray-800">{caseItem.categoryName}</div>
-                        <div className="text-sm px-3 py-1 rounded-full bg-green-50 text-green-600 border border-green-100">
-                          {caseItem.categoryStatus || 'In Progress'}
-                        </div>
-                      </div>
-                      
-                      {/* Progress Bar Section */}
-                      <div>
-                        {/* Simplified Progress Bar */}
-                        <div className="flex justify-between mb-6 relative">
-                          {caseItem.steps.map((step, stepIndex) => (
-                            <div key={stepIndex} className="flex flex-col items-center relative w-full">
-                              <div className="relative">
-                                {/* Show checkmark for completed steps */}
-                                {stepIndex < caseItem.currentStep && (
-                                  <div className="w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center z-10">
-                                    <Check className="w-4 h-4 text-white" />
-                                  </div>
-                                )}
-                                
-                                {/* Current step */}
-                                {stepIndex === caseItem.currentStep && (
-                                  <div className="w-7 h-7 rounded-full border-2 border-blue-500 flex items-center justify-center z-10 bg-white">
-                                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                                  </div>
-                                )}
-                                
-                                {/* Future steps */}
-                                {stepIndex > caseItem.currentStep && (
-                                  <div className="w-7 h-7 rounded-full border border-gray-200 bg-white z-10">
-                                  </div>
-                                )}
-                              </div>
-                              
-                              <div className="text-xs text-gray-600 text-center whitespace-nowrap mt-2" style={{ maxWidth: '90px' }}>
-                                {step}
-                              </div>
-                              
-                              {/* Cleaner connecting lines */}
-                              {stepIndex < caseItem.steps.length - 1 && (
-                                <div className={`absolute top-3.5 left-[calc(50%+15px)] w-[calc(100%-30px)] h-0.5
-                                                ${stepIndex < caseItem.currentStep ? 'bg-blue-500' : 'bg-gray-200'}`}>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                        
-                        <div className="flex justify-between mt-4 text-xs gap-3">
-                          <div className="bg-gray-50 px-3 py-2 rounded border border-gray-100 flex-1">
-                            <span className="text-gray-500">Previous: </span>
-                            <span className="font-medium text-gray-800">{caseItem.previousStep}</span>
-                          </div>
-                          <div className="bg-blue-50 px-3 py-2 rounded border border-blue-100 text-blue-700 flex-1">
-                            <span className="text-blue-500">Next: </span>
-                            <span className="font-medium">{caseItem.nextStep}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    />
                   ))}
                 </div>
-              ))}
-            </>
-          )}
+              </div>
+            )}
+            
+            {/* Separator */}
+            {currentUserCases.length > 0 && Object.keys(otherUserCases).length > 0 && (
+              <div className="border-t border-gray-200" />
+            )}
+            
+            {/* Other Users' Cases Section */}
+            {Object.keys(otherUserCases).length > 0 && (
+              <>
+                {Object.entries(otherUserCases).map(([userName, userCases]) => (
+                  <div key={userName} className="space-y-4">
+                    <div className="flex items-center gap-3 px-1">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center">
+                        <span className="text-white font-medium">
+                          {userName[0].toUpperCase()}
+                        </span>
+                      </div>
+                      <h2 className="text-lg font-medium text-gray-800">{userName}</h2>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      {userCases.map((caseItem) => (
+                        <CaseProgressCard
+                          key={caseItem._id}
+                          caseItem={caseItem}
+                          onClick={() => handleCaseClick(caseItem._id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
         </div>
       </div>
 

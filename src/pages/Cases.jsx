@@ -136,9 +136,35 @@ const Cases = () => {
   const [filteredCases, setFilteredCases] = useState([]);
   const [selectedCase, setSelectedCase] = useState(null);
   const [error, setError] = useState(null);
+  const [loggedInUserDetails, setLoggedInUserDetails] = useState(null);
+
+  // Add effect to fetch logged in user details
+  useEffect(() => {
+    const fetchLoggedInUserDetails = async () => {
+      try {
+        const response = await api.get('/auth/me');
+        if (!response.data || !response.data.data || !response.data.data.user) {
+          throw new Error('No user data received from /auth/me');
+        }
+        const userDetails = response.data.data.user;
+        console.log('Logged in user lawfirm_id:', userDetails.lawfirm_id?._id);
+        setLoggedInUserDetails(userDetails);
+      } catch (error) {
+        console.error('Error fetching logged in user details:', error);
+        setError(error.message);
+      }
+    };
+
+    fetchLoggedInUserDetails();
+  }, []);
 
   const fetchCases = async (page, search = '') => {
     try {
+      if (!loggedInUserDetails?.lawfirm_id?._id) {
+        console.log('No lawfirm ID available');
+        return;
+      }
+
       if (search.trim()) {
         setSearching(true);
       } else {
@@ -148,7 +174,10 @@ const Cases = () => {
       const response = await api.get(`/management/all-managements?page=${page}`);
       
       if (response.data.status === 'success') {
-        const allCases = response.data.data.managements;
+        // Filter cases by lawfirm ID
+        const allCases = response.data.data.managements.filter(caseItem => 
+          caseItem.lawfirmId === loggedInUserDetails.lawfirm_id._id
+        );
         
         if (search.trim()) {
           // Filter cases based on search term
@@ -166,9 +195,13 @@ const Cases = () => {
             totalPages: Math.ceil(filtered.length / response.data.data.pagination.limit)
           });
         } else {
-          // If no search term, show all cases with pagination
+          // If no search term, show all filtered cases with pagination
           setFilteredCases(allCases);
-          setPagination(response.data.data.pagination);
+          setPagination({
+            ...response.data.data.pagination,
+            total: allCases.length,
+            totalPages: Math.ceil(allCases.length / response.data.data.pagination.limit)
+          });
         }
         setCases(allCases);
       }
@@ -182,8 +215,10 @@ const Cases = () => {
   };
 
   useEffect(() => {
-    fetchCases(currentPage);
-  }, [currentPage]);
+    if (loggedInUserDetails?.lawfirm_id?._id) {
+      fetchCases(currentPage);
+    }
+  }, [currentPage, loggedInUserDetails]);
 
   useEffect(() => {
     const delayDebounce = setTimeout(() => {
