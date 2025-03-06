@@ -65,6 +65,40 @@ const NewCase = () => {
   }, [setPageTitle]);
 
   useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setError(null);
+        const response = await api.get('/categories');
+
+        if (!response.data || !response.data.data || !response.data.data.categories) {
+          throw new Error('No data received from categories endpoint');
+        }
+
+        const categoriesData = response.data.data.categories;
+        
+        if (!Array.isArray(categoriesData)) {
+          throw new Error('Invalid categories data format');
+        }
+
+        setCategories(categoriesData);
+      } catch (error) {
+        setError(error.message);
+        
+        if (error.response?.status === 401) {
+          navigate('/login', { 
+            replace: true,
+            state: { from: '/cases/new' }
+          });
+        }
+      }
+    };
+
+    if (isAuthenticated) {
+      fetchCategories();
+    }
+  }, [isAuthenticated, navigate]);
+
+  useEffect(() => {
     const fetchLoggedInUserDetails = async () => {
       try {
         const response = await api.get('/auth/me');
