@@ -141,8 +141,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const [questionnaireData, setQuestionnaireData] = useState(null);
   const [isLoadingQuestionnaire, setIsLoadingQuestionnaire] = useState(false);
   const [formData, setFormData] = useState({
-    passport: {},
-    resume: {}
+    Passport: {},
+    Resume: {}
   });
   const [forms, setForms] = useState([]);
   const [isSavingQuestionnaire, setIsSavingQuestionnaire] = useState(false);
@@ -1269,8 +1269,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                     </label>
                     <input
                       type="text"
-                      value={formData.passport?.[field.fieldName] || ''}
-                      onChange={(e) => handleInputChange('passport', field.fieldName, e.target.value)}
+                      value={formData?.Passport?.[field.fieldName] || ''}
+                      onChange={(e) => handleInputChange('Passport', field.fieldName, e.target.value)}
                       className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                     />
                   </div>
@@ -1278,26 +1278,79 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             </div>
           </div>
 
-          {/* Professional Information Section */}
+          {/* Resume Information Section */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <h3 className="text-sm font-medium text-gray-900 mb-4">Professional Information</h3>
             <div className="grid grid-cols-2 gap-4">
               {questionnaire.field_mappings
                 .filter(field => field.sourceDocument === 'Resume')
-                .map(field => (
-                  <div key={field._id}>
-                    <label className="block text-xs text-gray-500 mb-1">
-                      {field.fieldName}
-                      {field.required && <span className="text-red-500 ml-1">*</span>}
-                    </label>
-                    <input
-                      type={field.fieldName.toLowerCase().includes('email') ? 'email' : 'text'}
-                      value={formData.resume?.[field.fieldName] || ''}
-                      onChange={(e) => handleInputChange('resume', field.fieldName, e.target.value)}
-                      className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-                    />
-                  </div>
-                ))}
+                .map(field => {
+                  // Special handling for educational qualifications
+                  if (field.fieldName === 'educationalQualification') {
+                    return (
+                      <div key={field._id} className="col-span-2">
+                        <label className="block text-xs text-gray-500 mb-1">
+                          {field.fieldName}
+                          {field.required && <span className="text-red-500 ml-1">*</span>}
+                        </label>
+                        <div className="space-y-2">
+                          {formData?.Resume?.educationalQualification?.map((edu, index) => (
+                            <div key={index} className="grid grid-cols-3 gap-2">
+                              <input
+                                type="text"
+                                value={edu.degree || ''}
+                                placeholder="Degree"
+                                onChange={(e) => {
+                                  const newEdu = [...(formData?.Resume?.educationalQualification || [])];
+                                  newEdu[index] = { ...newEdu[index], degree: e.target.value };
+                                  handleInputChange('Resume', 'educationalQualification', newEdu);
+                                }}
+                                className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm"
+                              />
+                              <input
+                                type="text"
+                                value={edu.institution || ''}
+                                placeholder="Institution"
+                                onChange={(e) => {
+                                  const newEdu = [...(formData?.Resume?.educationalQualification || [])];
+                                  newEdu[index] = { ...newEdu[index], institution: e.target.value };
+                                  handleInputChange('Resume', 'educationalQualification', newEdu);
+                                }}
+                                className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm"
+                              />
+                              <input
+                                type="text"
+                                value={edu.duration || ''}
+                                placeholder="Duration"
+                                onChange={(e) => {
+                                  const newEdu = [...(formData?.Resume?.educationalQualification || [])];
+                                  newEdu[index] = { ...newEdu[index], duration: e.target.value };
+                                  handleInputChange('Resume', 'educationalQualification', newEdu);
+                                }}
+                                className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={field._id}>
+                      <label className="block text-xs text-gray-500 mb-1">
+                        {field.fieldName}
+                        {field.required && <span className="text-red-500 ml-1">*</span>}
+                      </label>
+                      <input
+                        type={field.fieldName.toLowerCase().includes('email') ? 'email' : 'text'}
+                        value={formData?.Resume?.[field.fieldName] || ''}
+                        onChange={(e) => handleInputChange('Resume', field.fieldName, e.target.value)}
+                        className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                      />
+                    </div>
+                  );
+                })}
             </div>
           </div>
         </div>
@@ -1312,16 +1365,16 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       setSelectedQuestionnaire(questionnaire);
       
       try {
-        // Start loading sequence
         const response = await api.get(`/questionnaire-responses/management/${caseId}`, {
-          templateId: questionnaire._id
+          params: {
+            templateId: questionnaire._id
+          }
         });
         
         if (response.data.status === 'success') {
-          // Wait for minimum 3 seconds of loading animation
-          // This ensures all loading steps are visible
           await new Promise(resolve => setTimeout(resolve, 3000));
           setQuestionnaireData(response.data.data);
+          setFormData(response.data.data.responses[0].processedInformation);
         }
       } catch (error) {
         console.error('Error fetching questionnaire details:', error);
@@ -1414,31 +1467,31 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
           // Fill the form fields with exact field names from the PDF
           form.getTextField('Name of the Applicant').setText(
-            processedInfo?.passport?.firstName || 'N/A'
+            processedInfo?.Passport?.firstName || 'N/A'
           );
           
           // Details of Applicant section
-          form.getTextField('Passport No').setText(processedInfo?.passport?.passportNumber || 'N/A');
-          form.getTextField('Place of Issue').setText(processedInfo?.passport?.placeOfIssue || 'N/A');
-          form.getTextField('Date of Issue').setText(processedInfo?.passport?.dateOfIssue || 'N/A');
-          form.getTextField('Date of Expiry').setText(processedInfo?.passport?.dateOfExpiry || 'N/A');
-          form.getTextField('Mobile Phone').setText(processedInfo?.resume?.cellNumber || 'N/A');
-          form.getTextField('EMail Address').setText(processedInfo?.resume?.emailId || 'N/A');
+          form.getTextField('Passport No').setText(processedInfo?.Passport?.passportNumber || 'N/A');
+          form.getTextField('Place of Issue').setText(processedInfo?.Passport?.placeOfIssue || 'N/A');
+          form.getTextField('Date of Issue').setText(processedInfo?.Passport?.dateOfIssue || 'N/A');
+          form.getTextField('Date of Expiry').setText(processedInfo?.Passport?.dateOfExpiry || 'N/A');
+          form.getTextField('Mobile Phone').setText(processedInfo?.Resume?.cellNumber || 'N/A');
+          form.getTextField('EMail Address').setText(processedInfo?.Resume?.emailId || 'N/A');
           
           // Employment and Education section
           form.getTextField('Name of the Current Employer').setText(
-            processedInfo?.resume?.currentCompanyName || 'N/A'
+            processedInfo?.Resume?.currentCompanyName || 'N/A'
           );
           form.getTextField('Applicants current Designation role  position').setText(
-            processedInfo?.resume?.currentPosition || 'N/A'
+            processedInfo?.Resume?.currentPosition || 'N/A'
           );
 
           form.getTextField('Educational Qualification').setText(
-            processedInfo?.resume?.educationalQualification[0]?.degree || 'N/A'
+            processedInfo?.Resume?.educationalQualification[0]?.degree || 'N/A'
           );
 
           form.getTextField('Specific details of Skills Experience').setText(
-            `${processedInfo?.resume?.currentPosition || 'N/A'}, ${processedInfo?.resume?.previousPosition || 'N/A'}`
+            `${processedInfo?.Resume?.currentPosition || 'N/A'}, ${processedInfo?.resume?.previousPosition || 'N/A'}`
           );
 
         } catch (fieldError) {
