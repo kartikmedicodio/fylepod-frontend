@@ -36,6 +36,7 @@ const NewCase = () => {
   const [attorneySearch, setAttorneySearch] = useState('');
   const [isCreatingCase, setIsCreatingCase] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
+  const [loggedInUserDetails, setLoggedInUserDetails] = useState(null);
 
   const dropdownRefs = {
     template: useRef(null),
@@ -59,45 +60,21 @@ const NewCase = () => {
   }, [isAuthenticated, loading, navigate]);
 
   useEffect(() => {
-    // Log auth state for debugging
-    console.log('Auth State:', { isAuthenticated, loading, user });
-  }, [isAuthenticated, loading, user]);
-
-  useEffect(() => {
     setPageTitle('Create New Case');
     return () => setPageTitle('');
   }, [setPageTitle]);
 
   useEffect(() => {
-    const fetchCategories = async () => {
+    const fetchLoggedInUserDetails = async () => {
       try {
-        setError(null);
-        const token = getStoredToken();
-        
-        if (!token) {
-          navigate('/login', { 
-            replace: true,
-            state: { from: '/cases/new' }
-          });
-          return;
+        const response = await api.get('/auth/me');
+        if (!response.data || !response.data.data || !response.data.data.user) {
+          throw new Error('No user data received from /auth/me');
         }
-
-        const response = await api.get('/categories');
-
-        if (!response.data || !response.data.data || !response.data.data.categories) {
-          throw new Error('No data received from categories endpoint');
-        }
-
-        const categoriesData = response.data.data.categories;
-        
-        if (!Array.isArray(categoriesData)) {
-          throw new Error('Invalid categories data format');
-        }
-
-        setCategories(categoriesData);
+        const userDetails = response.data.data.user;
+        setLoggedInUserDetails(userDetails);
       } catch (error) {
         setError(error.message);
-        
         if (error.response?.status === 401) {
           navigate('/login', { 
             replace: true,
@@ -108,9 +85,9 @@ const NewCase = () => {
     };
 
     if (isAuthenticated) {
-      fetchCategories();
+      fetchLoggedInUserDetails();
     }
-  }, [navigate, isAuthenticated]);
+  }, [isAuthenticated, navigate]);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -121,20 +98,23 @@ const NewCase = () => {
           throw new Error('No users data received');
         }
 
-        // Filter for individuals and employees
-        const filteredUsers = response.data.data.users.filter(user => 
-          user.role === 'individual' || user.role === 'employee'
-        );
+        // Filter for individuals and employees from the same lawfirm
+        const filteredUsers = response.data.data.users.filter(user => {
+          const isCorrectRole = user.role === 'individual' || user.role === 'employee';
+          const isSameLawfirm = user.lawfirm_id?._id === loggedInUserDetails?.lawfirm_id?._id;
+          return isCorrectRole && isSameLawfirm;
+        });
+
         setUsers(filteredUsers);
       } catch (error) {
         setError(error.message);
       }
     };
 
-    if (isAuthenticated) {
+    if (isAuthenticated && loggedInUserDetails?.lawfirm_id?._id) {
       fetchUsers();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, loggedInUserDetails]);
 
   useEffect(() => {
     const fetchAttorneys = async () => {
@@ -145,19 +125,22 @@ const NewCase = () => {
           throw new Error('No users data received');
         }
 
-        const attorneyUsers = response.data.data.users.filter(user => 
-          user.role === 'attorney' || user.role === 'manager'
-        );
+        const attorneyUsers = response.data.data.users.filter(user => {
+          const isCorrectRole = user.role === 'attorney' || user.role === 'manager';
+          const isSameLawfirm = user.lawfirm_id?._id === loggedInUserDetails?.lawfirm_id?._id;
+          return isCorrectRole && isSameLawfirm;
+        });
+
         setAttorneys(attorneyUsers);
       } catch (error) {
         setError(error.message);
       }
     };
 
-    if (isAuthenticated) {
+    if (isAuthenticated && loggedInUserDetails?.lawfirm_id?._id) {
       fetchAttorneys();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, loggedInUserDetails]);
 
   // Clear timeouts on unmount
   useEffect(() => {
@@ -321,15 +304,11 @@ const NewCase = () => {
 
       // Actual API call after delay to show all steps
       setTimeout(async () => {
-        console.log('Selected Customer:', selectedCustomer);
-        console.log('Selected Template:', selectedTemplate);
-        console.log('Selected Documents:', selectedDocuments);
-        console.log('Current User:', user);
-
         const requestBody = {
           userId: selectedCustomer._id,
           categoryId: selectedTemplate._id,
           createdBy: user.id,
+          lawfirmId: selectedAttorney.lawfirm_id._id,
           userName: selectedCustomer.name,
           categoryName: selectedTemplate.name,
           documentTypes: selectedDocuments.map(doc => ({
@@ -340,10 +319,7 @@ const NewCase = () => {
           }))
         };
 
-        console.log('Request Body:', requestBody);
-
         const response = await api.post('/management', requestBody);
-        console.log('Response:', response);
         
         if (response.data.status === 'success') {
           const caseId = response.data.data.management._id;

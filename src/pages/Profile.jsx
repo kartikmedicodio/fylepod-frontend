@@ -1,31 +1,35 @@
-import { useParams } from 'react-router-dom';
-import { Card, Alert, CircularProgress } from '@mui/material';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Card, Alert, CircularProgress, Tabs, Tab, Box } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import { useEffect, useState, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { format } from 'date-fns';
-import { Edit, Bot, SendHorizontal, Loader2 } from 'lucide-react';
+import { Edit, Bot, SendHorizontal, Loader2, MapPin, Phone, Mail, Briefcase, GraduationCap, Clock, CreditCard, User, FileText, CheckCircle } from 'lucide-react';
 import ReactDOM from 'react-dom';
 import api from '../utils/api';
 
 const ProfileContainer = styled('div')({
-  padding: '20px',
+  padding: '24px',
+  minHeight: '100vh',
   '& .profile-header': {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '20px',
+    marginBottom: '32px',
     '& h1': {
       margin: 0,
-      fontSize: '24px',
-      fontWeight: '500'
+      fontSize: '28px',
+      fontWeight: '600',
+      background: 'linear-gradient(to right, #1e293b, #334155)',
+      WebkitBackgroundClip: 'text',
+      WebkitTextFillColor: 'transparent'
     }
   },
   '& .profile-grid': {
     display: 'grid',
     gridTemplateColumns: 'repeat(2, 1fr)',
-    gap: '20px',
-    maxWidth: '1200px',
+    gap: '24px',
+    maxWidth: '1400px',
     margin: '0 auto'
   }
 });
@@ -34,63 +38,195 @@ const LoadingContainer = styled('div')({
   display: 'flex',
   justifyContent: 'center',
   alignItems: 'center',
-  minHeight: '200px'
+  minHeight: '400px'
 });
 
 const ProfileCard = styled(Card)({
-  padding: '24px',
+  padding: '32px',
   height: '100%',
-  backgroundColor: '#f8f9fe',
-  boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-  borderRadius: '12px',
+  backgroundColor: '#ffffff',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1)',
+  borderRadius: '16px',
+  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+  '&:hover': {
+    transform: 'translateY(-2px)',
+    boxShadow: '0 4px 6px rgba(0,0,0,0.05), 0 10px 15px rgba(0,0,0,0.1)'
+  },
   '& .section-title': {
-    fontSize: '18px',
-    fontWeight: '500',
-    marginBottom: '20px',
-    color: '#1a1f36'
+    fontSize: '20px',
+    fontWeight: '600',
+    marginBottom: '24px',
+    color: '#1e293b',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    '& svg': {
+      color: '#6366f1'
+    }
   },
   '& .field-group': {
-    marginBottom: '16px'
+    marginBottom: '24px',
+    position: 'relative',
+    paddingLeft: '28px',
+    '&:last-child': {
+      marginBottom: 0
+    },
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      left: '0',
+      top: '0',
+      bottom: '0',
+      width: '2px',
+      background: 'linear-gradient(to bottom, #e2e8f0 50%, transparent 50%)',
+      backgroundSize: '2px 8px'
+    }
   },
   '& .field-label': {
-    color: '#697386',
+    color: '#64748b',
     fontSize: '13px',
-    marginBottom: '4px'
+    marginBottom: '6px',
+    fontWeight: '500'
   },
   '& .field-value': {
-    fontSize: '14px',
-    color: '#1a1f36',
-    fontWeight: '500'
+    fontSize: '15px',
+    color: '#1e293b',
+    fontWeight: '500',
+    lineHeight: '1.5'
+  },
+  '& .field-empty': {
+    color: '#94a3b8',
+    fontStyle: 'italic'
   }
 });
 
 const InitialsAvatar = styled('div')({
-  width: '80px',
-  height: '80px',
-  borderRadius: '50%',
-  backgroundColor: '#6366f1',
+  width: '96px',
+  height: '96px',
+  borderRadius: '24px',
+  background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
   color: '#fff',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  fontSize: '24px',
-  fontWeight: '500',
-  marginBottom: '20px',
-  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+  fontSize: '32px',
+  fontWeight: '600',
+  marginBottom: '24px',
+  boxShadow: '0 8px 16px rgba(99, 102, 241, 0.12)',
+  position: 'relative',
+  '&::after': {
+    content: '""',
+    position: 'absolute',
+    inset: '-3px',
+    borderRadius: '27px',
+    border: '3px solid transparent',
+    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.5), rgba(139, 92, 246, 0.5)) border-box',
+    WebkitMask: 'linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0)',
+    WebkitMaskComposite: 'destination-out',
+    maskComposite: 'exclude'
+  }
 });
 
 const EditButton = styled('button')({
-  background: 'none',
-  border: 'none',
+  background: '#fff',
+  border: '1px solid #e2e8f0',
   cursor: 'pointer',
-  padding: '8px',
-  borderRadius: '4px',
+  padding: '8px 16px',
+  borderRadius: '12px',
   display: 'flex',
   alignItems: 'center',
-  justifyContent: 'center',
+  gap: '8px',
   color: '#6366f1',
+  fontSize: '14px',
+  fontWeight: '500',
+  transition: 'all 0.2s ease',
+  boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
   '&:hover': {
-    backgroundColor: 'rgba(99, 102, 241, 0.1)'
+    backgroundColor: '#f8fafc',
+    borderColor: '#cbd5e1',
+    transform: 'translateY(-1px)',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+  }
+});
+
+const WorkHistoryItem = styled('div')({
+  position: 'relative',
+  paddingBottom: '24px',
+  '&:last-child': {
+    paddingBottom: 0,
+    '&::before': {
+      display: 'none'
+    }
+  },
+  '&::before': {
+    content: '""',
+    position: 'absolute',
+    left: '-28px',
+    top: '28px',
+    bottom: '0',
+    width: '2px',
+    background: '#e2e8f0'
+  },
+  '& .company-name': {
+    fontSize: '16px',
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: '4px'
+  },
+  '& .job-title': {
+    fontSize: '14px',
+    color: '#64748b',
+    marginBottom: '8px'
+  },
+  '& .duration': {
+    fontSize: '13px',
+    color: '#94a3b8',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px'
+  }
+});
+
+const EducationItem = styled('div')({
+  position: 'relative',
+  paddingBottom: '24px',
+  '&:last-child': {
+    paddingBottom: 0,
+    '&::before': {
+      display: 'none'
+    }
+  },
+  '&::before': {
+    content: '""',
+    position: 'absolute',
+    left: '-28px',
+    top: '28px',
+    bottom: '0',
+    width: '2px',
+    background: '#e2e8f0'
+  },
+  '& .degree': {
+    fontSize: '16px',
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: '4px'
+  },
+  '& .field': {
+    fontSize: '14px',
+    color: '#64748b',
+    marginBottom: '8px'
+  },
+  '& .institution': {
+    fontSize: '14px',
+    color: '#64748b',
+    marginBottom: '4px'
+  },
+  '& .graduation-year': {
+    fontSize: '13px',
+    color: '#94a3b8',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px'
   }
 });
 
@@ -143,11 +279,335 @@ const ChatPopup = styled('div')({
   maxHeight: '80vh'
 });
 
+const TabPanel = ({ children, value, index, ...other }) => {
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`profile-tabpanel-${index}`}
+      aria-labelledby={`profile-tab-${index}`}
+      {...other}
+    >
+      {value === index && (
+        <Box>{children}</Box>
+      )}
+    </div>
+  );
+};
+
+TabPanel.propTypes = {
+  children: PropTypes.node,
+  index: PropTypes.number.isRequired,
+  value: PropTypes.number.isRequired,
+};
+
+const StyledTabs = styled(Tabs)({
+  marginBottom: '32px',
+  '& .MuiTabs-flexContainer': {
+    gap: '8px'
+  },
+  '& .MuiTabs-indicator': {
+    display: 'none'
+  }
+});
+
+const StyledTab = styled(Tab)({
+  textTransform: 'none',
+  padding: '12px 24px',
+  borderRadius: '8px',
+  fontSize: '16px',
+  fontWeight: '500',
+  color: '#64748b',
+  minHeight: 'unset',
+  backgroundColor: 'transparent',
+  border: 'none',
+  '&:hover': {
+    backgroundColor: '#f1f5f9'
+  },
+  '&.Mui-selected': {
+    color: '#2563eb',
+    backgroundColor: '#fff',
+    border: '1px solid #e2e8f0',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+  }
+});
+
+const CasesContainer = styled('div')({
+  '& .cases-header': {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '32px',
+    '& h2': {
+      margin: 0,
+      fontSize: '24px',
+      fontWeight: '600',
+      color: '#1e293b',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px',
+      '& svg': {
+        color: '#6366f1'
+      }
+    }
+  },
+  '& .cases-grid': {
+    display: 'grid',
+    gap: '24px',
+    gridTemplateColumns: '1fr'
+  },
+  '& .case-status': {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '6px 12px',
+    borderRadius: '9999px',
+    fontSize: '13px',
+    fontWeight: '500',
+    '&.completed': {
+      backgroundColor: '#f0fdf4',
+      color: '#15803d',
+      border: '1px solid #bbf7d0'
+    },
+    '&.in-progress': {
+      backgroundColor: '#fefce8',
+      color: '#854d0e',
+      border: '1px solid #fef08a'
+    },
+    '&.pending': {
+      backgroundColor: '#f1f5f9',
+      color: '#475569',
+      border: '1px solid #e2e8f0'
+    }
+  }
+});
+
+const CaseCard = styled(Card)({
+  backgroundColor: '#ffffff',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1)',
+  borderRadius: '12px',
+  transition: 'all 0.2s ease',
+  cursor: 'pointer',
+  overflow: 'hidden',
+  border: '1px solid #e2e8f0',
+  '&:hover': {
+    transform: 'translateY(-2px)',
+    boxShadow: '0 12px 24px -10px rgba(0,0,0,0.1)',
+    borderColor: '#cbd5e1'
+  },
+  '& .case-header': {
+    padding: '16px 24px',
+    borderBottom: '1px solid #f1f5f9',
+    background: 'linear-gradient(to right, #f8fafc, #fff)',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: '16px'
+  },
+  '& .case-content': {
+    padding: '16px 24px'
+  },
+  '& .case-title': {
+    fontSize: '18px',
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: '4px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+  },
+  '& .case-id': {
+    fontSize: '13px',
+    color: '#64748b',
+    fontFamily: 'monospace',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px'
+  },
+  '& .case-info': {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+    gap: '12px',
+    marginBottom: '16px'
+  },
+  '& .info-item': {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '8px',
+    color: '#475569',
+    fontSize: '13px',
+    padding: '12px',
+    background: '#fafafa',
+    borderRadius: '8px',
+    border: '1px solid #f1f5f9',
+    '& svg': {
+      color: '#6366f1',
+      flexShrink: 0,
+      width: '16px',
+      height: '16px'
+    },
+    '& .info-label': {
+      color: '#64748b',
+      fontSize: '12px',
+      marginBottom: '2px'
+    },
+    '& .info-value': {
+      color: '#1e293b',
+      fontWeight: '500',
+      fontSize: '13px'
+    }
+  },
+  '& .documents-section': {
+    backgroundColor: '#f8fafc',
+    borderRadius: '8px',
+    border: '1px solid #e2e8f0',
+    '& .documents-header': {
+      fontSize: '14px',
+      fontWeight: '600',
+      color: '#1e293b',
+      padding: '12px 16px',
+      borderBottom: '1px solid #e2e8f0',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px'
+    },
+    '& .documents-grid': {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+      gap: '8px',
+      padding: '12px'
+    },
+    '& .document-item': {
+      padding: '8px 12px',
+      backgroundColor: '#fff',
+      borderRadius: '6px',
+      border: '1px solid #e2e8f0',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      '& .document-name': {
+        fontSize: '13px',
+        fontWeight: '500',
+        color: '#1e293b',
+        textTransform: 'capitalize'
+      },
+      '& .document-status': {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        fontSize: '12px',
+        '&.uploaded': {
+          color: '#15803d'
+        },
+        '&.pending': {
+          color: '#854d0e'
+        },
+        '& svg': {
+          width: '14px',
+          height: '14px'
+        }
+      }
+    }
+  }
+});
+
+const TopCardsWrapper = styled('div')({
+  display: 'flex',
+  gap: '24px',
+  marginBottom: '24px'
+});
+
+const ProfileSummaryCard = styled(Card)({
+  flex: '1',
+  padding: '24px',
+  backgroundColor: '#ffffff',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1)',
+  borderRadius: '12px',
+  border: '1px solid #e2e8f0',
+  '& .profile-grid': {
+    display: 'grid',
+    gridTemplateColumns: '1fr',
+    gap: '24px'
+  },
+  '& .profile-section': {
+    display: 'grid',
+    gridTemplateColumns: 'auto 1fr',
+    gap: '16px',
+    alignItems: 'center'
+  },
+  '& .profile-image': {
+    width: '64px',
+    height: '64px',
+    borderRadius: '12px',
+    backgroundColor: '#f1f5f9',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '24px',
+    fontWeight: '600',
+    color: '#64748b'
+  },
+  '& .profile-info': {
+    '& .name': {
+      fontSize: '16px',
+      fontWeight: '600',
+      color: '#1e293b',
+      marginBottom: '4px'
+    },
+    '& .details': {
+      display: 'grid',
+      gap: '4px',
+      '& .detail-item': {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        color: '#64748b',
+        fontSize: '14px',
+        '& svg': {
+          width: '16px',
+          height: '16px',
+          color: '#6366f1'
+        }
+      }
+    }
+  }
+});
+
+const CaseDetailsCard = styled(Card)({
+  flex: '1',
+  padding: '24px',
+  backgroundColor: '#ffffff',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1)',
+  borderRadius: '12px',
+  border: '1px solid #e2e8f0',
+  '& .case-grid': {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: '24px'
+  },
+  '& .case-item': {
+    '& .label': {
+      fontSize: '14px',
+      color: '#64748b',
+      marginBottom: '4px'
+    },
+    '& .value': {
+      fontSize: '14px',
+      color: '#1e293b',
+      fontWeight: '500'
+    }
+  }
+});
+
 const Profile = ({ setCurrentBreadcrumb }) => {
   const { profileId } = useParams();
+  const navigate = useNavigate();
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentTab, setCurrentTab] = useState(0);
+  const [cases, setCases] = useState([]);
+  const [loadingCases, setLoadingCases] = useState(false);
   
   // Add new chat-related state
   const [showChatPopup, setShowChatPopup] = useState(false);
@@ -160,6 +620,24 @@ const Profile = ({ setCurrentBreadcrumb }) => {
   const [currentChat, setCurrentChat] = useState(null);
   const messagesEndRef = useRef(null);
   const [processedDocs, setProcessedDocs] = useState([]);
+
+  const handleTabChange = (event, newValue) => {
+    setCurrentTab(newValue);
+  };
+
+  const fetchUserCases = async () => {
+    setLoadingCases(true);
+    try {
+      const response = await api.get(`/management/user/${profileId}`);
+      if (response.data?.data?.entries) {
+        setCases(response.data.data.entries);
+      }
+    } catch (error) {
+      console.error('Error fetching cases:', error);
+    } finally {
+      setLoadingCases(false);
+    }
+  };
 
   // Add function to fetch documents
   const fetchUserDocuments = async () => {
@@ -312,21 +790,18 @@ const Profile = ({ setCurrentBreadcrumb }) => {
         
         console.log('Profile API Response:', response);
 
-        // Check if we have data in the response
         if (!response.data) {
           throw new Error('No data received from server');
         }
 
         let userData;
-        // If the data is directly in response.data (without status wrapper)
-        if (response.data.user || response.data._id) {
-          userData = response.data;
-        }
-        // If the data is wrapped in a data property or status/data structure
-        else if (response.data.data) {
+        // Handle successful response with proper data structure
+        if (response.data.success && response.data.data) {
           userData = response.data.data;
+        } else if (response.data.user || response.data._id) {
+          userData = response.data;
         } else {
-          throw new Error('Unexpected response format from server');
+          throw new Error('Invalid response format from server');
         }
 
         setProfileData(userData);
@@ -337,15 +812,16 @@ const Profile = ({ setCurrentBreadcrumb }) => {
           { name: 'Profile', path: '/profile' },
           { name: userData.name || 'User Profile', path: `/profile/${profileId}` }
         ]);
+
+        // Fetch cases data immediately after profile data
+        fetchUserCases();
       } catch (error) {
         console.error('Error fetching profile:', error);
-        console.error('Error details:', {
-          message: error.message,
-          response: error.response,
-          status: error.response?.status
-        });
         
-        if (error.response?.status === 401) {
+        // Handle specific error cases
+        if (error.response?.status === 500) {
+          setError('Server error occurred. Please try again later.');
+        } else if (error.response?.status === 401) {
           setError('Please login to view this profile');
         } else if (error.response?.status === 404) {
           setError('Profile not found');
@@ -361,17 +837,144 @@ const Profile = ({ setCurrentBreadcrumb }) => {
     fetchProfileData();
   }, [profileId, setCurrentBreadcrumb]);
 
+  const handleCaseClick = (caseId) => {
+    navigate(`/individuals/case/${caseId}`);
+  };
+
+  const renderCases = () => {
+    if (loadingCases) {
+      return (
+        <LoadingContainer>
+          <CircularProgress size={40} thickness={4} sx={{ color: '#6366f1' }} />
+        </LoadingContainer>
+      );
+    }
+
+    if (cases.length === 0) {
+      return (
+        <Alert 
+          severity="info"
+          sx={{ 
+            borderRadius: '12px',
+            backgroundColor: '#f0f9ff',
+            color: '#075985',
+            border: '1px solid #bae6fd'
+          }}
+        >
+          No cases found for this user
+        </Alert>
+      );
+    }
+
+    return (
+      <div className="cases-grid">
+        {cases.map((caseItem) => (
+          <CaseCard 
+            key={caseItem._id}
+            onClick={() => handleCaseClick(caseItem._id)}
+            sx={{ '&:focus': { outline: 'none', boxShadow: '0 0 0 2px #6366f1' } }}
+          >
+            <div className="case-header">
+              <div>
+                <h3 className="case-title">
+                  <Briefcase className="w-5 h-5" />
+                  {caseItem.categoryName}
+                </h3>
+                <div className="case-id">
+                  <span className="info-label">ID:</span>
+                  <code>#{caseItem._id}</code>
+                </div>
+              </div>
+              <div className={`case-status ${caseItem.categoryStatus}`}>
+                {caseItem.categoryStatus}
+              </div>
+            </div>
+            <div className="case-content">
+              <div className="case-info">
+                <div className="info-item">
+                  <Clock />
+                  <div>
+                    <div className="info-label">Created</div>
+                    <div className="info-value">
+                      {format(new Date(caseItem.createdAt), 'MMM dd, yyyy')}
+                    </div>
+                  </div>
+                </div>
+                <div className="info-item">
+                  <User />
+                  <div>
+                    <div className="info-label">Applicant</div>
+                    <div className="info-value">
+                      {caseItem.userName}
+                    </div>
+                  </div>
+                </div>
+                <div className="info-item">
+                  <Clock />
+                  <div>
+                    <div className="info-label">Updated</div>
+                    <div className="info-value">
+                      {format(new Date(caseItem.updatedAt), 'MMM dd, yyyy')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="documents-section">
+                <div className="documents-header">
+                  <FileText className="w-4 h-4 text-indigo-500" />
+                  Required Documents
+                </div>
+                <div className="documents-grid">
+                  {caseItem.documentTypes.map((doc) => (
+                    <div key={doc._id} className="document-item">
+                      <div className="document-name">
+                        {doc.name}
+                        {doc.required && <span className="ml-1 text-red-500">*</span>}
+                      </div>
+                      <div className={`document-status ${doc.status}`}>
+                        {doc.status === 'uploaded' ? (
+                          <>
+                            <CheckCircle />
+                            <span>Uploaded</span>
+                          </>
+                        ) : (
+                          <>
+                            <Clock />
+                            <span>Pending</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CaseCard>
+        ))}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <LoadingContainer>
-        <CircularProgress />
+        <CircularProgress size={40} thickness={4} sx={{ color: '#6366f1' }} />
       </LoadingContainer>
     );
   }
 
   if (error) {
     return (
-      <Alert severity="error" sx={{ margin: '20px' }}>
+      <Alert 
+        severity="error" 
+        sx={{ 
+          margin: '32px',
+          borderRadius: '12px',
+          backgroundColor: '#fef2f2',
+          color: '#991b1b'
+        }}
+      >
         {error}
       </Alert>
     );
@@ -379,7 +982,15 @@ const Profile = ({ setCurrentBreadcrumb }) => {
 
   if (!profileData) {
     return (
-      <Alert severity="info" sx={{ margin: '20px' }}>
+      <Alert 
+        severity="info"
+        sx={{ 
+          margin: '32px',
+          borderRadius: '12px',
+          backgroundColor: '#f0f9ff',
+          color: '#075985'
+        }}
+      >
         Profile not found
       </Alert>
     );
@@ -484,133 +1095,249 @@ const Profile = ({ setCurrentBreadcrumb }) => {
 
   return (
     <ProfileContainer>
-      <div className="profile-header">
-        <h1>Profile</h1>
-        <EditButton>
-          <Edit size={20} />
-        </EditButton>
-      </div>
-      
-      <div className="profile-grid">
-        {/* Applicant Details Card */}
-        <ProfileCard>
-          <h2 className="section-title">Applicant Details</h2>
-          <InitialsAvatar>
-            {getInitials(profileData.name)}
-          </InitialsAvatar>
-          
-          <div className="field-group">
-            <div className="field-label">Employee Name</div>
-            <div className="field-value">{profileData.name}</div>
-          </div>
-
-          <div className="field-group">
-            <div className="field-label">Phone Number</div>
-            <div className="field-value">{profileData.contact?.residencePhone}</div>
-          </div>
-
-          <div className="field-group">
-            <div className="field-label">Mobile Number</div>
-            <div className="field-value">{profileData.contact?.mobileNumber}</div>
-          </div>
-
-          <div className="field-group">
-            <div className="field-label">Email Address</div>
-            <div className="field-value">{profileData.email}</div>
-          </div>
-
-          <div className="field-group">
-            <div className="field-label">Current Address</div>
-            <div className="field-value">
-              {`${profileData.address?.streetNumber} ${profileData.address?.streetName}, ${profileData.address?.city}, ${profileData.address?.stateProvince}`}
-            </div>
-          </div>
-
-          <div className="field-group">
-            <div className="field-label">Office Address</div>
-            <div className="field-value">
-              {profileData.currentJob?.companyAddress}
-            </div>
-          </div>
-        </ProfileCard>
-
-        {/* Passport Details Card */}
-        <ProfileCard>
-          <h2 className="section-title">Passport Details</h2>
-          
-          <div className="field-group">
-            <div className="field-label">Passport Number</div>
-            <div className="field-value">{profileData.passport?.number}</div>
-          </div>
-
-          <div className="field-group">
-            <div className="field-label">Date of Issue</div>
-            <div className="field-value">{formatDate(profileData.passport?.dateOfIssue)}</div>
-          </div>
-
-          <div className="field-group">
-            <div className="field-label">Date of Expiry</div>
-            <div className="field-value">{formatDate(profileData.passport?.dateOfExpiry)}</div>
-          </div>
-
-          <div className="field-group">
-            <div className="field-label">Place of Issue</div>
-            <div className="field-value">{profileData.passport?.placeOfIssue}</div>
-          </div>
-
-          <div className="field-group">
-            <div className="field-label">Passport Issuing Country</div>
-            <div className="field-value">{profileData.passport?.issuedBy}</div>
-          </div>
-        </ProfileCard>
-
-        {/* Work History Card */}
-        <ProfileCard>
-          <h2 className="section-title">Work History</h2>
-          {profileData.workHistory?.map((work, index) => (
-            <div key={work._id || index} className="field-group">
-              <div className="field-label">Job Title</div>
-              <div className="field-value">{work.jobTitle}</div>
-
-              <div className="field-label">Company Name</div>
-              <div className="field-value">{work.companyName}</div>
-
-              <div className="field-label">Location</div>
-              <div className="field-value">{work.location}</div>
-
-              <div className="field-label">Duration</div>
-              <div className="field-value">
-                {formatDate(work.fromDate)} - {formatDate(work.toDate)}
+      <TopCardsWrapper>
+        <ProfileSummaryCard>
+          <div className="profile-grid">
+            <div className="profile-section">
+              <div className="profile-image">
+                {getInitials(profileData.name)}
+              </div>
+              <div className="profile-info">
+                <div className="name">{profileData.name}</div>
+                <div className="details">
+                  <div className="detail-item">
+                    <Phone size={16} />
+                    {profileData.contact?.mobileNumber || 'No phone number'}
+                  </div>
+                  <div className="detail-item">
+                    <Mail size={16} />
+                    {profileData.email || 'No email address'}
+                  </div>
+                  <div className="detail-item">
+                    <MapPin size={16} />
+                    {profileData.address?.streetName || 'No address'}, {profileData.address?.city || ''}, {profileData.address?.stateProvince || ''}
+                  </div>
+                </div>
               </div>
             </div>
-          ))}
-        </ProfileCard>
-
-        {/* Education History Card */}
-        <ProfileCard>
-          <h2 className="section-title">Education History</h2>
-          {profileData.educationHistory?.map((education, index) => (
-            <div key={education._id || index} className="field-group">
-              <div className="field-label">Degree</div>
-              <div className="field-value">{education.courseLevel}</div>
-
-              <div className="field-label">Field of Study</div>
-              <div className="field-value">{education.specialization}</div>
-
-              <div className="field-label">Graduation Year</div>
-              <div className="field-value">{formatDate(education.passoutYear)}</div>
-
-              <div className="field-label">Institution Name</div>
-              <div className="field-value">{education.institution}</div>
-
-              <div className="field-label">Location</div>
-              <div className="field-value">{education.location}</div>
+            <div className="profile-section">
+              <div className="profile-info">
+                <div className="name">Nationality</div>
+                <div className="details">
+                  <div className="detail-item">
+                    {profileData.nationality || 'Not specified'}
+                  </div>
+                </div>
+              </div>
             </div>
-          ))}
-        </ProfileCard>
-      </div>
-      
-      {/* Add chat portal */}
+          </div>
+        </ProfileSummaryCard>
+
+        <CaseDetailsCard>
+          <div className="case-grid">
+            <div className="case-item">
+              <div className="label">Case Applicant</div>
+              <div className="value">{cases[0]?.userName || profileData.name}</div>
+            </div>
+            <div className="case-item">
+              <div className="label">Case Manager</div>
+              <div className="value">{cases[0]?.createdBy?.name || 'Not assigned'}</div>
+            </div>
+            <div className="case-item">
+              <div className="label">Case Created Date</div>
+              <div className="value">
+                {cases[0]?.createdAt ? format(new Date(cases[0].createdAt), 'MMM dd, yyyy') : '-'}
+              </div>
+            </div>
+            <div className="case-item">
+              <div className="label">Case Submitted Date</div>
+              <div className="value">-</div>
+            </div>
+            <div className="case-item">
+              <div className="label">Case Name</div>
+              <div className="value">{cases[0]?.categoryName || '-'}</div>
+            </div>
+            <div className="case-item">
+              <div className="label">Case Approved Date</div>
+              <div className="value">-</div>
+            </div>
+          </div>
+        </CaseDetailsCard>
+      </TopCardsWrapper>
+
+      <StyledTabs value={currentTab} onChange={handleTabChange}>
+        <StyledTab label="Profile Details" />
+        <StyledTab label="Cases" />
+      </StyledTabs>
+
+      <TabPanel value={currentTab} index={0}>
+        <div className="profile-header">
+          <h1>Profile Details</h1>
+          <EditButton>
+            <Edit size={18} />
+            <span>Edit Profile</span>
+          </EditButton>
+        </div>
+        
+        <div className="profile-grid">
+          {/* Applicant Details Card */}
+          <ProfileCard>
+            <h2 className="section-title">
+              <Briefcase size={24} />
+              Applicant Details
+            </h2>
+            <InitialsAvatar>
+              {getInitials(profileData.name)}
+            </InitialsAvatar>
+            
+            <div className="field-group">
+              <div className="field-label">Full Name</div>
+              <div className="field-value">{profileData.name || 'Not provided'}</div>
+            </div>
+
+            <div className="field-group">
+              <div className="field-label">Contact Information</div>
+              <div className="field-value">
+                <div className="flex items-center gap-2 mb-2">
+                  <Phone size={16} className="text-indigo-500" />
+                  {profileData.contact?.residencePhone || 'No phone number'}
+                </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Phone size={16} className="text-indigo-500" />
+                  {profileData.contact?.mobileNumber || 'No mobile number'}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Mail size={16} className="text-indigo-500" />
+                  {profileData.email || 'No email address'}
+                </div>
+              </div>
+            </div>
+
+            <div className="field-group">
+              <div className="field-label">Current Address</div>
+              <div className="field-value">
+                <div className="flex items-start gap-2">
+                  <MapPin size={16} className="text-indigo-500 mt-1 flex-shrink-0" />
+                  <span>
+                    {profileData.address ? 
+                      `${profileData.address.streetNumber} ${profileData.address.streetName}, ${profileData.address.city}, ${profileData.address.stateProvince}` :
+                      'No address provided'
+                    }
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="field-group">
+              <div className="field-label">Office Address</div>
+              <div className="field-value">
+                <div className="flex items-start gap-2">
+                  <Briefcase size={16} className="text-indigo-500 mt-1 flex-shrink-0" />
+                  <span>{profileData.currentJob?.companyAddress || 'No office address provided'}</span>
+                </div>
+              </div>
+            </div>
+          </ProfileCard>
+
+          <ProfileCard>
+            <h2 className="section-title">
+              <CreditCard size={24} />
+              Passport Details
+            </h2>
+            
+            <div className="field-group">
+              <div className="field-label">Passport Number</div>
+              <div className="field-value">{profileData.passport?.number || 'Not provided'}</div>
+            </div>
+
+            <div className="field-group">
+              <div className="field-label">Validity Period</div>
+              <div className="field-value">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-sm text-gray-500 mb-1">Issue Date</div>
+                    <div>{formatDate(profileData.passport?.dateOfIssue) || 'Not provided'}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500 mb-1">Expiry Date</div>
+                    <div>{formatDate(profileData.passport?.dateOfExpiry) || 'Not provided'}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="field-group">
+              <div className="field-label">Place of Issue</div>
+              <div className="field-value">{profileData.passport?.placeOfIssue || 'Not provided'}</div>
+            </div>
+
+            <div className="field-group">
+              <div className="field-label">Issuing Country</div>
+              <div className="field-value">{profileData.passport?.issuedBy || 'Not provided'}</div>
+            </div>
+          </ProfileCard>
+
+          <ProfileCard>
+            <h2 className="section-title">
+              <Briefcase size={24} />
+              Work History
+            </h2>
+            {profileData.workHistory?.map((work, index) => (
+              <WorkHistoryItem key={work._id || index}>
+                <div className="company-name">{work.companyName}</div>
+                <div className="job-title">{work.jobTitle}</div>
+                <div className="duration">
+                  <Clock size={14} />
+                  {formatDate(work.fromDate)} - {formatDate(work.toDate)}
+                </div>
+                <div className="text-sm text-gray-500 mt-2">
+                  <MapPin size={14} className="inline mr-1" />
+                  {work.location || 'Location not specified'}
+                </div>
+              </WorkHistoryItem>
+            ))}
+            {(!profileData.workHistory || profileData.workHistory.length === 0) && (
+              <div className="text-gray-500 italic">No work history available</div>
+            )}
+          </ProfileCard>
+
+          <ProfileCard>
+            <h2 className="section-title">
+              <GraduationCap size={24} />
+              Education History
+            </h2>
+            {profileData.educationHistory?.map((education, index) => (
+              <EducationItem key={education._id || index}>
+                <div className="degree">{education.courseLevel}</div>
+                <div className="field">{education.specialization}</div>
+                <div className="institution">{education.institution}</div>
+                <div className="graduation-year">
+                  <GraduationCap size={14} />
+                  Graduated {formatDate(education.passoutYear)}
+                </div>
+                <div className="text-sm text-gray-500 mt-2">
+                  <MapPin size={14} className="inline mr-1" />
+                  {education.location || 'Location not specified'}
+                </div>
+              </EducationItem>
+            ))}
+            {(!profileData.educationHistory || profileData.educationHistory.length === 0) && (
+              <div className="text-gray-500 italic">No education history available</div>
+            )}
+          </ProfileCard>
+        </div>
+      </TabPanel>
+
+      <TabPanel value={currentTab} index={1}>
+        <CasesContainer>
+          <div className="cases-header">
+            <h2>Case History</h2>
+          </div>
+          {renderCases()}
+        </CasesContainer>
+      </TabPanel>
+
+      {/* Chat portal */}
       {renderChatPortal()}
     </ProfileContainer>
   );

@@ -523,6 +523,7 @@ const IndividualCaseDetails = () => {
               _id: response.data.data.entry.userId._id,
               name: response.data.data.entry.userName || response.data.data.entry.userId.name,
               email: response.data.data.entry.userId.email,
+              manager: response.data.data.entry.createdBy?.name || 'Not assigned'
             });
             
             // Then try to fetch complete profile
@@ -539,17 +540,25 @@ const IndividualCaseDetails = () => {
 
     const fetchUserProfile = async (userId) => {
       try {
-        // Use the working endpoint
         const response = await api.get(`/auth/users/${userId}`);
         
-        // The API response format is what we verified in the logs
-        if (response.data.success) {
-          setProfileData(response.data.data.user || response.data.data);
+        // Handle different response formats
+        if (response.data.success && response.data.data) {
+          // New API format
+          setProfileData(response.data.data);
+        } else if (response.data.user || response.data._id) {
+          // Legacy API format
+          setProfileData(response.data);
         } else {
-          console.error('API returned success:false for user profile');
+          console.error('Unexpected API response format:', response.data);
+          // Keep existing basic profile data
         }
       } catch (error) {
         console.error('Error fetching user profile:', error);
+        if (error.response?.status === 500) {
+          console.error('Server error occurred while fetching profile');
+          // Keep existing basic profile data instead of showing error
+        }
         // Don't show error toast since we already have basic profile data
       }
     };

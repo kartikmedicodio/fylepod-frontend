@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import corporationService from '../services/corporationService';
+import { getCurrentUser } from '../services/auth.service';
 import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, CirclePlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -43,6 +44,7 @@ const Corporations = () => {
   const [corporations, setCorporations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 1,
@@ -55,7 +57,7 @@ const Corporations = () => {
   const filterRef = useRef(null);
 
   useEffect(() => {
-    fetchCorporations();
+    fetchUserAndCorporations();
   }, []);
 
   useEffect(() => {
@@ -74,20 +76,57 @@ const Corporations = () => {
     };
   }, [showFilters]);
 
-  const fetchCorporations = async () => {
+  const fetchUserAndCorporations = async () => {
     try {
       setLoading(true);
+      // First fetch user info
+      const user = await getCurrentUser();
+      setCurrentUser(user);
+      
+      // Then fetch corporations
       const data = await corporationService.getAllCorporations();
-      console.log("data", data);
-      setCorporations(data.data || []);
+      
+      // Get the user's lawfirm ID
+      const userLawfirmId = user.lawfirm_id._id;
+      
+      // For corporations without lawfirm_id, assign them to the attorney's lawfirm if they are the assigned attorney
+      const processedCorporations = data.data?.map(corp => {
+        // If corporation already has a lawfirm_id, keep it as is
+        if (corp.lawfirm_id) {
+          return corp;
+        }
+        
+        // If the attorney is assigned to this corporation, assign it to their lawfirm
+        if (corp.assigned_attorney === user.name) {
+          return {
+            ...corp,
+            lawfirm_id: userLawfirmId
+          };
+        }
+        
+        return corp;
+      });
+      
+      // Filter corporations based on user's lawfirm_id
+      const filteredCorporations = processedCorporations?.filter(corp => 
+        corp.lawfirm_id === userLawfirmId
+      ) || [];
+      
+      if (filteredCorporations.length === 0) {
+        setError('No corporations found for your law firm');
+      } else {
+        setError(null);
+      }
+      
+      setCorporations(filteredCorporations);
       setPagination(prev => ({
         ...prev,
-        totalPages: Math.ceil((data.data?.length || 0) / pagination.itemsPerPage),
-        totalItems: data.data?.length || 0
+        totalPages: Math.ceil(filteredCorporations.length / pagination.itemsPerPage),
+        totalItems: filteredCorporations.length
       }));
     } catch (err) {
-      setError('Failed to fetch corporations');
-      console.error('Error fetching corporations:', err);
+      setError(err.message || 'Failed to fetch data');
+      console.error('Error fetching data:', err);
     } finally {
       setLoading(false);
     }
