@@ -175,9 +175,12 @@ const Cases = () => {
       
       if (response.data.status === 'success') {
         // Filter cases by lawfirm ID
-        const allCases = response.data.data.managements.filter(caseItem => 
-          caseItem.lawfirmId === loggedInUserDetails.lawfirm_id._id
-        );
+        const allCases = response.data.data.managements.filter(caseItem => {
+          // Check if the case has a lawfirmId that matches the logged-in user's lawfirm
+          return caseItem.lawfirmId === loggedInUserDetails.lawfirm_id._id ||
+                 // For backward compatibility, also check if the createdBy user has the same lawfirm
+                 caseItem.createdBy?.lawfirm_id?._id === loggedInUserDetails.lawfirm_id._id;
+        });
         
         if (search.trim()) {
           // Filter cases based on search term
