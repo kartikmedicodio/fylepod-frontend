@@ -602,71 +602,97 @@ const IndividualCaseDetails = () => {
 
     try {
       // Initialize chat if it doesn't exist
+      let messageResponse;
       if (!currentChat) {
         console.log('Current case ID:', caseId);
         
-        // First get the case details to get document types
-        const caseResponse = await api.get(`/management/${caseId}`);
-        console.log('Case response:', caseResponse.data);
+        try {
+          // First get the case details to get document types
+          const caseResponse = await api.get(`/management/${caseId}`);
+          console.log('Case response:', caseResponse.data);
 
-        if (!caseResponse.data?.status === 'success') {
-          throw new Error('Failed to fetch case details');
+          if (!(caseResponse.data?.status === 'success') || !caseResponse.data?.data?.entry) {
+            throw new Error('Failed to fetch case details');
+          }
+
+          // Get uploaded and approved document types from the case
+          const validDocuments = (caseResponse.data.data.entry.documentTypes || [])
+            .filter(docType => docType && (docType.status === 'uploaded' || docType.status === 'approved'))
+            .map(docType => ({
+              id: docType._id,
+              name: docType.name
+            }))
+            .filter(doc => doc.id);
+
+          console.log('Valid documents:', validDocuments);
+          
+          if (validDocuments.length === 0) {
+            throw new Error("I don't see any processed documents yet. Please upload and process some documents first before we can chat.");
+          }
+
+          // Extract just the document type IDs
+          const validDocTypeIds = validDocuments.map(doc => doc.id);
+          console.log('Valid document type IDs:', validDocTypeIds);
+          
+          // Use the new API endpoint with POST instead of GET
+          const documentsResponse = await api.post('/documents/management-docs', {
+            managementId: caseId,
+            docTypeIds: validDocTypeIds
+          });
+
+          if (!documentsResponse.data?.data?.documents) {
+            throw new Error('No valid documents found');
+          }
+
+          const validDocs = documentsResponse.data.data.documents
+            .filter(doc => doc && doc._id);
+
+          console.log(`Found ${validDocs.length} valid documents for chat:`, validDocs);
+          
+          if (validDocs.length === 0) {
+            throw new Error("I don't see any processed documents yet. Please ensure documents are uploaded and processed.");
+          }
+          
+          // Extract document IDs for chat creation
+          const docIds = validDocs.map(doc => doc._id);
+          console.log('Using these document IDs for chat:', docIds);
+          
+          // Create the chat with all documents
+          const chatResponse = await api.post('/chat', {
+            documentIds: docIds,
+            managementId: caseId
+          });
+          
+          console.log('Chat response:', chatResponse);
+          
+          if (!(chatResponse.data?.status === 'success') || !chatResponse.data?.data?.chat) {
+            throw new Error(chatResponse.data?.message || 'Failed to create chat');
+          }
+
+          const newChat = chatResponse.data.data.chat;
+          setCurrentChat(newChat);
+
+          // Send first message using the new chat directly
+          messageResponse = await api.post(`/chat/${newChat._id}/messages`, {
+            message: chatInput
+          });
+        } catch (error) {
+          console.error('Error initializing chat:', error);
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: error.message || "I'm sorry, I encountered an error while setting up the chat. Please ensure you have uploaded and processed documents first."
+          }]);
+          return; // Exit early on error
         }
-
-        // Get uploaded and approved document types from the case
-        const validDocuments = caseResponse.data.data.entry.documentTypes
-          .filter(docType => docType.status === 'uploaded' || docType.status === 'approved')
-          .map(docType => ({
-            id: docType._id,
-            name: docType.name
-          }));
-
-        console.log('Valid documents:', validDocuments);
-        
-        // Extract just the document type IDs
-        const validDocTypeIds = validDocuments.map(doc => doc.id);
-        console.log('Valid document type IDs:', validDocTypeIds);
-        
-        // Use the new API endpoint with POST instead of GET
-        const documentsResponse = await api.post('/documents/management-docs', {
-          managementId: caseId,
-          docTypeIds: validDocTypeIds // Send the array directly in the request body
+      } else {
+        // For subsequent messages, use the existing chat from state
+        messageResponse = await api.post(`/chat/${currentChat._id}/messages`, {
+          message: chatInput
         });
-        
-        const validDocs = documentsResponse.data.data.documents;
-        console.log(`Found ${validDocs.length} valid documents for chat:`, validDocs);
-        
-        if (validDocs.length === 0) {
-          throw new Error("I don't see any processed documents yet. Please ensure documents are uploaded and processed.");
-        }
-        
-        // Extract document IDs for chat creation
-        const docIds = validDocs.map(doc => doc._id);
-        console.log('Using these document IDs for chat:', docIds);
-        
-        // Create the chat with all documents
-        console.log('Creating chat with all documents:', docIds);
-        const chatResponse = await api.post('/chat', {
-          documentIds: docIds,
-          managementId: caseId
-        });
-        
-        console.log('Chat response:', chatResponse);
-        
-        if (!chatResponse.data?.status === 'success' || !chatResponse.data?.data?.chat) {
-          throw new Error(chatResponse.data?.message || 'Failed to create chat');
-        }
-
-        const newChat = chatResponse.data.data.chat;
-        setCurrentChat(newChat);
       }
 
-      // Send message using the existing chat
-      const messageResponse = await api.post(`/chat/${currentChat._id}/messages`, {
-        message: chatInput
-      });
-
-      if (messageResponse.data?.status === 'success' && messageResponse.data.data.message) {
+      // Handle the message response
+      if (messageResponse?.data?.status === 'success' && messageResponse.data.data.message) {
         console.log('Message response:', messageResponse.data);
         setMessages(prev => [...prev, messageResponse.data.data.message]);
       } else {
