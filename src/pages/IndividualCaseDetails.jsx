@@ -178,7 +178,7 @@ const IndividualCaseDetails = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [messages, setMessages] = useState([{
     role: 'assistant',
-    content: "Hi! I'm Diana, your AI assistant. I can help you analyze your uploaded documents and answer any questions you might have about your case."
+    content: "Hi! I'm Diana, your AI assistant. I can help you with case details, document requirements, and analyze your uploaded documents. How can I assist you today?"
   }]);
   const [chatInput, setChatInput] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -247,7 +247,7 @@ const IndividualCaseDetails = () => {
         setCurrentChat(null);
         setMessages([{
           role: 'assistant',
-          content: "Hi! I'm Diana, your AI assistant. I can help you analyze your uploaded documents and answer any questions you might have about your case."
+          content: "Hi! I'm Diana, your AI assistant. I can help you with case details, document requirements, and analyze your uploaded documents. How can I assist you today?"
         }]);
       }
 
@@ -404,6 +404,91 @@ const IndividualCaseDetails = () => {
       await refreshCaseData();
       
       setFiles([]);
+
+      // Reset chat after successful upload
+      if (successfulUploads > 0) {
+        // Reset chat states
+        setCurrentChat(null);
+        setMessages([{
+          role: 'assistant',
+          content: "Hi! I'm Diana, your AI assistant. I can help you with case details, document requirements, and analyze your uploaded documents. How can I assist you today?"
+        }]);
+        
+        // If there are successful uploads, initialize chat automatically
+        try {
+          // Get case details
+          const caseResponse = await api.get(`/management/${caseId}`);
+          
+          if (caseResponse.data?.status === 'success' && caseResponse.data?.data?.entry) {
+            const managementData = caseResponse.data.data.entry;
+            
+            // Prepare management context
+            const managementContext = {
+              caseId: managementData._id,
+              categoryName: managementData.categoryName,
+              categoryStatus: managementData.categoryStatus,
+              deadline: managementData.deadline,
+              documentTypes: managementData.documentTypes.map(doc => ({
+                name: doc.name,
+                status: doc.status,
+                required: doc.required
+              }))
+            };
+            
+            // Get uploaded documents
+            const validDocuments = managementData.documentTypes
+              .filter(docType => docType && (docType.status === 'uploaded' || docType.status === 'approved'))
+              .map(docType => ({
+                id: docType._id,
+                name: docType.name
+              }))
+              .filter(doc => doc.id);
+              
+            if (validDocuments.length > 0) {
+              // Get document IDs
+              const validDocTypeIds = validDocuments.map(doc => doc.id);
+              
+              const documentsResponse = await api.post('/documents/management-docs', {
+                managementId: caseId,
+                docTypeIds: validDocTypeIds
+              });
+              
+              if (documentsResponse.data?.data?.documents) {
+                const validDocs = documentsResponse.data.data.documents
+                  .filter(doc => doc && doc._id);
+                
+                if (validDocs.length > 0) {
+                  // Extract document IDs for chat creation
+                  const docIds = validDocs.map(doc => doc._id);
+                  
+                  // Create new chat with the documents and management data
+                  const chatResponse = await api.post('/chat', {
+                    documentIds: docIds,
+                    managementId: caseId,
+                    managementContext: managementContext
+                  });
+                  
+                  if (chatResponse.data?.status === 'success' && chatResponse.data?.data?.chat) {
+                    setCurrentChat(chatResponse.data.data.chat);
+                    
+                    // Add a message indicating the chat has been updated with new documents
+                    setMessages(prev => [
+                      prev[0], // Keep welcome message
+                      {
+                        role: 'assistant',
+                        content: `I've analyzed your newly uploaded documents. You can now ask me questions about them!`
+                      }
+                    ]);
+                  }
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error initializing chat after upload:', error);
+          // Don't show error to user, just log it - chat will initialize on first message
+        }
+      }
 
       // Show appropriate toast message
       if (successfulUploads > 0) {
@@ -614,7 +699,25 @@ const IndividualCaseDetails = () => {
           if (!(caseResponse.data?.status === 'success') || !caseResponse.data?.data?.entry) {
             throw new Error('Failed to fetch case details');
           }
+          
+          // Get the management data that we want to send to the AI
+          const managementData = caseResponse.data.data.entry;
+          
+          // Prepare management model data to include in chat context
+          const managementContext = {
+            caseId: managementData._id,
+            categoryName: managementData.categoryName,
+            categoryStatus: managementData.categoryStatus,
+            deadline: managementData.deadline,
+            documentTypes: managementData.documentTypes.map(doc => ({
+              name: doc.name,
+              status: doc.status,
+              required: doc.required
+            }))
+          };
 
+          let chatResponse;
+          
           // Get uploaded and approved document types from the case
           const validDocuments = (caseResponse.data.data.entry.documentTypes || [])
             .filter(docType => docType && (docType.status === 'uploaded' || docType.status === 'approved'))
@@ -626,42 +729,56 @@ const IndividualCaseDetails = () => {
 
           console.log('Valid documents:', validDocuments);
           
+          // Check if there are valid documents
           if (validDocuments.length === 0) {
-            throw new Error("I don't see any processed documents yet. Please upload and process some documents first before we can chat.");
+            console.log('No valid documents found. Creating chat with management data only.');
+            
+            // Create chat with just management data (no documents)
+            chatResponse = await api.post('/chat', {
+              documentIds: [],
+              managementId: caseId,
+              managementContext: managementContext
+            });
+          } else {
+            // Extract just the document type IDs
+            const validDocTypeIds = validDocuments.map(doc => doc.id);
+            console.log('Valid document type IDs:', validDocTypeIds);
+            
+            // Use the new API endpoint with POST instead of GET
+            const documentsResponse = await api.post('/documents/management-docs', {
+              managementId: caseId,
+              docTypeIds: validDocTypeIds
+            });
+
+            if (!documentsResponse.data?.data?.documents) {
+              throw new Error('No valid documents found');
+            }
+
+            const validDocs = documentsResponse.data.data.documents
+              .filter(doc => doc && doc._id);
+
+            console.log(`Found ${validDocs.length} valid documents for chat:`, validDocs);
+            
+            if (validDocs.length === 0) {
+              // Create chat with just management data (no documents)
+              chatResponse = await api.post('/chat', {
+                documentIds: [],
+                managementId: caseId,
+                managementContext: managementContext
+              });
+            } else {
+              // Extract document IDs for chat creation
+              const docIds = validDocs.map(doc => doc._id);
+              console.log('Using these document IDs for chat:', docIds);
+              
+              // Create the chat with documents and management data
+              chatResponse = await api.post('/chat', {
+                documentIds: docIds,
+                managementId: caseId,
+                managementContext: managementContext
+              });
+            }
           }
-
-          // Extract just the document type IDs
-          const validDocTypeIds = validDocuments.map(doc => doc.id);
-          console.log('Valid document type IDs:', validDocTypeIds);
-          
-          // Use the new API endpoint with POST instead of GET
-          const documentsResponse = await api.post('/documents/management-docs', {
-            managementId: caseId,
-            docTypeIds: validDocTypeIds
-          });
-
-          if (!documentsResponse.data?.data?.documents) {
-            throw new Error('No valid documents found');
-          }
-
-          const validDocs = documentsResponse.data.data.documents
-            .filter(doc => doc && doc._id);
-
-          console.log(`Found ${validDocs.length} valid documents for chat:`, validDocs);
-          
-          if (validDocs.length === 0) {
-            throw new Error("I don't see any processed documents yet. Please ensure documents are uploaded and processed.");
-          }
-          
-          // Extract document IDs for chat creation
-          const docIds = validDocs.map(doc => doc._id);
-          console.log('Using these document IDs for chat:', docIds);
-          
-          // Create the chat with all documents
-          const chatResponse = await api.post('/chat', {
-            documentIds: docIds,
-            managementId: caseId
-          });
           
           console.log('Chat response:', chatResponse);
           
@@ -746,8 +863,9 @@ const IndividualCaseDetails = () => {
 
   if (!caseData || !profileData) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        <span className="ml-2 text-lg text-gray-700">Loading case details...</span>
       </div>
     );
   }
@@ -1423,7 +1541,7 @@ const IndividualCaseDetails = () => {
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   placeholder="Ask Diana anything..."
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg pr-12 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg pr-12 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                   disabled={isSending}
                 />
                 <button 
