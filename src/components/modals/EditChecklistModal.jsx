@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { X, Plus, Trash2, Clock } from 'lucide-react';
 import PropTypes from 'prop-types';
 
 const EditChecklistModal = ({ isOpen, onClose, category, onSave }) => {
@@ -10,6 +10,10 @@ const EditChecklistModal = ({ isOpen, onClose, category, onSave }) => {
   }, [category]);
 
   if (!isOpen) return null;
+
+  const handleCategoryChange = (field, value) => {
+    setEditedCategory({ ...editedCategory, [field]: value });
+  };
 
   const handleDocumentChange = (docIndex, field, value) => {
     const updatedDocs = [...editedCategory.documentTypes];
@@ -83,8 +87,11 @@ const EditChecklistModal = ({ isOpen, onClose, category, onSave }) => {
 
   const handleSave = async () => {
     try {
+      const deadlineValue = parseInt(editedCategory.deadline) || 0;
+      
       const cleanedCategory = {
         ...editedCategory,
+        deadline: deadlineValue,
         documentTypes: editedCategory.documentTypes.map(doc => {
           if (doc._id && doc._id.length === 24) {
             return doc;
@@ -120,6 +127,54 @@ const EditChecklistModal = ({ isOpen, onClose, category, onSave }) => {
         </div>
 
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+          {/* Process Details */}
+          <div className="mb-6 p-4 border border-gray-200 rounded-lg">
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="name" className="block mb-1 text-sm font-medium text-gray-700">
+                  Process Name
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  value={editedCategory?.name || ''}
+                  onChange={(e) => handleCategoryChange('name', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="description" className="block mb-1 text-sm font-medium text-gray-700">
+                  Process Description
+                </label>
+                <textarea
+                  id="description"
+                  value={editedCategory?.description || ''}
+                  onChange={(e) => handleCategoryChange('description', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  rows="2"
+                ></textarea>
+              </div>
+              
+              <div>
+                <label htmlFor="deadline" className="block mb-1 text-sm font-medium text-gray-700 flex items-center gap-1">
+                  <Clock className="h-4 w-4" /> Deadline (days)
+                </label>
+                <input
+                  type="number"
+                  id="deadline"
+                  min="0"
+                  value={editedCategory?.deadline || 0}
+                  onChange={(e) => handleCategoryChange('deadline', parseInt(e.target.value) || 0)}
+                  className="w-32 px-3 py-2 border border-gray-300 rounded-md text-sm"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Number of days typically needed to complete this process
+                </p>
+              </div>
+            </div>
+          </div>
+          
           {/* Add Document Button */}
           <button
             onClick={addNewDocument}

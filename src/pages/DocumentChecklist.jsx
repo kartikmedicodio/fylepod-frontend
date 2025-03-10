@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
-import { Search, Edit, Plus } from 'lucide-react';
+import { Search, Edit, Plus, Clock } from 'lucide-react';
 import api from '../utils/api';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import EditChecklistModal from '../components/modals/EditChecklistModal';
@@ -186,7 +186,20 @@ const DocumentChecklist = ({ setCurrentBreadcrumb }) => {
               <p className="mt-1 text-sm text-gray-500">
                 {category?.description}
               </p>
+              {category?.deadline > 0 && (
+                <div className="mt-2 flex items-center text-sm text-gray-600">
+                  <Clock className="h-4 w-4 mr-1 text-blue-500" />
+                  <span>Expected completion time: <strong>{category.deadline} days</strong></span>
+                </div>
+              )}
             </div>
+            <button
+              onClick={() => setIsEditModalOpen(true)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-sm"
+            >
+              <Edit className="h-4 w-4" />
+              Edit Process
+            </button>
           </div>
           
           {/* AI Validation Banner */}
