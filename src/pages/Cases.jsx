@@ -41,31 +41,42 @@ const TableHeader = () => (
   </thead>
 );
 
-const CaseRow = ({ caseItem, onClick }) => (
-  <motion.tr
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    exit={{ opacity: 0 }}
-    className="hover:bg-gray-50 cursor-pointer transition-colors"
-    onClick={() => onClick(caseItem)}
-  >
-    <td className="px-6 py-4 text-sm text-gray-900">{caseItem._id?.substring(0, 6)}</td>
-    <td className="px-6 py-4 text-sm text-gray-900">{caseItem.userName}</td>
-    <td className="px-6 py-4 text-sm text-gray-900">{caseItem.createdBy?.name}</td>
-    <td className="px-6 py-4 text-sm text-gray-900">{caseItem.categoryName}</td>
-    <td className="px-6 py-4 text-sm text-gray-900">-</td>
-    <td className="px-6 py-4 text-sm">
-      <span className={`px-2 py-1 rounded-full text-xs ${
-        caseItem.categoryStatus === 'completed' 
-          ? 'bg-green-100 text-green-800'
-          : 'bg-yellow-100 text-yellow-800'
-      }`}>
-        {caseItem.categoryStatus}
-      </span>
-    </td>
-    <td className="px-6 py-4 text-sm text-gray-900">-</td>
-  </motion.tr>
-);
+const CaseRow = ({ caseItem, onClick }) => {
+  // Format the deadline date to display only the date portion (not time)
+  const formattedDeadline = caseItem.deadline 
+    ? new Date(caseItem.deadline).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      })
+    : '-';
+
+  return (
+    <motion.tr
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="hover:bg-gray-50 cursor-pointer transition-colors"
+      onClick={() => onClick(caseItem)}
+    >
+      <td className="px-6 py-4 text-sm text-gray-900">{caseItem._id?.substring(0, 6)}</td>
+      <td className="px-6 py-4 text-sm text-gray-900">{caseItem.userName}</td>
+      <td className="px-6 py-4 text-sm text-gray-900">{caseItem.createdBy?.name}</td>
+      <td className="px-6 py-4 text-sm text-gray-900">{caseItem.categoryName}</td>
+      <td className="px-6 py-4 text-sm text-gray-900">{formattedDeadline}</td>
+      <td className="px-6 py-4 text-sm">
+        <span className={`px-2 py-1 rounded-full text-xs ${
+          caseItem.categoryStatus === 'completed' 
+            ? 'bg-green-100 text-green-800'
+            : 'bg-yellow-100 text-yellow-800'
+        }`}>
+          {caseItem.categoryStatus}
+        </span>
+      </td>
+      <td className="px-6 py-4 text-sm text-gray-900">-</td>
+    </motion.tr>
+  );
+};
 
 // Update the CasesSkeleton component
 const CasesSkeleton = () => {
@@ -373,34 +384,45 @@ const Cases = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredCases.map((caseItem) => (
-                    <motion.tr
-                      key={caseItem._id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="hover:bg-blue-50/50 cursor-pointer transition-colors duration-200"
-                      onClick={() => handleCaseClick(caseItem)}
-                    >
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {caseItem._id?.substring(0, 6)}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{caseItem.userName}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{caseItem.createdBy?.name}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{caseItem.categoryName}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">-</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                          caseItem.categoryStatus === 'completed' 
-                            ? 'bg-green-50 text-green-700 ring-1 ring-green-600/20'
-                            : 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-600/20'
-                        }`}>
-                          {caseItem.categoryStatus}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">-</td>
-                    </motion.tr>
-                  ))
+                  filteredCases.map((caseItem) => {
+                    // Format deadline for this case
+                    const formattedDeadline = caseItem.deadline 
+                      ? new Date(caseItem.deadline).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        })
+                      : '-';
+                      
+                    return (
+                      <motion.tr
+                        key={caseItem._id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="hover:bg-blue-50/50 cursor-pointer transition-colors duration-200"
+                        onClick={() => handleCaseClick(caseItem)}
+                      >
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {caseItem._id?.substring(0, 6)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{caseItem.userName}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{caseItem.createdBy?.name}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{caseItem.categoryName}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{formattedDeadline}</td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                            caseItem.categoryStatus === 'completed' 
+                              ? 'bg-green-50 text-green-700 ring-1 ring-green-600/20'
+                              : 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-600/20'
+                          }`}>
+                            {caseItem.categoryStatus}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">-</td>
+                      </motion.tr>
+                    );
+                  })
                 )}
               </AnimatePresence>
             </tbody>
