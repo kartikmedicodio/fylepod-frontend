@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import corporationService from '../services/corporationService';
-import { getCurrentUser } from '../services/auth.service';
+import { getStoredUser } from '../utils/auth';
 import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, CirclePlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -79,8 +79,15 @@ const Corporations = () => {
   const fetchUserAndCorporations = async () => {
     try {
       setLoading(true);
-      // First fetch user info
-      const user = await getCurrentUser();
+      // Get user data from localStorage instead of API call
+      const user = getStoredUser();
+      
+      if (!user) {
+        setError('User data not found. Please login again.');
+        setLoading(false);
+        return;
+      }
+      
       setCurrentUser(user);
       
       // Then fetch corporations
@@ -118,15 +125,16 @@ const Corporations = () => {
         setError(null);
       }
       
+      // Set corporations
       setCorporations(filteredCorporations);
       setPagination(prev => ({
         ...prev,
         totalPages: Math.ceil(filteredCorporations.length / pagination.itemsPerPage),
         totalItems: filteredCorporations.length
       }));
-    } catch (err) {
-      setError(err.message || 'Failed to fetch data');
-      console.error('Error fetching data:', err);
+    } catch (error) {
+      console.error('Error fetching corporations:', error);
+      setError('Failed to load corporations');
     } finally {
       setLoading(false);
     }

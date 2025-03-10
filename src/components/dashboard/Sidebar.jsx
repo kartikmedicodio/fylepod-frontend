@@ -16,6 +16,10 @@ import {
   User,
   FolderIcon,
   User2Icon,
+  UserPlus,
+  Briefcase,
+  Building,
+  ChevronRight as ChevronRightIcon,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import PropTypes from 'prop-types';
@@ -28,8 +32,10 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
   const { user, loading, logout } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
   const [showNewMenu, setShowNewMenu] = useState(false);
+  const [showCustomerSubmenu, setShowCustomerSubmenu] = useState(false);
   const menuRef = useRef(null);
   const newMenuRef = useRef(null);
+  const customerSubmenuRef = useRef(null);
   const menuTimeoutRef = useRef(null);
   const navigate = useNavigate();
   const [relationships, setRelationships] = useState([]);
@@ -140,14 +146,35 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
     }
   };
 
-  // Handle click outside for both menus
+  // Handle click outside for menus
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
+      // Check if clicked outside all menus
+      const isOutsideMainMenu = menuRef.current && !menuRef.current.contains(event.target);
+      const isOutsideNewMenu = newMenuRef.current && !newMenuRef.current.contains(event.target);
+      const isOutsideCustomerMenu = customerSubmenuRef.current && !customerSubmenuRef.current.contains(event.target);
+      
+      // For the new menu, make sure customer submenu is considered (don't close parent if clicking in child)
+      if (isOutsideNewMenu && (!customerSubmenuRef.current || isOutsideCustomerMenu)) {
+        setShowNewMenu(false);
+      }
+      
+      // For the customer submenu, we can close it independently
+      if (isOutsideCustomerMenu && !newMenuRef.current?.contains(event.target)) {
+        setShowCustomerSubmenu(false);
+      }
+      
+      // For the main menu
+      if (isOutsideMainMenu) {
         setShowMenu(false);
       }
-      if (newMenuRef.current && !newMenuRef.current.contains(event.target)) {
-        setShowNewMenu(false);
+      
+      // If clicked outside all menus, clear any auto-hide timeout
+      if (isOutsideMainMenu && isOutsideNewMenu && isOutsideCustomerMenu) {
+        if (menuTimeoutRef.current) {
+          clearTimeout(menuTimeoutRef.current);
+          menuTimeoutRef.current = null;
+        }
       }
     };
 
@@ -155,32 +182,36 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Auto-hide menus after 3 seconds
+  // Auto-hide menus only after mouse leaves
   useEffect(() => {
-    if (showMenu || showNewMenu) {
-      menuTimeoutRef.current = setTimeout(() => {
-        setShowMenu(false);
-        setShowNewMenu(false);
-      }, 3000);
+    if (showMenu || showNewMenu || showCustomerSubmenu) {
+      // Don't set auto-hide timeout here - we'll only set it on mouse leave
+      return () => {
+        if (menuTimeoutRef.current) {
+          clearTimeout(menuTimeoutRef.current);
+        }
+      };
     }
-    return () => {
-      if (menuTimeoutRef.current) {
-        clearTimeout(menuTimeoutRef.current);
-      }
-    };
-  }, [showMenu, showNewMenu]);
+  }, [showMenu, showNewMenu, showCustomerSubmenu]);
 
   const handleMenuMouseEnter = () => {
+    // Clear any existing timeout when mouse enters the menu
     if (menuTimeoutRef.current) {
       clearTimeout(menuTimeoutRef.current);
+      menuTimeoutRef.current = null;
     }
   };
 
   const handleMenuMouseLeave = () => {
-    menuTimeoutRef.current = setTimeout(() => {
-      setShowMenu(false);
-      setShowNewMenu(false);
-    }, 3000);
+    // Only set timeout when mouse leaves
+    if (!menuTimeoutRef.current) {
+      menuTimeoutRef.current = setTimeout(() => {
+        setShowMenu(false);
+        setShowNewMenu(false);
+        setShowCustomerSubmenu(false);
+        menuTimeoutRef.current = null;
+      }, 3000);
+    }
   };
 
   const isActive = (href) => {
@@ -229,8 +260,18 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
             <button 
               className={`flex items-center justify-center w-full space-x-2 rounded-lg bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors duration-200 
                 ${collapsed ? 'px-2' : 'px-6'}`}
-              onClick={() => setShowNewMenu(!showNewMenu)}
-              onMouseEnter={handleMenuMouseEnter}
+              onClick={() => {
+                setShowNewMenu(!showNewMenu);
+                // Clear any existing timeout
+                if (menuTimeoutRef.current) {
+                  clearTimeout(menuTimeoutRef.current);
+                  menuTimeoutRef.current = null;
+                }
+              }}
+              onMouseEnter={() => {
+                // Only clear timeout on hover, don't open menu automatically
+                handleMenuMouseEnter();
+              }}
               onMouseLeave={handleMenuMouseLeave}
             >
               <PlusCircle className="h-4 w-4" />
@@ -243,22 +284,88 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
                 onMouseEnter={handleMenuMouseEnter}
                 onMouseLeave={handleMenuMouseLeave}
               >
-                <button
-                  onClick={() => {
-                    navigate('/customers/new');
-                    setShowNewMenu(false);
-                  }}
-                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+                <div 
+                  className="relative"
+                  onMouseEnter={handleMenuMouseEnter}
+                  onMouseLeave={handleMenuMouseLeave}
                 >
-                  <User className="h-4 w-4" />
-                  <span>New Customer</span>
-                </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowCustomerSubmenu(!showCustomerSubmenu);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center justify-between"
+                    onMouseEnter={handleMenuMouseEnter}
+                    onMouseLeave={handleMenuMouseLeave}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <User className="h-4 w-4" />
+                      <span>New Customer</span>
+                    </div>
+                    <ChevronRightIcon className="h-4 w-4" />
+                  </button>
+                  
+                  {showCustomerSubmenu && (
+                    <div 
+                      ref={customerSubmenuRef}
+                      className="absolute left-full top-0 ml-1 w-48 rounded-lg bg-white shadow-lg border border-gray-200 py-1 z-50"
+                      onMouseEnter={handleMenuMouseEnter}
+                      onMouseLeave={handleMenuMouseLeave}
+                    >
+                      <button
+                        onClick={() => {
+                          console.log('Navigating to New Company page...');
+                          navigate('/company/new');
+                          setShowNewMenu(false);
+                          setShowCustomerSubmenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+                        onMouseEnter={handleMenuMouseEnter}
+                        onMouseLeave={handleMenuMouseLeave}
+                      >
+                        <Building className="h-4 w-4" />
+                        <span>New Company</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          console.log('Navigating to New Employee page...');
+                          navigate('/employee/new');
+                          setShowNewMenu(false);
+                          setShowCustomerSubmenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+                        onMouseEnter={handleMenuMouseEnter}
+                        onMouseLeave={handleMenuMouseLeave}
+                      >
+                        <Briefcase className="h-4 w-4" />
+                        <span>New Employee</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          console.log('Navigating to New Individual page...');
+                          navigate('/individual/new');
+                          setShowNewMenu(false);
+                          setShowCustomerSubmenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+                        onMouseEnter={handleMenuMouseEnter}
+                        onMouseLeave={handleMenuMouseLeave}
+                      >
+                        <UserPlus className="h-4 w-4" />
+                        <span>New Individual</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+                
                 <button
                   onClick={() => {
                     navigate('/cases/new');
                     setShowNewMenu(false);
                   }}
                   className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+                  onMouseEnter={handleMenuMouseEnter}
+                  onMouseLeave={handleMenuMouseLeave}
                 >
                   <BriefcaseBusiness className="h-4 w-4" />
                   <span>New Case</span>

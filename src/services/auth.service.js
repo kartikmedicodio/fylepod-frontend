@@ -1,5 +1,5 @@
 import api from '../utils/api';
-import { setStoredToken, removeStoredToken, getStoredToken } from '../utils/auth';
+import { setStoredToken, removeStoredToken, getStoredToken, setStoredUser } from '../utils/auth';
 
 export const login = async (credentials) => {
   try {
@@ -40,14 +40,26 @@ export const getCurrentUser = async () => {
   try {
     const token = getStoredToken();
     
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+    
     const response = await api.get('/auth/me');
     
     if (!response.data || response.data.status !== 'success') {
       throw new Error('Invalid response from server');
     }
     
-    return response.data.data.user;
+    const userData = response.data.data.user;
+    
+    // Store the user data in localStorage for offline access
+    if (userData) {
+      setStoredUser(userData);
+    }
+    
+    return userData;
   } catch (error) {
+    console.error('Error fetching current user:', error);
     throw error;
   }
 };

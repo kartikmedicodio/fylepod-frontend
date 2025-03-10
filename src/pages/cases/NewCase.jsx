@@ -3,7 +3,7 @@ import { ChevronDown, Pencil, X, Loader2 } from 'lucide-react';
 import { usePage } from '../../contexts/PageContext';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { getStoredToken } from '../../utils/auth';
+import { getStoredUser } from '../../utils/auth';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 
@@ -37,6 +37,7 @@ const NewCase = () => {
   const [isCreatingCase, setIsCreatingCase] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [loggedInUserDetails, setLoggedInUserDetails] = useState(null);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
 
   const dropdownRefs = {
     template: useRef(null),
@@ -63,6 +64,49 @@ const NewCase = () => {
     setPageTitle('Create New Case');
     return () => setPageTitle('');
   }, [setPageTitle]);
+
+  useEffect(() => {
+    const getUserFromLocalStorage = () => {
+      try {
+        // Get user from localStorage
+        const storedUser = getStoredUser();
+        
+        if (storedUser) {
+          setLoggedInUserDetails(storedUser);
+        } else {
+          // Fallback to API call if localStorage data is not available
+          fetchLoggedInUserDetails();
+        }
+      } catch (error) {
+        setError(error.message);
+        // Fallback to API call on error
+        fetchLoggedInUserDetails();
+      }
+    };
+    
+    const fetchLoggedInUserDetails = async () => {
+      try {
+        const response = await api.get('/auth/me');
+        if (!response.data || !response.data.data || !response.data.data.user) {
+          throw new Error('No user data received from /auth/me');
+        }
+        const userDetails = response.data.data.user;
+        setLoggedInUserDetails(userDetails);
+      } catch (error) {
+        setError(error.message);
+        if (error.response?.status === 401) {
+          navigate('/login', { 
+            replace: true,
+            state: { from: '/cases/new' }
+          });
+        }
+      }
+    };
+
+    if (isAuthenticated) {
+      getUserFromLocalStorage();
+    }
+  }, [isAuthenticated, navigate]);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -99,80 +143,88 @@ const NewCase = () => {
   }, [isAuthenticated, navigate]);
 
   useEffect(() => {
-    const fetchLoggedInUserDetails = async () => {
+    const fetchAllUsers = async () => {
       try {
-        const response = await api.get('/auth/me');
-        if (!response.data || !response.data.data || !response.data.data.user) {
-          throw new Error('No user data received from /auth/me');
+        // Set loading state
+        setIsLoadingUsers(true);
+        setError(null);
+        
+        // Check for cached users in sessionStorage
+        const cachedUsers = sessionStorage.getItem('cachedUsers');
+        const cachedTimestamp = sessionStorage.getItem('cachedUsersTimestamp');
+        const now = Date.now();
+        
+        // Use cached data if it's less than 5 minutes old
+        if (cachedUsers && cachedTimestamp && (now - parseInt(cachedTimestamp)) < 300000) {
+          const parsedUsers = JSON.parse(cachedUsers);
+          processUsers(parsedUsers);
+          setIsLoadingUsers(false);
+          return;
         }
-        const userDetails = response.data.data.user;
-        setLoggedInUserDetails(userDetails);
-      } catch (error) {
-        setError(error.message);
-        if (error.response?.status === 401) {
-          navigate('/login', { 
-            replace: true,
-            state: { from: '/cases/new' }
-          });
+
+        // Get user data from state or localStorage
+        const userDetails = loggedInUserDetails || getStoredUser();
+        
+        if (!userDetails?.lawfirm_id?._id) {
+          console.warn('No lawfirm ID found for current user');
+          setIsLoadingUsers(false);
+          return;
         }
-      }
-    };
-
-    if (isAuthenticated) {
-      fetchLoggedInUserDetails();
-    }
-  }, [isAuthenticated, navigate]);
-
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
+        
+        // Make a single API call
         const response = await api.get('/auth/users');
 
         if (!response.data || !response.data.data || !response.data.data.users) {
           throw new Error('No users data received');
         }
 
-        // Filter for individuals and employees from the same lawfirm
-        const filteredUsers = response.data.data.users.filter(user => {
-          const isCorrectRole = user.role === 'individual' || user.role === 'employee';
-          const isSameLawfirm = user.lawfirm_id?._id === loggedInUserDetails?.lawfirm_id?._id;
-          return isCorrectRole && isSameLawfirm;
-        });
-
-        setUsers(filteredUsers);
+        const allUsers = response.data.data.users;
+        
+        // Cache the results
+        sessionStorage.setItem('cachedUsers', JSON.stringify(allUsers));
+        sessionStorage.setItem('cachedUsersTimestamp', now.toString());
+        
+        // Process the users
+        processUsers(allUsers);
       } catch (error) {
+        console.error('Error fetching users:', error);
         setError(error.message);
+        toast.error('Failed to load users. Please try again.');
+      } finally {
+        setIsLoadingUsers(false);
       }
     };
 
-    if (isAuthenticated && loggedInUserDetails?.lawfirm_id?._id) {
-      fetchUsers();
-    }
-  }, [isAuthenticated, loggedInUserDetails]);
-
-  useEffect(() => {
-    const fetchAttorneys = async () => {
-      try {
-        const response = await api.get('/auth/users');
-
-        if (!response.data || !response.data.data || !response.data.data.users) {
-          throw new Error('No users data received');
-        }
-
-        const attorneyUsers = response.data.data.users.filter(user => {
-          const isCorrectRole = user.role === 'attorney' || user.role === 'manager';
-          const isSameLawfirm = user.lawfirm_id?._id === loggedInUserDetails?.lawfirm_id?._id;
-          return isCorrectRole && isSameLawfirm;
-        });
-
-        setAttorneys(attorneyUsers);
-      } catch (error) {
-        setError(error.message);
+    const processUsers = (allUsers) => {
+      // Get user data from state or localStorage
+      const userDetails = loggedInUserDetails || getStoredUser();
+      
+      if (!userDetails?.lawfirm_id?._id) {
+        console.warn('No lawfirm ID found for current user');
+        return;
       }
+      
+      // Filter for individuals and employees in one pass
+      const filteredUsers = allUsers.filter(user => {
+        const isCorrectRole = user.role === 'individual' || user.role === 'employee';
+        const isSameLawfirm = user.lawfirm_id?._id === userDetails.lawfirm_id?._id;
+        return isCorrectRole && isSameLawfirm;
+      });
+      
+      // Filter for attorneys and managers in one pass
+      const filteredAttorneys = allUsers.filter(user => {
+        const isCorrectRole = user.role === 'attorney' || user.role === 'manager';
+        const isSameLawfirm = user.lawfirm_id?._id === userDetails.lawfirm_id?._id;
+        return isCorrectRole && isSameLawfirm;
+      });
+      
+      setUsers(filteredUsers);
+      setAttorneys(filteredAttorneys);
     };
 
-    if (isAuthenticated && loggedInUserDetails?.lawfirm_id?._id) {
-      fetchAttorneys();
+    // Only fetch if we're authenticated and have lawfirm ID
+    if (isAuthenticated && (loggedInUserDetails?.lawfirm_id?._id || getStoredUser()?.lawfirm_id?._id)) {
+      fetchAllUsers();
     }
   }, [isAuthenticated, loggedInUserDetails]);
 
@@ -394,7 +446,7 @@ const NewCase = () => {
         <div className="flex flex-col gap-1">
           <span className="font-medium">Oops! Something went wrong</span>
           <span className="text-sm text-gray-600">
-            Fiona couldn't create the case
+            Fiona could not create the case
           </span>
         </div>,
         {
@@ -431,31 +483,49 @@ const NewCase = () => {
   };
 
   const getFilteredUsers = () => {
-    if (!customerSearch.trim()) return users; // users are already filtered for individuals/employees
-    const search = customerSearch.toLowerCase();
+    if (isLoadingUsers) {
+      return [];
+    }
+    
+    if (!customerSearch.trim()) {
+      return users;
+    }
+    
+    const searchTerm = customerSearch.toLowerCase().trim();
     return users.filter(user => 
-      user.name.toLowerCase().includes(search) || 
-      (user.company_name && user.company_name.toLowerCase().includes(search))
+      user.name.toLowerCase().includes(searchTerm) || 
+      user.email.toLowerCase().includes(searchTerm)
     );
   };
 
   const getFilteredAttorneys = () => {
-    if (!attorneySearch.trim()) return attorneys;
-    const search = attorneySearch.toLowerCase();
+    if (isLoadingUsers) {
+      return [];
+    }
+    
+    if (!attorneySearch.trim()) {
+      return attorneys;
+    }
+    
+    const searchTerm = attorneySearch.toLowerCase().trim();
     return attorneys.filter(attorney => 
-      attorney.name.toLowerCase().includes(search)
+      attorney.name.toLowerCase().includes(searchTerm) || 
+      attorney.email.toLowerCase().includes(searchTerm)
     );
   };
 
   // Helper function to get loading message
   const getLoadingMessage = () => {
-    const messages = [
-      "Fiona-AI agent is starting...",
-      "Creating template structure...",
-      "Processing documents...",
-      "Finalizing case setup..."
-    ];
-    return messages[loadingStep];
+    switch (loadingStep) {
+      case 1:
+        return "Creating case...";
+      case 2:
+        return "Assigning attorney...";
+      case 3:
+        return "Generating documents...";
+      default:
+        return "Please wait...";
+    }
   };
 
   if (loading) {

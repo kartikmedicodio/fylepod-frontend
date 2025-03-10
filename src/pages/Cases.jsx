@@ -3,6 +3,7 @@ import api from '../utils/api';
 import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
 import CaseDetails from './CaseDetails';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getStoredUser } from '../utils/auth';
 
 // Components
 const SearchBar = ({ value, onChange, isSearching }) => (
@@ -207,15 +208,16 @@ const Cases = () => {
     const fetchInitialData = async () => {
       try {
         setLoading(true);
-        const userResponse = await api.get('/auth/me');
+        
+        // Get user data from localStorage instead of API call
+        const userDetails = getStoredUser();
         
         if (!isMounted) return;
 
-        if (!userResponse.data?.data?.user) {
-          throw new Error('No user data received from /auth/me');
+        if (!userDetails) {
+          throw new Error('No user data found in localStorage');
         }
 
-        const userDetails = userResponse.data.data.user;
         if (!isMounted) return;
         
         setLoggedInUserDetails(userDetails);
@@ -253,6 +255,7 @@ const Cases = () => {
     };
 
     fetchInitialData();
+
     return () => {
       isMounted = false;
     };
