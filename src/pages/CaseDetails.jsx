@@ -24,7 +24,8 @@ import {
   ChevronLeft,
   Download,
   Bot,
-  SendHorizontal
+  SendHorizontal,
+  Eye
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
@@ -501,7 +502,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           content: "Hi! I'm Diana, your AI assistant. I can help you with case details, document requirements, and analyze your uploaded documents. How can I assist you today?"
         }]);
         
-        // If there are successful uploads, initialize chat automatically
+        // Initialize chat automatically
         try {
           // Get case details
           const caseResponse = await api.get(`/management/${caseId}`);
@@ -957,6 +958,15 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // First, add a function to check if all documents are uploaded
+  const areAllDocumentsUploaded = () => {
+    if (!caseData?.documentTypes) return false;
+    return caseData.documentTypes.every(doc => 
+      doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
+    );
+  };
+
+
   if (!caseData || !profileData) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -1107,6 +1117,9 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
   // Enhanced document checklist
   const DocumentsChecklistTab = () => {
+    // Add state for sub-tabs
+    const [selectedSubTab, setSelectedSubTab] = useState('all');
+
     const pendingDocuments = caseData.documentTypes.filter(doc => doc.status === DOCUMENT_STATUS.PENDING);
     const uploadedDocuments = caseData.documentTypes.filter(
       doc => doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
@@ -1135,16 +1148,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         uploadStatus === DOCUMENT_STATUS.UPLOADED ? 'col-span-12' : 'col-span-8'
       } bg-white rounded-lg border border-gray-200 p-6`}>
         <div className="flex gap-2 mb-6 border-b border-gray-100 pb-4">
-          <button 
-            onClick={() => setUploadStatus(DOCUMENT_STATUS.PENDING)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              uploadStatus === DOCUMENT_STATUS.PENDING
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            Upload Pending ({pendingDocuments.length})
-          </button>
+          
           <button 
             onClick={() => setUploadStatus(DOCUMENT_STATUS.UPLOADED)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -1154,6 +1158,16 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             }`}
           >
             Uploaded ({uploadedDocuments.length})
+          </button>
+          <button 
+            onClick={() => setUploadStatus(DOCUMENT_STATUS.PENDING)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              uploadStatus === DOCUMENT_STATUS.PENDING
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            Upload Pending ({pendingDocuments.length})
           </button>
         </div>
 
@@ -1383,56 +1397,117 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       )
     );
 
-    const renderQuestionnaire = () => (
-      <div className="w-1/3">
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="mb-4">
-            <div className="flex items-center justify-between">
-              <h4 className="font-medium text-sm">Questionnaire</h4>
-              <div className="text-blue-600 text-sm">53/70</div>
-            </div>
-            <div className="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full bg-blue-600 rounded-full" style={{ width: '75%' }}></div>
-            </div>
-          </div>
 
-          <div className="space-y-4">
-            <div>
-              <div className="text-sm text-gray-500 mb-1">Salutation</div>
-              <div className="font-medium">Mr</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500 mb-1">First Name</div>
-              <div className="font-medium">John</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500 mb-1">Middle Name</div>
-              <div className="font-medium">Michael</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500 mb-1">Last Name</div>
-              <div className="font-medium">Doe</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500 mb-1">Nationality</div>
-              <div className="font-medium">American</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500 mb-1">Email Address</div>
-              <div className="font-medium">John@mail.com</div>
-            </div>
-          </div>
+    // Sub-tabs navigation component
+    const SubTabNavigation = () => {
+      const allDocsUploaded = areAllDocumentsUploaded();
+
+      return (
+        <div className="mb-6 flex items-center gap-2">
+          {[
+            { id: 'all', label: 'All' },
+            { id: 'extracted-data', label: 'Extracted data' },
+            { id: 'validation', label: 'Validation' },
+            { 
+              id: 'cross-verification', 
+              label: 'Cross Verification',
+              disabled: !allDocsUploaded 
+            }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => !tab.disabled && setSelectedSubTab(tab.id)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                selectedSubTab === tab.id
+                  ? 'bg-blue-600 text-white'
+                  : tab.disabled
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+              disabled={tab.disabled}
+              title={tab.disabled ? 'Upload all documents to enable cross verification' : ''}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
-      </div>
-    );
+      );
+    };
+
+    // Render content based on selected sub-tab
+    const renderSubTabContent = () => {
+      const allDocsUploaded = areAllDocumentsUploaded();
+
+      switch (selectedSubTab) {
+        case 'all':
+          return (
+            <div className="grid grid-cols-12 gap-6">
+              {renderDocumentsList()}
+              {renderSmartUpload()}
+            </div>
+          );
+        case 'extracted-data':
+          return (
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <p className="text-gray-500 text-sm text-center">Extracted data content will be implemented soon</p>
+            </div>
+          );
+        case 'validation':
+          return (
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <p className="text-gray-500 text-sm text-center">Validation content will be implemented soon</p>
+            </div>
+          );
+        case 'cross-verification':
+          if (!allDocsUploaded) {
+            return (
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <div className="flex flex-col items-center justify-center py-8">
+                  <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                    <AlertCircle className="w-6 h-6 text-gray-400" />
+                  </div>
+                  <p className="text-gray-500 text-sm text-center">
+                    Please upload all documents to enable cross verification
+                  </p>
+                </div>
+              </div>
+            );
+          }
+          // Only render CrossVerificationTab when this tab is selected
+          return <CrossVerificationTab key="cross-verification" />;
+        default:
+          return null;
+      }
+    };
 
     return (
       <div className="p-6">
-        {/* Document list and upload sections with enhanced styling */}
-        <div className="grid grid-cols-12 gap-6">
-          {renderDocumentsList()}
-          {renderSmartUpload()}
+        {/* Search and Filter Section */}
+        <div className="mb-6 flex items-center justify-between">
+          <div className="relative w-64">
+            <input
+              type="text"
+              placeholder="Search..."
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+            />
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          </div>
+          <div className="flex items-center gap-2">
+            <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
+              <Filter className="w-4 h-4" />
+              All Filters
+            </button>
+            <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
+              Sort
+            </button>
+          </div>
         </div>
+
+        {/* Sub-tabs Navigation */}
+        <SubTabNavigation />
+
+        {/* Sub-tab Content */}
+        {renderSubTabContent()}
       </div>
     );
   };
@@ -2046,4 +2121,106 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
 export default CaseDetails;
 
+// Add this new component for cross-verification
+const CrossVerificationTab = () => {
+  const { caseId } = useParams();
+  const [verificationData, setVerificationData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedError, setSelectedError] = useState(null);
 
+  useEffect(() => {
+    const fetchVerificationData = async () => {
+      try {
+        setIsLoading(true);
+        const response = await api.get(`/management/${caseId}/cross-verify`);
+        if (response.data.status === 'success') {
+          setVerificationData(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching verification data:', error);
+        toast.error('Failed to load verification data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchVerificationData();
+  }, [caseId]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+
+
+  return (
+    <div >
+      {/* Cross Verification Content */}
+      <div className="space-y-6">
+        {/* Mismatch Errors Section */}
+        <div className="bg-white rounded-lg border border-gray-200">
+          <div className="p-4 border-b border-gray-200">
+            <h3 className="text-base font-semibold text-gray-900">Mismatch errors</h3>
+          </div>
+          <div className="divide-y divide-gray-200">
+            {verificationData?.verificationResults.mismatchErrors.map((error, index) => (
+              <div key={index} className="p-4">
+                <div className="mb-4">
+                  <h4 className="text-sm font-medium text-gray-900 mb-3">{error.type}</h4>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {Object.entries(error.details).map(([document, value], idx) => (
+                      <div key={idx} className="inline-flex items-center bg-gray-50 px-3 py-2 rounded-lg">
+                        <span className="text-sm font-medium text-gray-500 mr-2">{document}:</span>
+                        <span className="text-base text-gray-900">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Missing Errors Section */}
+        <div className="bg-white rounded-lg border border-gray-200">
+          <div className="p-4 border-b border-gray-200">
+            <h3 className="text-base font-semibold text-gray-900">Missing errors</h3>
+          </div>
+          <div className="divide-y divide-gray-200">
+            {verificationData?.verificationResults.missingErrors.map((error, index) => (
+              <div key={index} className="p-4">
+                <div className="mb-4">
+                  <h4 className="text-sm font-medium text-gray-900 mb-2">{error.type}</h4>
+                  <p className="text-base text-gray-700 bg-gray-50 p-3 rounded-lg">{error.details}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Summarization Errors Section */}
+        <div className="bg-white rounded-lg border border-gray-200">
+          <div className="p-4 border-b border-gray-200">
+            <h3 className="text-base font-semibold text-gray-900">Summarization errors</h3>
+          </div>
+          <div className="divide-y divide-gray-200">
+            {verificationData?.verificationResults.summarizationErrors.map((error, index) => (
+              <div key={index} className="p-4">
+                <div className="mb-4">
+                  <h4 className="text-sm font-medium text-gray-900 mb-2">{error.type}</h4>
+                  <p className="text-base text-gray-700 bg-gray-50 p-3 rounded-lg">{error.details}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Update the renderSubTabContent function to include the new CrossVerificationTab
