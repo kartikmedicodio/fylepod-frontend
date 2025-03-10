@@ -17,6 +17,9 @@ import CaseDetails from './pages/CaseDetails';
 import IndividualCaseDetails from './pages/IndividualCaseDetails';
 import DashboardRouter from './components/DashboardRouter';
 import Profile from './pages/Profile';
+import NewCompany from './pages/NewCompany';
+import NewEmployee from './pages/NewEmployee';
+import NewIndividual from './pages/NewIndividual';
 import { useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 
@@ -72,6 +75,11 @@ const App = () => {
                         <Route path="/corporations/:corporationId" element={<CorporationDetails setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
                         <Route path="/corporations/:corporationId/employee/:employeeId" element={<EmployeeProfile setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
                         <Route path="/corporations/:corporationId/employee/:employeeId/case/:caseId" element={<CaseDetails setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
+                        
+                        {/* New Customer Routes */}
+                        <Route path="/company/new" element={<NewCompany setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
+                        <Route path="/employee/new" element={<NewEmployee setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
+                        <Route path="/individual/new" element={<NewIndividual setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
                         
                         {/* Knowledge Base Routes */}
                         <Route path="/knowledge" element={<KnowledgeBase setCurrentBreadcrumb={setCurrentBreadcrumb} />} />

@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { getCurrentUser, login as loginService, logout as logoutService } from '../services/auth.service';
-import { setStoredToken, getStoredToken, removeStoredToken } from '../utils/auth';
+import { setStoredToken, getStoredToken, removeStoredToken, setStoredUser, getStoredUser, removeStoredUser } from '../utils/auth';
 import PropTypes from 'prop-types';
 
 const AuthContext = createContext(null);
@@ -22,20 +22,52 @@ export const AuthProvider = ({ children }) => {
           return;
         }
 
-        const userData = await getCurrentUser();
+        // Try to get user from localStorage first
+        const storedUser = getStoredUser();
         
-        if (userData) {
-          setUser(userData);
+        if (storedUser) {
+          setUser(storedUser);
           setIsAuthenticated(true);
+          
+          // Refresh user data in the background
+          try {
+            const freshUserData = await getCurrentUser();
+            if (freshUserData) {
+              setUser(freshUserData);
+              setStoredUser(freshUserData);
+            }
+          } catch (error) {
+            console.error('Error refreshing user data:', error);
+          }
         } else {
-          setUser(null);
-          setIsAuthenticated(false);
-          removeStoredToken();
+          // If no stored user, fetch from API
+          try {
+            const userData = await getCurrentUser();
+            
+            if (userData) {
+              setUser(userData);
+              setIsAuthenticated(true);
+              setStoredUser(userData);
+            } else {
+              setUser(null);
+              setIsAuthenticated(false);
+              removeStoredToken();
+              removeStoredUser();
+            }
+          } catch (error) {
+            console.error('User data fetch error:', error);
+            setUser(null);
+            setIsAuthenticated(false);
+            removeStoredToken();
+            removeStoredUser();
+          }
         }
       } catch (error) {
+        console.error('Authentication check error:', error);
         setUser(null);
         setIsAuthenticated(false);
         removeStoredToken();
+        removeStoredUser();
       } finally {
         setLoading(false);
       }
@@ -63,11 +95,25 @@ export const AuthProvider = ({ children }) => {
       setUser(user);
       setIsAuthenticated(true);
       
+      // Fetch complete user data from /auth/me endpoint
+      try {
+        const completeUserData = await getCurrentUser();
+        if (completeUserData) {
+          setUser(completeUserData);
+          setStoredUser(completeUserData);
+        }
+      } catch (error) {
+        console.error('Error fetching complete user data:', error);
+        // Still save the basic user info we have
+        setStoredUser(user);
+      }
+      
       return user;
     } catch (error) {
       setIsAuthenticated(false);
       setUser(null);
       removeStoredToken();
+      removeStoredUser();
       throw error;
     } finally {
       setLoading(false);
@@ -81,6 +127,7 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setUser(null);
       setIsAuthenticated(false);
+      removeStoredUser();
       setLoading(false);
       window.location.href = '/login';
     }
