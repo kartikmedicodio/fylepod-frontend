@@ -22,12 +22,15 @@ import {
   AlertCircle,
   Filter,
   ChevronLeft,
-  Download
+  Download,
+  Bot,
+  SendHorizontal
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
 import CaseDetailsSidebar from '../components/cases/CaseDetailsSidebar';
 import { PDFDocument } from 'pdf-lib';
+import ReactDOM from 'react-dom';
 
 
 // Add a new status type to track document states
@@ -142,7 +145,9 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const [isLoadingQuestionnaire, setIsLoadingQuestionnaire] = useState(false);
   const [formData, setFormData] = useState({
     Passport: {},
-    Resume: {}
+    Resume: {
+      educationalQualification: [] // Initialize as empty array
+    }
   });
   const [forms, setForms] = useState([]);
   const [isSavingQuestionnaire, setIsSavingQuestionnaire] = useState(false);
@@ -154,6 +159,17 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
   // Add a new state to track processing state for each document
   const [processingDocuments, setProcessingDocuments] = useState({});
+
+  // Add new state variables for chat functionality
+  const [messages, setMessages] = useState([{
+    role: 'assistant',
+    content: "Hi! I'm Diana, your AI assistant. I can help you analyze your uploaded documents and answer any questions you might have about your case."
+  }]);
+  const [chatInput, setChatInput] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const messagesEndRef = useRef(null);
+  const [currentChat, setCurrentChat] = useState(null);
+  const [showChatPopup, setShowChatPopup] = useState(false);
 
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
@@ -691,6 +707,139 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     };
   }, [isLoadingQuestionnaire]);
 
+  // Add new function for handling chat messages
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!chatInput.trim() || isSending) return;
+
+    const userMessage = { role: 'user', content: chatInput };
+    setMessages(prev => [...prev, userMessage]);
+    setChatInput('');
+    setIsSending(true);
+
+    try {
+      // Initialize chat if it doesn't exist
+      let messageResponse;
+      if (!currentChat) {
+        console.log('Current case ID:', caseId);
+        
+        try {
+          // First get the case details to get document types
+          const caseResponse = await api.get(`/management/${caseId}`);
+          console.log('Case response:', caseResponse.data);
+
+          if (!(caseResponse.data?.status === 'success') || !caseResponse.data?.data?.entry) {
+            throw new Error('Failed to fetch case details');
+          }
+
+          // Get uploaded and approved document types from the case
+          const validDocuments = (caseResponse.data.data.entry.documentTypes || [])
+            .filter(docType => docType && (docType.status === 'uploaded' || docType.status === 'approved'))
+            .map(docType => ({
+              id: docType._id,
+              name: docType.name
+            }))
+            .filter(doc => doc.id);
+
+          console.log('Valid documents:', validDocuments);
+          
+          if (validDocuments.length === 0) {
+            throw new Error("I don't see any processed documents yet. Please upload and process some documents first before we can chat.");
+          }
+
+          // Extract just the document type IDs
+          const validDocTypeIds = validDocuments.map(doc => doc.id);
+          console.log('Valid document type IDs:', validDocTypeIds);
+          
+          // Use the new API endpoint with POST instead of GET
+          const documentsResponse = await api.post('/documents/management-docs', {
+            managementId: caseId,
+            docTypeIds: validDocTypeIds
+          });
+
+          if (!documentsResponse.data?.data?.documents) {
+            throw new Error('No valid documents found');
+          }
+
+          const validDocs = documentsResponse.data.data.documents
+            .filter(doc => doc && doc._id);
+
+          console.log(`Found ${validDocs.length} valid documents for chat:`, validDocs);
+          
+          if (validDocs.length === 0) {
+            throw new Error("I don't see any processed documents yet. Please ensure documents are uploaded and processed.");
+          }
+          
+          // Extract document IDs for chat creation
+          const docIds = validDocs.map(doc => doc._id);
+          console.log('Using these document IDs for chat:', docIds);
+          
+          // Create the chat with all documents
+          const chatResponse = await api.post('/chat', {
+            documentIds: docIds,
+            managementId: caseId
+          });
+          
+          console.log('Chat response:', chatResponse);
+          
+          if (!(chatResponse.data?.status === 'success') || !chatResponse.data?.data?.chat) {
+            throw new Error(chatResponse.data?.message || 'Failed to create chat');
+          }
+
+          const newChat = chatResponse.data.data.chat;
+          setCurrentChat(newChat);
+
+          // Send first message using the new chat directly
+          messageResponse = await api.post(`/chat/${newChat._id}/messages`, {
+            message: chatInput
+          });
+        } catch (error) {
+          console.error('Error initializing chat:', error);
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: error.message || "I'm sorry, I encountered an error while setting up the chat. Please ensure you have uploaded and processed documents first."
+          }]);
+          return; // Exit early on error
+        }
+      } else {
+        // For subsequent messages, use the existing chat from state
+        messageResponse = await api.post(`/chat/${currentChat._id}/messages`, {
+          message: chatInput
+        });
+      }
+
+      // Handle the message response
+      if (messageResponse?.data?.status === 'success' && messageResponse.data.data.message) {
+        console.log('Message response:', messageResponse.data);
+        setMessages(prev => [...prev, messageResponse.data.data.message]);
+      } else {
+        throw new Error('Invalid message response');
+      }
+
+    } catch (error) {
+      console.error('Chat error:', error);
+      
+      // Get more details about the error
+      if (error.response) {
+        console.error('Error response data:', error.response.data);
+        console.error('Error response status:', error.response.status);
+        console.error('Error response headers:', error.response.headers);
+      }
+      
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: error.response?.data?.message || error.message || "I'm sorry, I encountered an error creating the chat session."
+      }]);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  // Add useEffect for scrolling chat messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
   if (!caseData || !profileData) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -1162,27 +1311,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     return (
       <div className="p-6">
-        <div className="flex items-center justify-between mb-2">
-          <div className="relative w-80">
-            <input
-              type="text"
-              placeholder="Search documents..."
-              className="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all"
-            />
-            <Search className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" />
-          </div>
-          <div className="flex items-center gap-3">
-            <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
-              <Filter className="w-4 h-4" />
-              All Filters
-            </button>
-            <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
-              <SlidersHorizontal className="w-4 h-4" />
-              Sort
-            </button>
-          </div>
-        </div>
-
         {/* Document list and upload sections with enhanced styling */}
         <div className="grid grid-cols-12 gap-6">
           {renderDocumentsList()}
@@ -1654,6 +1782,106 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     );
   };
 
+  // Add chat portal render function
+  const renderChatPortal = () => {
+    return ReactDOM.createPortal(
+      <>
+        {/* Chat Button */}
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowChatPopup(prev => !prev);
+          }}
+          className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-lg hover:opacity-90 transition-opacity z-[9999]"
+          aria-label="Chat with Diana"
+        >
+          <Bot className="w-7 h-7 text-white" />
+        </button>
+        
+        {/* Chat Popup */}
+        {showChatPopup && (
+          <div className="fixed bottom-24 right-8 w-80 md:w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-[9999] max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+                  <span className="text-sm font-medium text-white">D</span>
+                </div>
+                <div>
+                  <h4 className="font-medium">Diana</h4>
+                  <p className="text-xs text-gray-500">AI Assistant</p>
+                </div>
+              </div>
+              <button onClick={() => setShowChatPopup(false)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[300px]">
+              {messages.map((message, index) => (
+                <div 
+                  key={index}
+                  className={`flex items-start gap-3 ${
+                    message.role === 'user' ? 'justify-end' : ''
+                  }`}
+                >
+                  {message.role === 'assistant' && (
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-medium text-white">D</span>
+                    </div>
+                  )}
+                  
+                  <div className={`rounded-lg p-3 max-w-[85%] ${
+                    message.role === 'user' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 text-gray-700'
+                  }`}>
+                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                  </div>
+
+                  {message.role === 'user' && (
+                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-medium text-gray-600">
+                        {getInitials(profileData?.name || 'User')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+
+            <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-200">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder="Ask Diana anything..."
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg pr-12 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
+                  disabled={isSending}
+                />
+                <button 
+                  type="submit"
+                  disabled={isSending || !chatInput.trim()}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-indigo-600 hover:text-indigo-700 disabled:text-gray-400"
+                >
+                  {isSending ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <SendHorizontal className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </>,
+      document.body
+    );
+  };
+
   return (
     <div className="flex h-screen bg-gray-50 rounded-xl">
       <div className="flex flex-col min-w-[320px] bg-white border-r border-gray-200 shadow-sm relative rounded-xl">
@@ -1694,6 +1922,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           </div>
         </div>
       </div>
+      {renderChatPortal()}
     </div>
   );
 };

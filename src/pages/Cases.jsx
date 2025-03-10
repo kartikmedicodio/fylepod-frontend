@@ -67,43 +67,48 @@ const CaseRow = ({ caseItem, onClick }) => (
   </motion.tr>
 );
 
-// Add CasesSkeleton component at the top of the file
+// Update the CasesSkeleton component
 const CasesSkeleton = () => {
   return (
-    <div className="p-6">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="p-6"
+    >
       {/* Header Skeleton */}
-      <div className="mb-6">
-        <div className="h-8 w-24 bg-gray-100 rounded-lg animate-pulse" />
+      <div className="mb-6 flex items-center justify-between">
+        <div className="h-8 w-32 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded-lg animate-shimmer"></div>
+        <div className="h-10 w-28 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded-lg animate-shimmer"></div>
       </div>
 
       {/* Search and Filters Skeleton */}
       <div className="flex items-center gap-4 mb-6">
         <div className="flex-1">
-          <div className="h-10 bg-gray-100 rounded-lg animate-pulse" />
+          <div className="h-10 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded-lg animate-shimmer"></div>
         </div>
-        <div className="h-10 w-24 bg-gray-100 rounded-lg animate-pulse" />
-        <div className="h-10 w-24 bg-gray-100 rounded-lg animate-pulse" />
+        <div className="h-10 w-24 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded-lg animate-shimmer"></div>
+        <div className="h-10 w-24 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded-lg animate-shimmer"></div>
       </div>
 
       {/* Table Skeleton */}
-      <div className="bg-white rounded-lg border border-gray-200">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead>
               <tr className="border-b border-gray-200">
                 {[...Array(7)].map((_, index) => (
                   <th key={index} className="px-6 py-3">
-                    <div className="h-4 bg-gray-100 rounded animate-pulse" />
+                    <div className="h-4 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-shimmer"></div>
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {[...Array(5)].map((_, rowIndex) => (
-                <tr key={rowIndex} className="border-b border-gray-200">
+                <tr key={rowIndex} className="border-b border-gray-100">
                   {[...Array(7)].map((_, colIndex) => (
                     <td key={colIndex} className="px-6 py-4">
-                      <div className="h-4 bg-gray-100 rounded animate-pulse" />
+                      <div className="h-4 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-shimmer"></div>
                     </td>
                   ))}
                 </tr>
@@ -111,18 +116,18 @@ const CasesSkeleton = () => {
             </tbody>
           </table>
         </div>
-      </div>
 
-      {/* Pagination Skeleton */}
-      <div className="mt-4 flex items-center justify-between">
-        <div className="h-4 w-64 bg-gray-100 rounded animate-pulse" />
-        <div className="flex items-center gap-2">
-          {[...Array(3)].map((_, index) => (
-            <div key={index} className="h-8 w-8 bg-gray-100 rounded animate-pulse" />
-          ))}
+        {/* Pagination Skeleton */}
+        <div className="px-6 py-3 border-t border-gray-100 flex justify-between items-center bg-gray-50/80">
+          <div className="h-4 w-64 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-shimmer"></div>
+          <div className="flex items-center gap-2">
+            {[...Array(3)].map((_, index) => (
+              <div key={index} className="h-8 w-8 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-shimmer"></div>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
@@ -138,26 +143,6 @@ const Cases = () => {
   const [error, setError] = useState(null);
   const [loggedInUserDetails, setLoggedInUserDetails] = useState(null);
 
-  // Add effect to fetch logged in user details
-  useEffect(() => {
-    const fetchLoggedInUserDetails = async () => {
-      try {
-        const response = await api.get('/auth/me');
-        if (!response.data || !response.data.data || !response.data.data.user) {
-          throw new Error('No user data received from /auth/me');
-        }
-        const userDetails = response.data.data.user;
-        console.log('Logged in user lawfirm_id:', userDetails.lawfirm_id?._id);
-        setLoggedInUserDetails(userDetails);
-      } catch (error) {
-        console.error('Error fetching logged in user details:', error);
-        setError(error.message);
-      }
-    };
-
-    fetchLoggedInUserDetails();
-  }, []);
-
   const fetchCases = async (page, search = '') => {
     try {
       if (!loggedInUserDetails?.lawfirm_id?._id) {
@@ -165,25 +150,16 @@ const Cases = () => {
         return;
       }
 
-      if (search.trim()) {
-        setSearching(true);
-      } else {
-        setLoading(true);
-      }
-
       const response = await api.get(`/management/all-managements?page=${page}`);
       
       if (response.data.status === 'success') {
         // Filter cases by lawfirm ID
         const allCases = response.data.data.managements.filter(caseItem => {
-          // Check if the case has a lawfirmId that matches the logged-in user's lawfirm
           return caseItem.lawfirmId === loggedInUserDetails.lawfirm_id._id ||
-                 // For backward compatibility, also check if the createdBy user has the same lawfirm
                  caseItem.createdBy?.lawfirm_id?._id === loggedInUserDetails.lawfirm_id._id;
         });
         
         if (search.trim()) {
-          // Filter cases based on search term
           const searchLower = search.toLowerCase();
           const filtered = allCases.filter(caseItem => 
             (caseItem._id && caseItem._id.toLowerCase().includes(searchLower)) ||
@@ -198,7 +174,6 @@ const Cases = () => {
             totalPages: Math.ceil(filtered.length / response.data.data.pagination.limit)
           });
         } else {
-          // If no search term, show all filtered cases with pagination
           setFilteredCases(allCases);
           setPagination({
             ...response.data.data.pagination,
@@ -211,29 +186,85 @@ const Cases = () => {
     } catch (error) {
       console.error('Error fetching cases:', error);
       setError('Error loading cases. Please try again later.');
-    } finally {
-      setLoading(false);
-      setSearching(false);
     }
   };
 
+  // Combined initial data fetch
   useEffect(() => {
-    if (loggedInUserDetails?.lawfirm_id?._id) {
+    let isMounted = true;
+
+    const fetchInitialData = async () => {
+      try {
+        setLoading(true);
+        const userResponse = await api.get('/auth/me');
+        
+        if (!isMounted) return;
+
+        if (!userResponse.data?.data?.user) {
+          throw new Error('No user data received from /auth/me');
+        }
+
+        const userDetails = userResponse.data.data.user;
+        if (!isMounted) return;
+        
+        setLoggedInUserDetails(userDetails);
+
+        if (userDetails.lawfirm_id?._id) {
+          const casesResponse = await api.get('/management/all-managements?page=1');
+          
+          if (!isMounted) return;
+
+          if (casesResponse.data.status === 'success') {
+            const allCases = casesResponse.data.data.managements.filter(caseItem => {
+              return caseItem.lawfirmId === userDetails.lawfirm_id._id ||
+                     caseItem.createdBy?.lawfirm_id?._id === userDetails.lawfirm_id._id;
+            });
+            
+            setFilteredCases(allCases);
+            setPagination({
+              ...casesResponse.data.data.pagination,
+              total: allCases.length,
+              totalPages: Math.ceil(allCases.length / casesResponse.data.data.pagination.limit)
+            });
+            setCases(allCases);
+          }
+        }
+      } catch (error) {
+        if (isMounted) {
+          console.error('Error fetching initial data:', error);
+          setError(error.message);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchInitialData();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!loading && loggedInUserDetails?.lawfirm_id?._id) {
       fetchCases(currentPage);
     }
   }, [currentPage, loggedInUserDetails]);
 
   useEffect(() => {
-    const delayDebounce = setTimeout(() => {
-      if (searchTerm) {
-        fetchCases(1, searchTerm);
-      } else {
-        // Reset to original state when search is cleared
-        fetchCases(1);
-      }
-    }, 300);
+    if (!loading) {
+      const delayDebounce = setTimeout(() => {
+        if (searchTerm) {
+          fetchCases(1, searchTerm);
+        } else {
+          fetchCases(1);
+        }
+      }, 300);
 
-    return () => clearTimeout(delayDebounce);
+      return () => clearTimeout(delayDebounce);
+    }
   }, [searchTerm]);
 
   const handlePageChange = (newPage) => {
@@ -259,12 +290,8 @@ const Cases = () => {
     return <CaseDetails caseId={selectedCase} onBack={handleBackToCases} />;
   }
 
-  if (loading && !searching) {
-    return (
-      <div className="p-6">
-        <CasesSkeleton />
-      </div>
-    );
+  if (loading) {
+    return <CasesSkeleton />;
   }
 
   if (error) {
@@ -272,7 +299,11 @@ const Cases = () => {
       <div className="p-6 text-center">
         <div className="text-red-600 mb-4">Error loading cases: {error}</div>
         <button 
-          onClick={() => fetchCases(currentPage)}
+          onClick={() => {
+            setError(null);
+            setLoading(true);
+            fetchInitialData();
+          }}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
           Retry
