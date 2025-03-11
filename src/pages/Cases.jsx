@@ -233,50 +233,8 @@ const FiltersDropdown = ({
   </div>
 );
 
-// Add new state for sorting
-const [showSortDropdown, setShowSortDropdown] = useState(false);
-const [sortConfig, setSortConfig] = useState({
-  field: '',
-  direction: 'asc'
-});
-
-// Add sort options
-const sortOptions = [
-  { value: 'deadline', label: 'Deadline' },
-  { value: 'caseId', label: 'Case ID' },
-  { value: 'name', label: 'Individual Name' }
-];
-
-// Add sort function
-const handleSort = (field) => {
-  setSortConfig(prev => ({
-    field,
-    direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc'
-  }));
-  setShowSortDropdown(false);
-};
-
-// Add sort dropdown component
-const SortDropdown = () => (
-  <div className="absolute right-0 top-12 w-48 bg-white rounded-lg shadow-lg border border-gray-200 p-2 z-10">
-    {sortOptions.map(option => (
-      <button
-        key={option.value}
-        onClick={() => handleSort(option.value)}
-        className={`w-full text-left px-4 py-2 text-sm rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-between ${
-          sortConfig.field === option.value ? 'text-blue-600 bg-blue-50' : 'text-gray-700'
-        }`}
-      >
-        {option.label}
-        {sortConfig.field === option.value && (
-          <ArrowUpDown className="h-4 w-4" />
-        )}
-      </button>
-    ))}
-  </div>
-);
-
 const Cases = () => {
+  // All useState hooks
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
@@ -288,6 +246,11 @@ const Cases = () => {
   const [error, setError] = useState(null);
   const [loggedInUserDetails, setLoggedInUserDetails] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const [sortConfig, setSortConfig] = useState({
+    field: '',
+    direction: 'asc'
+  });
   const [filters, setFilters] = useState({
     status: '',
     documentStatus: '',
@@ -298,6 +261,17 @@ const Cases = () => {
     documentStatus: '',
     deadline: ''
   });
+
+  // Navigation hooks
+  const navigate = useNavigate();
+  const { setCurrentBreadcrumb } = useBreadcrumb();
+
+  // Constants
+  const sortOptions = [
+    { value: 'deadline', label: 'Deadline' },
+    { value: 'caseId', label: 'Case ID' },
+    { value: 'name', label: 'Individual Name' }
+  ];
 
   const filterOptions = {
     status: [
@@ -317,6 +291,15 @@ const Cases = () => {
       { value: 'thisMonth', label: 'This Month' },
       { value: 'nextMonth', label: 'Next Month' }
     ]
+  };
+
+  // Handler functions
+  const handleSort = (field) => {
+    setSortConfig(prev => ({
+      field,
+      direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+    setShowSortDropdown(false);
   };
 
   const handleFilterChange = (filterType, value) => {
@@ -578,9 +561,6 @@ const Cases = () => {
     setSearchTerm(e.target.value);
     setCurrentPage(1);
   };
-
-  const navigate = useNavigate();
-  const { setCurrentBreadcrumb } = useBreadcrumb();
 
   const handleCaseClick = (caseItem) => {
     setCurrentBreadcrumb([

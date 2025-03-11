@@ -6,25 +6,25 @@ import api from '../utils/api';
 const Dashboard = () => {
   const [notifications, setNotifications] = useState([
     {
-      _id: '1342552',
+      _id: '1342552-1',
       userName: 'Maria Rodriguez',
       message: 'Passport has been received and uploaded',
       date: '04 Aug 2022'
     },
     {
-      _id: '1342552',
+      _id: '1342552-2',
       userName: 'Maria Rodriguez',
       message: 'Passport has been received and uploaded',
       date: '04 Aug 2022'
     },
     {
-      _id: '1342552',
+      _id: '1342552-3',
       userName: 'Maria Rodriguez',
       message: 'Passport has been received and uploaded',
       date: '04 Aug 2022'
     },
     {
-      _id: '1342552',
+      _id: '1342552-4',
       userName: 'Maria Rodriguez',
       message: 'Passport has been received and uploaded',
       date: '04 Aug 2022'
@@ -64,7 +64,7 @@ const Dashboard = () => {
 
   const [recentCases, setRecentCases] = useState([
     {
-      _id: '1342552',
+      _id: '1342552-a',
       userName: 'Maria Rodriguez',
       title: 'Proforma 1: Application Form for Indian Business Visa (For Chinese Nationals)',
       status: {
@@ -75,7 +75,7 @@ const Dashboard = () => {
       }
     },
     {
-      _id: '1342552',
+      _id: '1342552-b',
       userName: 'Maria Rodriguez',
       title: 'G-28: Notice of Entry of Appearance as Attorney or Accredited Representative',
       status: {
@@ -86,7 +86,7 @@ const Dashboard = () => {
       }
     },
     {
-      _id: '1342552',
+      _id: '1342552-c',
       userName: 'Maria Rodriguez',
       title: 'I-129',
       status: {
