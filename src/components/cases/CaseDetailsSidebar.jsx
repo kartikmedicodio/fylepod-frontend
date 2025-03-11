@@ -62,6 +62,22 @@ const CaseDetailsSidebar = ({ caseData, loading, error }) => {
               </div>
             </div>
           </div>
+          <div className="p-3 rounded-lg relative overflow-hidden backdrop-blur-sm border border-slate-100">
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-100/80 via-slate-50/50 to-transparent"></div>
+            <div className="relative flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-slate-600 to-zinc-700 rounded-lg flex items-center justify-center text-white font-semibold shadow-lg">
+                S
+              </div>
+              <div>
+                <h3 className="font-medium text-slate-700 text-sm">Sophia</h3>
+                <p className="text-xs text-gray-600">Support Agent</p>
+                <div className="flex items-center gap-2 text-xs text-slate-600 mt-1">
+                  <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-pulse"></span>
+                  Available for Support
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
