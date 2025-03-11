@@ -23,7 +23,7 @@ const CaseDetailsSidebar = ({ caseData, loading, error }) => {
       <div className="p-4 bg-white mb-4 shadow-sm rounded-xl">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold text-gray-800">AI Agents</h2>
-          <span className="text-xs font-medium bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">2 Active</span>
+          <span className="text-xs font-medium bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">3 Active</span>
         </div>
         
         <div className="space-y-3">
@@ -58,6 +58,24 @@ const CaseDetailsSidebar = ({ caseData, loading, error }) => {
                 <div className="flex items-center gap-2 text-xs text-violet-600 mt-1">
                   <span className="w-1.5 h-1.5 bg-violet-500 rounded-full animate-pulse"></span>
                   Collecting Documents
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sophia - Support Agent */}
+          <div className="p-3 rounded-lg relative overflow-hidden backdrop-blur-sm border border-slate-100">
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-100/80 via-slate-50/50 to-transparent"></div>
+            <div className="relative flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-slate-600 to-zinc-700 rounded-lg flex items-center justify-center text-white font-semibold shadow-lg">
+                S
+              </div>
+              <div>
+                <h3 className="font-medium text-slate-700 text-sm">Sophia</h3>
+                <p className="text-xs text-gray-600">Support Agent</p>
+                <div className="flex items-center gap-2 text-xs text-slate-600 mt-1">
+                  <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-pulse"></span>
+                  Available for Support
                 </div>
               </div>
             </div>
