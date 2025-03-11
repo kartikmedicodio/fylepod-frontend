@@ -513,7 +513,7 @@ const EmployeeProfile = ({ setCurrentBreadcrumb }) => {
                     </div>
 
                     <div>
-                      <label className="block text-sm text-gray-600 mb-1">Email Address</label>
+                      <label className="block text-sm text-gray-600 mb-1">Email</label>
                       <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
                         {basicDetails?.email || basicDetails?.contact?.email || 'N/A'}
                       </div>

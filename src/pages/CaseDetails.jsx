@@ -1870,7 +1870,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           form.getTextField('Date of Issue').setText(processedInfo?.Passport?.dateOfIssue || 'N/A');
           form.getTextField('Date of Expiry').setText(processedInfo?.Passport?.dateOfExpiry || 'N/A');
           form.getTextField('Mobile Phone').setText(processedInfo?.Resume?.cellNumber || 'N/A');
-          form.getTextField('EMail Address').setText(processedInfo?.Resume?.emailId || 'N/A');
+          form.getTextField('EMail').setText(processedInfo?.Resume?.emailId || 'N/A');
           
           // Employment and Education section
           form.getTextField('Name of the Current Employer').setText(

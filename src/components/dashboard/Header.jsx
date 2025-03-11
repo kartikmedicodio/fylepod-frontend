@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Search, Bell, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 import PropTypes from 'prop-types';
 import { usePage } from '../../contexts/PageContext';
@@ -128,20 +128,9 @@ const Header = ({ sidebarCollapsed, onAgentClick }) => {
             </div>
           </div>
 
-          {/* Right section */}
-          <div className="flex items-center space-x-4">
-            {/* Agent Indicator */}
+          {/* Right section - Only keep AgentIndicator */}
+          <div className="flex items-center">
             <AgentIndicator onAgentClick={onAgentClick} />
-
-            {/* Search button */}
-            <button className="p-1.5 bg-transparent hover:bg-white/80 rounded-lg text-black hover:text-blue-600 transition-all duration-200">
-              <Search className="h-4 w-4" />
-            </button>
-
-            {/* Notifications */}
-            <button className="p-1.5 bg-transparent hover:bg-white/80 rounded-lg text-black hover:text-blue-600 transition-all duration-200">
-              <Bell className="h-4 w-4" />
-            </button>
           </div>
         </div>
       </div>
