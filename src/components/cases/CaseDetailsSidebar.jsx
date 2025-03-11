@@ -80,7 +80,7 @@ const CaseDetailsSidebar = ({ caseData, loading, error }) => {
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Case Name</label>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Case</label>
             <div className="text-sm font-medium bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full inline-block">
               {caseData?.categoryName || 'Loading...'}
             </div>
@@ -129,7 +129,7 @@ const CaseDetailsSidebar = ({ caseData, loading, error }) => {
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Email Address</label>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Email</label>
             <div className="text-sm font-medium flex items-center gap-2">
               <Mail size={14} className="text-gray-400" />
               {caseData?.userId?.email || 'Loading...'}

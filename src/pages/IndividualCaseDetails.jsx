@@ -169,6 +169,8 @@ DocumentProgressBar.propTypes = {
 
 const IndividualCaseDetails = () => {
   const { caseId } = useParams();
+  
+  // Group all useState hooks
   const [activeTab, setActiveTab] = useState('case-details');
   const [caseData, setCaseData] = useState(null);
   const [profileData, setProfileData] = useState(null);
@@ -178,11 +180,10 @@ const IndividualCaseDetails = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [messages, setMessages] = useState([{
     role: 'assistant',
-    content: "Hi! I'm Diana, your AI assistant. I can help you with case details, document requirements, and analyze your uploaded documents. How can I assist you today?"
+    content: "Hello! I'm Sophia from support. I'm here to assist you with your case and answer any questions you might have. How can I help you today?"
   }]);
   const [chatInput, setChatInput] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const messagesEndRef = useRef(null);
   const [currentChat, setCurrentChat] = useState(null);
   const [showChatPopup, setShowChatPopup] = useState(false);
   const [questionnaires, setQuestionnaires] = useState([]);
@@ -194,6 +195,23 @@ const IndividualCaseDetails = () => {
     Resume: {}
   });
   const [processingStep, setProcessingStep] = useState(0);
+
+  // Group all useRef hooks
+  const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // Group all useEffect hooks
+  useEffect(() => {
+    if (showChatPopup) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+    }
+  }, [showChatPopup]);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, [messages]);
 
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
@@ -247,7 +265,7 @@ const IndividualCaseDetails = () => {
         setCurrentChat(null);
         setMessages([{
           role: 'assistant',
-          content: "Hi! I'm Diana, your AI assistant. I can help you with case details, document requirements, and analyze your uploaded documents. How can I assist you today?"
+          content: "Hello! I'm Sophia from support. I'm here to assist you with your case and answer any questions you might have. How can I help you today?"
         }]);
       }
 
@@ -411,7 +429,7 @@ const IndividualCaseDetails = () => {
         setCurrentChat(null);
         setMessages([{
           role: 'assistant',
-          content: "Hi! I'm Diana, your AI assistant. I can help you with case details, document requirements, and analyze your uploaded documents. How can I assist you today?"
+          content: "Hello! I'm Sophia from support. I'm here to assist you with your case and answer any questions you might have. How can I help you today?"
         }]);
         
         // If there are successful uploads, initialize chat automatically
@@ -905,8 +923,10 @@ const IndividualCaseDetails = () => {
                 <div className="font-medium">{caseData.categoryStatus}</div>
               </div>
               <div>
-                <div className="text-sm text-gray-500">Last Updated</div>
-                <div className="font-medium">{new Date(caseData.updatedAt).toLocaleDateString()}</div>
+                <div className="text-sm text-gray-500">Deadline</div>
+                <div className="font-medium">
+                  {caseData.deadline ? new Date(caseData.deadline).toLocaleDateString() : '-'}
+                </div>
               </div>
             </div>
           </div>
@@ -915,14 +935,15 @@ const IndividualCaseDetails = () => {
         {/* Right Section - AI Agents */}
         <div className="w-[400px] border-l pl-8">
           <div className="sticky top-5">
-            <div className="flex items-center gap-2 mb-6">
+            <div className="flex items-center gap-2 mb-4"> {/* Reduced margin bottom */}
               <h3 className="text-lg font-semibold">AI Agents</h3>
               <div className="flex h-6 items-center">
-                <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium bg-blue-50 text-blue-700 rounded-full">2 Active</span>
+                <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium bg-blue-50 text-blue-700 rounded-full">3 Active</span>
               </div>
             </div>
             
-            <div className="space-y-5">
+            {/* Added max height and scroll for agents */}
+            <div className="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto pr-4 -mr-4"> {/* Added padding and negative margin for scroll */}
               {/* Fiona - Case Creation Agent */}
               <div className="relative overflow-hidden bg-gradient-to-r from-emerald-50/50 via-emerald-50/30 to-teal-50/50 rounded-2xl p-5 border border-emerald-100/50 shadow-sm">
                 <div className="relative z-10">
@@ -981,6 +1002,44 @@ const IndividualCaseDetails = () => {
                 {/* Decorative Elements */}
                 <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-500/5 to-pink-500/5 rounded-full transform translate-x-16 -translate-y-16"></div>
                 <div className="absolute bottom-0 right-0 w-20 h-20 bg-gradient-to-br from-indigo-500/5 to-pink-500/5 rounded-full transform translate-x-8 translate-y-8"></div>
+              </div>
+
+              {/* Sophia - Support Agent - Updated styling */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-slate-50/80 to-zinc-50/90 rounded-2xl p-5 border border-slate-200/50 shadow-sm">
+                <div className="relative z-10">
+                  <div className="flex items-center gap-4 mb-3">
+                    {/* Updated avatar container */}
+                    <div className="relative">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-slate-700 to-zinc-800 flex items-center justify-center shadow-md">
+                        <span className="text-lg font-semibold text-white">S</span>
+                      </div>
+                      {/* Online indicator */}
+                      <span className="absolute -right-0.5 -bottom-0.5 flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                      </span>
+                    </div>
+                    <div>
+                      <h4 className="text-base font-semibold text-slate-700">
+                        Sophia
+                      </h4>
+                      <p className="text-sm text-slate-500">Support Agent</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                      <span className="text-sm font-medium text-slate-600">
+                        Available for Support
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Updated decorative elements */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-slate-500/5 to-zinc-500/5 rounded-full transform translate-x-16 -translate-y-16"></div>
+                <div className="absolute bottom-0 right-0 w-20 h-20 bg-gradient-to-br from-slate-500/5 to-zinc-500/5 rounded-full transform translate-x-8 translate-y-8"></div>
               </div>
             </div>
           </div>
@@ -1468,86 +1527,109 @@ const IndividualCaseDetails = () => {
   const renderChatPortal = () => {
     return ReactDOM.createPortal(
       <>
-        {/* Chat Button */}
+        {/* Support Chat Button */}
         <button 
           onClick={(e) => {
             e.stopPropagation();
             setShowChatPopup(prev => !prev);
           }}
-          className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-lg hover:opacity-90 transition-opacity z-[9999]"
-          aria-label="Chat with Diana"
+          className="fixed bottom-6 right-6 flex items-center gap-3 pl-4 pr-5 py-3 bg-white rounded-full shadow-[0_4px_20px_rgba(0,0,0,0.15)] hover:shadow-[0_4px_25px_rgba(0,0,0,0.2)] transition-all z-[9999] group hover:-translate-y-0.5 duration-200"
+          aria-label="Chat with Support"
         >
-          <Bot className="w-7 h-7 text-white" />
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-slate-700 to-zinc-800 flex items-center justify-center relative">
+              {/* Subtle pulse effect */}
+              <span className="absolute inset-0 rounded-full bg-slate-700 animate-ping opacity-20"></span>
+              <Bot className="w-5 h-5 text-white relative z-10" />
+            </div>
+            <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 transition-colors">
+              Support Chat
+            </span>
+          </div>
         </button>
         
-        {/* Chat Popup */}
+        {/* Support Chat Popup */}
         {showChatPopup && (
-          <div className="fixed bottom-24 right-8 w-80 md:w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-[9999] max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
-                  <span className="text-sm font-medium text-white">D</span>
+          <div className="fixed bottom-24 right-8 w-[400px] bg-white rounded-2xl shadow-[0_4px_25px_rgba(0,0,0,0.15)] border border-gray-100 z-[9999] max-h-[85vh] flex flex-col overflow-hidden animate-slideUp">
+            {/* Header - Add subtle hover effect on close button */}
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 via-slate-50/80 to-zinc-50/90 border-b border-slate-200/50">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-slate-700 to-zinc-800 flex items-center justify-center shadow-sm transition-transform hover:scale-105">
+                    <span className="text-sm font-semibold text-white">S</span>
+                  </div>
+                  {/* Enhanced online indicator */}
+                  <span className="absolute -right-0.5 -bottom-0.5 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500 ring-2 ring-white"></span>
+                  </span>
                 </div>
                 <div>
-                  <h4 className="font-medium">Diana</h4>
-                  <p className="text-xs text-gray-500">AI Assistant</p>
+                  <h4 className="font-medium text-slate-700">Sophia</h4>
+                  <p className="text-xs text-slate-500">Support Agent • Online</p>
                 </div>
               </div>
-              <button onClick={() => setShowChatPopup(false)} className="text-gray-400 hover:text-gray-600">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <button 
+                onClick={() => setShowChatPopup(false)} 
+                className="p-2 hover:bg-slate-100/50 rounded-full transition-all hover:rotate-90 duration-200"
+              >
+                <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[300px]">
+
+            {/* Add smooth transition for new messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[400px] bg-gradient-to-br from-slate-50/50 via-slate-50/30 to-zinc-50/50">
               {messages.map((message, index) => (
                 <div 
                   key={index}
                   className={`flex items-start gap-3 ${
                     message.role === 'user' ? 'justify-end' : ''
-                  }`}
+                  } animate-fadeIn`}
                 >
                   {message.role === 'assistant' && (
-                    <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-medium text-white">D</span>
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-slate-700 to-zinc-800 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-medium text-white">S</span>
                     </div>
                   )}
                   
-                  <div className={`rounded-lg p-3 max-w-[85%] ${
+                  <div className={`rounded-2xl p-3 max-w-[85%] ${
                     message.role === 'user' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 text-gray-700'
+                      ? 'bg-gradient-to-r from-slate-700 to-zinc-800 text-white shadow-sm' 
+                      : 'bg-white border border-slate-200/50 shadow-sm text-slate-700'
                   }`}>
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
                   </div>
 
                   {message.role === 'user' && (
-                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-medium text-gray-600">
+                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 border border-slate-200">
+                      <span className="text-sm font-medium text-slate-600">
                         {getInitials(profileData?.name || 'User')}
                       </span>
                     </div>
                   )}
                 </div>
               ))}
-              <div ref={messagesEndRef} />
             </div>
 
-            <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-200">
-              <div className="relative">
+            {/* Enhanced input area */}
+            <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-slate-100">
+              <div className="relative group">
                 <input
+                  ref={inputRef}
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Ask Diana anything..."
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg pr-12 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                  placeholder="Type your message here..."
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl pr-12 focus:outline-none focus:ring-2 focus:ring-slate-100 focus:border-slate-300 transition-all group-hover:border-slate-300"
                   disabled={isSending}
+                  autoFocus
                 />
                 <button 
                   type="submit"
                   disabled={isSending || !chatInput.trim()}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-indigo-600 hover:text-indigo-700 disabled:text-gray-400"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-600 hover:text-slate-800 disabled:text-slate-400 transition-all hover:scale-110 active:scale-95"
                 >
                   {isSending ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -1596,7 +1678,7 @@ const IndividualCaseDetails = () => {
                     </div>
                   </div>
                   <div>
-                    <div className="text-sm text-gray-500">Email Address</div>
+                    <div className="text-sm text-gray-500">Email</div>
                     <div className="font-medium">{profileData?.email || '-'}</div>
                   </div>
                 </div>

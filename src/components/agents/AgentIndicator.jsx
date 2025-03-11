@@ -19,7 +19,7 @@ const AgentIndicator = ({ onAgentClick }) => {
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
           </span>
-          <span className="text-xs font-medium">2 agents active</span>
+          <span className="text-xs font-medium">3 agents active</span>
         </div>
         <div className="h-4 w-px bg-white/20"></div>
         <div className="flex -space-x-1">
@@ -37,6 +37,14 @@ const AgentIndicator = ({ onAgentClick }) => {
           >
             <div className="w-5 h-5 rounded-full bg-gradient-to-r from-purple-400 to-pink-400 flex items-center justify-center text-xs font-medium border-2 border-white hover:scale-110 transition-transform">
               F
+            </div>
+          </button>
+          <button
+            onClick={() => handleAgentClick('sophia')} 
+            className="relative group"
+          >
+            <div className="w-5 h-5 rounded-full bg-gradient-to-r from-slate-600 to-zinc-700 flex items-center justify-center text-xs font-medium border-2 border-white hover:scale-110 transition-transform">
+              S
             </div>
           </button>
         </div>
