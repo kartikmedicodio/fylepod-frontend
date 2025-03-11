@@ -577,6 +577,26 @@ const Cases = () => {
     setSelectedCase(null);
   };
 
+  // Define SortDropdown component inside Cases
+  const SortDropdown = () => (
+    <div className="absolute right-0 top-12 w-48 bg-white rounded-lg shadow-lg border border-gray-200 p-2 z-10">
+      {sortOptions.map(option => (
+        <button
+          key={option.value}
+          onClick={() => handleSort(option.value)}
+          className={`w-full text-left px-4 py-2 text-sm rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-between ${
+            sortConfig.field === option.value ? 'text-blue-600 bg-blue-50' : 'text-gray-700'
+          }`}
+        >
+          {option.label}
+          {sortConfig.field === option.value && (
+            <ArrowUpDown className="h-4 w-4" />
+          )}
+        </button>
+      ))}
+    </div>
+  );
+
   if (selectedCase) {
     return <CaseDetails caseId={selectedCase} onBack={handleBackToCases} />;
   }
@@ -645,21 +665,14 @@ const Cases = () => {
           )}
         </div>
         
-        <div className="relative">
-          <button 
-            onClick={() => setShowSortDropdown(!showSortDropdown)}
-            className={`px-4 py-2 text-sm bg-white rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors flex items-center gap-2 ${
-              sortConfig.field ? 'border-blue-500 text-blue-600' : ''
-            }`}
-          >
-            <ArrowUpDown className="h-4 w-4" />
-            Sort
-            {sortConfig.field && (
-              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-            )}
-          </button>
-          {showSortDropdown && <SortDropdown />}
-        </div>
+        {/* Sort button - disabled */}
+        <button 
+          disabled
+          className="px-4 py-2 text-sm bg-gray-100 rounded-lg border border-gray-200 text-gray-400 cursor-not-allowed flex items-center gap-2"
+        >
+          <ArrowUpDown className="h-4 w-4" />
+          Sort
+        </button>
       </div>
 
       {/* Table with integrated pagination */}
