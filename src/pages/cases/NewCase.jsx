@@ -397,6 +397,8 @@ const NewCase = () => {
           lawfirmId: selectedAttorney.lawfirm_id._id,
           userName: selectedCustomer.name,
           categoryName: selectedTemplate.name,
+          caseManagerId: selectedAttorney._id,
+          caseManagerName: selectedAttorney.name,
           documentTypes: selectedDocuments.map(doc => ({
             documentTypeId: doc._id,
             name: doc.name,
