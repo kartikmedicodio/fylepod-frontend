@@ -4,6 +4,8 @@ import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, ArrowUpDown } fro
 import CaseDetails from './CaseDetails';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getStoredUser } from '../utils/auth';
+import { useNavigate } from 'react-router-dom';
+import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 
 // Components
 const SearchBar = ({ value, onChange, isSearching }) => (
@@ -32,7 +34,7 @@ const TableHeader = () => (
     <tr className="border-b border-gray-200">
       {[
         'Case Id', 'Individual Name', 'Case Manager', 'Process Name',
-        'Deadline', 'Document Upload Status', 'Queries Pending'
+        'Deadline', 'Status', 'Documents Pending'
       ].map((header) => (
         <th key={header} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
           {header}
@@ -74,7 +76,18 @@ const CaseRow = ({ caseItem, onClick }) => {
           {caseItem.categoryStatus}
         </span>
       </td>
-      <td className="px-6 py-4 text-sm text-gray-900">-</td>
+      <td className="px-6 py-4 text-sm text-gray-600">
+        {caseItem.documentTypes ? (
+          <span>
+            {(() => {
+              const pendingCount = caseItem.documentTypes.filter(doc => 
+                doc.required && doc.status === 'pending'
+              ).length;
+              return pendingCount === 0 ? '0 (completed)' : pendingCount;
+            })()}
+          </span>
+        ) : '-'}
+      </td>
     </motion.tr>
   );
 };
@@ -143,7 +156,85 @@ const CasesSkeleton = () => {
   );
 };
 
+// Add this component definition before the Cases component
+const FiltersDropdown = ({ 
+  tempFilters, 
+  filterOptions, 
+  handleFilterChange, 
+  handleApplyFilters, 
+  clearAllFilters 
+}) => (
+  <div className="absolute right-0 top-12 w-64 bg-white rounded-lg shadow-lg border border-gray-200 p-4 z-10">
+    <div className="space-y-4">
+      {/* Status Filter */}
+      <div>
+        <label className="text-sm font-medium text-gray-700 block mb-2">Status</label>
+        <select
+          value={tempFilters.status}
+          onChange={(e) => handleFilterChange('status', e.target.value)}
+          className="w-full rounded-md border border-gray-300 py-2 px-3 text-sm"
+        >
+          {filterOptions.status.map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Document Status Filter */}
+      <div>
+        <label className="text-sm font-medium text-gray-700 block mb-2">Document Status</label>
+        <select
+          value={tempFilters.documentStatus}
+          onChange={(e) => handleFilterChange('documentStatus', e.target.value)}
+          className="w-full rounded-md border border-gray-300 py-2 px-3 text-sm"
+        >
+          {filterOptions.documentStatus.map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Deadline Filter */}
+      <div>
+        <label className="text-sm font-medium text-gray-700 block mb-2">Deadline</label>
+        <select
+          value={tempFilters.deadline}
+          onChange={(e) => handleFilterChange('deadline', e.target.value)}
+          className="w-full rounded-md border border-gray-300 py-2 px-3 text-sm"
+        >
+          {filterOptions.deadline.map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex items-center justify-between pt-4 mt-4 border-t border-gray-200">
+        <button
+          onClick={clearAllFilters}
+          className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+        >
+          Clear all
+        </button>
+        <button
+          onClick={handleApplyFilters}
+          className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Apply Filters
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
 const Cases = () => {
+  // All useState hooks
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
@@ -154,6 +245,128 @@ const Cases = () => {
   const [selectedCase, setSelectedCase] = useState(null);
   const [error, setError] = useState(null);
   const [loggedInUserDetails, setLoggedInUserDetails] = useState(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const [sortConfig, setSortConfig] = useState({
+    field: '',
+    direction: 'asc'
+  });
+  const [filters, setFilters] = useState({
+    status: '',
+    documentStatus: '',
+    deadline: ''
+  });
+  const [tempFilters, setTempFilters] = useState({
+    status: '',
+    documentStatus: '',
+    deadline: ''
+  });
+
+  // Navigation hooks
+  const navigate = useNavigate();
+  const { setCurrentBreadcrumb } = useBreadcrumb();
+
+  // Constants
+  const sortOptions = [
+    { value: 'deadline', label: 'Deadline' },
+    { value: 'caseId', label: 'Case ID' },
+    { value: 'name', label: 'Individual Name' }
+  ];
+
+  const filterOptions = {
+    status: [
+      { value: '', label: 'All Status' },
+      { value: 'pending', label: 'Pending' },
+      { value: 'completed', label: 'Completed' },
+      { value: 'processing', label: 'Processing' }
+    ],
+    documentStatus: [
+      { value: '', label: 'All Document Status' },
+      { value: 'pending', label: 'Documents Pending' },
+      { value: 'complete', label: 'Documents Complete' }
+    ],
+    deadline: [
+      { value: '', label: 'All Deadlines' },
+      { value: 'thisWeek', label: 'This Week' },
+      { value: 'thisMonth', label: 'This Month' },
+      { value: 'nextMonth', label: 'Next Month' }
+    ]
+  };
+
+  // Handler functions
+  const handleSort = (field) => {
+    setSortConfig(prev => ({
+      field,
+      direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+    setShowSortDropdown(false);
+  };
+
+  const handleFilterChange = (filterType, value) => {
+    setTempFilters(prev => ({
+      ...prev,
+      [filterType]: value
+    }));
+  };
+
+  const handleApplyFilters = () => {
+    setFilters(tempFilters);
+    setShowFilters(false);
+  };
+
+  const clearAllFilters = () => {
+    const emptyFilters = {
+      status: '',
+      documentStatus: '',
+      deadline: ''
+    };
+    setTempFilters(emptyFilters);
+    setFilters(emptyFilters);
+    setShowFilters(false);
+  };
+
+  const applyFilters = (cases) => {
+    return cases.filter(caseItem => {
+      if (filters.status && caseItem.categoryStatus !== filters.status) {
+        return false;
+      }
+
+      if (filters.documentStatus) {
+        const pendingDocs = caseItem.documentTypes?.filter(
+          doc => doc.required && doc.status === 'pending'
+        ).length;
+        
+        if (filters.documentStatus === 'pending' && pendingDocs === 0) {
+          return false;
+        }
+        if (filters.documentStatus === 'complete' && pendingDocs > 0) {
+          return false;
+        }
+      }
+
+      if (filters.deadline) {
+        const deadline = new Date(caseItem.deadline);
+        const today = new Date();
+        const weekEnd = new Date(today);
+        weekEnd.setDate(today.getDate() + 7);
+        const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+
+        switch (filters.deadline) {
+          case 'thisWeek':
+            return deadline <= weekEnd;
+          case 'thisMonth':
+            return deadline <= monthEnd;
+          case 'nextMonth':
+            return deadline > monthEnd && deadline <= nextMonthEnd;
+          default:
+            return true;
+        }
+      }
+
+      return true;
+    });
+  };
 
   const fetchCases = async (page, search = '') => {
     try {
@@ -281,6 +494,63 @@ const Cases = () => {
     }
   }, [searchTerm]);
 
+  useEffect(() => {
+    if (!cases.length) return;
+
+    let filtered = [...cases];
+
+    // Apply search filter
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter(caseItem =>
+        (caseItem._id && caseItem._id.toLowerCase().includes(searchLower)) ||
+        (caseItem.userName && caseItem.userName.toLowerCase().includes(searchLower)) ||
+        (caseItem.name && caseItem.name.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // Apply other filters
+    filtered = applyFilters(filtered);
+
+    // Apply sorting
+    if (sortConfig.field) {
+      filtered.sort((a, b) => {
+        let aValue, bValue;
+        
+        switch (sortConfig.field) {
+          case 'deadline':
+            aValue = new Date(a.deadline || 0).getTime();
+            bValue = new Date(b.deadline || 0).getTime();
+            break;
+          case 'caseId':
+            aValue = a._id || '';
+            bValue = b._id || '';
+            break;
+          case 'name':
+            aValue = a.userName || '';
+            bValue = b.userName || '';
+            break;
+          default:
+            return 0;
+        }
+
+        if (sortConfig.direction === 'asc') {
+          return aValue > bValue ? 1 : -1;
+        } else {
+          return aValue < bValue ? 1 : -1;
+        }
+      });
+    }
+
+    setFilteredCases(filtered);
+  }, [cases, searchTerm, filters, sortConfig]);
+
+  useEffect(() => {
+    if (showFilters) {
+      setTempFilters(filters);
+    }
+  }, [showFilters]);
+
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pagination?.totalPages) {
       setCurrentPage(newPage);
@@ -293,6 +563,13 @@ const Cases = () => {
   };
 
   const handleCaseClick = (caseItem) => {
+    setCurrentBreadcrumb([
+      { name: 'All Cases', path: '/individual-cases' },
+      { name: `Case ${caseItem._id.substring(0, 6)}`, path: `/cases/${caseItem._id}` }
+    ]);
+
+    navigate(`/cases/${caseItem._id}`);
+
     setSelectedCase(caseItem._id);
   };
 
@@ -344,15 +621,45 @@ const Cases = () => {
       <div className="flex items-center gap-4 mb-6">
         <SearchBar value={searchTerm} onChange={handleSearch} isSearching={searching} />
         
-        <button className="px-4 py-2 text-sm bg-white rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors flex items-center gap-2">
-          <SlidersHorizontal className="h-4 w-4" />
-          Filters
-        </button>
+        <div className="relative">
+          <button 
+            onClick={() => setShowFilters(!showFilters)}
+            className={`px-4 py-2 text-sm bg-white rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors flex items-center gap-2 ${
+              Object.values(filters).some(v => v) ? 'border-blue-500 text-blue-600' : ''
+            }`}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            Filters
+            {Object.values(filters).some(v => v) && (
+              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+            )}
+          </button>
+          {showFilters && (
+            <FiltersDropdown
+              tempFilters={tempFilters}
+              filterOptions={filterOptions}
+              handleFilterChange={handleFilterChange}
+              handleApplyFilters={handleApplyFilters}
+              clearAllFilters={clearAllFilters}
+            />
+          )}
+        </div>
         
-        <button className="px-4 py-2 text-sm bg-white rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors flex items-center gap-2">
-          <ArrowUpDown className="h-4 w-4" />
-          Sort
-        </button>
+        <div className="relative">
+          <button 
+            onClick={() => setShowSortDropdown(!showSortDropdown)}
+            className={`px-4 py-2 text-sm bg-white rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors flex items-center gap-2 ${
+              sortConfig.field ? 'border-blue-500 text-blue-600' : ''
+            }`}
+          >
+            <ArrowUpDown className="h-4 w-4" />
+            Sort
+            {sortConfig.field && (
+              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+            )}
+          </button>
+          {showSortDropdown && <SortDropdown />}
+        </div>
       </div>
 
       {/* Table with integrated pagination */}
@@ -367,7 +674,7 @@ const Cases = () => {
               <tr className="bg-gray-50 border-b border-gray-200">
                 {[
                   'Case Id', 'Individual Name', 'Case Manager', 'Process Name',
-                  'Deadline', 'Document Upload Status', 'Queries Pending'
+                  'Deadline', 'Status', 'Documents Pending'
                 ].map((header) => (
                   <th key={header} className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">
                     {header}
@@ -422,7 +729,18 @@ const Cases = () => {
                             {caseItem.categoryStatus}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">-</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          {caseItem.documentTypes ? (
+                            <span>
+                              {(() => {
+                                const pendingCount = caseItem.documentTypes.filter(doc => 
+                                  doc.required && doc.status === 'pending'
+                                ).length;
+                                return pendingCount === 0 ? '0 (completed)' : pendingCount;
+                              })()}
+                            </span>
+                          ) : '-'}
+                        </td>
                       </motion.tr>
                     );
                   })

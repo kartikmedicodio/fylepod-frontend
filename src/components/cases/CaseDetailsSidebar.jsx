@@ -62,25 +62,36 @@ const CaseDetailsSidebar = ({ caseData, loading, error }) => {
               </div>
             </div>
           </div>
+          <div className="p-3 rounded-lg relative overflow-hidden backdrop-blur-sm border border-slate-100">
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-100/80 via-slate-50/50 to-transparent"></div>
+            <div className="relative flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-slate-600 to-zinc-700 rounded-lg flex items-center justify-center text-white font-semibold shadow-lg">
+                S
+              </div>
+              <div>
+                <h3 className="font-medium text-slate-700 text-sm">Sophia</h3>
+                <p className="text-xs text-gray-600">Support Agent</p>
+                <div className="flex items-center gap-2 text-xs text-slate-600 mt-1">
+                  <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-pulse"></span>
+                  Available for Support
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Case Details Section */}
-      <div className="p-6 bg-white mb-4 shadow-sm rounded-xl">
+      {/* Merged Case Details & Profile Section */}
+      <div className="p-6 bg-white mb-4 shadow-sm rounded-xl border border-gray-100/50">
         <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 text-gray-800">
           <Folder className="text-blue-600" size={20} />
           Case Details
         </h2>
+        
         <div className="space-y-5">
+          {/* Case Related Information */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Case Applicant</label>
-            <div className="text-sm font-medium flex items-center gap-2">
-              <User size={14} className="text-gray-400" />
-              {caseData?.userName || 'Loading...'}
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Case Name</label>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Case</label>
             <div className="text-sm font-medium bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full inline-block">
               {caseData?.categoryName || 'Loading...'}
             </div>
@@ -105,31 +116,16 @@ const CaseDetailsSidebar = ({ caseData, loading, error }) => {
               {new Date(caseData?.updatedAt).toLocaleDateString() || 'Loading...'}
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Profile Section */}
-      <div className="p-6 mb-4 rounded-xl bg-white shadow-sm border border-gray-100/50">
-        <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 text-gray-800">
-          <User className="text-blue-600" size={20} />
-          Profile
-        </h2>
-        <div className="space-y-5">
-          <div className="flex justify-center mb-6">
-            <div className="w-28 h-28 rounded-full bg-gradient-to-br from-blue-50 to-gray-100 border-4 border-white shadow-xl flex items-center justify-center relative">
-              <User size={32} className="text-gray-500" />
-              <div className="absolute bottom-0 right-0 w-6 h-6 bg-green-500 rounded-full border-2 border-white"></div>
-            </div>
-          </div>
+          {/* Personal Information */}
           <div>
             <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Name</label>
-            <div className="text-sm font-medium flex items-center gap-2">
-              <User size={14} className="text-gray-400" />
+            <div className="text-sm font-medium">
               {caseData?.userId?.name || 'Loading...'}
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Email Address</label>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Email</label>
             <div className="text-sm font-medium flex items-center gap-2">
               <Mail size={14} className="text-gray-400" />
               {caseData?.userId?.email || 'Loading...'}

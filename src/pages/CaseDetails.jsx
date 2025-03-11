@@ -24,13 +24,16 @@ import {
   ChevronLeft,
   Download,
   Bot,
-  SendHorizontal
+  SendHorizontal,
+  Eye
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
 import CaseDetailsSidebar from '../components/cases/CaseDetailsSidebar';
 import { PDFDocument } from 'pdf-lib';
 import ReactDOM from 'react-dom';
+import CrossVerificationTab from '../components/cases/CrossVerificationTab';
+import ValidationTab from '../components/cases/ValidationTab';
 
 
 // Add a new status type to track document states
@@ -163,13 +166,24 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   // Add new state variables for chat functionality
   const [messages, setMessages] = useState([{
     role: 'assistant',
-    content: "Hi! I'm Diana, your AI assistant. I can help you with case details, document requirements, and analyze your uploaded documents. How can I assist you today?"
+    content: "Hello! I'm Sophia from support. I'm here to assist you with your case and answer any questions you might have. How can I help you today?"
   }]);
   const [chatInput, setChatInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef(null);
   const [currentChat, setCurrentChat] = useState(null);
   const [showChatPopup, setShowChatPopup] = useState(false);
+
+  const [verificationData, setVerificationData] = useState(null);
+  const [isLoadingVerification, setIsLoadingVerification] = useState(false);
+  const [selectedSubTab, setSelectedSubTab] = useState('all');
+
+  // Add these to the existing state declarations in CaseDetails component
+  const [validationData, setValidationData] = useState(null);
+  const [isLoadingValidation, setIsLoadingValidation] = useState(false);
+
+  // Add inputRef with other refs near the top of the component
+  const inputRef = useRef(null);
 
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
@@ -498,10 +512,10 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         setCurrentChat(null);
         setMessages([{
           role: 'assistant',
-          content: "Hi! I'm Diana, your AI assistant. I can help you with case details, document requirements, and analyze your uploaded documents. How can I assist you today?"
+          content: "Hello! I'm Sophia from support. I'm here to assist you with your case and answer any questions you might have. How can I help you today?"
         }]);
         
-        // If there are successful uploads, initialize chat automatically
+        // Initialize chat automatically
         try {
           // Get case details
           const caseResponse = await api.get(`/management/${caseId}`);
@@ -578,6 +592,11 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       }
 
       setFiles([]);
+
+      // If any documents were uploaded successfully, refresh validation data
+      if (successfulUploads > 0) {
+        await fetchValidationData();
+      }
     } catch (err) {
       console.error('Error in file upload process:', err);
       toast.error('Error processing documents');
@@ -588,12 +607,38 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     }
   };
 
+  // Add this function near the top of the component
+  const fetchValidationData = async () => {
+    try {
+      setIsLoadingValidation(true);
+      const response = await api.get(`/documents/management/${caseId}/validations`);
+      if (response.data.status === 'success') {
+        setValidationData(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching validation data:', error);
+      toast.error('Failed to load validation data');
+    } finally {
+      setIsLoadingValidation(false);
+    }
+  };
+
   useEffect(() => {
     const fetchCaseDetails = async () => {
       try {
         const response = await api.get(`/management/${caseId}`);
         if (response.data.status === 'success') {
           setCaseData(response.data.data.entry);
+          
+          // Check if there are any uploaded or approved documents
+          const hasUploadedDocuments = response.data.data.entry.documentTypes.some(
+            doc => doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
+          );
+
+          // If there are uploaded documents, fetch validation data
+          if (hasUploadedDocuments) {
+            await fetchValidationData();
+          }
         }
       } catch (error) {
         console.error('Error fetching case details:', error);
@@ -614,10 +659,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     const fetchQuestionnaires = async () => {
       try {
         const response = await api.get('/questionnaires');
-        console.log("response.data",response.data.data.templates);
         if (response.data.status === 'success') {
           setQuestionnaires(response.data.data.templates);
-
         }
       } catch (error) {
         console.error('Error fetching questionnaires:', error);
@@ -643,7 +686,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     fetchProfileData();
     fetchQuestionnaires();
     fetchForms();
-  }, [caseId]);
+  }, [caseId]); // Note: fetchValidationData is stable since it uses caseId from closure
 
   useEffect(() => {
     if (questionnaireData?.responses?.[0]?.processedInformation) {
@@ -957,23 +1000,47 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  if (!caseData || !profileData) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
+  // First, add a function to check if all documents are uploaded
+  const areAllDocumentsUploaded = () => {
+    if (!caseData?.documentTypes) return false;
+    return caseData.documentTypes.every(doc => 
+      doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
     );
-  }
+  };
+
+  // Add useEffect to monitor document upload status and trigger cross verification
+  useEffect(() => {
+    const loadCrossVerificationData = async () => {
+      if (areAllDocumentsUploaded() && !verificationData && !isLoadingVerification) {
+        try {
+          setIsLoadingVerification(true);
+          const response = await api.get(`/management/${caseId}/cross-verify`);
+          if (response.data.status === 'success') {
+            setVerificationData(response.data.data);
+          }
+        } catch (error) {
+          console.error('Error fetching verification data:', error);
+          toast.error('Failed to load verification data');
+        } finally {
+          setIsLoadingVerification(false);
+        }
+      }
+    };
+
+    loadCrossVerificationData();
+  }, [caseData]); // Add caseData as dependency to monitor document status changes
 
   // Update the ProgressSteps component
   const ProgressSteps = () => {
-    // Check if all documents are approved
-    const allDocumentsApproved = checkAllDocumentsApproved(caseData.documentTypes);
+    // Add null checks when accessing documentTypes
+    const allDocumentsApproved = caseData?.documentTypes ? 
+      checkAllDocumentsApproved(caseData.documentTypes) : 
+      false;
     
     // Check if preparation is complete (questionnaire completed and in forms tab)
     const isPreparationComplete = activeTab === 'forms' && isQuestionnaireCompleted;
 
-    // Define steps with dynamic completion status (removed Filing step)
+    // Define steps with dynamic completion status
     const steps = [
       { name: 'Case Started', completed: true },
       { name: 'Data Collection', completed: true },
@@ -984,7 +1051,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     return (
       <div className="flex items-center justify-center w-full py-8 bg-gradient-to-r from-slate-50 to-white">
         <div className="flex items-center justify-between max-w-5xl w-full px-8 relative">
-          {/* AI Agent Animation Line */}
+          {/* Rest of the component remains the same */}
           <div className="absolute top-[20px] left-0 h-[3px] bg-gradient-to-r from-blue-600/20 to-blue-600/20 w-full">
             <div 
               className="h-full bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700"
@@ -1135,16 +1202,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         uploadStatus === DOCUMENT_STATUS.UPLOADED ? 'col-span-12' : 'col-span-8'
       } bg-white rounded-lg border border-gray-200 p-6`}>
         <div className="flex gap-2 mb-6 border-b border-gray-100 pb-4">
-          <button 
-            onClick={() => setUploadStatus(DOCUMENT_STATUS.PENDING)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              uploadStatus === DOCUMENT_STATUS.PENDING
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            Upload Pending ({pendingDocuments.length})
-          </button>
+          
           <button 
             onClick={() => setUploadStatus(DOCUMENT_STATUS.UPLOADED)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -1154,6 +1212,16 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             }`}
           >
             Uploaded ({uploadedDocuments.length})
+          </button>
+          <button 
+            onClick={() => setUploadStatus(DOCUMENT_STATUS.PENDING)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              uploadStatus === DOCUMENT_STATUS.PENDING
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            Upload Pending ({pendingDocuments.length})
           </button>
         </div>
 
@@ -1383,56 +1451,123 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       )
     );
 
-    const renderQuestionnaire = () => (
-      <div className="w-1/3">
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="mb-4">
-            <div className="flex items-center justify-between">
-              <h4 className="font-medium text-sm">Questionnaire</h4>
-              <div className="text-blue-600 text-sm">53/70</div>
-            </div>
-            <div className="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full bg-blue-600 rounded-full" style={{ width: '75%' }}></div>
-            </div>
-          </div>
 
-          <div className="space-y-4">
-            <div>
-              <div className="text-sm text-gray-500 mb-1">Salutation</div>
-              <div className="font-medium">Mr</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500 mb-1">First Name</div>
-              <div className="font-medium">John</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500 mb-1">Middle Name</div>
-              <div className="font-medium">Michael</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500 mb-1">Last Name</div>
-              <div className="font-medium">Doe</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500 mb-1">Nationality</div>
-              <div className="font-medium">American</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500 mb-1">Email Address</div>
-              <div className="font-medium">John@mail.com</div>
-            </div>
-          </div>
+    // Sub-tabs navigation component
+    const SubTabNavigation = () => {
+      const allDocsUploaded = areAllDocumentsUploaded();
+
+      return (
+        <div className="mb-6 flex items-center gap-2">
+          {[
+            { id: 'all', label: 'All' },
+            { id: 'extracted-data', label: 'Extracted data' },
+            { id: 'validation', label: 'Validation' },
+            { 
+              id: 'cross-verification', 
+              label: 'Cross Verification',
+              disabled: !allDocsUploaded 
+            }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => {
+                if (!tab.disabled) {
+                  setSelectedSubTab(tab.id);
+                }
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                selectedSubTab === tab.id
+                  ? 'bg-blue-600 text-white'
+                  : tab.disabled
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+              disabled={tab.disabled}
+              title={tab.disabled ? 'Upload all documents to enable cross verification' : ''}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
-      </div>
-    );
+      );
+    };
+
+    // Render content based on selected sub-tab
+    const renderSubTabContent = () => {
+      const allDocsUploaded = areAllDocumentsUploaded();
+
+      switch (selectedSubTab) {
+        case 'all':
+          return (
+            <div className="grid grid-cols-12 gap-6">
+              {renderDocumentsList()}
+              {renderSmartUpload()}
+            </div>
+          );
+        case 'extracted-data':
+          return (
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <p className="text-gray-500 text-sm text-center">Extracted data content will be implemented soon</p>
+            </div>
+          );
+        case 'validation':
+          return <ValidationTab 
+            caseId={caseId} 
+            validationData={validationData}
+            isLoading={isLoadingValidation}
+          />;
+        case 'cross-verification':
+          if (!allDocsUploaded) {
+            return (
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <div className="flex flex-col items-center justify-center py-8">
+                  <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                    <AlertCircle className="w-6 h-6 text-gray-400" />
+                  </div>
+                  <p className="text-gray-500 text-sm text-center">
+                    Please upload all documents to enable cross verification
+                  </p>
+                </div>
+              </div>
+            );
+          }
+          return <CrossVerificationTab 
+            isLoading={isLoadingVerification} 
+            verificationData={verificationData} 
+          />;
+        default:
+          return null;
+      }
+    };
 
     return (
       <div className="p-6">
-        {/* Document list and upload sections with enhanced styling */}
-        <div className="grid grid-cols-12 gap-6">
-          {renderDocumentsList()}
-          {renderSmartUpload()}
+        {/* Search and Filter Section */}
+        <div className="mb-6 flex items-center justify-between">
+          <div className="relative w-64">
+            <input
+              type="text"
+              placeholder="Search..."
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+            />
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          </div>
+          <div className="flex items-center gap-2">
+            <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
+              <Filter className="w-4 h-4" />
+              All Filters
+            </button>
+            <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
+              Sort
+            </button>
+          </div>
         </div>
+
+        {/* Sub-tabs Navigation */}
+        <SubTabNavigation />
+
+        {/* Sub-tab Content */}
+        {renderSubTabContent()}
       </div>
     );
   };
@@ -1738,7 +1873,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           form.getTextField('Date of Issue').setText(processedInfo?.Passport?.dateOfIssue || 'N/A');
           form.getTextField('Date of Expiry').setText(processedInfo?.Passport?.dateOfExpiry || 'N/A');
           form.getTextField('Mobile Phone').setText(processedInfo?.Resume?.cellNumber || 'N/A');
-          form.getTextField('EMail Address').setText(processedInfo?.Resume?.emailId || 'N/A');
+          form.getTextField('EMail').setText(processedInfo?.Resume?.emailId || 'N/A');
           
           // Employment and Education section
           form.getTextField('Name of the Current Employer').setText(
@@ -1903,63 +2038,84 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const renderChatPortal = () => {
     return ReactDOM.createPortal(
       <>
-        {/* Chat Button */}
+        {/* Support Chat Button */}
         <button 
           onClick={(e) => {
             e.stopPropagation();
             setShowChatPopup(prev => !prev);
           }}
-          className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-lg hover:opacity-90 transition-opacity z-[9999]"
-          aria-label="Chat with Diana"
+          className="fixed bottom-6 right-6 flex items-center gap-3 pl-4 pr-5 py-3 bg-white rounded-full shadow-[0_4px_20px_rgba(0,0,0,0.15)] hover:shadow-[0_4px_25px_rgba(0,0,0,0.2)] transition-all z-[9999] group hover:-translate-y-0.5 duration-200"
+          aria-label="Chat with Support"
         >
-          <Bot className="w-7 h-7 text-white" />
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-slate-700 to-zinc-800 flex items-center justify-center relative">
+              {/* Subtle pulse effect */}
+              <span className="absolute inset-0 rounded-full bg-slate-700 animate-ping opacity-20"></span>
+              <Bot className="w-5 h-5 text-white relative z-10" />
+            </div>
+            <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 transition-colors">
+              Support Chat
+            </span>
+          </div>
         </button>
-        
-        {/* Chat Popup */}
+
+        {/* Support Chat Popup */}
         {showChatPopup && (
-          <div className="fixed bottom-24 right-8 w-80 md:w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-[9999] max-h-[80vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
-                  <span className="text-sm font-medium text-white">D</span>
+          <div className="fixed bottom-24 right-8 w-[400px] bg-white rounded-2xl shadow-[0_4px_25px_rgba(0,0,0,0.15)] border border-gray-100 z-[9999] max-h-[85vh] flex flex-col overflow-hidden animate-slideUp">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 via-slate-50/80 to-zinc-50/90 border-b border-slate-200/50">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-slate-700 to-zinc-800 flex items-center justify-center shadow-sm transition-transform hover:scale-105">
+                    <span className="text-sm font-semibold text-white">S</span>
+                  </div>
+                  {/* Online indicator */}
+                  <span className="absolute -right-0.5 -bottom-0.5 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500 ring-2 ring-white"></span>
+                  </span>
                 </div>
                 <div>
-                  <h4 className="font-medium">Diana</h4>
-                  <p className="text-xs text-gray-500">AI Assistant</p>
+                  <h4 className="font-medium text-slate-700">Sophia</h4>
+                  <p className="text-xs text-slate-500">Support Agent • Online</p>
                 </div>
               </div>
-              <button onClick={() => setShowChatPopup(false)} className="text-gray-400 hover:text-gray-600">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <button 
+                onClick={() => setShowChatPopup(false)} 
+                className="p-2 hover:bg-slate-100/50 rounded-full transition-all hover:rotate-90 duration-200"
+              >
+                <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[300px]">
+
+            {/* Messages Area */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[400px] bg-gradient-to-br from-slate-50/50 via-slate-50/30 to-zinc-50/50">
               {messages.map((message, index) => (
                 <div 
                   key={index}
                   className={`flex items-start gap-3 ${
                     message.role === 'user' ? 'justify-end' : ''
-                  }`}
+                  } animate-fadeIn`}
                 >
                   {message.role === 'assistant' && (
-                    <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-medium text-white">D</span>
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-slate-700 to-zinc-800 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-medium text-white">S</span>
                     </div>
                   )}
                   
-                  <div className={`rounded-lg p-3 max-w-[85%] ${
+                  <div className={`rounded-2xl p-3 max-w-[85%] ${
                     message.role === 'user' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 text-gray-700'
+                      ? 'bg-gradient-to-r from-slate-700 to-zinc-800 text-white shadow-sm' 
+                      : 'bg-white border border-slate-200/50 shadow-sm text-slate-700'
                   }`}>
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
                   </div>
 
                   {message.role === 'user' && (
-                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-medium text-gray-600">
+                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 border border-slate-200">
+                      <span className="text-sm font-medium text-slate-600">
                         {getInitials(profileData?.name || 'User')}
                       </span>
                     </div>
@@ -1969,20 +2125,23 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               <div ref={messagesEndRef} />
             </div>
 
-            <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-200">
-              <div className="relative">
+            {/* Input Area */}
+            <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-slate-100">
+              <div className="relative group">
                 <input
+                  ref={inputRef}
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Ask Diana anything..."
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg pr-12 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
+                  placeholder="Type your message here..."
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl pr-12 focus:outline-none focus:ring-2 focus:ring-slate-100 focus:border-slate-300 transition-all group-hover:border-slate-300"
                   disabled={isSending}
+                  autoFocus
                 />
                 <button 
                   type="submit"
                   disabled={isSending || !chatInput.trim()}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-indigo-600 hover:text-indigo-700 disabled:text-gray-400"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-600 hover:text-slate-800 disabled:text-slate-400 transition-all hover:scale-110 active:scale-95"
                 >
                   {isSending ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -1998,6 +2157,28 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       document.body
     );
   };
+
+  // Also add useEffect for input focus
+  useEffect(() => {
+    if (showChatPopup) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+    }
+  }, [showChatPopup]);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, [messages]);
+
+  // First add back the loading check that was accidentally removed
+  if (!caseData || !profileData) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-gray-50 rounded-xl">

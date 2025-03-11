@@ -403,7 +403,7 @@ const IndividualCases = () => {
                   </div>
                 </th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase">
-                  Queries Pending
+                Documents Pending
                 </th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-500 uppercase">
                   Agents Working
@@ -446,7 +446,7 @@ const IndividualCases = () => {
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-base font-semibold inline-block bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-transparent bg-clip-text">
-                        2 agents active
+                        3 agents active
                       </span>
                     </td>
                   </tr>

@@ -43,10 +43,10 @@ const App = () => {
           },
         }}
       />
-      <Router>
-        <AuthProvider>
-          <PageProvider>
-            <BreadcrumbProvider>
+      <BreadcrumbProvider>
+        <Router>
+          <AuthProvider>
+            <PageProvider>
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/*" element={
@@ -89,10 +89,10 @@ const App = () => {
                   </PrivateRoute>
                 } />
               </Routes>
-            </BreadcrumbProvider>
-          </PageProvider>
-        </AuthProvider>
-      </Router>
+            </PageProvider>
+          </AuthProvider>
+        </Router>
+      </BreadcrumbProvider>
     </>
   );
 };
