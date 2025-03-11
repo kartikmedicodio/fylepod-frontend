@@ -32,6 +32,8 @@ import api from '../utils/api';
 import CaseDetailsSidebar from '../components/cases/CaseDetailsSidebar';
 import { PDFDocument } from 'pdf-lib';
 import ReactDOM from 'react-dom';
+import CrossVerificationTab from '../components/cases/CrossVerificationTab';
+import ValidationTab from '../components/cases/ValidationTab';
 
 
 // Add a new status type to track document states
@@ -171,6 +173,14 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const messagesEndRef = useRef(null);
   const [currentChat, setCurrentChat] = useState(null);
   const [showChatPopup, setShowChatPopup] = useState(false);
+
+  const [verificationData, setVerificationData] = useState(null);
+  const [isLoadingVerification, setIsLoadingVerification] = useState(false);
+  const [selectedSubTab, setSelectedSubTab] = useState('all');
+
+  // Add these to the existing state declarations in CaseDetails component
+  const [validationData, setValidationData] = useState(null);
+  const [isLoadingValidation, setIsLoadingValidation] = useState(false);
 
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
@@ -579,6 +589,11 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       }
 
       setFiles([]);
+
+      // If any documents were uploaded successfully, refresh validation data
+      if (successfulUploads > 0) {
+        await fetchValidationData();
+      }
     } catch (err) {
       console.error('Error in file upload process:', err);
       toast.error('Error processing documents');
@@ -589,12 +604,38 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     }
   };
 
+  // Add this function near the top of the component
+  const fetchValidationData = async () => {
+    try {
+      setIsLoadingValidation(true);
+      const response = await api.get(`/documents/management/${caseId}/validations`);
+      if (response.data.status === 'success') {
+        setValidationData(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching validation data:', error);
+      toast.error('Failed to load validation data');
+    } finally {
+      setIsLoadingValidation(false);
+    }
+  };
+
   useEffect(() => {
     const fetchCaseDetails = async () => {
       try {
         const response = await api.get(`/management/${caseId}`);
         if (response.data.status === 'success') {
           setCaseData(response.data.data.entry);
+          
+          // Check if there are any uploaded or approved documents
+          const hasUploadedDocuments = response.data.data.entry.documentTypes.some(
+            doc => doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
+          );
+
+          // If there are uploaded documents, fetch validation data
+          if (hasUploadedDocuments) {
+            await fetchValidationData();
+          }
         }
       } catch (error) {
         console.error('Error fetching case details:', error);
@@ -615,10 +656,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     const fetchQuestionnaires = async () => {
       try {
         const response = await api.get('/questionnaires');
-        console.log("response.data",response.data.data.templates);
         if (response.data.status === 'success') {
           setQuestionnaires(response.data.data.templates);
-
         }
       } catch (error) {
         console.error('Error fetching questionnaires:', error);
@@ -644,7 +683,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     fetchProfileData();
     fetchQuestionnaires();
     fetchForms();
-  }, [caseId]);
+  }, [caseId]); // Note: fetchValidationData is stable since it uses caseId from closure
 
   useEffect(() => {
     if (questionnaireData?.responses?.[0]?.processedInformation) {
@@ -966,24 +1005,39 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     );
   };
 
+  // Add useEffect to monitor document upload status and trigger cross verification
+  useEffect(() => {
+    const loadCrossVerificationData = async () => {
+      if (areAllDocumentsUploaded() && !verificationData && !isLoadingVerification) {
+        try {
+          setIsLoadingVerification(true);
+          const response = await api.get(`/management/${caseId}/cross-verify`);
+          if (response.data.status === 'success') {
+            setVerificationData(response.data.data);
+          }
+        } catch (error) {
+          console.error('Error fetching verification data:', error);
+          toast.error('Failed to load verification data');
+        } finally {
+          setIsLoadingVerification(false);
+        }
+      }
+    };
 
-  if (!caseData || !profileData) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
+    loadCrossVerificationData();
+  }, [caseData]); // Add caseData as dependency to monitor document status changes
 
   // Update the ProgressSteps component
   const ProgressSteps = () => {
-    // Check if all documents are approved
-    const allDocumentsApproved = checkAllDocumentsApproved(caseData.documentTypes);
+    // Add null checks when accessing documentTypes
+    const allDocumentsApproved = caseData?.documentTypes ? 
+      checkAllDocumentsApproved(caseData.documentTypes) : 
+      false;
     
     // Check if preparation is complete (questionnaire completed and in forms tab)
     const isPreparationComplete = activeTab === 'forms' && isQuestionnaireCompleted;
 
-    // Define steps with dynamic completion status (removed Filing step)
+    // Define steps with dynamic completion status
     const steps = [
       { name: 'Case Started', completed: true },
       { name: 'Data Collection', completed: true },
@@ -994,7 +1048,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     return (
       <div className="flex items-center justify-center w-full py-8 bg-gradient-to-r from-slate-50 to-white">
         <div className="flex items-center justify-between max-w-5xl w-full px-8 relative">
-          {/* AI Agent Animation Line */}
+          {/* Rest of the component remains the same */}
           <div className="absolute top-[20px] left-0 h-[3px] bg-gradient-to-r from-blue-600/20 to-blue-600/20 w-full">
             <div 
               className="h-full bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700"
@@ -1117,9 +1171,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
   // Enhanced document checklist
   const DocumentsChecklistTab = () => {
-    // Add state for sub-tabs
-    const [selectedSubTab, setSelectedSubTab] = useState('all');
-
     const pendingDocuments = caseData.documentTypes.filter(doc => doc.status === DOCUMENT_STATUS.PENDING);
     const uploadedDocuments = caseData.documentTypes.filter(
       doc => doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
@@ -1416,7 +1467,11 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           ].map(tab => (
             <button
               key={tab.id}
-              onClick={() => !tab.disabled && setSelectedSubTab(tab.id)}
+              onClick={() => {
+                if (!tab.disabled) {
+                  setSelectedSubTab(tab.id);
+                }
+              }}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 selectedSubTab === tab.id
                   ? 'bg-blue-600 text-white'
@@ -1453,11 +1508,11 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             </div>
           );
         case 'validation':
-          return (
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <p className="text-gray-500 text-sm text-center">Validation content will be implemented soon</p>
-            </div>
-          );
+          return <ValidationTab 
+            caseId={caseId} 
+            validationData={validationData}
+            isLoading={isLoadingValidation}
+          />;
         case 'cross-verification':
           if (!allDocsUploaded) {
             return (
@@ -1473,8 +1528,10 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               </div>
             );
           }
-          // Only render CrossVerificationTab when this tab is selected
-          return <CrossVerificationTab key="cross-verification" />;
+          return <CrossVerificationTab 
+            isLoading={isLoadingVerification} 
+            verificationData={verificationData} 
+          />;
         default:
           return null;
       }
@@ -2074,6 +2131,15 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     );
   };
 
+  // First add back the loading check that was accidentally removed
+  if (!caseData || !profileData) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-gray-50 rounded-xl">
       <div className="flex flex-col min-w-[320px] bg-white border-r border-gray-200 shadow-sm relative rounded-xl">
@@ -2121,106 +2187,4 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
 export default CaseDetails;
 
-// Add this new component for cross-verification
-const CrossVerificationTab = () => {
-  const { caseId } = useParams();
-  const [verificationData, setVerificationData] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedError, setSelectedError] = useState(null);
 
-  useEffect(() => {
-    const fetchVerificationData = async () => {
-      try {
-        setIsLoading(true);
-        const response = await api.get(`/management/${caseId}/cross-verify`);
-        if (response.data.status === 'success') {
-          setVerificationData(response.data.data);
-        }
-      } catch (error) {
-        console.error('Error fetching verification data:', error);
-        toast.error('Failed to load verification data');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchVerificationData();
-  }, [caseId]);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
-
-
-
-  return (
-    <div >
-      {/* Cross Verification Content */}
-      <div className="space-y-6">
-        {/* Mismatch Errors Section */}
-        <div className="bg-white rounded-lg border border-gray-200">
-          <div className="p-4 border-b border-gray-200">
-            <h3 className="text-base font-semibold text-gray-900">Mismatch errors</h3>
-          </div>
-          <div className="divide-y divide-gray-200">
-            {verificationData?.verificationResults.mismatchErrors.map((error, index) => (
-              <div key={index} className="p-4">
-                <div className="mb-4">
-                  <h4 className="text-sm font-medium text-gray-900 mb-3">{error.type}</h4>
-                  <div className="flex flex-wrap items-center gap-3">
-                    {Object.entries(error.details).map(([document, value], idx) => (
-                      <div key={idx} className="inline-flex items-center bg-gray-50 px-3 py-2 rounded-lg">
-                        <span className="text-sm font-medium text-gray-500 mr-2">{document}:</span>
-                        <span className="text-base text-gray-900">{value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Missing Errors Section */}
-        <div className="bg-white rounded-lg border border-gray-200">
-          <div className="p-4 border-b border-gray-200">
-            <h3 className="text-base font-semibold text-gray-900">Missing errors</h3>
-          </div>
-          <div className="divide-y divide-gray-200">
-            {verificationData?.verificationResults.missingErrors.map((error, index) => (
-              <div key={index} className="p-4">
-                <div className="mb-4">
-                  <h4 className="text-sm font-medium text-gray-900 mb-2">{error.type}</h4>
-                  <p className="text-base text-gray-700 bg-gray-50 p-3 rounded-lg">{error.details}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Summarization Errors Section */}
-        <div className="bg-white rounded-lg border border-gray-200">
-          <div className="p-4 border-b border-gray-200">
-            <h3 className="text-base font-semibold text-gray-900">Summarization errors</h3>
-          </div>
-          <div className="divide-y divide-gray-200">
-            {verificationData?.verificationResults.summarizationErrors.map((error, index) => (
-              <div key={index} className="p-4">
-                <div className="mb-4">
-                  <h4 className="text-sm font-medium text-gray-900 mb-2">{error.type}</h4>
-                  <p className="text-base text-gray-700 bg-gray-50 p-3 rounded-lg">{error.details}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Update the renderSubTabContent function to include the new CrossVerificationTab
