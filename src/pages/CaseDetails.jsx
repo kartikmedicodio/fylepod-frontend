@@ -34,6 +34,7 @@ import { PDFDocument } from 'pdf-lib';
 import ReactDOM from 'react-dom';
 import CrossVerificationTab from '../components/cases/CrossVerificationTab';
 import ValidationTab from '../components/cases/ValidationTab';
+import ExtractedDataTab from '../components/cases/ExtractedDataTab';
 
 
 // Add a new status type to track document states
@@ -184,6 +185,11 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
   // Add inputRef with other refs near the top of the component
   const inputRef = useRef(null);
+
+  // Add these state variables in CaseDetails component near other state declarations
+  const [extractedData, setExtractedData] = useState(null);
+  const [isLoadingExtractedData, setIsLoadingExtractedData] = useState(false);
+  const [extractedDataError, setExtractedDataError] = useState(null);
 
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
@@ -623,6 +629,23 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     }
   };
 
+  // Add this function with other data fetching functions in useEffect
+  const fetchExtractedData = async () => {
+    try {
+      setIsLoadingExtractedData(true);
+      const response = await api.get(`/documents/management/${caseId}/extracted-data`);
+      if (response.data.status === 'success') {
+        setExtractedData(response.data.data.extractedData);
+      }
+    } catch (error) {
+      console.error('Error fetching extracted data:', error);
+      setExtractedDataError('Failed to load extracted data');
+      toast.error('Failed to load extracted data');
+    } finally {
+      setIsLoadingExtractedData(false);
+    }
+  };
+
   useEffect(() => {
     const fetchCaseDetails = async () => {
       try {
@@ -635,9 +658,12 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             doc => doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
           );
 
-          // If there are uploaded documents, fetch validation data
+          // If there are uploaded documents, fetch validation and extracted data
           if (hasUploadedDocuments) {
-            await fetchValidationData();
+            await Promise.all([
+              fetchValidationData(),
+              fetchExtractedData()
+            ]);
           }
         }
       } catch (error) {
@@ -1505,11 +1531,11 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             </div>
           );
         case 'extracted-data':
-          return (
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <p className="text-gray-500 text-sm text-center">Extracted data content will be implemented soon</p>
-            </div>
-          );
+          return <ExtractedDataTab 
+            extractedData={extractedData}
+            isLoading={isLoadingExtractedData}
+            error={extractedDataError}
+          />;
         case 'validation':
           return <ValidationTab 
             caseId={caseId} 
