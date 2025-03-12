@@ -2,42 +2,27 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Building2, 
-  Mail, 
-  Phone, 
-  Globe, 
-  User,
-  Loader2,
-  ArrowLeft
+  Phone,
+  User
 } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from 'sonner';
 import PropTypes from 'prop-types';
+import { useAuth } from '../contexts/AuthContext';
+import Select from 'react-select';
 
 const NewCompany = ({ setCurrentBreadcrumb }) => {
   const navigate = useNavigate();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { user } = useAuth();
+  const [attorneys, setAttorneys] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
-    registrationNumber: '',
-    taxId: '',
-    industry: '',
-    email: '',
-    phone: '',
-    website: '',
-    address: {
-      streetNumber: '',
-      streetName: '',
-      city: '',
-      stateProvince: '',
-      postalCode: '',
-      country: 'United States'
-    },
-    contactPerson: {
-      name: '',
-      position: '',
-      email: '',
-      phone: ''
-    }
+    contactName: '',
+    phoneNumber: '',
+    assignedAttorney: '',
+    address: ''
   });
 
   // Set breadcrumb on mount
@@ -50,6 +35,44 @@ const NewCompany = ({ setCurrentBreadcrumb }) => {
     }
   }, [setCurrentBreadcrumb]);
 
+  // Format attorneys for react-select
+  const attorneyOptions = attorneys
+    .filter(attorney => {
+      const userLawFirmId = user?.lawfirm_id?._id;
+      return !userLawFirmId || String(attorney?.lawfirm_id?._id) === String(userLawFirmId);
+    })
+    .map(attorney => ({
+      value: attorney._id,
+      label: attorney.name
+    }));
+
+  // Fetch attorneys on mount
+  useEffect(() => {
+    const fetchAttorneys = async () => {
+      setLoading(true);
+      try {
+        const response = await api.get('/auth/attorneys');
+        if (response?.data?.status === 'success') {
+          const allAttorneys = response.data.data.attorneys || [];
+          const userLawFirmId = user?.lawfirm_id?._id;
+          const filteredAttorneys = allAttorneys.filter(attorney => {
+            const attorneyLawFirmId = attorney?.lawfirm_id?._id;
+            return attorneyLawFirmId === userLawFirmId;
+          });
+          setAttorneys(filteredAttorneys);
+        }
+      } catch (error) {
+        toast.error('Failed to fetch attorneys');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user?.id) {
+      fetchAttorneys();
+    }
+  }, [user]);
+
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
       ...prev,
@@ -57,386 +80,289 @@ const NewCompany = ({ setCurrentBreadcrumb }) => {
     }));
   };
 
-  const handleAddressChange = (field, value) => {
+  const handleAttorneySelect = (selectedOption) => {
     setFormData(prev => ({
       ...prev,
-      address: {
-        ...prev.address,
-        [field]: value
-      }
+      assignedAttorney: selectedOption ? selectedOption.value : ''
     }));
   };
 
-  const handleContactChange = (field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      contactPerson: {
-        ...prev.contactPerson,
-        [field]: value
-      }
-    }));
+  const isFormValid = () => {
+    return (
+      formData.name.trim() !== '' &&
+      formData.contactName.trim() !== '' &&
+      formData.phoneNumber.trim() !== '' &&
+      formData.assignedAttorney !== '' &&
+      formData.address.trim() !== ''
+    );
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    setLoading(true);
 
     try {
-      const response = await api.post('/companies', formData);
+      const payload = {
+        company_name: formData.name,
+        contact_name: formData.contactName,
+        phone_number: formData.phoneNumber,
+        company_address: formData.address,
+        attorney_id: formData.assignedAttorney,
+        attorney_name: attorneys.find(a => a._id === formData.assignedAttorney)?.name || '',
+        lawfirm_id: user?.lawfirm_id?._id,
+        lawfirm_name: user?.lawfirm_name || user?.lawfirm_id?.lawfirm_name
+      };
+
+      const response = await api.post('/companies/create', payload);
       
-      if (response.data.status === 'success') {
-        toast.success('Company created successfully');
-        navigate(`/companies/${response.data.data.company._id}`);
+      if (response.data.success) {
+        setShowSuccess(true);
+        setTimeout(() => {
+          navigate(`/companies/${response.data.data._id}/admin/new`);
+        }, 1500);
       } else {
         throw new Error(response.data.message || 'Failed to create company');
       }
     } catch (error) {
-      console.error('Error creating company:', error);
       toast.error(error.response?.data?.message || error.message || 'Failed to create company');
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-5xl">
-      <div className="mb-6 flex items-center">
-        <button 
-          onClick={() => navigate(-1)}
-          className="mr-4 p-2 rounded-full hover:bg-gray-100 transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5 text-gray-600" />
-        </button>
-        <h1 className="text-2xl font-semibold text-gray-800">Register New Company</h1>
-      </div>
+    <div className="container mx-auto p-6 max-w-4xl">
+      {/* Success Overlay */}
+      {showSuccess && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 flex flex-col items-center animate-fade-in">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+              <svg 
+                className="w-10 h-10 text-green-500" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth="2" 
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Company Created!</h2>
+            <p className="text-gray-600">{formData.name} has been added successfully</p>
+          </div>
+        </div>
+      )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-6 border-b border-gray-200 bg-gray-50">
-          <h2 className="text-lg font-medium text-gray-800">Company Information</h2>
-          <p className="text-sm text-gray-500">Enter details about the company</p>
+      {/* Attorney Selection Card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="p-3 bg-indigo-50 rounded-lg">
+            <User className="w-6 h-6 text-indigo-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-medium text-gray-900">Attorney Details</h2>
+            <p className="text-sm text-gray-500">Select the attorney for this company</p>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Company Details */}
-            <div className="space-y-6 md:col-span-2">
-              <h3 className="text-md font-medium text-gray-700">Basic Details</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Company Name <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Building2 className="h-5 w-5 text-gray-400" />
-                    </div>
+        <div className="relative">
+          <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+            Select Attorney
+            {!formData.assignedAttorney && <span className="text-rose-500 text-lg leading-none">*</span>}
+          </label>
+          <Select
+            value={formData.assignedAttorney ? attorneyOptions.find(opt => opt.value === formData.assignedAttorney) : null}
+            onChange={handleAttorneySelect}
+            options={attorneyOptions}
+            isLoading={loading}
+            isClearable
+            isSearchable
+            placeholder="Search and select attorney..."
+            noOptionsMessage={() => "No attorneys found"}
+            className={`react-select-container ${!formData.assignedAttorney ? 'select-error' : ''}`}
+            classNamePrefix="react-select"
+            styles={{
+              control: (base, state) => ({
+                ...base,
+                minHeight: '42px',
+                borderColor: !formData.assignedAttorney ? '#FCA5A5' : state.isFocused ? '#6366F1' : '#E5E7EB',
+                boxShadow: state.isFocused ? '0 0 0 2px rgba(99, 102, 241, 0.2)' : 'none',
+                '&:hover': {
+                  borderColor: state.isFocused ? '#6366F1' : !formData.assignedAttorney ? '#EF4444' : '#CBD5E1'
+                }
+              }),
+              placeholder: (base) => ({
+                ...base,
+                color: !formData.assignedAttorney ? '#EF4444' : '#94A3B8'
+              }),
+              option: (base, state) => ({
+                ...base,
+                backgroundColor: state.isSelected ? '#4F46E5' : state.isFocused ? '#EEF2FF' : base.backgroundColor,
+                ':active': {
+                  backgroundColor: '#4F46E5'
+                }
+              }),
+              menu: (base) => ({
+                ...base,
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                borderRadius: '8px'
+              })
+            }}
+          />
+          {attorneyOptions.length === 0 && !loading && (
+            <div className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <span className="text-amber-600 text-sm font-medium">No Attorneys Available</span>
+                <p className="text-sm text-amber-700 mt-0.5">
+                  There are no attorneys available. Please contact your administrator to add attorneys.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Main Form Card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div className="p-6">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="p-3 bg-indigo-50 rounded-lg">
+              <Building2 className="w-6 h-6 text-indigo-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-medium text-gray-900">Company Details</h2>
+              <p className="text-sm text-gray-500">Enter the company&apos;s information</p>
+            </div>
+          </div>
+
+          <div className="flex items-start space-x-6">
+            {/* Company Logo */}
+            <div className="flex-shrink-0">
+              <div className="w-28 h-28 bg-gradient-to-b from-gray-50 to-gray-100 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center">
+                <Building2 className="w-12 h-12 text-gray-400" />
+              </div>
+            </div>
+
+            {/* Form Fields */}
+            <div className="flex-grow">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Company Name */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                      Company Name
+                      {!formData.name.trim() && <span className="text-rose-500 text-lg leading-none">*</span>}
+                    </label>
                     <input
                       type="text"
                       value={formData.name}
                       onChange={(e) => handleInputChange('name', e.target.value)}
-                      className="pl-10 block w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="Acme Corporation"
+                      placeholder="Enter company name"
                       required
+                      className={`block w-full rounded-lg border ${
+                        !formData.name.trim() ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
+                      } py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors`}
                     />
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Registration Number
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.registrationNumber}
-                    onChange={(e) => handleInputChange('registrationNumber', e.target.value)}
-                    className="block w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="REG12345678"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tax ID / EIN
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.taxId}
-                    onChange={(e) => handleInputChange('taxId', e.target.value)}
-                    className="block w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="XX-XXXXXXX"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Industry
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.industry}
-                    onChange={(e) => handleInputChange('industry', e.target.value)}
-                    className="block w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="Technology, Healthcare, etc."
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Contact Information */}
-            <div className="space-y-6 md:col-span-2">
-              <h3 className="text-md font-medium text-gray-700">Contact Information</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Mail className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => handleInputChange('email', e.target.value)}
-                      className="pl-10 block w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="company@example.com"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Phone Number <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Phone className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
-                      type="tel"
-                      value={formData.phone}
-                      onChange={(e) => handleInputChange('phone', e.target.value)}
-                      className="pl-10 block w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="(123) 456-7890"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Website
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Globe className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
-                      type="url"
-                      value={formData.website}
-                      onChange={(e) => handleInputChange('website', e.target.value)}
-                      className="pl-10 block w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="https://www.example.com"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Address */}
-            <div className="space-y-6 md:col-span-2">
-              <h3 className="text-md font-medium text-gray-700">Address</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                <div className="md:col-span-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Street No
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.address.streetNumber}
-                    onChange={(e) => handleAddressChange('streetNumber', e.target.value)}
-                    className="block w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="123"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Street Name
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.address.streetName}
-                    onChange={(e) => handleAddressChange('streetName', e.target.value)}
-                    className="block w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="Main St"
-                  />
-                </div>
-
-                <div className="md:col-span-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    City <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.address.city}
-                    onChange={(e) => handleAddressChange('city', e.target.value)}
-                    className="block w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="New York"
-                    required
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    State/Province <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.address.stateProvince}
-                    onChange={(e) => handleAddressChange('stateProvince', e.target.value)}
-                    className="block w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="NY"
-                    required
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Postal Code <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.address.postalCode}
-                    onChange={(e) => handleAddressChange('postalCode', e.target.value)}
-                    className="block w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="10001"
-                    required
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Country <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.address.country}
-                    onChange={(e) => handleAddressChange('country', e.target.value)}
-                    className="block w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="United States"
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Primary Contact Person */}
-            <div className="space-y-6 md:col-span-2">
-              <h3 className="text-md font-medium text-gray-700">Primary Contact Person</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Contact Name <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <User className="h-5 w-5 text-gray-400" />
-                    </div>
+                  {/* Contact Name */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                      Contact Name
+                      {!formData.contactName.trim() && <span className="text-rose-500 text-lg leading-none">*</span>}
+                    </label>
                     <input
                       type="text"
-                      value={formData.contactPerson.name}
-                      onChange={(e) => handleContactChange('name', e.target.value)}
-                      className="pl-10 block w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="John Doe"
+                      value={formData.contactName}
+                      onChange={(e) => handleInputChange('contactName', e.target.value)}
+                      placeholder="Enter contact name"
                       required
+                      className={`block w-full rounded-lg border ${
+                        !formData.contactName.trim() ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
+                      } py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors`}
                     />
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Position/Title
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.contactPerson.position}
-                    onChange={(e) => handleContactChange('position', e.target.value)}
-                    className="block w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="CEO, Manager, etc."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Contact Email <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Mail className="h-5 w-5 text-gray-400" />
-                    </div>
-                    <input
-                      type="email"
-                      value={formData.contactPerson.email}
-                      onChange={(e) => handleContactChange('email', e.target.value)}
-                      className="pl-10 block w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="contact@example.com"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Contact Phone <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Phone className="h-5 w-5 text-gray-400" />
-                    </div>
+                  {/* Phone Number */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                      Phone Number
+                      {!formData.phoneNumber.trim() && <span className="text-rose-500 text-lg leading-none">*</span>}
+                    </label>
                     <input
                       type="tel"
-                      value={formData.contactPerson.phone}
-                      onChange={(e) => handleContactChange('phone', e.target.value)}
-                      className="pl-10 block w-full rounded-md border border-gray-300 py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="(123) 456-7890"
+                      value={formData.phoneNumber}
+                      onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
+                      placeholder="Enter phone number"
                       required
+                      className={`block w-full rounded-lg border ${
+                        !formData.phoneNumber.trim() ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
+                      } py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors`}
+                    />
+                  </div>
+
+                  {/* Company Address */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                      Company Address
+                      {!formData.address.trim() && <span className="text-rose-500 text-lg leading-none">*</span>}
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.address}
+                      onChange={(e) => handleInputChange('address', e.target.value)}
+                      placeholder="Enter company address"
+                      required
+                      className={`block w-full rounded-lg border ${
+                        !formData.address.trim() ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
+                      } py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors`}
                     />
                   </div>
                 </div>
-              </div>
+
+                {/* Action Buttons */}
+                <div className="pt-6 mt-6 border-t border-gray-100 flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/dashboard')}
+                    className="px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading || !isFormValid()}
+                    className={`px-4 py-2.5 text-sm font-medium text-white border border-transparent rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all ${
+                      isFormValid()
+                        ? 'bg-indigo-600 hover:bg-indigo-700'
+                        : 'bg-indigo-100 text-indigo-400 cursor-not-allowed'
+                    }`}
+                  >
+                    {loading ? (
+                      <span className="flex items-center">
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          />
+                        </svg>
+                        Saving...
+                      </span>
+                    ) : (
+                      'Save Company'
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
-
-          <div className="mt-8 flex justify-end">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 mr-3"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="animate-spin h-4 w-4 mr-2" />
-                  Creating...
-                </>
-              ) : (
-                'Create Company'
-              )}
-            </button>
-          </div>
-        </form>
+        </div>
       </div>
     </div>
   );

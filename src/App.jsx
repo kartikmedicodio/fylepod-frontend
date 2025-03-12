@@ -20,6 +20,7 @@ import Profile from './pages/Profile';
 import NewCompany from './pages/NewCompany';
 import NewEmployee from './pages/NewEmployee';
 import NewIndividual from './pages/NewIndividual';
+import NewCorpAdmin from './pages/NewCorpAdmin';
 import { useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 
@@ -78,6 +79,7 @@ const App = () => {
                         
                         {/* New Customer Routes */}
                         <Route path="/company/new" element={<NewCompany setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
+                        <Route path="/companies/:companyId/admin/new" element={<NewCorpAdmin setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
                         <Route path="/employee/new" element={<NewEmployee setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
                         <Route path="/individual/new" element={<NewIndividual setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
                         
