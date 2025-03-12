@@ -114,7 +114,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
         section: 'Clients',
         items: [
           { name: 'Corporations', href: '/corporations', icon: Building2 },
-          { name: 'Individuals', href: '/individuals', icon: Users, disabled: true },
+          { name: 'Individuals', href: '/individuals', icon: Users },
         ]
       },
       {
