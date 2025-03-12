@@ -23,6 +23,8 @@ import NewIndividual from './pages/NewIndividual';
 import NewCorpAdmin from './pages/NewCorpAdmin';
 import { useState } from 'react';
 import { Toaster } from 'react-hot-toast';
+import Individuals from './pages/Individuals';
+import IndividualDetails from './pages/IndividualDetails';
 
 // Update HomeRedirect component to redirect to dashboard
 const HomeRedirect = () => {
@@ -76,6 +78,10 @@ const App = () => {
                         <Route path="/corporations/:corporationId" element={<CorporationDetails setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
                         <Route path="/corporations/:corporationId/employee/:employeeId" element={<EmployeeProfile setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
                         <Route path="/corporations/:corporationId/employee/:employeeId/case/:caseId" element={<CaseDetails setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
+                        
+                        {/* Individual Routes */}
+                        <Route path="/individuals" element={<Individuals setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
+                        <Route path="/individuals/:individualId" element={<IndividualDetails setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
                         
                         {/* New Customer Routes */}
                         <Route path="/company/new" element={<NewCompany setCurrentBreadcrumb={setCurrentBreadcrumb} />} />
