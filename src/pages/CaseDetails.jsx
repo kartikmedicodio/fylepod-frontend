@@ -2180,6 +2180,232 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     );
   }
 
+  // Add this new component within CaseDetails.jsx
+  const ProfileTab = ({ profileData }) => {
+    if (!profileData) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        </div>
+      );
+    }
+
+    return (
+      <div className="p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* First column - Employee Details (keep as is) */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold">Employee Details</h2>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Full Name</label>
+                <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                  {profileData.name || 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Gender</label>
+                <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                  {profileData.sex || 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Date of Birth</label>
+                <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                  {profileData.birthInfo?.dateOfBirth 
+                    ? new Date(profileData.birthInfo.dateOfBirth).toLocaleDateString() 
+                    : 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Place of Birth</label>
+                <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                  {profileData.birthInfo?.cityOfBirth && profileData.birthInfo?.countryOfBirth
+                    ? `${profileData.birthInfo.cityOfBirth}, ${profileData.birthInfo.countryOfBirth}`
+                    : 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Email</label>
+                <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                  {profileData.email || profileData.contact?.email || 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Mobile Phone</label>
+                <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                  {profileData.contact?.mobileNumber || 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Residence Phone</label>
+                <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                  {profileData.contact?.residencePhone || 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Address</label>
+                <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                  {profileData.address ? (
+                    <>
+                      {profileData.address.floorAptSuite && `${profileData.address.floorAptSuite}, `}
+                      {profileData.address.streetNumber && `${profileData.address.streetNumber} `}
+                      {profileData.address.streetName && `${profileData.address.streetName}, `}
+                      {profileData.address.city && `${profileData.address.city}, `}
+                      {profileData.address.stateProvince && `${profileData.address.stateProvince}, `}
+                      {profileData.address.country && `${profileData.address.country} `}
+                      {profileData.address.zipCode && profileData.address.zipCode}
+                    </>
+                  ) : 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Company</label>
+                <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                  {profileData.company_name || 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Law Firm</label>
+                <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                  {profileData.lawfirm_name || 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Role</label>
+                <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                  {profileData.role || 'N/A'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Second column - Passport, Education, and Work History */}
+          <div className="space-y-6">
+            {/* Passport Details (keep existing passport section) */}
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold mb-4">Passport Details</h2>
+              {profileData.passport ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Passport Number</label>
+                    <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                      {profileData.passport.number || 'N/A'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Passport Type</label>
+                    <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                      {profileData.passport.passportType || 'N/A'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Date of Issue</label>
+                    <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                      {profileData.passport.dateOfIssue ? new Date(profileData.passport.dateOfIssue).toLocaleDateString() : 'N/A'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Date of Expiry</label>
+                    <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                      {profileData.passport.dateOfExpiry ? new Date(profileData.passport.dateOfExpiry).toLocaleDateString() : 'N/A'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Place of Issue</label>
+                    <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                      {profileData.passport.placeOfIssue || 'N/A'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Issued By</label>
+                    <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                      {profileData.passport.issuedBy || 'N/A'}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4 text-gray-500">
+                  No passport information available
+                </div>
+              )}
+            </div>
+
+            {/* Education History */}
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold mb-6">Education History</h2>
+              <div className="space-y-4">
+                {profileData?.educationHistory && profileData.educationHistory.length > 0 ? (
+                  profileData.educationHistory.map((edu, index) => (
+                    <div key={index} className="p-4 border border-gray-200 rounded-lg">
+                      <div className="font-medium">
+                        {edu.courseLevel} in {edu.specialization}
+                      </div>
+                      <div className="text-sm text-gray-600">{edu.institution}</div>
+                      <div className="text-sm text-gray-500">GPA: {edu.gpa || 'N/A'}</div>
+                      <div className="text-sm text-gray-500">
+                        Graduated: {edu.passoutYear ? new Date(edu.passoutYear).toLocaleDateString() : 'N/A'}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm text-gray-500 text-center py-4">
+                    No education history available
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Work History */}
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold mb-6">Work History</h2>
+              <div className="space-y-4">
+                {profileData?.workHistory && profileData.workHistory.length > 0 ? (
+                  profileData.workHistory.map((exp, index) => (
+                    <div key={index} className="p-4 border border-gray-200 rounded-lg">
+                      <div className="font-medium">{exp.jobTitle}</div>
+                      <div className="text-sm text-gray-600">{exp.companyName}</div>
+                      <div className="text-sm text-gray-500">
+                        {exp.fromDate ? new Date(exp.fromDate).toLocaleDateString() : 'N/A'} - 
+                        {exp.toDate ? new Date(exp.toDate).toLocaleDateString() : 'Present'}
+                      </div>
+                      {exp.description && (
+                        <div className="text-sm text-gray-600 mt-2">{exp.description}</div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm text-gray-500 text-center py-4">
+                    No work history available
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // In the main return statement, add the ProfileTab to the tab content section
   return (
     <div className="flex h-screen bg-gray-50 rounded-xl">
       <div className="flex flex-col min-w-[320px] bg-white border-r border-gray-200 shadow-sm relative rounded-xl">
@@ -2213,6 +2439,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           <TabNavigation />
           
           <div className="max-w-7xl mx-auto">
+            {activeTab === 'profile' && <ProfileTab profileData={profileData} />}
             {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
             {activeTab === 'questionnaire' && <QuestionnaireTab />}
             {activeTab === 'forms' && <FormsTab />}
