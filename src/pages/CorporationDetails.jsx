@@ -435,13 +435,13 @@ const CorporationDetails = ({ setCurrentBreadcrumb }) => {
                       type="text"
                       className="w-full p-2.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 
                                focus:border-blue-500 transition-all duration-200"
-                      value={editedCorporation?.assigned_attorney || ''}
-                      onChange={(e) => handleInputChange('assigned_attorney', e.target.value)}
+                      value={editedCorporation?.attorney_name || ''}
+                      onChange={(e) => handleInputChange('attorney_name', e.target.value)}
                     />
                   ) : (
                     <div className="text-sm font-medium p-2.5 border border-gray-200 rounded-lg 
                                   bg-gray-50/50 transition-colors hover:bg-gray-50">
-                      {corporation?.assigned_attorney}
+                      {corporation?.attorney_name}
                     </div>
                   )}
                 </div>

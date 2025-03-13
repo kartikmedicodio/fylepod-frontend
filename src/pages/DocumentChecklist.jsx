@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
-import { Search, Edit, Plus, Clock } from 'lucide-react';
+import { Search, Edit, Plus, Clock, CheckCircle, XCircle } from 'lucide-react';
 import api from '../utils/api';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import EditChecklistModal from '../components/modals/EditChecklistModal';
@@ -11,6 +11,7 @@ const DocumentChecklist = ({ setCurrentBreadcrumb }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [category, setCategory] = useState(null);
+  const [masterDocuments, setMasterDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -19,8 +20,27 @@ const DocumentChecklist = ({ setCurrentBreadcrumb }) => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   useEffect(() => {
-    fetchCategoryDetails();
-  }, [id]);
+    if (selectedCategory === 'Process Template') {
+      fetchCategoryDetails();
+    } else if (selectedCategory === 'Master Document List') {
+      fetchMasterDocuments();
+    }
+  }, [id, selectedCategory]);
+
+  const fetchMasterDocuments = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/masterdocuments');
+      if (response.data.status === 'success') {
+        setMasterDocuments(response.data.data.masterDocuments);
+      }
+    } catch (err) {
+      setError('Failed to fetch master documents');
+      console.error('Error fetching master documents:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchCategoryDetails = async (showLoading = true) => {
     try {
@@ -50,7 +70,7 @@ const DocumentChecklist = ({ setCurrentBreadcrumb }) => {
   const sidebarCategories = [
     { id: 'kb', name: 'Knowledge Base', path: '/knowledge', clickable: true },
     { id: 'pt', name: 'Process Template', path: '/knowledge/templates', clickable: true },
-    { id: 'mdl', name: 'Master Document List', path: '/knowledge/master-documents', clickable: false },
+    { id: 'mdl', name: 'Master Document List', path: '/knowledge/master-documents', clickable: true },
     { id: 'fl', name: 'Forms List', path: '/knowledge/forms', clickable: false },
     { id: 'lt', name: 'Letter Templates', path: '/knowledge/letter-templates', clickable: false }
   ];
@@ -65,12 +85,25 @@ const DocumentChecklist = ({ setCurrentBreadcrumb }) => {
   const handleSidebarClick = (categoryName, path, clickable) => {
     if (!clickable) return;
     setSelectedCategory(categoryName);
-    navigate(path);
+    if (path === '/knowledge/master-documents') {
+      // Navigate to master documents list
+      setCurrentBreadcrumb([
+        { label: 'Dashboard', link: '/' },
+        { label: 'Knowledge Base', link: '/knowledge' },
+        { label: 'Master Document List', link: '#' }
+      ]);
+      fetchMasterDocuments();
+    } else {
+      navigate(path);
+    }
   };
 
   const isSelected = (categoryPath) => {
     if (location.pathname.includes('/knowledge/checklist')) {
       return categoryPath === '/knowledge/templates';
+    }
+    if (location.pathname.includes('/knowledge/master-documents')) {
+      return categoryPath === '/knowledge/master-documents';
     }
     return location.pathname === categoryPath;
   };
@@ -146,22 +179,6 @@ const DocumentChecklist = ({ setCurrentBreadcrumb }) => {
 
       {/* Main Content */}
       <div className="flex-1 bg-[#f8fafc]">
-        {/* Navigation Tabs */}
-        <div className="px-6 pt-6 flex gap-2">
-          {navigationTabs.map((tab) => (
-            <button
-              key={tab.id}
-              className={`px-4 py-2 rounded-lg text-sm ${
-                tab.name === 'Document Checklist'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:bg-white/50'
-              }`}
-            >
-              {tab.name}
-            </button>
-          ))}
-        </div>
-
         {/* Search Bar */}
         <div className="px-6 pt-6">
           <div className="relative">
@@ -178,108 +195,187 @@ const DocumentChecklist = ({ setCurrentBreadcrumb }) => {
           </div>
         </div>
 
-        {/* Category Header with Description and AI Banner */}
-        <div className="px-6 pt-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">
-                {category?.name}
-              </h1>
-              <p className="mt-1 text-sm text-gray-500">
-                {category?.description}
-              </p>
-              {category?.deadline > 0 && (
-                <div className="mt-2 flex items-center text-sm text-gray-600">
-                  <Clock className="h-4 w-4 mr-1 text-blue-500" />
-                  <span>Expected completion time: <strong>{category.deadline} days</strong></span>
-                </div>
-              )}
-            </div>
-            <button
-              onClick={() => setIsEditModalOpen(true)}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-sm"
-            >
-              <Edit className="h-4 w-4" />
-              Edit Process
-            </button>
-          </div>
-          
-          {/* AI Validation Banner */}
-          <div className="mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 p-3 rounded-lg border border-blue-100">
-            <div className="flex items-center gap-2">
-              <span className="inline-block w-4 h-4">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4 text-blue-500">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </span>
-              <span className="text-sm font-medium bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                AI-Powered Document Validation
-              </span>
-            </div>
-            <p className="text-xs text-gray-600 mt-1 ml-6">
-              Our AI agent automatically verifies all document requirements during upload
-            </p>
-          </div>
-        </div>
-
-        {/* Document List */}
-        <div className="px-6 pt-6 pb-6">
-          <div className="space-y-4">
-            {category?.documentTypes.map((doc) => (
-              <div key={doc._id} className="bg-white rounded-lg border border-gray-200 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-medium">{doc.name}</h3>
-                    {doc.validations && doc.validations.length > 0 && (
-                      <div className="mt-1">
-                        <div className="space-y-1.5 pl-2">
-                          {doc.validations.map((validation, index) => (
-                            <div key={index} className="flex items-center gap-2">
-                              <div className="w-3 h-3 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center">
-                                <svg 
-                                  viewBox="0 0 24 24" 
-                                  fill="none" 
-                                  className="w-2 h-2 text-white"
-                                  stroke="currentColor"
-                                >
-                                  <path 
-                                    strokeLinecap="round" 
-                                    strokeLinejoin="round" 
-                                    strokeWidth="3" 
-                                    d="M13 10V3L4 14h7v7l9-11h-7z"
-                                  />
-                                </svg>
-                              </div>
-                              <span className="text-xs text-gray-600">{validation}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+        {selectedCategory === 'Master Document List' ? (
+          // Master Documents List View
+          <div className="px-6 pt-6">
+            <div className="bg-white rounded-lg border border-gray-200">
+              <div className="min-w-full divide-y divide-gray-200">
+                <div className="bg-white">
+                  <div className="grid grid-cols-4 px-6 py-3 border-b border-gray-200">
+                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                      Document Name
+                      <span className="text-gray-400">↑↓</span>
+                    </div>
+                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                      Required
+                      <span className="text-gray-400">↑↓</span>
+                    </div>
+                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                      Validations
+                      <span className="text-gray-400">↑↓</span>
+                    </div>
+                    <div className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1 justify-end">
+                      Created At
+                      <span className="text-gray-400">↑↓</span>
+                    </div>
                   </div>
-                  {doc.required && (
-                    <span className="text-xs text-green-600 font-medium">Required</span>
-                  )}
+                </div>
+                <div className="bg-white divide-y divide-gray-200">
+                  {masterDocuments.map((doc) => (
+                    <div key={doc._id} className="grid grid-cols-4 px-6 py-4 hover:bg-gray-50">
+                      <div className="text-sm text-gray-900">{doc.name}</div>
+                      <div className="text-sm text-gray-500">
+                        {doc.required ? (
+                          <span className="flex items-center text-green-600">
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Required
+                          </span>
+                        ) : (
+                          <span className="flex items-center text-gray-500">
+                            <XCircle className="w-4 h-4 mr-1" />
+                            Optional
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        <ul className="list-disc pl-4 space-y-1">
+                          {doc.validations.map((validation, index) => (
+                            <li key={index} className="whitespace-pre-wrap break-words">{validation}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div className="text-sm text-gray-500 text-right">
+                        {new Date(doc.createdAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
+            </div>
           </div>
+        ) : (
+          // Original Process Template View
+          <>
+            {/* Navigation Tabs */}
+            <div className="px-6 pt-6 flex gap-2">
+              {navigationTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  className={`px-4 py-2 rounded-lg text-sm ${
+                    tab.name === 'Document Checklist'
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-600 hover:bg-white/50'
+                  }`}
+                >
+                  {tab.name}
+                </button>
+              ))}
+            </div>
 
-          {/* Action Buttons */}
-          <div className="flex justify-end gap-3 mt-6">
-            <button
-              onClick={() => setIsEditModalOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <Edit className="h-4 w-4" />
-              Edit Checklist
-            </button>
-            <button className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-              <Plus className="h-4 w-4" />
-              Add more
-            </button>
-          </div>
-        </div>
+            {/* Category Header with Description and AI Banner */}
+            <div className="px-6 pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-xl font-semibold text-gray-900">
+                    {category?.name}
+                  </h1>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {category?.description}
+                  </p>
+                  {category?.deadline > 0 && (
+                    <div className="mt-2 flex items-center text-sm text-gray-600">
+                      <Clock className="h-4 w-4 mr-1 text-blue-500" />
+                      <span>Expected completion time: <strong>{category.deadline} days</strong></span>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-sm"
+                >
+                  <Edit className="h-4 w-4" />
+                  Edit Process
+                </button>
+              </div>
+              
+              {/* AI Validation Banner */}
+              <div className="mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 p-3 rounded-lg border border-blue-100">
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-4 h-4">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4 text-blue-500">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </span>
+                  <span className="text-sm font-medium bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                    AI-Powered Document Validation
+                  </span>
+                </div>
+                <p className="text-xs text-gray-600 mt-1 ml-6">
+                  Our AI agent automatically verifies all document requirements during upload
+                </p>
+              </div>
+            </div>
+
+            {/* Document List */}
+            <div className="px-6 pt-6 pb-6">
+              <div className="space-y-4">
+                {category?.documentTypes.map((doc) => (
+                  <div key={doc._id} className="bg-white rounded-lg border border-gray-200 p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-medium">{doc.name}</h3>
+                        {doc.validations && doc.validations.length > 0 && (
+                          <div className="mt-1">
+                            <div className="space-y-1.5 pl-2">
+                              {doc.validations.map((validation, index) => (
+                                <div key={index} className="flex items-center gap-2">
+                                  <div className="w-3 h-3 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center">
+                                    <svg 
+                                      viewBox="0 0 24 24" 
+                                      fill="none" 
+                                      className="w-2 h-2 text-white"
+                                      stroke="currentColor"
+                                    >
+                                      <path 
+                                        strokeLinecap="round" 
+                                        strokeLinejoin="round" 
+                                        strokeWidth="3" 
+                                        d="M13 10V3L4 14h7v7l9-11h-7z"
+                                      />
+                                    </svg>
+                                  </div>
+                                  <span className="text-xs text-gray-600">{validation}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      {doc.required && (
+                        <span className="text-xs text-green-600 font-medium">Required</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <Edit className="h-4 w-4" />
+                  Edit Checklist
+                </button>
+                <button className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                  <Plus className="h-4 w-4" />
+                  Add more
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Add Modal */}

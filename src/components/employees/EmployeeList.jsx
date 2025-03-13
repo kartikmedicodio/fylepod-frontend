@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import { Search, SlidersHorizontal, Plus } from 'lucide-react';
+  import { Search, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const EmployeeList = ({ employees }) => {
@@ -36,24 +36,10 @@ const EmployeeList = ({ employees }) => {
         
         <div className="flex items-center gap-2">
           <button 
-            className="px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-400 cursor-not-allowed"
-            disabled
-            title="This feature is coming soon"
+            onClick={() => navigate('/employee/new')}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2"
           >
-            All Filters
-          </button>
-          <button 
-            className="px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-400 cursor-not-allowed"
-            disabled
-            title="This feature is coming soon"
-          >
-            Sort
-          </button>
-          <button 
-            className="px-4 py-2 bg-gray-300 text-gray-500 rounded-lg text-sm font-medium cursor-not-allowed flex items-center gap-2"
-            disabled
-            title="This feature is coming soon"
-          >
+            <Plus size={16} />
             Add New Employee
           </button>
         </div>
