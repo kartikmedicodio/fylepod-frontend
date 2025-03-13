@@ -178,7 +178,7 @@ const DocumentRow = ({
           return;
         }
 
-        const response = await fetch(`http://localhost:5001/api/documents/management-document/${document.id}`, {
+        const response = await fetch(`https://api-dev.relayzen.com/api/documents/management-document/${document.id}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
