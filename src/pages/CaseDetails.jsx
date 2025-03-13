@@ -1369,7 +1369,14 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     // Sub-tabs navigation component
     const SubTabNavigation = () => {
-      const allDocsUploaded = areAllDocumentsUploaded();
+      // Keep both checks
+      const hasUploadedDocuments = caseData.documentTypes.some(doc => 
+        doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
+      );
+      
+      const allDocsUploaded = caseData.documentTypes.every(doc => 
+        doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
+      );
 
       return (
         <div className="mb-6 flex items-center gap-2">
@@ -1380,12 +1387,14 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             { 
               id: 'cross-verification', 
               label: 'Cross Verification',
-              disabled: !allDocsUploaded 
+              disabled: !allDocsUploaded, // Use allDocsUploaded for cross-verification
+              tooltip: 'All documents must be uploaded to enable cross verification'
             },
             { 
               id: 'finalize', 
               label: 'Finalize',
-              disabled: !allDocsUploaded 
+              disabled: !hasUploadedDocuments, // Keep finalize enabled with at least one doc
+              tooltip: 'Upload at least one document to enable this feature'
             }
           ].map(tab => (
             <button
@@ -1403,7 +1412,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                     : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
               }`}
               disabled={tab.disabled}
-              title={tab.disabled ? 'Upload all documents to enable this feature' : ''}
+              title={tab.disabled ? tab.tooltip : ''}
             >
               {tab.label}
             </button>
@@ -1414,7 +1423,13 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     // Render content based on selected sub-tab
     const renderSubTabContent = () => {
-      const allDocsUploaded = areAllDocumentsUploaded();
+      const hasUploadedDocuments = caseData.documentTypes.some(doc => 
+        doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
+      );
+      
+      const allDocsUploaded = caseData.documentTypes.every(doc => 
+        doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
+      );
 
       switch (selectedSubTab) {
         case 'all':
@@ -1447,6 +1462,11 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                   <p className="text-gray-500 text-sm text-center">
                     Please upload all documents to enable cross verification
                   </p>
+                  <p className="text-gray-400 text-xs mt-2">
+                    {caseData.documentTypes.filter(doc => 
+                      doc.status !== DOCUMENT_STATUS.UPLOADED && doc.status !== DOCUMENT_STATUS.APPROVED
+                    ).length} document(s) remaining
+                  </p>
                 </div>
               </div>
             );
@@ -1458,7 +1478,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             recipientEmail={recipientEmail}
           />;
         case 'finalize':
-          if (!allDocsUploaded) {
+          if (!hasUploadedDocuments) {
             return (
               <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <div className="flex flex-col items-center justify-center py-8">
@@ -1466,7 +1486,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                     <AlertCircle className="w-6 h-6 text-gray-400" />
                   </div>
                   <p className="text-gray-500 text-sm text-center">
-                    Please upload all documents to finalize the case
+                    Please upload at least one document to finalize the case
                   </p>
                 </div>
               </div>
@@ -1474,71 +1494,73 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           }
 
           // Transform the document data for the FinalizeTab
-          const finalizeDocuments = caseData.documentTypes.map(doc => {
-            const hasVerificationData = verificationData && Object.keys(verificationData).length > 0;
-            
-            const getValidationStatus = () => {
-              if (!validationData?.mergedValidations) return 'pending';
+          const finalizeDocuments = caseData.documentTypes
+            .filter(doc => doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED)
+            .map(doc => {
+              const hasVerificationData = verificationData && Object.keys(verificationData).length > 0;
               
-              // Find validation for current document
-              const docValidation = validationData.mergedValidations.find(
-                v => v.documentType === doc.name
-              );
-              
-              if (!docValidation) return 'pending';
+              const getValidationStatus = () => {
+                if (!validationData?.mergedValidations) return 'pending';
+                
+                // Find validation for current document
+                const docValidation = validationData.mergedValidations.find(
+                  v => v.documentType === doc.name
+                );
+                
+                if (!docValidation) return 'pending';
 
-              // Check individual validations for this document
-              if (docValidation.validations && docValidation.validations.length > 0) {
-                const totalValidations = docValidation.validations.length;
-                const passedValidations = docValidation.validations.filter(v => v.passed).length;
+                // Check individual validations for this document
+                if (docValidation.validations && docValidation.validations.length > 0) {
+                  const totalValidations = docValidation.validations.length;
+                  const passedValidations = docValidation.validations.filter(v => v.passed).length;
 
-                if (passedValidations === totalValidations) {
-                  // All validations passed
-                  return 'success';
-                } else if (passedValidations > 0) {
-                  // Some validations passed
-                  return 'partial';
-                } else {
-                  // No validations passed
-                  return 'error';
+                  if (passedValidations === totalValidations) {
+                    // All validations passed
+                    return 'success';
+                  } else if (passedValidations > 0) {
+                    // Some validations passed
+                    return 'partial';
+                  } else {
+                    // No validations passed
+                    return 'error';
+                  }
                 }
-              }
 
-              return 'pending';
-            };
+                return 'pending';
+              };
 
-            return {
-              id: doc._id,
-              name: doc.name,
-              status: doc.status === 'approved' ? 'Approved' : 'Verification pending',
-              documentTypeId: doc.documentTypeId,
-              updatedAt: doc.updatedAt,
-              states: [
-                {
-                  name: 'Document collection',
-                  status: doc.status !== 'pending' ? 'success' : 'error'
-                },
-                {
-                  name: 'Read',
-                  status: doc.status !== 'pending' ? 'success' : 'pending'
-                },
-                {
-                  name: 'Extract',
-                  status: extractedData?.[doc.name] ? 'success' : 'pending'
-                },
-                {
-                  name: 'Validation',
-                  status: getValidationStatus()
-                },
-                {
-                  name: 'Cross Verification',
-                  status: !hasVerificationData ? 'pending' :
-                         verificationData?.[doc.name]?.isVerified ? 'success' : 
-                         verificationData?.[doc.name]?.partiallyVerified ? 'partial' : 'error'
-                }
-              ]
-            };
-          });
+              return {
+                id: doc._id,
+                name: doc.name,
+                status: doc.status === 'approved' ? 'Approved' : 'Verification pending',
+                documentTypeId: doc.documentTypeId,
+                updatedAt: doc.updatedAt,
+                states: [
+                  {
+                    name: 'Document collection',
+                    status: doc.status !== 'pending' ? 'success' : 'error'
+                  },
+                  {
+                    name: 'Read',
+                    status: doc.status !== 'pending' ? 'success' : 'pending'
+                  },
+                  {
+                    name: 'Extract',
+                    status: extractedData?.[doc.name] ? 'success' : 'pending'
+                  },
+                  {
+                    name: 'Validation',
+                    status: getValidationStatus()
+                  },
+                  {
+                    name: 'Cross Verification',
+                    status: !hasVerificationData ? 'pending' :
+                           verificationData?.[doc.name]?.isVerified ? 'success' : 
+                           verificationData?.[doc.name]?.partiallyVerified ? 'partial' : 'error'
+                  }
+                ]
+              };
+            });
 
           return (
             <div className="p-6">
@@ -2443,46 +2465,49 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     setRecipientEmail(email);
   };
 
-  // In the main return statement, add the ProfileTab to the tab content section
+  // Update the main container and its children to properly handle height
   return (
-    <div className="flex h-screen bg-gray-50 rounded-xl">
-      <div className="flex flex-col min-w-[320px] bg-white border-r border-gray-200 shadow-sm relative rounded-xl">
-          {onBack && (
-            <button
-              onClick={onBack}
-              className="sticky top-4 left-4 p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-full transition-all duration-200 group flex items-center gap-2 z-10"
-            > 
-              <ChevronLeft className="w-5 h-8 transition-transform group-hover:-translate-x-0.5" />
-              <span className="text-m font-medium ">
-                Back
-              </span>
-            </button>
-          )}
-          
-          <div className="overflow-y-auto flex-1">
-            <CaseDetailsSidebar 
-              caseData={caseData} 
-              loading={!caseData && !error} 
-              error={error}
-              onEmailChange={handleEmailChange}
-            />
-          </div>
+    <div className="flex h-full bg-gray-50 rounded-xl"> {/* Changed from h-screen to h-full */}
+      {/* Sidebar */}
+      <div className="flex flex-col w-80 bg-white border-r border-gray-200 shadow-sm relative rounded-xl">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="p-4 text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all duration-200 group flex items-center gap-2"
+          > 
+            <ChevronLeft className="w-5 h-5 transition-transform group-hover:-translate-x-0.5" />
+            <span className="text-sm font-medium">Back</span>
+          </button>
+        )}
+        
+        <div className="flex-1 overflow-hidden"> {/* Added overflow-hidden */}
+          <CaseDetailsSidebar 
+            caseData={caseData} 
+            loading={!caseData && !error} 
+            error={error}
+            onEmailChange={handleEmailChange}
+          />
+        </div>
       </div>
       
+      {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden rounded-xl">
-        <div className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="bg-white border-b border-gray-200 shadow-sm flex-shrink-0"> {/* Added flex-shrink-0 */}
           <ProgressSteps />
         </div>
 
-        <div className="flex-1 overflow-auto">
-          <TabNavigation />
+        <div className="flex-1 flex flex-col overflow-hidden"> {/* Changed to flex and overflow-hidden */}
+          <div className="border-b border-gray-200 flex-shrink-0"> {/* Added flex-shrink-0 */}
+            <TabNavigation />
+          </div>
           
-          <div className="max-w-7xl mx-auto">
-            {activeTab === 'profile' && <ProfileTab profileData={profileData} />}
-            {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
-            {activeTab === 'questionnaire' && <QuestionnaireTab />}
-            {activeTab === 'forms' && <FormsTab />}
-            {/* Add other tab contents as needed */}
+          <div className="flex-1 overflow-auto"> {/* This will scroll independently */}
+            <div className="max-w-7xl mx-auto">
+              {activeTab === 'profile' && <ProfileTab profileData={profileData} />}
+              {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
+              {activeTab === 'questionnaire' && <QuestionnaireTab />}
+              {activeTab === 'forms' && <FormsTab />}
+            </div>
           </div>
         </div>
       </div>
