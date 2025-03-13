@@ -1227,157 +1227,43 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     const renderDocumentsList = () => (
       <div className={`${
-        // Take full width (12 columns) when in uploaded tab, otherwise take 8 columns
-        uploadStatus === DOCUMENT_STATUS.UPLOADED ? 'col-span-12' : 'col-span-8'
+        // Take 8 columns (about 66%) of the width
+        'col-span-8'
       } bg-white rounded-lg border border-gray-200 p-6`}>
         <div className="flex gap-2 mb-6 border-b border-gray-100 pb-4">
-          
           <button 
-            onClick={() => setUploadStatus(DOCUMENT_STATUS.UPLOADED)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              uploadStatus === DOCUMENT_STATUS.UPLOADED
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
-            }`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700`}
           >
-            Uploaded ({uploadedDocuments.length})
-          </button>
-          <button 
-            onClick={() => setUploadStatus(DOCUMENT_STATUS.PENDING)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              uploadStatus === DOCUMENT_STATUS.PENDING
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            Upload Pending ({pendingDocuments.length})
+            Documents ({pendingDocuments.length})
           </button>
         </div>
 
-        {/* Show Diana's card only in the uploaded documents tab */}
-        {uploadStatus === DOCUMENT_STATUS.UPLOADED && (
-          <div className="bg-white rounded-2xl shadow-lg p-2 mb-4 hover:shadow-xl transition-shadow duration-300">
-            <div className="flex items-start gap-4 relative z-10">
-                {/* Diana's Avatar */}
-                <div className="flex-shrink-0">
-                  <div className="relative">
-                    {/* Animated Background Ring */}
-                    <div className="absolute inset-0 -m-2">
-                      <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 rounded-full blur-lg"></div>
-                    </div>
-                    {/* Avatar Container */}
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md relative">
-                      <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl"></div>
-                      <span className="relative text-sm font-semibold text-white">Diana</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Description Text */}
-                <div className="flex-1">
-                  <h4 className="text-base font-semibold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-1">
-                    Intelligent Document Processing
-                  </h4>
-                  <p className="text-sm text-gray-600 leading-relaxed">
-                    Agent Diana automatically identifies, sorts, and extracts relevant data from uploaded documents. It then performs human language-based validations to ensure the accuracy of the extracted data before storing it securely in the system.
-                  </p>
-                </div>
-            </div>
-          </div>
-        )}
-
         <div className="space-y-3">
-          {uploadStatus === DOCUMENT_STATUS.PENDING ? (
-            pendingDocuments.length > 0 ? (
-              pendingDocuments.map((doc) => (
-                <div key={doc._id} className="bg-gray-50 rounded-lg border border-gray-200 p-4">
-                  <div className="flex justify-between items-start group">
-                    <div>
-                      <h4 className="font-medium text-sm mb-1">
-                        {doc.name}
-                        {doc.required && (
-                          <span className="ml-2 text-xs text-red-500">*Required</span>
-                        )}
-                      </h4>
-                      <p className="text-sm text-gray-500 leading-snug">
-                        Please upload your {doc.name.toLowerCase()} document
-                      </p>
-                    </div>
-                    <button className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Upload className="w-4 h-4" />
-                    </button>
+          {pendingDocuments.length > 0 ? (
+            pendingDocuments.map((doc) => (
+              <div key={doc._id} className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+                <div className="flex justify-between items-start group">
+                  <div>
+                    <h4 className="font-medium text-sm mb-1">
+                      {doc.name}
+                      {doc.required && (
+                        <span className="ml-2 text-xs text-red-500">*Required</span>
+                      )}
+                    </h4>
+                    <p className="text-sm text-gray-500 leading-snug">
+                      Please upload your {doc.name.toLowerCase()} document
+                    </p>
                   </div>
+                  <button className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Upload className="w-4 h-4" />
+                  </button>
                 </div>
-              ))
-            ) : (
-              <div className="text-gray-500 text-sm text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
-                All documents have been uploaded.
               </div>
-            )
+            ))
           ) : (
-            uploadedDocuments.length > 0 ? (
-              uploadedDocuments.map((doc) => (
-                <div key={doc._id} className="bg-gray-50 rounded-lg border border-gray-200 p-4">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-medium text-sm mb-1">{doc.name}</h4>
-                      <div className="flex items-center gap-2">
-                        <span className={`flex items-center text-sm ${
-                          doc.status === DOCUMENT_STATUS.APPROVED 
-                            ? 'text-green-600' 
-                            : 'text-blue-600'
-                        }`}>
-                          <Check className="w-4 h-4 mr-1" />
-                          {doc.status === DOCUMENT_STATUS.APPROVED ? 'Approved' : 'Uploaded'}
-                        </span>
-                        
-                        {doc.status === DOCUMENT_STATUS.UPLOADED && (
-                          <div className="flex items-center gap-2">
-                            <button 
-                              onClick={() => handleDocumentApprove(doc.documentTypeId, doc._id)}
-                              disabled={processingDocuments[doc._id]}
-                              className={`px-3 py-1 text-xs font-medium rounded-full
-                                ${processingDocuments[doc._id] 
-                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                                  : 'bg-green-50 text-green-600 hover:bg-green-100'
-                                }`}
-                            >
-                              {processingDocuments[doc._id] ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : (
-                                'Approve'
-                              )}
-                            </button>
-                            <button 
-                              onClick={() => handleRequestReupload(doc.documentTypeId, doc._id)}
-                              disabled={processingDocuments[doc._id]}
-                              className={`px-3 py-1 text-xs font-medium rounded-full
-                                ${processingDocuments[doc._id] 
-                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                                  : 'bg-red-50 text-red-600 hover:bg-red-100'
-                                }`}
-                            >
-                              {processingDocuments[doc._id] ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : (
-                                'Request Reupload'
-                              )}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {formatDate(doc.updatedAt)}
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-gray-500 text-sm text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
-                No documents have been uploaded yet.
-              </div>
-            )
+            <div className="text-gray-500 text-sm text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
+              All documents have been uploaded.
+            </div>
           )}
         </div>
       </div>
@@ -1488,7 +1374,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       return (
         <div className="mb-6 flex items-center gap-2">
           {[
-            { id: 'all', label: 'All' },
+            { id: 'all', label: 'Upload Pending' },  
             { id: 'extracted-data', label: 'Extracted data' },
             { id: 'validation', label: 'Validation' },
             { 
@@ -1625,6 +1511,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               id: doc._id,
               name: doc.name,
               status: doc.status === 'approved' ? 'Approved' : 'Verification pending',
+              documentTypeId: doc.documentTypeId,
+              updatedAt: doc.updatedAt,
               states: [
                 {
                   name: 'Document collection',
@@ -1673,6 +1561,9 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                       break;
                   }
                 }}
+                onApprove={handleDocumentApprove}
+                onRequestReupload={handleRequestReupload}
+                processingDocuments={processingDocuments}
               />
             </div>
           );
