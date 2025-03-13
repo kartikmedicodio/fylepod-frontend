@@ -91,47 +91,33 @@ const Corporations = () => {
       setCurrentUser(user);
       
       // Then fetch corporations
-      const data = await corporationService.getAllCorporations();
+      const response = await corporationService.getAllCorporations();
       
-      // Get the user's lawfirm ID
-      const userLawfirmId = user.lawfirm_id._id;
-      
-      // For corporations without lawfirm_id, assign them to the attorney's lawfirm if they are the assigned attorney
-      const processedCorporations = data.data?.map(corp => {
-        // If corporation already has a lawfirm_id, keep it as is
-        if (corp.lawfirm_id) {
-          return corp;
+      if (response.success && response.data) {
+        // Get the user's lawfirm ID
+        const userLawfirmId = user.lawfirm_id._id;
+        
+        // Filter corporations based on user's lawfirm_id
+        const filteredCorporations = response.data.filter(corp => 
+          corp.lawfirm_id === userLawfirmId
+        );
+        
+        if (filteredCorporations.length === 0) {
+          setError('No corporations found for your law firm');
+        } else {
+          setError(null);
         }
         
-        // If the attorney is assigned to this corporation, assign it to their lawfirm
-        if (corp.assigned_attorney === user.name) {
-          return {
-            ...corp,
-            lawfirm_id: userLawfirmId
-          };
-        }
-        
-        return corp;
-      });
-      
-      // Filter corporations based on user's lawfirm_id
-      const filteredCorporations = processedCorporations?.filter(corp => 
-        corp.lawfirm_id === userLawfirmId
-      ) || [];
-      
-      if (filteredCorporations.length === 0) {
-        setError('No corporations found for your law firm');
+        // Set corporations
+        setCorporations(filteredCorporations);
+        setPagination(prev => ({
+          ...prev,
+          totalPages: Math.ceil(filteredCorporations.length / pagination.itemsPerPage),
+          totalItems: filteredCorporations.length
+        }));
       } else {
-        setError(null);
+        setError('Failed to fetch corporations');
       }
-      
-      // Set corporations
-      setCorporations(filteredCorporations);
-      setPagination(prev => ({
-        ...prev,
-        totalPages: Math.ceil(filteredCorporations.length / pagination.itemsPerPage),
-        totalItems: filteredCorporations.length
-      }));
     } catch (error) {
       console.error('Error fetching corporations:', error);
       setError('Failed to load corporations');
@@ -149,13 +135,16 @@ const Corporations = () => {
 
     switch (employeeFilter) {
       case 'less5':
-        filtered = filtered.filter(corp => (corp.user_id?.length || 0) < 5);
+        filtered = filtered.filter(corp => (Array.isArray(corp.user_id) ? corp.user_id.length : 0) < 5);
         break;
       case '5to10':
-        filtered = filtered.filter(corp => (corp.user_id?.length || 0) >= 5 && (corp.user_id?.length || 0) <= 10);
+        filtered = filtered.filter(corp => {
+          const count = Array.isArray(corp.user_id) ? corp.user_id.length : 0;
+          return count >= 5 && count <= 10;
+        });
         break;
       case 'more10':
-        filtered = filtered.filter(corp => (corp.user_id?.length || 0) > 10);
+        filtered = filtered.filter(corp => (Array.isArray(corp.user_id) ? corp.user_id.length : 0) > 10);
         break;
       default:
         break;
@@ -303,14 +292,15 @@ const Corporations = () => {
           </div>
         </div>
 
-        {/* Enhanced Add New Button - Disabled */}
+        {/* Enhanced Add New Button */}
         <button 
-          className="flex items-center gap-2 px-5 py-2.5 bg-gray-300 text-gray-500 rounded-xl text-sm
-                    opacity-70 cursor-not-allowed"
-          disabled
+          onClick={() => navigate('/company/new')}
+          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm
+                    hover:bg-indigo-700 transition-colors duration-200 focus:outline-none focus:ring-2 
+                    focus:ring-indigo-500 focus:ring-offset-2"
         >
           <CirclePlus size={18} />
-          Add new individual
+          Add new Corporation
         </button>
       </div>
 
@@ -343,8 +333,10 @@ const Corporations = () => {
                 >
                   <td className="px-6 py-4 text-sm font-medium text-gray-900">{truncateId(corp._id)}</td>
                   <td className="px-6 py-4 text-sm text-gray-700">{corp.company_name}</td>
-                  <td className="px-6 py-4 text-sm text-gray-700">John Doe</td>
-                  <td className="px-6 py-4 text-sm text-gray-700">{corp.user_id?.length || 0}</td>
+                  <td className="px-6 py-4 text-sm text-gray-700">{corp.contact_name}</td>
+                  <td className="px-6 py-4 text-sm text-gray-700">
+                    {Array.isArray(corp.user_id) ? corp.user_id.length : 0}
+                  </td>
                 </motion.tr>
               ))}
           </tbody>
