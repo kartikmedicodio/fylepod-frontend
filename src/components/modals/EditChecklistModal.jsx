@@ -14,6 +14,7 @@ const EditChecklistModal = ({ isOpen, onClose, category, onSave }) => {
   const [selectedDocumentIds, setSelectedDocumentIds] = useState([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
   const dropdownRef = useRef(null);
 
@@ -96,11 +97,6 @@ const EditChecklistModal = ({ isOpen, onClose, category, onSave }) => {
     };
     
     setEditedCategory(updatedCategory);
-    
-    // If we're editing an existing category, update it immediately
-    if (category?._id) {
-      handleSave(updatedCategory);
-    }
   };
 
   const handleSave = async (categoryToSave = editedCategory) => {
@@ -115,6 +111,7 @@ const EditChecklistModal = ({ isOpen, onClose, category, onSave }) => {
         return;
       }
 
+      setIsSaving(true);
       const deadlineValue = parseInt(categoryToSave.deadline) || 0;
       
       const documentIds = categoryToSave.documentTypes.map(doc => {
@@ -134,8 +131,8 @@ const EditChecklistModal = ({ isOpen, onClose, category, onSave }) => {
         const response = await api.patch(`/categories/${category._id}`, cleanedCategory);
         
         if (response.data.success) {
-          const updatedCategory = response.data.data;
-          setEditedCategory(updatedCategory);
+          // Call onSave to trigger parent refresh
+          await onSave(response.data.data);
           setError(null);
           onClose(); // Close modal after successful update
         } else {
@@ -151,6 +148,8 @@ const EditChecklistModal = ({ isOpen, onClose, category, onSave }) => {
       const errorMessage = error.response?.data?.message || error.message || 'Failed to save changes. Please try again.';
       setError(errorMessage);
       alert(errorMessage);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -187,11 +186,6 @@ const EditChecklistModal = ({ isOpen, onClose, category, onSave }) => {
       documentTypes: updatedDocs
     };
     setEditedCategory(updatedCategory);
-
-    // If we're editing an existing category, update it immediately
-    if (category?._id) {
-      handleSave(updatedCategory);
-    }
   };
 
   return (
@@ -352,15 +346,6 @@ const EditChecklistModal = ({ isOpen, onClose, category, onSave }) => {
                               : doc.name
                             }
                           </h4>
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={typeof doc === 'string' ? false : doc.required}
-                              onChange={(e) => handleDocumentChange(docIndex, 'required', e.target.checked)}
-                              className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                            />
-                            <span className="text-sm text-gray-600">Required</span>
-                          </label>
                         </div>
                         <button
                           onClick={() => removeDocument(docIndex)}
@@ -403,15 +388,29 @@ const EditChecklistModal = ({ isOpen, onClose, category, onSave }) => {
         <div className="px-8 py-6 border-t border-gray-200 flex justify-end gap-3 bg-white sticky bottom-0 z-10">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            disabled={isSaving}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
           <button
             onClick={() => handleSave()}
-            className="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            disabled={isSaving}
+            className={`px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${
+              isSaving ? 'pl-4 pr-8' : ''
+            }`}
           >
-            Save Changes
+            {isSaving ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Saving...
+              </>
+            ) : (
+              'Save Changes'
+            )}
           </button>
         </div>
       </div>
