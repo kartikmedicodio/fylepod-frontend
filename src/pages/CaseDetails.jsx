@@ -191,6 +191,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const [extractedData, setExtractedData] = useState(null);
   const [isLoadingExtractedData, setIsLoadingExtractedData] = useState(false);
   const [extractedDataError, setExtractedDataError] = useState(null);
+  const [recipientEmail, setRecipientEmail] = useState('');
 
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
@@ -1567,6 +1568,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           return <CrossVerificationTab 
             isLoading={isLoadingVerification} 
             verificationData={verificationData} 
+            managementId={caseId}
+            recipientEmail={recipientEmail}
           />;
         case 'finalize':
           if (!allDocsUploaded) {
@@ -2543,6 +2546,12 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     );
   };
 
+  // Handler for email changes from sidebar
+  const handleEmailChange = (email) => {
+    console.log('Email received from sidebar:', email);
+    setRecipientEmail(email);
+  };
+
   // In the main return statement, add the ProfileTab to the tab content section
   return (
     <div className="flex h-screen bg-gray-50 rounded-xl">
@@ -2564,6 +2573,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               caseData={caseData} 
               loading={!caseData && !error} 
               error={error}
+              onEmailChange={handleEmailChange}
             />
           </div>
       </div>

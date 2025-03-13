@@ -1,7 +1,13 @@
 import React from 'react';
 import { User, Folder, Calendar, Clock, CheckCircle2, Phone, Mail, Globe, MapPin } from 'lucide-react';
 
-const CaseDetailsSidebar = ({ caseData, loading, error }) => {
+const CaseDetailsSidebar = ({ caseData, loading, error, onEmailChange }) => {
+  React.useEffect(() => {
+    if (onEmailChange && caseData?.userId?.email) {
+      onEmailChange(caseData.userId.email);
+    }
+  }, [caseData?.userId?.email, onEmailChange]);
+
   if (loading) return <div className="p-6">Loading...</div>;
   if (error) return <div className="p-6 text-red-500">Error: {error}</div>;
   if (!caseData) return null;
@@ -113,6 +119,10 @@ const CaseDetailsSidebar = ({ caseData, loading, error }) => {
       </div>
     </div>
   );
+};
+
+CaseDetailsSidebar.defaultProps = {
+  onEmailChange: () => {}
 };
 
 export default CaseDetailsSidebar; 
