@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, SlidersHorizontal, Clock, Edit2 } from 'lucide-react';
+import { Search, SlidersHorizontal, Clock, Edit2, CheckCircle, XCircle } from 'lucide-react';
 import api from '../utils/api';
 import { usePage } from '../contexts/PageContext';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
@@ -9,6 +9,7 @@ import { toast } from 'react-hot-toast';
 
 const KnowledgeBase = ({ setCurrentBreadcrumb }) => {
   const [categories, setCategories] = useState([]);
+  const [masterDocuments, setMasterDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -24,8 +25,12 @@ const KnowledgeBase = ({ setCurrentBreadcrumb }) => {
       { label: 'Dashboard', link: '/' },
       { label: 'Knowledge Base', link: '#' }
     ]);
-    fetchCategories();
-  }, [setPageTitle, setCurrentBreadcrumb]);
+    if (selectedCategory === 'Process Template') {
+      fetchCategories();
+    } else if (selectedCategory === 'Master Document List') {
+      fetchMasterDocuments();
+    }
+  }, [setPageTitle, setCurrentBreadcrumb, selectedCategory]);
 
   const fetchCategories = async () => {
     try {
@@ -42,10 +47,29 @@ const KnowledgeBase = ({ setCurrentBreadcrumb }) => {
     }
   };
 
-  const filteredCategories = categories.filter(category =>
-    category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    category.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const fetchMasterDocuments = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/masterdocuments');
+      if (response.data.status === 'success') {
+        setMasterDocuments(response.data.data.masterDocuments);
+      }
+    } catch (err) {
+      setError('Failed to fetch master documents');
+      console.error('Error fetching master documents:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredItems = selectedCategory === 'Process Template' 
+    ? categories.filter(category =>
+        category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        category.description?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : masterDocuments.filter(doc =>
+        doc.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
 
   const sidebarCategories = [
     { name: 'Knowledge Base', path: '/knowledge' },
@@ -156,32 +180,55 @@ const KnowledgeBase = ({ setCurrentBreadcrumb }) => {
           </button>
         </div>
 
-        {/* Process Templates Table */}
+        {/* Main Content Table */}
         <div className="px-4">
           <div className="bg-white rounded-lg border border-gray-200">
             <div className="min-w-full divide-y divide-gray-200">
               <div className="bg-white">
-                <div className="grid grid-cols-5 px-6 py-3 border-b border-gray-200">
-                  <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                    Process Name
-                    <span className="text-gray-400">↑↓</span>
-                  </div>
-                  <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                    Process Description
-                    <span className="text-gray-400">↑↓</span>
-                  </div>
-                  <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                    Status
-                    <span className="text-gray-400">↑↓</span>
-                  </div>
-                  <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                    Deadline (days)
-                    <span className="text-gray-400">↑↓</span>
-                  </div>
-                  <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                    Usage
-                    <span className="text-gray-400">↑↓</span>
-                  </div>
+                <div className={`grid ${selectedCategory === 'Process Template' ? 'grid-cols-5' : 'grid-cols-4'} px-6 py-3 border-b border-gray-200`}>
+                  {selectedCategory === 'Process Template' ? (
+                    <>
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                        Process Name
+                        <span className="text-gray-400">↑↓</span>
+                      </div>
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                        Process Description
+                        <span className="text-gray-400">↑↓</span>
+                      </div>
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                        Status
+                        <span className="text-gray-400">↑↓</span>
+                      </div>
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                        Deadline (days)
+                        <span className="text-gray-400">↑↓</span>
+                      </div>
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                        Usage
+                        <span className="text-gray-400">↑↓</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                        Document Name
+                        <span className="text-gray-400">↑↓</span>
+                      </div>
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                        Required
+                        <span className="text-gray-400">↑↓</span>
+                      </div>
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                        Validations
+                        <span className="text-gray-400">↑↓</span>
+                      </div>
+                      <div className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1 justify-end">
+                        Created At
+                        <span className="text-gray-400">↑↓</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="bg-white divide-y divide-gray-200">
@@ -193,69 +240,96 @@ const KnowledgeBase = ({ setCurrentBreadcrumb }) => {
                   <div className="px-6 py-4 text-center text-red-500">
                     {error}
                   </div>
-                ) : filteredCategories.length === 0 ? (
+                ) : filteredItems.length === 0 ? (
                   <div className="px-6 py-4 text-center text-gray-500">
-                    No processes found
+                    No items found
                   </div>
                 ) : (
-                  filteredCategories.map((category) => (
+                  filteredItems.map((item) => (
                     <div 
-                      key={category._id} 
-                      className="grid grid-cols-5 px-6 py-4 hover:bg-gray-50 cursor-pointer"
-                      onClick={() => handleRowClick(category._id)}
+                      key={item._id} 
+                      className={`grid ${selectedCategory === 'Process Template' ? 'grid-cols-5' : 'grid-cols-4'} px-6 py-4 hover:bg-gray-50 cursor-pointer`}
+                      onClick={() => selectedCategory === 'Process Template' && handleRowClick(item._id)}
                     >
-                      <div className="text-sm text-gray-900">
-                        {category.name}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {category.description}
-                      </div>
-                      <div>
-                        <span className="px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                          Active
-                        </span>
-                      </div>
-                      <div className="text-sm text-gray-500 flex items-center">
-                        {editingDeadline === category._id ? (
-                          <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
-                            <input
-                              type="number"
-                              min="0"
-                              className="w-16 px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              value={deadlineValue}
-                              onChange={handleDeadlineChange}
-                              onKeyDown={(e) => handleDeadlineKeyDown(e, category._id)}
-                              autoFocus
-                            />
-                            <button 
-                              className="ml-2 p-1 text-green-600 hover:text-green-800"
-                              onClick={() => saveDeadline(category._id)}
-                            >
-                              ✓
-                            </button>
-                            <button 
-                              className="ml-1 p-1 text-red-600 hover:text-red-800"
-                              onClick={() => setEditingDeadline(null)}
-                            >
-                              ✕
-                            </button>
+                      {selectedCategory === 'Process Template' ? (
+                        <>
+                          <div className="text-sm text-gray-900">{item.name}</div>
+                          <div className="text-sm text-gray-500">{item.description}</div>
+                          <div>
+                            <span className="px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                              Active
+                            </span>
                           </div>
-                        ) : (
-                          <>
-                            <Clock className="w-4 h-4 mr-1" />
-                            {category.deadline || 0} days
-                            <button 
-                              className="ml-2 text-blue-600 hover:text-blue-800"
-                              onClick={(e) => handleDeadlineEdit(e, category)}
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {`${Math.floor(Math.random() * 5) + 1} cases in use`}
-                      </div>
+                          <div className="text-sm text-gray-500 flex items-center">
+                            {editingDeadline === item._id ? (
+                              <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  className="w-16 px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  value={deadlineValue}
+                                  onChange={handleDeadlineChange}
+                                  onKeyDown={(e) => handleDeadlineKeyDown(e, item._id)}
+                                  autoFocus
+                                />
+                                <button 
+                                  className="ml-2 p-1 text-green-600 hover:text-green-800"
+                                  onClick={() => saveDeadline(item._id)}
+                                >
+                                  ✓
+                                </button>
+                                <button 
+                                  className="ml-1 p-1 text-red-600 hover:text-red-800"
+                                  onClick={() => setEditingDeadline(null)}
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <Clock className="w-4 h-4 mr-1" />
+                                {item.deadline || 0} days
+                                <button 
+                                  className="ml-2 text-blue-600 hover:text-blue-800"
+                                  onClick={(e) => handleDeadlineEdit(e, item)}
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {`${Math.floor(Math.random() * 5) + 1} cases in use`}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-sm text-gray-900">{item.name}</div>
+                          <div className="text-sm text-gray-500">
+                            {item.required ? (
+                              <span className="flex items-center text-green-600">
+                                <CheckCircle className="w-4 h-4 mr-1" />
+                                Required
+                              </span>
+                            ) : (
+                              <span className="flex items-center text-gray-500">
+                                <XCircle className="w-4 h-4 mr-1" />
+                                Optional
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            <ul className="list-disc pl-4 space-y-1">
+                              {item.validations.map((validation, index) => (
+                                <li key={index} className="whitespace-pre-wrap break-words">{validation}</li>
+                              ))}
+                            </ul>
+                          </div>
+                          <div className="text-sm text-gray-500 text-right">
+                            {new Date(item.createdAt).toLocaleDateString()}
+                          </div>
+                        </>
+                      )}
                     </div>
                   ))
                 )}
@@ -266,10 +340,10 @@ const KnowledgeBase = ({ setCurrentBreadcrumb }) => {
           {/* Pagination */}
           <div className="flex items-center justify-between py-3 text-sm text-gray-500">
             <div>
-              Showing 1 - {filteredCategories.length} of {filteredCategories.length}
+              Showing 1 - {filteredItems.length} of {filteredItems.length}
             </div>
             <div>
-              Page 1 of {Math.ceil(filteredCategories.length / 10)}
+              Page 1 of {Math.ceil(filteredItems.length / 10)}
             </div>
           </div>
         </div>

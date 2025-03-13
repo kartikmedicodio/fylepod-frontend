@@ -22,9 +22,11 @@ const DocumentChecklist = ({ setCurrentBreadcrumb }) => {
     fetchCategoryDetails();
   }, [id]);
 
-  const fetchCategoryDetails = async () => {
+  const fetchCategoryDetails = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
       const response = await api.get(`/categories/${id}`);
       if (response.data.status === 'success') {
         setCategory(response.data.data.category);
@@ -39,7 +41,9 @@ const DocumentChecklist = ({ setCurrentBreadcrumb }) => {
       setError('Failed to fetch category details');
       console.error('Error fetching category details:', err);
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   };
 
@@ -100,18 +104,16 @@ const DocumentChecklist = ({ setCurrentBreadcrumb }) => {
   const handleSaveChecklist = async (updatedCategory) => {
     try {
       const response = await api.put(`/categories/${id}`, updatedCategory);
-      // Close modal first
-      setIsEditModalOpen(false);
       
-      // Then update the data if successful
-      if (response.data) {
-        setCategory(updatedCategory);
-        await fetchCategoryDetails();
+      if (response.data.success) {
+        // Close modal first
+        setIsEditModalOpen(false);
+        // Then refresh data in background
+        await fetchCategoryDetails(false);
       }
     } catch (error) {
       console.error('Error updating checklist:', error);
       alert('Failed to update checklist. Please try again.');
-      // Close modal even if there's an error
       setIsEditModalOpen(false);
     }
   };
