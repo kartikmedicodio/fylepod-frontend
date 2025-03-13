@@ -67,6 +67,36 @@ const EmailModal = ({ isOpen, onClose, emailData, onSend }) => {
   );
 };
 
+// Update the date formatting function to use spaces instead of slashes
+const formatDate = (dateStr) => {
+  try {
+    // Handle different date formats
+    let date;
+    if (dateStr.includes('/')) {
+      // Handle DD/MMM/YYYY format
+      const [day, month, year] = dateStr.split('/');
+      date = new Date(`${month} ${day} ${year}`);
+    } else {
+      date = new Date(dateStr);
+    }
+
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return dateStr; // Return original string if parsing fails
+    }
+
+    // Format to MM DD YYYY (with spaces)
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    const year = date.getFullYear();
+
+    return `${month} ${day} ${year}`;
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return dateStr; // Return original string if any error occurs
+  }
+};
+
 const CrossVerificationTab = ({ 
   isLoading, 
   verificationData, 
@@ -172,26 +202,17 @@ const CrossVerificationTab = ({
     }
   };
 
-  const handleDraftMailClick = async () => {
+  const handleDraftMailClick = async (error) => {
     try {
-      // Get all errors from different categories
-      const allErrors = [
-        ...(verificationData?.verificationResults?.mismatchErrors || []),
-        ...(verificationData?.verificationResults?.missingErrors || []),
-        ...(verificationData?.verificationResults?.summarizationErrors || [])
-      ];
-
-      // Find the first error
-      const firstError = allErrors[0];
-      if (!firstError) {
-        toast.error('No validation errors found to draft email about');
+      if (!error) {
+        toast.error('No validation error found to draft email about');
         return;
       }
 
-      const errorType = firstError.type;
-      const errorDetails = typeof firstError.details === 'string' 
-        ? firstError.details 
-        : Object.entries(firstError.details)
+      const errorType = error.type;
+      const errorDetails = typeof error.details === 'string' 
+        ? error.details 
+        : Object.entries(error.details)
             .map(([doc, value]) => `${doc}: ${value}`)
             .join('\n');
 
@@ -202,8 +223,112 @@ const CrossVerificationTab = ({
     }
   };
 
-  // Move ActionButtons component here, after handleDraftMailClick is defined
-  const ActionButtons = () => {
+  // Update the handleSummaryDraftMailClick function
+  const handleSummaryDraftMailClick = async () => {
+    try {
+      const summaryErrors = verificationData?.verificationResults.summarizationErrors || [];
+      const mismatchErrors = verificationData?.verificationResults.mismatchErrors || [];
+      const missingErrors = verificationData?.verificationResults.missingErrors || [];
+
+      if (summaryErrors.length === 0 && mismatchErrors.length === 0 && missingErrors.length === 0) {
+        toast.error('No verification information available');
+        return;
+      }
+
+      // Combine all information
+      let errorDetails = '';
+
+      // Add Summary section
+      if (summaryErrors.length > 0) {
+        errorDetails += '=== Summary ===\n';
+        errorDetails += summaryErrors
+          .map(error => `${error.type}:\n${error.details}`)
+          .join('\n\n');
+      }
+
+      // Add Mismatch Errors section
+      if (mismatchErrors.length > 0) {
+        errorDetails += '\n\n=== Mismatch Errors ===\n';
+        errorDetails += mismatchErrors
+          .map(error => {
+            const details = Object.entries(error.details)
+              .map(([doc, value]) => `${doc}: ${value}`)
+              .join('\n');
+            return `${error.type}:\n${details}`;
+          })
+          .join('\n\n');
+      }
+
+      // Add Missing Errors section
+      if (missingErrors.length > 0) {
+        errorDetails += '\n\n=== Missing Information ===\n';
+        errorDetails += missingErrors
+          .map(error => `${error.type}:\n${error.details}`)
+          .join('\n\n');
+      }
+
+      // Send complete verification report
+      await handleDraftMail(
+        'Complete Verification Report', 
+        errorDetails
+      );
+    } catch (error) {
+      console.error('Error handling summary draft mail:', error);
+      toast.error('Failed to generate verification report email');
+    }
+  };
+
+  // Remove the button from SummaryHeader
+  const SummaryHeader = () => {
+    return (
+      <div className="p-4 border-b border-gray-200">
+        <h3 className="text-base font-semibold text-gray-900">Summary</h3>
+      </div>
+    );
+  };
+
+  // Update the DraftSummaryButton component with new name
+  const DraftSummaryButton = () => {
+    return (
+      <button
+        className={`inline-flex items-center px-5 py-2.5 text-sm font-medium 
+          ${isDraftingEmail 
+            ? 'bg-gray-100 text-gray-500 cursor-wait' 
+            : 'bg-indigo-600 text-white hover:bg-indigo-700'
+          } 
+          rounded-lg transition-colors shadow-md hover:shadow-lg focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500`}
+        onClick={handleSummaryDraftMailClick}
+        disabled={isDraftingEmail}
+      >
+        {isDraftingEmail ? (
+          <>
+            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+            Preparing Summary...
+          </>
+        ) : (
+          <>
+            <svg 
+              className="w-5 h-5 mr-2" 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+              />
+            </svg>
+            Send Summarized Verification Mail
+          </>
+        )}
+      </button>
+    );
+  };
+
+  // Modify ActionButtons to accept error data
+  const ActionButtons = ({ error }) => {
     return (
       <div className="flex items-center gap-2 mt-4">
         <button
@@ -213,7 +338,7 @@ const CrossVerificationTab = ({
               : 'text-gray-700 bg-white hover:bg-gray-50'
             } 
             border border-gray-300 rounded-md transition-colors`}
-          onClick={handleDraftMailClick}
+          onClick={() => handleDraftMailClick(error)} // Pass the specific error
           disabled={isDraftingEmail}
         >
           {isDraftingEmail ? (
@@ -333,8 +458,28 @@ const CrossVerificationTab = ({
   return (
     <div className="p-6">
       {isDraftingEmail && <LoadingOverlay />}
-      {/* Cross Verification Content */}
+      
+      {/* Draft Summary Button at the top */}
+      <div className="flex justify-end mb-4">
+        <DraftSummaryButton />
+      </div>
+
       <div className="space-y-6">
+        {/* Summary Section */}
+        <div className="bg-white rounded-lg border border-gray-200">
+          <SummaryHeader />
+          <div className="divide-y divide-gray-200">
+            {verificationData?.verificationResults.summarizationErrors.map((error, index) => (
+              <div key={index} className="p-4">
+                <div className="mb-4">
+                  <h4 className="text-sm font-medium text-gray-900 mb-2">{error.type}</h4>
+                  <p className="text-base text-gray-700 bg-gray-50 p-3 rounded-lg">{error.details}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Mismatch Errors Section */}
         <div className="bg-white rounded-lg border border-gray-200">
           <div className="p-4 border-b border-gray-200">
@@ -349,11 +494,15 @@ const CrossVerificationTab = ({
                     {Object.entries(error.details).map(([document, value], idx) => (
                       <div key={idx} className="inline-flex items-center bg-gray-50 px-3 py-2 rounded-lg">
                         <span className="text-sm font-medium text-gray-500 mr-2">{document}:</span>
-                        <span className="text-base text-gray-900">{value}</span>
+                        <span className="text-base text-gray-900">
+                          {error.type.toLowerCase().includes('date of birth') 
+                            ? formatDate(value)
+                            : value}
+                        </span>
                       </div>
                     ))}
                   </div>
-                  <ActionButtons />
+                  <ActionButtons error={error} />
                 </div>
               </div>
             ))}
@@ -371,25 +520,7 @@ const CrossVerificationTab = ({
                 <div className="mb-4">
                   <h4 className="text-sm font-medium text-gray-900 mb-2">{error.type}</h4>
                   <p className="text-base text-gray-700 bg-gray-50 p-3 rounded-lg">{error.details}</p>
-                  <ActionButtons />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Summarization Errors Section */}
-        <div className="bg-white rounded-lg border border-gray-200">
-          <div className="p-4 border-b border-gray-200">
-            <h3 className="text-base font-semibold text-gray-900">Summarization errors</h3>
-          </div>
-          <div className="divide-y divide-gray-200">
-            {verificationData?.verificationResults.summarizationErrors.map((error, index) => (
-              <div key={index} className="p-4">
-                <div className="mb-4">
-                  <h4 className="text-sm font-medium text-gray-900 mb-2">{error.type}</h4>
-                  <p className="text-base text-gray-700 bg-gray-50 p-3 rounded-lg">{error.details}</p>
-                  <ActionButtons />
+                  <ActionButtons error={error} />
                 </div>
               </div>
             ))}
@@ -397,7 +528,6 @@ const CrossVerificationTab = ({
         </div>
       </div>
 
-      {/* Use updated EmailModal */}
       <EmailModalWithRecipient 
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
