@@ -29,7 +29,7 @@ const CaseDetailsSidebar = ({ caseData, loading, error, onEmailChange }) => {
   };
 
   return (
-    <div className="w-80">
+    <div className="h-full overflow-y-auto">
       {/* Merged Case Details & Profile Section */}
       <div className="p-6 bg-white mb-4 shadow-sm rounded-xl border border-gray-100/50">
         <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 text-gray-800">
