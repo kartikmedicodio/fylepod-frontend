@@ -456,7 +456,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             await new Promise(resolve => setTimeout(resolve, 1000));
             
             toast.success('All questionnaires processed successfully');
-            setActiveTab('questionnaire');
+            // Change this line to set the finalize tab instead of questionnaire
+            setSelectedSubTab('finalize');
           }
         } catch (error) {
           console.error('Error processing questionnaires:', error);
