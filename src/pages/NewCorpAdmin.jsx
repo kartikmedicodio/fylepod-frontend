@@ -5,11 +5,15 @@ import api from '../utils/api';
 import { toast } from 'sonner';
 import PropTypes from 'prop-types';
 import { useAuth } from '../contexts/AuthContext';
+import { useBreadcrumb } from '../contexts/BreadcrumbContext';
+import { usePage } from '../contexts/PageContext';
 
-const NewCorpAdmin = ({ setCurrentBreadcrumb }) => {
+const NewCorpAdmin = () => {
   const navigate = useNavigate();
   const { companyId } = useParams();
   const { user } = useAuth();
+  const { setCurrentBreadcrumb } = useBreadcrumb();
+  const { setPageTitle } = usePage();
   const [loading, setLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [companyDetails, setCompanyDetails] = useState(null);
@@ -31,15 +35,19 @@ const NewCorpAdmin = ({ setCurrentBreadcrumb }) => {
     }
   });
 
-  // Set breadcrumb on mount
+  // Set breadcrumb and page title on mount
   useEffect(() => {
-    if (setCurrentBreadcrumb) {
-      setCurrentBreadcrumb([
-        { label: 'Home', path: '/dashboard' },
-        { label: 'New Corporate Admin', path: `/companies/${companyId}/admin/new` }
-      ]);
-    }
-  }, [setCurrentBreadcrumb, companyId]);
+    setPageTitle('New Corporate Admin');
+    setCurrentBreadcrumb([
+      { name: 'Home', path: '/dashboard' },
+      { name: 'New Company', path: '/company/new' },
+      { name: 'New Corporate Admin', path: `/companies/${companyId}/admin/new` }
+    ]);
+    return () => {
+      setPageTitle('');
+      setCurrentBreadcrumb([]);
+    };
+  }, [setPageTitle, setCurrentBreadcrumb, companyId]);
 
   // Fetch company details
   useEffect(() => {

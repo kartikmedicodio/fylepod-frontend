@@ -79,14 +79,14 @@ const CorporationDetailsSkeleton = () => (
   </div>
 );
 
-const CorporationDetails = ({ setCurrentBreadcrumb }) => {
+const CorporationDetails = () => {
   const { corporationId } = useParams();
   const navigate = useNavigate();
   const [corporation, setCorporation] = useState(null);
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const { setCurrentBreadcrumb: breadcrumbContextSetCurrentBreadcrumb } = useBreadcrumb();
+  const { setCurrentBreadcrumb } = useBreadcrumb();
   const [isEditing, setIsEditing] = useState(false);
   const [editedCorporation, setEditedCorporation] = useState(null);
   const [tabWidths, setTabWidths] = useState({});
@@ -105,11 +105,14 @@ const CorporationDetails = ({ setCurrentBreadcrumb }) => {
   useEffect(() => {
     // Make sure this is inside a useEffect to avoid infinite renders
     setCurrentBreadcrumb([
-      { label: 'Dashboard', link: '/' },
-      { label: 'Corporations', link: '/corporations' },
-      { label: 'Corporation Details', link: '#' }
+      { name: 'Home', path: '/dashboard' },
+      { name: 'Corporations', path: '/corporations' },
+      { name: corporation?.company_name || 'Corporation Details', path: '#' }
     ]);
-  }, []); // Add dependencies if needed
+    return () => {
+      setCurrentBreadcrumb([]);
+    };
+  }, [setCurrentBreadcrumb, corporation?.company_name]); // Add dependencies if needed
 
   useEffect(() => {
     fetchCorporationDetails();

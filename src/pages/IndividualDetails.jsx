@@ -4,6 +4,7 @@ import { Pencil, Save } from 'lucide-react';
 import PropTypes from 'prop-types';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../utils/api';
+import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 
 // Add CaseRow PropTypes
 const CaseRowPropTypes = {
@@ -64,7 +65,7 @@ const IndividualDetailsSkeleton = () => (
   </div>
 );
 
-const IndividualDetails = ({ setCurrentBreadcrumb }) => {
+const IndividualDetails = () => {
   const { individualId } = useParams();
   const navigate = useNavigate();
   const [individual, setIndividual] = useState(null);
@@ -77,6 +78,7 @@ const IndividualDetails = ({ setCurrentBreadcrumb }) => {
   const [cases, setCases] = useState([]);
   const [casesLoading, setCasesLoading] = useState(false);
   const tabRefs = useRef([]);
+  const { setCurrentBreadcrumb } = useBreadcrumb();
 
   // Define tabs
   const tabs = [
@@ -87,11 +89,14 @@ const IndividualDetails = ({ setCurrentBreadcrumb }) => {
 
   useEffect(() => {
     setCurrentBreadcrumb([
-      { label: 'Dashboard', link: '/' },
-      { label: 'Individuals', link: '/individuals' },
-      { label: 'Individual Details', link: '#' }
+      { name: 'Home', path: '/dashboard' },
+      { name: 'Individuals', path: '/individuals' },
+      { name: individual?.name || 'Individual Details', path: '#' }
     ]);
-  }, []);
+    return () => {
+      setCurrentBreadcrumb([]);
+    };
+  }, [setCurrentBreadcrumb, individual?.name]);
 
   useEffect(() => {
     fetchIndividualDetails();

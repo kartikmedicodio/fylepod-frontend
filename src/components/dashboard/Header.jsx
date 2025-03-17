@@ -38,6 +38,12 @@ const Header = ({ sidebarCollapsed, onAgentClick }) => {
     
     // Handle different page types
     switch(paths[0]) {
+      case '':
+      case 'dashboard':
+        return [
+          { name: 'Dashboard', path: '/dashboard' }
+        ];
+      
       case 'profile':
         return [
           { name: 'Profile', path: '/profile' }
@@ -55,10 +61,14 @@ const Header = ({ sidebarCollapsed, onAgentClick }) => {
         ];
 
       case 'corporations':
+        // If we have a currentBreadcrumb array, use it
+        if (Array.isArray(currentBreadcrumb)) {
+          return currentBreadcrumb;
+        }
+        // Otherwise, use default
         return [
-          { name: 'Corporations', path: '/corporations' },
-          ...(currentBreadcrumb?.path === `/${paths.slice(0, 2).join('/')}` ? 
-            [currentBreadcrumb] : [])
+          { name: 'Home', path: '/' },
+          { name: 'Corporations', path: '/corporations' }
         ];
 
       case 'knowledge':
@@ -97,7 +107,7 @@ const Header = ({ sidebarCollapsed, onAgentClick }) => {
     return (
       <ol className="flex items-center space-x-2">
         {breadcrumbs.map((breadcrumb, index) => (
-          <li key={breadcrumb.id || breadcrumb.path} className="flex items-center">
+          <li key={`${breadcrumb.path}-${index}`} className="flex items-center">
             {index > 0 && (
               <span className="mx-2 text-gray-400">{'>'}</span>
             )}

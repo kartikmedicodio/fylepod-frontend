@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { Edit, Bot, SendHorizontal, Loader2, MapPin, Phone, Mail, Briefcase, GraduationCap, Clock, CreditCard, User, FileText, CheckCircle } from 'lucide-react';
 import ReactDOM from 'react-dom';
 import api from '../utils/api';
+import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 
 const ProfileContainer = styled('div')({
   padding: '24px',
@@ -599,7 +600,7 @@ const CaseDetailsCard = styled(Card)({
   }
 });
 
-const Profile = ({ setCurrentBreadcrumb }) => {
+const Profile = () => {
   const { profileId } = useParams();
   const navigate = useNavigate();
   const [profileData, setProfileData] = useState(null);
@@ -608,6 +609,7 @@ const Profile = ({ setCurrentBreadcrumb }) => {
   const [currentTab, setCurrentTab] = useState(0);
   const [cases, setCases] = useState([]);
   const [loadingCases, setLoadingCases] = useState(false);
+  const { setCurrentBreadcrumb } = useBreadcrumb();
   
   // Add new chat-related state
   const [showChatPopup, setShowChatPopup] = useState(false);

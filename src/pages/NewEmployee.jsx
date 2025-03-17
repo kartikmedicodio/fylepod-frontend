@@ -6,10 +6,14 @@ import { toast } from 'sonner';
 import PropTypes from 'prop-types';
 import Select from 'react-select';
 import { User, Building2 } from 'lucide-react';
+import { useBreadcrumb } from '../contexts/BreadcrumbContext';
+import { usePage } from '../contexts/PageContext';
 
-const NewEmployee = ({ setCurrentBreadcrumb }) => {
+const NewEmployee = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { setCurrentBreadcrumb } = useBreadcrumb();
+  const { setPageTitle } = usePage();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [companies, setCompanies] = useState([]);
@@ -53,15 +57,18 @@ const NewEmployee = ({ setCurrentBreadcrumb }) => {
       label: company.company_name
     }));
 
-  // Set breadcrumb on mount
+  // Set breadcrumb and page title on mount
   useEffect(() => {
-    if (setCurrentBreadcrumb) {
-      setCurrentBreadcrumb([
-        { label: 'Home', path: '/dashboard' },
-        { label: 'New Employee', path: '/employee/new' }
-      ]);
-    }
-  }, [setCurrentBreadcrumb]);
+    setPageTitle('New Employee');
+    setCurrentBreadcrumb([
+      { name: 'Home', path: '/dashboard' },
+      { name: 'New Employee', path: '/employee/new' }
+    ]);
+    return () => {
+      setPageTitle('');
+      setCurrentBreadcrumb([]);
+    };
+  }, [setPageTitle, setCurrentBreadcrumb]);
 
   // Fetch companies for dropdown
   useEffect(() => {
