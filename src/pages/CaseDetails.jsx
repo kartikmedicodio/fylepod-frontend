@@ -1652,6 +1652,42 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
   // Update the QuestionnaireDetailView component
   const QuestionnaireDetailView = ({ questionnaire, onBack }) => {
+    // Add function to count filled fields
+    const getFilledFieldsCount = () => {
+      let totalFields = 0;
+      let filledFields = 0;
+
+      // Count Passport fields
+      const passportFields = questionnaire.field_mappings.filter(field => field.sourceDocument === 'Passport');
+      totalFields += passportFields.length;
+      passportFields.forEach(field => {
+        if (formData?.Passport?.[field.fieldName]) {
+          filledFields++;
+        }
+      });
+
+      // Count Resume fields
+      const resumeFields = questionnaire.field_mappings.filter(field => field.sourceDocument === 'Resume');
+      resumeFields.forEach(field => {
+        if (field.fieldName === 'educationalQualification') {
+          // Count educational qualification as one field
+          totalFields += 1;
+          if (formData?.Resume?.educationalQualification?.length > 0) {
+            filledFields++;
+          }
+        } else {
+          totalFields += 1;
+          if (formData?.Resume?.[field.fieldName]) {
+            filledFields++;
+          }
+        }
+      });
+
+      return { filledFields, totalFields };
+    };
+
+    const { filledFields, totalFields } = getFilledFieldsCount();
+
     return (
       <div className="p-6">
         {/* Header with Back Button */}
@@ -1666,11 +1702,37 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             <div>
               <div className="flex items-center gap-8">
                 <h2 className="text-lg font-medium text-gray-900">Questionnaire</h2>
+                {/* Add field count indicator */}
+               
               </div>
               <p className="text-sm text-gray-600">{questionnaire.questionnaire_name}</p>
             </div>
           </div>
-          <div>
+          <div className='flex items-center gap-14'>
+            <div className="flex items-center gap-2">
+              <div className="text-sm text-gray-600">
+                {filledFields} out of {totalFields} fields completed
+              </div>
+              {/* Progress bar with animated dots */}
+              <div className="relative w-32">
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-green-500 transition-all duration-500"
+                    style={{ width: `${(filledFields / totalFields) * 100}%` }}
+                  />
+                </div>
+                {/* Animated dots for remaining fields */}
+                {filledFields < totalFields && (
+                  <div className="absolute top-0 left-0 w-full h-full flex items-center justify-end pr-2">
+                    <div className="flex gap-1">
+                      <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '0ms' }} />
+                      <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '200ms' }} />
+                      <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '400ms' }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
             <button
               onClick={handleSave}
               disabled={isSavingQuestionnaire}
