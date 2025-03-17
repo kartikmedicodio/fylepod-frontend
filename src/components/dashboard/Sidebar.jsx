@@ -81,7 +81,6 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
     // Individual/Employee navigation
     const individualNavigation = [
       { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-      { name: 'Inbox', href: '/inbox', icon: MailIcon, badge: 15, disabled: true },
       { 
         section: 'All Profiles',
         items: [
@@ -101,7 +100,6 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
         section: 'Cases',
         items: [
           { name: 'All Cases', href: '/individual-cases', icon: BriefcaseBusiness },
-          { name: 'Document Library', href: '/documents', icon: FolderIcon, disabled: true },
         ]
       }
     ];
@@ -109,7 +107,6 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
     // Admin/Attorney/Manager navigation
     const adminNavigation = [
       { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-      { name: 'Inbox', href: '/inbox', icon: MailIcon, disabled: true },
       { 
         section: 'Clients',
         items: [
@@ -126,9 +123,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       {
         section: 'Setup',
         items: [
-          { name: 'Account Info', href: '/account', icon: User2Icon, disabled: true },
           { name: 'Knowledge Base', href: '/knowledge', icon: TableOfContents },
-          { name: 'Reminder Settings', href: '/reminders', icon: Settings, disabled: true },
         ]
       },
     ];

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../utils/api';
-import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, SlidersHorizontal } from 'lucide-react';
 import CaseDetails from './CaseDetails';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getStoredUser } from '../utils/auth';
@@ -246,11 +246,6 @@ const Cases = () => {
   const [error, setError] = useState(null);
   const [loggedInUserDetails, setLoggedInUserDetails] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
-  const [showSortDropdown, setShowSortDropdown] = useState(false);
-  const [sortConfig, setSortConfig] = useState({
-    field: '',
-    direction: 'asc'
-  });
   const [filters, setFilters] = useState({
     status: '',
     documentStatus: '',
@@ -265,13 +260,6 @@ const Cases = () => {
   // Navigation hooks
   const navigate = useNavigate();
   const { setCurrentBreadcrumb } = useBreadcrumb();
-
-  // Constants
-  const sortOptions = [
-    { value: 'deadline', label: 'Deadline' },
-    { value: 'caseId', label: 'Case ID' },
-    { value: 'name', label: 'Individual Name' }
-  ];
 
   const filterOptions = {
     status: [
@@ -294,14 +282,6 @@ const Cases = () => {
   };
 
   // Handler functions
-  const handleSort = (field) => {
-    setSortConfig(prev => ({
-      field,
-      direction: prev.field === field && prev.direction === 'asc' ? 'desc' : 'asc'
-    }));
-    setShowSortDropdown(false);
-  };
-
   const handleFilterChange = (filterType, value) => {
     setTempFilters(prev => ({
       ...prev,
@@ -512,38 +492,8 @@ const Cases = () => {
     // Apply other filters
     filtered = applyFilters(filtered);
 
-    // Apply sorting
-    if (sortConfig.field) {
-      filtered.sort((a, b) => {
-        let aValue, bValue;
-        
-        switch (sortConfig.field) {
-          case 'deadline':
-            aValue = new Date(a.deadline || 0).getTime();
-            bValue = new Date(b.deadline || 0).getTime();
-            break;
-          case 'caseId':
-            aValue = a._id || '';
-            bValue = b._id || '';
-            break;
-          case 'name':
-            aValue = a.userName || '';
-            bValue = b.userName || '';
-            break;
-          default:
-            return 0;
-        }
-
-        if (sortConfig.direction === 'asc') {
-          return aValue > bValue ? 1 : -1;
-        } else {
-          return aValue < bValue ? 1 : -1;
-        }
-      });
-    }
-
     setFilteredCases(filtered);
-  }, [cases, searchTerm, filters, sortConfig]);
+  }, [cases, searchTerm, filters]);
 
   useEffect(() => {
     if (showFilters) {
@@ -576,26 +526,6 @@ const Cases = () => {
   const handleBackToCases = () => {
     setSelectedCase(null);
   };
-
-  // Define SortDropdown component inside Cases
-  const SortDropdown = () => (
-    <div className="absolute right-0 top-12 w-48 bg-white rounded-lg shadow-lg border border-gray-200 p-2 z-10">
-      {sortOptions.map(option => (
-        <button
-          key={option.value}
-          onClick={() => handleSort(option.value)}
-          className={`w-full text-left px-4 py-2 text-sm rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-between ${
-            sortConfig.field === option.value ? 'text-blue-600 bg-blue-50' : 'text-gray-700'
-          }`}
-        >
-          {option.label}
-          {sortConfig.field === option.value && (
-            <ArrowUpDown className="h-4 w-4" />
-          )}
-        </button>
-      ))}
-    </div>
-  );
 
   if (selectedCase) {
     return <CaseDetails caseId={selectedCase} onBack={handleBackToCases} />;
@@ -664,15 +594,6 @@ const Cases = () => {
             />
           )}
         </div>
-        
-        {/* Sort button - disabled */}
-        <button 
-          disabled
-          className="px-4 py-2 text-sm bg-gray-100 rounded-lg border border-gray-200 text-gray-400 cursor-not-allowed flex items-center gap-2"
-        >
-          <ArrowUpDown className="h-4 w-4" />
-          Sort
-        </button>
       </div>
 
       {/* Table with integrated pagination */}

@@ -90,71 +90,6 @@ const DocumentStatus = ({ status }) => {
   );
 };
 
-const DocumentPreviewModal = ({ isOpen, onClose, fileUrl }) => {
-  const [isLoading, setIsLoading] = useState(true);
-
-  if (!isOpen) return null;
-
-  return (
-    // Backdrop with blur effect
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      {/* Modal Container */}
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col">
-        {/* Header with gradient background */}
-        <div className="flex justify-between items-center p-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-200">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white rounded-lg shadow-sm border border-slate-200">
-              <FileText className="w-5 h-5 text-slate-600" />
-            </div>
-            <h3 className="text-lg font-medium text-slate-800">Document Preview</h3>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-600 hover:text-slate-900"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        
-        {/* Document Viewer with loading state */}
-        <div className="flex-1 bg-slate-50 relative">
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-50">
-              <div className="flex flex-col items-center gap-3">
-                <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-                <p className="text-sm text-slate-600">Loading document...</p>
-              </div>
-            </div>
-          )}
-          
-          <iframe
-            src={fileUrl}
-            className="w-full h-full"
-            title="Document Preview"
-            onLoad={() => setIsLoading(false)}
-          />
-        </div>
-
-        {/* Footer with actions */}
-        <div className="p-4 border-t border-slate-200 bg-gradient-to-r from-slate-50 to-white flex justify-between items-center">
-          {/* <div className="text-sm text-slate-600">
-            Press <kbd className="px-2 py-1 bg-slate-100 rounded text-xs">ESC</kbd> to close
-          </div> */}
-          <a 
-            href={fileUrl} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-          >
-            Open in new tab
-            <ChevronRight className="w-4 h-4" />
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const DocumentRow = ({ 
   document, 
   onStateClick, 
@@ -165,7 +100,6 @@ const DocumentRow = ({
 }) => {
   const [documentDetails, setDocumentDetails] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   useEffect(() => {
     const fetchDocumentDetails = async () => {
@@ -234,7 +168,7 @@ const DocumentRow = ({
   const handleViewDocument = (e) => {
     e.stopPropagation();
     if (documentDetails?.fileUrl) {
-      setIsPreviewOpen(true);
+      window.open(documentDetails.fileUrl, '_blank');
     }
   };
 
@@ -264,19 +198,10 @@ const DocumentRow = ({
             {/* View Document Button */}
             <button
               onClick={handleViewDocument}
-              disabled={!documentDetails?.fileUrl}
-              className={`p-2 rounded-lg transition-colors ${
-                documentDetails?.fileUrl 
-                  ? 'text-slate-600 hover:text-blue-600 hover:bg-blue-50 cursor-pointer' 
-                  : 'text-slate-400 cursor-not-allowed'
-              }`}
-              title={documentDetails?.fileUrl ? "View Document" : "Loading document..."}
+              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+              title="View document"
             >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Eye className="w-4 h-4" />
-              )}
+              <Eye className="w-5 h-5 text-slate-600" />
             </button>
 
             {/* Only show status badge for approved documents */}
@@ -350,13 +275,6 @@ const DocumentRow = ({
           ))}
         </div>
       </div>
-
-      {/* Document Preview Modal */}
-      <DocumentPreviewModal
-        isOpen={isPreviewOpen}
-        onClose={() => setIsPreviewOpen(false)}
-        fileUrl={documentDetails?.fileUrl}
-      />
     </>
   );
 };
