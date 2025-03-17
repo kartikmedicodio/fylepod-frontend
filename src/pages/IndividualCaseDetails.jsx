@@ -171,10 +171,14 @@ const IndividualCaseDetails = () => {
   const { caseId } = useParams();
   
   // Group all useState hooks
-  const [activeTab, setActiveTab] = useState('case-details');
+  const [activeTab, setActiveTab] = useState('documents-checklist');
   const [caseData, setCaseData] = useState(null);
   const [profileData, setProfileData] = useState(null);
-  const [uploadStatus, setUploadStatus] = useState('pending');
+  const [uploadStatus, setUploadStatus] = useState(() => {
+    // Check if there are any pending documents
+    const hasPendingDocs = caseData?.documentTypes?.some(doc => doc.status === 'pending');
+    return hasPendingDocs ? 'pending' : 'uploaded';
+  });
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -419,7 +423,20 @@ const IndividualCaseDetails = () => {
       const failedUploads = processResults.filter(result => !result.success).length;
 
       // Refresh data after processing
-      await refreshCaseData();
+      const caseResponse = await api.get(`/management/${caseId}`);
+      if (caseResponse.data.status === 'success') {
+        setCaseData(caseResponse.data.data.entry);
+        
+        // Check if all documents are uploaded and switch to Questionnaire tab
+        const allDocsUploaded = caseResponse.data.data.entry.documentTypes.every(doc => 
+          doc.status === 'uploaded' || doc.status === 'approved'
+        );
+        
+        if (allDocsUploaded) {
+          setActiveTab('questionnaire');
+          toast.success('All documents uploaded! Please complete the questionnaire.');
+        }
+      }
       
       setFiles([]);
 
@@ -618,6 +635,10 @@ const IndividualCaseDetails = () => {
         const response = await api.get(`/management/${caseId}`);
         if (response.data.status === 'success') {
           setCaseData(response.data.data.entry);
+          
+          // Update uploadStatus based on document status
+          const hasPendingDocs = response.data.data.entry.documentTypes.some(doc => doc.status === 'pending');
+          setUploadStatus(hasPendingDocs ? 'pending' : 'uploaded');
           
           // Use the user data included in the case as a basic profile
           if (response.data.data.entry?.userId) {
@@ -902,7 +923,7 @@ const IndividualCaseDetails = () => {
               </div>
               <div>
                 <div className="text-sm text-gray-500">Case Manager</div>
-                <div className="font-medium">{caseData.createdBy?.name || '-'}</div>
+                <div className="font-medium">{caseData.caseManagerName || caseData.createdBy?.name || '-'}</div>
               </div>
               <div>
                 <div className="text-sm text-gray-500">Case Name</div>
@@ -1649,8 +1670,9 @@ const IndividualCaseDetails = () => {
   // Main component return
   return (
     <>
-      {/* Profile Section */}
-      <div className="p-6 flex justify-start">
+      {/* Profile and Case Details Section */}
+      <div className="p-6 flex gap-6">
+        {/* Profile Section */}
         <div className="w-1/2">
           <div className="bg-white rounded-lg border border-gray-200 p-4">
             <div className="flex items-start gap-6">
@@ -1712,12 +1734,56 @@ const IndividualCaseDetails = () => {
             </div>
           </div>
         </div>
+
+        {/* Case Details Section */}
+        <div className="w-1/2">
+          <div className="bg-white rounded-lg border border-gray-200 p-4 h-full">
+            <div className="flex items-start gap-6">
+              {/* Case Info Grid */}
+              <div className="flex-grow grid grid-cols-2 gap-x-12 gap-y-2">
+                {/* Left Column - Basic Info */}
+                <div className="space-y-2">
+                  <div>
+                    <div className="text-sm text-gray-500">Case Applicant</div>
+                    <div className="font-medium">{caseData.userName}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">Case Manager</div>
+                    <div className="font-medium">{caseData.caseManagerName || caseData.createdBy?.name || '-'}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">Case Name</div>
+                    <div className="font-medium">{caseData.categoryName}</div>
+                  </div>
+                </div>
+
+                {/* Right Column - Status Info */}
+                <div className="space-y-2">
+                  <div>
+                    <div className="text-sm text-gray-500">Current Status</div>
+                    <div className="font-medium">{caseData.categoryStatus}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">Created Date</div>
+                    <div className="font-medium">{new Date(caseData.createdAt).toLocaleDateString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">Deadline</div>
+                    <div className="font-medium">
+                      {caseData.deadline ? new Date(caseData.deadline).toLocaleDateString() : '-'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Tabs Navigation */}
       <div className="px-6 py-4">
         <div className="flex gap-2">
-          {['Case Details', 'Documents Checklist'].map((tab) => (
+          {['Documents Checklist', 'Questionnaire'].map((tab) => (
             <button
               key={tab}
               className={`px-6 py-3 text-base font-medium rounded-lg transition-colors ${
@@ -1730,38 +1796,19 @@ const IndividualCaseDetails = () => {
               {tab}
             </button>
           ))}
-          <button
-            key="Queries"
-            className="px-6 py-3 text-base font-medium rounded-lg transition-colors text-gray-400 cursor-not-allowed opacity-70"
-            disabled
-          >
-            Queries 
-          </button>
         </div>
       </div>
 
       {/* Tab Content */}
       <div className="p-6">
-        {activeTab === 'case-details' && (
-          <div className="bg-white rounded-lg border border-gray-200">
-            <CaseDetailsTab />
-          </div>
-        )}
         {activeTab === 'documents-checklist' && (
-          <div className="flex gap-6">
-            <div className="w-[66%]">
-              <div className="bg-white rounded-lg border border-gray-200">
-                <DocumentsChecklistTab />
-              </div>
-            </div>
-            <div className="w-[33%]">
-              <QuestionnaireTab />
-            </div>
+          <div className="bg-white rounded-lg border border-gray-200">
+            <DocumentsChecklistTab />
           </div>
         )}
-        {activeTab === 'queries' && (
+        {activeTab === 'questionnaire' && (
           <div className="bg-white rounded-lg border border-gray-200">
-            <QueriesTab />
+            <QuestionnaireTab />
           </div>
         )}
       </div>

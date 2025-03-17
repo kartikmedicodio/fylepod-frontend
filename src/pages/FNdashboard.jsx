@@ -169,8 +169,7 @@ const FNDashboard = () => {
 
   useEffect(() => {
     setCurrentBreadcrumb([
-      { label: 'Home', link: '/' },
-      { label: 'FN Dashboard', link: '/fndashboard' }
+      { label: 'Dashboard', link: '/dashboard' }
     ]);
   }, [setCurrentBreadcrumb]);
 
@@ -336,7 +335,6 @@ const FNDashboard = () => {
       <div className="w-1/2 pr-6">
         <div className="sticky top-5">
           <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-semibold text-gray-800">Case Progress</h1>
             <div className="text-sm text-gray-500">
               {currentUserCases.length + Object.values(otherUserCases).flat().length} Active Cases
             </div>
@@ -411,93 +409,6 @@ const FNDashboard = () => {
                   </div>
                 ))}
               </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Right Section - DIANA Notifications */}
-      <div className="w-1/2 pl-6 border-l">
-        <div className="sticky top-5">
-          <div className="flex items-center gap-4 mb-8">
-            <div className="relative">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg">
-                <span className="text-white text-lg font-semibold">D</span>
-              </div>
-              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-green-400 border-2 border-white"></div>
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-transparent bg-clip-text">DIANA</h1>
-              <div className="text-sm text-gray-600">Data & Document Collection Agent</div>
-            </div>
-          </div>
-          
-          {/* DIANA Notifications */}
-          <div className="space-y-4">
-            {[...currentUserCases, ...Object.values(otherUserCases).flat()]
-              .flatMap(caseItem => 
-                caseItem.documentTypes
-                  ?.filter(doc => doc.status === 'pending')
-                  .map(doc => ({
-                    ...doc,
-                    caseId: caseItem._id,
-                    caseName: caseItem.categoryName,
-                    userName: caseItem.userName
-                  })) || []
-              )
-              .map(doc => (
-                <div 
-                  key={doc._id} 
-                  className="bg-gradient-to-r from-indigo-50/80 to-purple-50/80 rounded-xl p-4 hover:shadow-lg cursor-pointer transition-all duration-300 group border border-indigo-100/50"
-                  onClick={() => handleCaseClick(doc.caseId)}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300 shadow-md">
-                      <span className="text-white text-xs font-medium">D</span>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between gap-3 mb-2">
-                        <div className="text-sm font-medium text-gray-800">
-                          Document Required: {doc.name}
-                        </div>
-                        {doc.required && (
-                          <span className="text-xs bg-gradient-to-r from-indigo-100/50 to-purple-100/50 text-indigo-700 px-2.5 py-1 rounded-full border border-indigo-200/50 whitespace-nowrap">
-                            Required Document
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-600 mb-3 leading-relaxed">
-                        To proceed with your {doc.caseName}, please upload your {doc.name.toLowerCase()}. This document is {doc.required ? 'required' : 'recommended'} for processing your application.
-                      </p>
-                      <div className="flex items-center text-xs space-x-3 text-gray-500">
-                        <div className="flex items-center space-x-1">
-                          <svg className="w-3.5 h-3.5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                          <span className="text-indigo-600 font-medium">{doc.caseName}</span>
-                        </div>
-                        <span className="text-gray-300">|</span>
-                        <div className="flex items-center space-x-1">
-                          <svg className="w-3.5 h-3.5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                          </svg>
-                          <span>{doc.userName}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            
-            {![...currentUserCases, ...Object.values(otherUserCases).flat()]
-              .some(caseItem => caseItem.documentTypes?.some(doc => doc.status === 'pending')) && (
-              <div className="bg-gradient-to-r from-indigo-50/80 to-purple-50/80 rounded-xl p-8 text-center">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-4 shadow-lg">
-                  <span className="text-white text-xl font-semibold">D</span>
-                </div>
-                <div className="text-gray-600">All documents are up to date!</div>
-                <div className="text-sm text-gray-500 mt-1">I'll notify you when new documents are needed.</div>
-              </div>
             )}
           </div>
         </div>

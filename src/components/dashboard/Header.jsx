@@ -16,7 +16,10 @@ const Header = ({ sidebarCollapsed, onAgentClick }) => {
 
     // If we have currentBreadcrumb array, use it
     if (Array.isArray(currentBreadcrumb)) {
-      return currentBreadcrumb;
+      return currentBreadcrumb.map(item => ({
+        name: item.label,
+        path: item.link
+      }));
     }
 
     // Add a special case for individual case details
@@ -40,6 +43,7 @@ const Header = ({ sidebarCollapsed, onAgentClick }) => {
     switch(paths[0]) {
       case '':
       case 'dashboard':
+      case 'fndashboard':
         return [
           { name: 'Dashboard', path: '/dashboard' }
         ];

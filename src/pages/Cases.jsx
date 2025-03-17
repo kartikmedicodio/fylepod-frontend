@@ -81,7 +81,7 @@ const CaseRow = ({ caseItem, onClick }) => {
           <span>
             {(() => {
               const pendingCount = caseItem.documentTypes.filter(doc => 
-                doc.required && doc.status === 'pending'
+                doc.status === 'pending'
               ).length;
               return pendingCount === 0 ? '0 (completed)' : pendingCount;
             })()}
@@ -333,7 +333,7 @@ const Cases = () => {
 
       if (filters.documentStatus) {
         const pendingDocs = caseItem.documentTypes?.filter(
-          doc => doc.required && doc.status === 'pending'
+          doc => doc.status === 'pending'
         ).length;
         
         if (filters.documentStatus === 'pending' && pendingDocs === 0) {
@@ -747,7 +747,7 @@ const Cases = () => {
                             <span>
                               {(() => {
                                 const pendingCount = caseItem.documentTypes.filter(doc => 
-                                  doc.required && doc.status === 'pending'
+                                  doc.status === 'pending'
                                 ).length;
                                 return pendingCount === 0 ? '0 (completed)' : pendingCount;
                               })()}
