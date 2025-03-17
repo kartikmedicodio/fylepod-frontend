@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, Mail, X } from 'lucide-react';
+import { Loader2, Mail, X, ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 
@@ -97,6 +97,32 @@ const formatDate = (dateStr) => {
   }
 };
 
+const VerificationCard = ({ title, children, isExpanded, onToggle }) => {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden transition-all duration-200 hover:shadow-md">
+      {/* Header - acts as accordion trigger */}
+      <div 
+        className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+        onClick={onToggle}
+      >
+        <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+        {isExpanded ? (
+          <ChevronUp className="w-5 h-5 text-gray-400" />
+        ) : (
+          <ChevronDown className="w-5 h-5 text-gray-400" />
+        )}
+      </div>
+
+      {/* Content - expandable section */}
+      {isExpanded && (
+        <div className="border-t border-gray-100">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const CrossVerificationTab = ({ 
   isLoading, 
   verificationData, 
@@ -108,6 +134,7 @@ const CrossVerificationTab = ({
   const [caseData, setCaseData] = useState(null);
   const [loadingCaseData, setLoadingCaseData] = useState(false);
   const [isDraftingEmail, setIsDraftingEmail] = useState(false);
+  const [expandedSections, setExpandedSections] = useState(['summary']); // Default expand summary
 
   // Add console logs to debug recipient data
   useEffect(() => {
@@ -443,6 +470,14 @@ const CrossVerificationTab = ({
     </div>
   );
 
+  const toggleSection = (section) => {
+    setExpandedSections(prev => 
+      prev.includes(section)
+        ? prev.filter(s => s !== section)
+        : [...prev, section]
+    );
+  };
+
   if (isLoading || loadingCaseData) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -456,75 +491,83 @@ const CrossVerificationTab = ({
   }
 
   return (
-    <div className="p-6">
-      {isDraftingEmail && <LoadingOverlay />}
-      
-      {/* Draft Summary Button at the top */}
-      <div className="flex justify-end mb-4">
-        <DraftSummaryButton />
+    <div>
+      {/* Draft Summary Button */}
+      <div className="">
+        <div className="flex justify-end">
+          <DraftSummaryButton />
+        </div>
       </div>
 
-      <div className="space-y-6">
-        {/* Summary Section */}
-        <div className="bg-white rounded-lg border border-gray-200">
-          <SummaryHeader />
-          <div className="divide-y divide-gray-200">
-            {verificationData?.verificationResults.summarizationErrors.map((error, index) => (
-              <div key={index} className="p-4">
-                <div className="mb-4">
-                  <h4 className="text-sm font-medium text-gray-900 mb-2">{error.type}</h4>
-                  <p className="text-base text-gray-700 bg-gray-50 p-3 rounded-lg">{error.details}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Mismatch Errors Section */}
-        <div className="bg-white rounded-lg border border-gray-200">
-          <div className="p-4 border-b border-gray-200">
-            <h3 className="text-base font-semibold text-gray-900">Mismatch errors</h3>
-          </div>
-          <div className="divide-y divide-gray-200">
-            {verificationData?.verificationResults.mismatchErrors.map((error, index) => (
-              <div key={index} className="p-4">
-                <div className="mb-4">
-                  <h4 className="text-sm font-medium text-gray-900 mb-3">{error.type}</h4>
-                  <div className="flex flex-wrap items-center gap-3">
-                    {Object.entries(error.details).map(([document, value], idx) => (
-                      <div key={idx} className="inline-flex items-center bg-gray-50 px-3 py-2 rounded-lg">
-                        <span className="text-sm font-medium text-gray-500 mr-2">{document}:</span>
-                        <span className="text-base text-gray-900">
-                          {error.type.toLowerCase().includes('date of birth') 
-                            ? formatDate(value)
-                            : value}
-                        </span>
-                      </div>
-                    ))}
+      {/* Content Area */}
+      <div className="p-4">
+        <div className="space-y-4">
+          {/* Summary Section */}
+          <VerificationCard 
+            title="Summary"
+            isExpanded={expandedSections.includes('summary')}
+            onToggle={() => toggleSection('summary')}
+          >
+            <div className="divide-y divide-gray-200">
+              {verificationData?.verificationResults.summarizationErrors.map((error, index) => (
+                <div key={index} className="p-4">
+                  <div className="mb-4">
+                    <h4 className="text-sm font-medium text-gray-900 mb-2">{error.type}</h4>
+                    <p className="text-base text-gray-700 bg-gray-50 p-3 rounded-lg">{error.details}</p>
                   </div>
-                  <ActionButtons error={error} />
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
+              ))}
+            </div>
+          </VerificationCard>
 
-        {/* Missing Errors Section */}
-        <div className="bg-white rounded-lg border border-gray-200">
-          <div className="p-4 border-b border-gray-200">
-            <h3 className="text-base font-semibold text-gray-900">Missing errors</h3>
-          </div>
-          <div className="divide-y divide-gray-200">
-            {verificationData?.verificationResults.missingErrors.map((error, index) => (
-              <div key={index} className="p-4">
-                <div className="mb-4">
-                  <h4 className="text-sm font-medium text-gray-900 mb-2">{error.type}</h4>
-                  <p className="text-base text-gray-700 bg-gray-50 p-3 rounded-lg">{error.details}</p>
-                  <ActionButtons error={error} />
+          {/* Mismatch Errors Section */}
+          <VerificationCard 
+            title="Mismatch Errors"
+            isExpanded={expandedSections.includes('mismatch')}
+            onToggle={() => toggleSection('mismatch')}
+          >
+            <div className="divide-y divide-gray-200">
+              {verificationData?.verificationResults.mismatchErrors.map((error, index) => (
+                <div key={index} className="p-4">
+                  <div className="mb-4">
+                    <h4 className="text-sm font-medium text-gray-900 mb-3">{error.type}</h4>
+                    <div className="flex flex-wrap items-center gap-3">
+                      {Object.entries(error.details).map(([document, value], idx) => (
+                        <div key={idx} className="inline-flex items-center bg-gray-50 px-3 py-2 rounded-lg">
+                          <span className="text-sm font-medium text-gray-500 mr-2">{document}:</span>
+                          <span className="text-base text-gray-900">
+                            {error.type.toLowerCase().includes('date of birth') 
+                              ? formatDate(value)
+                              : value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <ActionButtons error={error} />
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </VerificationCard>
+
+          {/* Missing Errors Section */}
+          <VerificationCard 
+            title="Missing Errors"
+            isExpanded={expandedSections.includes('missing')}
+            onToggle={() => toggleSection('missing')}
+          >
+            <div className="divide-y divide-gray-200">
+              {verificationData?.verificationResults.missingErrors.map((error, index) => (
+                <div key={index} className="p-4">
+                  <div className="mb-4">
+                    <h4 className="text-sm font-medium text-gray-900 mb-2">{error.type}</h4>
+                    <p className="text-base text-gray-700 bg-gray-50 p-3 rounded-lg">{error.details}</p>
+                    <ActionButtons error={error} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </VerificationCard>
         </div>
       </div>
 
@@ -534,6 +577,8 @@ const CrossVerificationTab = ({
         emailData={emailData}
         onSend={handleSendEmail}
       />
+
+      {isDraftingEmail && <LoadingOverlay />}
     </div>
   );
 };

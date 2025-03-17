@@ -371,67 +371,68 @@ const FinalizeTab = ({
   processingDocuments = {}
 }) => {
   return (
-    <div className="space-y-6">
+    <div>
       {/* Header Section */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h2 className="text-lg font-medium text-slate-900">Document Review & Finalization</h2>
-          <div className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-blue-50/50 to-indigo-50/50 border border-blue-100/50 ring-1 ring-blue-100/20 flex items-center gap-2">
-            <Bot className="w-4 h-4 text-blue-500" />
-            <span className="text-sm font-medium bg-gradient-to-r from-blue-500 to-indigo-500 bg-clip-text text-transparent">
-              Diana's analysis
-            </span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-slate-500">
-          <span>{documents.length} document{documents.length !== 1 ? 's' : ''} to review</span>
-          {/* <ChevronRight className="w-4 h-4" /> */}
-        </div>
-      </div>
-
-      {/* Diana's card for intelligent document processing */}
-      <div className="bg-white rounded-2xl shadow-lg p-4 mb-4 hover:shadow-xl transition-shadow duration-300">
-        <div className="flex items-start gap-4 relative z-10">
-          {/* Diana's Avatar */}
-          <div className="flex-shrink-0">
-            <div className="relative">
-              {/* Animated Background Ring */}
-              <div className="absolute inset-0 -m-2">
-                <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 rounded-full blur-lg"></div>
-              </div>
-              {/* Avatar Container */}
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl"></div>
-                <span className="relative text-sm font-semibold text-white">Diana</span>
-              </div>
+      <div className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h2 className="text-lg font-medium text-slate-900">Document Review & Finalization</h2>
+            <div className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-blue-50/50 to-indigo-50/50 border border-blue-100/50 ring-1 ring-blue-100/20 flex items-center gap-2">
+              <Bot className="w-4 h-4 text-blue-500" />
+              <span className="text-sm font-medium bg-gradient-to-r from-blue-500 to-indigo-500 bg-clip-text text-transparent">
+                Diana's analysis
+              </span>
             </div>
           </div>
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <span>{documents.length} document{documents.length !== 1 ? 's' : ''} to review</span>
+          </div>
+        </div>
 
-          {/* Description Text */}
-          <div className="flex-1">
-            <h4 className="text-base font-semibold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-1">
-              Intelligent Document Processing
-            </h4>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              Agent Diana automatically identifies, sorts, and extracts relevant data from uploaded documents. It then performs human language-based validations to ensure the accuracy of the extracted data before storing it securely in the system.
-            </p>
+        {/* Diana's card */}
+        <div className="bg-white rounded-2xl shadow-lg p-4 mt-4 hover:shadow-xl transition-shadow duration-300">
+          <div className="flex items-start gap-4 relative z-10">
+            {/* Diana's Avatar */}
+            <div className="flex-shrink-0">
+              <div className="relative">
+                <div className="absolute inset-0 -m-2">
+                  <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 rounded-full blur-lg"></div>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md relative">
+                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl"></div>
+                  <span className="relative text-sm font-semibold text-white">Diana</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Description Text */}
+            <div className="flex-1">
+              <h4 className="text-base font-semibold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-1">
+                Intelligent Document Processing
+              </h4>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                Agent Diana automatically identifies, sorts, and extracts relevant data from uploaded documents. It then performs human language-based validations to ensure the accuracy of the extracted data before storing it securely in the system.
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Documents List */}
-      <div className="space-y-3">
-        {documents.map(doc => (
-          <DocumentRow 
-            key={doc.id} 
-            document={doc} 
-            onStateClick={onStateClick}
-            onApprove={onApprove}
-            onRequestReupload={onRequestReupload}
-            onViewDocument={onViewDocument}
-            processingDocuments={processingDocuments}
-          />
-        ))}
+      <div className="p-4">
+        <div className="space-y-3">
+          {documents.map(doc => (
+            <DocumentRow 
+              key={doc.id} 
+              document={doc} 
+              onStateClick={onStateClick}
+              onApprove={onApprove}
+              onRequestReupload={onRequestReupload}
+              onViewDocument={onViewDocument}
+              processingDocuments={processingDocuments}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
