@@ -247,13 +247,24 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       const response = await api.get(`/management/${caseId}`);
       if (response.data.status === 'success') {
         setCaseData(response.data.data.entry);
-        toast.success('Document approved successfully');
+        
+        // Check if all documents are approved
+        const allApproved = response.data.data.entry.documentTypes.every(
+          doc => doc.status === DOCUMENT_STATUS.APPROVED
+        );
+
+        if (allApproved) {
+          // Show success message
+          toast.success('All documents have been approved');
+          // Navigate to questionnaire tab
+          setActiveTab('questionnaire');
+        }
       }
     } catch (error) {
       console.error('Error approving document:', error);
       toast.error('Failed to approve document');
     } finally {
-      // Clear processing state for this specific document
+      // Clear processing state for this document
       setProcessingDocuments(prev => ({
         ...prev,
         [managementDocumentId]: false
@@ -457,7 +468,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             
             toast.success('All questionnaires processed successfully');
             // Change this line to set the finalize tab instead of questionnaire
-            setSelectedSubTab('finalize');
+            setSelectedSubTab('validation');
           }
         } catch (error) {
           console.error('Error processing questionnaires:', error);
@@ -1383,7 +1394,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         <div className="mb-6 flex items-center gap-2">
           {[
             { id: 'all', label: 'Upload Pending' },  
-            { id: 'extracted-data', label: 'Extracted data' },
+            // { id: 'extracted-data', label: 'Extracted data' },
             { id: 'validation', label: 'Validation' },
             { 
               id: 'cross-verification', 
@@ -1447,148 +1458,114 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             error={extractedDataError}
           />;
         case 'validation':
-          return <ValidationTab 
-            caseId={caseId} 
-            validationData={validationData}
-            isLoading={isLoadingValidation}
-          />;
-        case 'cross-verification':
-          if (!allDocsUploaded) {
-            return (
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <div className="flex flex-col items-center justify-center py-8">
-                  <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-                    <AlertCircle className="w-6 h-6 text-gray-400" />
-                  </div>
-                  <p className="text-gray-500 text-sm text-center">
-                    Please upload all documents to enable cross verification
-                  </p>
-                  <p className="text-gray-400 text-xs mt-2">
-                    {caseData.documentTypes.filter(doc => 
-                      doc.status !== DOCUMENT_STATUS.UPLOADED && doc.status !== DOCUMENT_STATUS.APPROVED
-                    ).length} document(s) remaining
-                  </p>
-                </div>
-              </div>
-            );
-          }
-          return <CrossVerificationTab 
-            isLoading={isLoadingVerification} 
-            verificationData={verificationData} 
-            managementId={caseId}
-            recipientEmail={recipientEmail}
-          />;
-        case 'finalize':
-          if (!hasUploadedDocuments) {
-            return (
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <div className="flex flex-col items-center justify-center py-8">
-                  <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-                    <AlertCircle className="w-6 h-6 text-gray-400" />
-                  </div>
-                  <p className="text-gray-500 text-sm text-center">
-                    Please upload at least one document to finalize the case
-                  </p>
-                </div>
-              </div>
-            );
-          }
-
-          // Transform the document data for the FinalizeTab
-          const finalizeDocuments = caseData.documentTypes
-            .filter(doc => doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED)
-            .map(doc => {
-              const hasVerificationData = verificationData && Object.keys(verificationData).length > 0;
-              
-              const getValidationStatus = () => {
-                if (!validationData?.mergedValidations) return 'pending';
-                
-                // Find validation for current document
-                const docValidation = validationData.mergedValidations.find(
-                  v => v.documentType === doc.name
-                );
-                
-                if (!docValidation) return 'pending';
-
-                // Check individual validations for this document
-                if (docValidation.validations && docValidation.validations.length > 0) {
-                  const totalValidations = docValidation.validations.length;
-                  const passedValidations = docValidation.validations.filter(v => v.passed).length;
-
-                  if (passedValidations === totalValidations) {
-                    // All validations passed
-                    return 'success';
-                  } else if (passedValidations > 0) {
-                    // Some validations passed
-                    return 'partial';
-                  } else {
-                    // No validations passed
-                    return 'error';
-                  }
-                }
-
-                return 'pending';
-              };
-
-              return {
-                id: doc._id,
-                name: doc.name,
-                status: doc.status === 'approved' ? 'Approved' : 'Verification pending',
-                documentTypeId: doc.documentTypeId,
-                updatedAt: doc.updatedAt,
-                states: [
-                  {
-                    name: 'Document collection',
-                    status: doc.status !== 'pending' ? 'success' : 'error'
-                  },
-                  {
-                    name: 'Read',
-                    status: doc.status !== 'pending' ? 'success' : 'pending'
-                  },
-                  {
-                    name: 'Extract',
-                    status: extractedData?.[doc.name] ? 'success' : 'pending'
-                  },
-                  {
-                    name: 'Validation',
-                    status: getValidationStatus()
-                  },
-                  {
-                    name: 'Cross Verification',
-                    status: !hasVerificationData ? 'pending' :
-                           verificationData?.[doc.name]?.isVerified ? 'success' : 
-                           verificationData?.[doc.name]?.partiallyVerified ? 'partial' : 'error'
-                  }
-                ]
-              };
-            });
-
           return (
-            <div className="p-6">
-              <FinalizeTab 
-                documents={finalizeDocuments}
-                validationData={validationData}
-                onStateClick={(state, document) => {
-                  // Handle state clicks to navigate to appropriate tabs
-                  switch(state) {
-                    case 'validation':
-                      setSelectedSubTab('validation');
-                      break;
-                    case 'cross-verification':
-                      setSelectedSubTab('cross-verification');
-                      break;
-                    case 'extracted-data':
-                      setSelectedSubTab('extracted-data');
-                      break;
-                    default:
-                      break;
-                  }
-                }}
-                onApprove={handleDocumentApprove}
-                onRequestReupload={handleRequestReupload}
-                processingDocuments={processingDocuments}
-              />
-            </div>
+            <ValidationTab 
+              validationData={validationData} 
+              isLoading={isLoading}
+              onTabChange={(tab) => setSelectedSubTab(tab)}
+            />
+          );
+        case 'cross-verification':
+          return (
+            <CrossVerificationTab 
+              verificationData={verificationData}
+              isLoading={isLoadingVerification}
+              managementId={caseId}
+              recipientEmail={recipientEmail}
+            />
+          );
+        case 'finalize':
+          return (
+            <FinalizeTab 
+              documents={caseData.documentTypes
+                .filter(doc => doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED)
+                .map(doc => {
+                  const hasVerificationData = verificationData && Object.keys(verificationData).length > 0;
+                  
+                  const getValidationStatus = () => {
+                    if (!validationData?.mergedValidations) return 'pending';
+                    
+                    // Find validation for current document
+                    const docValidation = validationData.mergedValidations.find(
+                      v => v.documentType === doc.name
+                    );
+                    
+                    if (!docValidation) return 'pending';
+
+                    // Check individual validations for this document
+                    if (docValidation.validations && docValidation.validations.length > 0) {
+                      const totalValidations = docValidation.validations.length;
+                      const passedValidations = docValidation.validations.filter(v => v.passed).length;
+
+                      if (passedValidations === totalValidations) {
+                        // All validations passed
+                        return 'success';
+                      } else if (passedValidations > 0) {
+                        // Some validations passed
+                        return 'partial';
+                      } else {
+                        // No validations passed
+                        return 'error';
+                      }
+                    }
+
+                    return 'pending';
+                  };
+
+                  return {
+                    id: doc._id,
+                    name: doc.name,
+                    status: doc.status === 'approved' ? 'Approved' : 'Verification pending',
+                    documentTypeId: doc.documentTypeId,
+                    updatedAt: doc.updatedAt,
+                    states: [
+                      {
+                        name: 'Document collection',
+                        status: doc.status !== 'pending' ? 'success' : 'error'
+                      },
+                      {
+                        name: 'Read',
+                        status: doc.status !== 'pending' ? 'success' : 'pending'
+                      },
+                      {
+                        name: 'Extract',
+                        status: extractedData?.[doc.name] ? 'success' : 'pending'
+                      },
+                      {
+                        name: 'Validation',
+                        status: getValidationStatus()
+                      },
+                      {
+                        name: 'Cross Verification',
+                        status: !hasVerificationData ? 'pending' :
+                               verificationData?.[doc.name]?.isVerified ? 'success' : 
+                               verificationData?.[doc.name]?.partiallyVerified ? 'partial' : 'error'
+                      }
+                    ]
+                  };
+                })
+              }
+              validationData={validationData}
+              onStateClick={(state, document) => {
+                // Handle state clicks to navigate to appropriate tabs
+                switch(state) {
+                  case 'validation':
+                    setSelectedSubTab('validation');
+                    break;
+                  case 'cross-verification':
+                    setSelectedSubTab('cross-verification');
+                    break;
+                  case 'extracted-data':
+                    setSelectedSubTab('extracted-data');
+                    break;
+                  default:
+                    break;
+                }
+              }}
+              onApprove={handleDocumentApprove}
+              onRequestReupload={handleRequestReupload}
+              processingDocuments={processingDocuments}
+            />
           );
         default:
           return null;
@@ -1598,7 +1575,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     return (
       <div className="p-6">
         {/* Search and Filter Section */}
-        <div className="mb-6 flex items-center justify-between">
+        {/* <div className="mb-6 flex items-center justify-between">
           <div className="relative w-64">
             <input
               type="text"
@@ -1616,7 +1593,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               Sort
             </button>
           </div>
-        </div>
+        </div> */}
 
         {/* Sub-tabs Navigation */}
         <SubTabNavigation />
