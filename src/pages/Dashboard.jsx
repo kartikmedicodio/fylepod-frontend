@@ -5,6 +5,8 @@ import api from '../utils/api';
 import { getStoredUser } from '../utils/auth';
 import { format, isToday, isYesterday, isPast, formatDistanceToNow } from 'date-fns';
 import axios from 'axios';
+import { useBreadcrumb } from '../contexts/BreadcrumbContext';
+import { usePage } from '../contexts/PageContext';
 
 // Helper component for status indicators
 const StatusIndicator = ({ title, completed, icon }) => (
@@ -76,6 +78,13 @@ const Dashboard = () => {
     return stored ? JSON.parse(stored) : [];
   });
   const navigate = useNavigate();
+  const { setCurrentBreadcrumb } = useBreadcrumb();
+  const { setPageTitle } = usePage();
+
+  useEffect(() => {
+    setCurrentBreadcrumb([{ name: 'Dashboard', path: '/dashboard' }]);
+    setPageTitle('Dashboard');
+  }, [setCurrentBreadcrumb, setPageTitle]);
 
   // Save read notifications to localStorage
   useEffect(() => {

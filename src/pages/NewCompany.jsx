@@ -10,10 +10,14 @@ import { toast } from 'sonner';
 import PropTypes from 'prop-types';
 import { useAuth } from '../contexts/AuthContext';
 import Select from 'react-select';
+import { useBreadcrumb } from '../contexts/BreadcrumbContext';
+import { usePage } from '../contexts/PageContext';
 
-const NewCompany = ({ setCurrentBreadcrumb }) => {
+const NewCompany = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { setCurrentBreadcrumb } = useBreadcrumb();
+  const { setPageTitle } = usePage();
   const [attorneys, setAttorneys] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -25,15 +29,18 @@ const NewCompany = ({ setCurrentBreadcrumb }) => {
     address: ''
   });
 
-  // Set breadcrumb on mount
+  // Set breadcrumb and page title on mount
   useEffect(() => {
-    if (setCurrentBreadcrumb) {
-      setCurrentBreadcrumb([
-        { label: 'Home', path: '/dashboard' },
-        { label: 'New Company', path: '/company/new' }
-      ]);
-    }
-  }, [setCurrentBreadcrumb]);
+    setPageTitle('New Company');
+    setCurrentBreadcrumb([
+      { name: 'Home', path: '/dashboard' },
+      { name: 'New Company', path: '/company/new' }
+    ]);
+    return () => {
+      setPageTitle('');
+      setCurrentBreadcrumb([]);
+    };
+  }, [setPageTitle, setCurrentBreadcrumb]);
 
   // Format attorneys for react-select
   const attorneyOptions = attorneys

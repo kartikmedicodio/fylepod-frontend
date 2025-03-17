@@ -6,10 +6,14 @@ import { toast } from 'sonner';
 import PropTypes from 'prop-types';
 import { useAuth } from '../contexts/AuthContext';
 import Select from 'react-select';
+import { useBreadcrumb } from '../contexts/BreadcrumbContext';
+import { usePage } from '../contexts/PageContext';
 
-const NewIndividual = ({ setCurrentBreadcrumb }) => {
+const NewIndividual = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { setCurrentBreadcrumb } = useBreadcrumb();
+  const { setPageTitle } = usePage();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [attorneys, setAttorneys] = useState([]);
@@ -54,15 +58,18 @@ const NewIndividual = ({ setCurrentBreadcrumb }) => {
       label: `${attorney.name} (${attorney.lawfirm_id?.name || attorney.lawfirm_name || 'No Law Firm'})`
     }));
 
-  // Set breadcrumb on mount
+  // Set breadcrumb and page title on mount
   useEffect(() => {
-    if (setCurrentBreadcrumb) {
-      setCurrentBreadcrumb([
-        { label: 'Home', path: '/dashboard' },
-        { label: 'New Individual', path: '/individual/new' }
-      ]);
-    }
-  }, [setCurrentBreadcrumb]);
+    setPageTitle('New Individual');
+    setCurrentBreadcrumb([
+      { name: 'Home', path: '/dashboard' },
+      { name: 'New Individual', path: '/individual/new' }
+    ]);
+    return () => {
+      setPageTitle('');
+      setCurrentBreadcrumb([]);
+    };
+  }, [setPageTitle, setCurrentBreadcrumb]);
 
   // Fetch attorneys for dropdown
   useEffect(() => {

@@ -121,7 +121,7 @@ const CaseListSkeleton = () => (
   </div>
 );
 
-const EmployeeProfile = ({ setCurrentBreadcrumb }) => {
+const EmployeeProfile = () => {
   const { corporationId, employeeId } = useParams();
   const [activeTab, setActiveTab] = useState('profile');
   const [basicDetails, setBasicDetails] = useState(null);
@@ -132,7 +132,7 @@ const EmployeeProfile = ({ setCurrentBreadcrumb }) => {
     documents: true,
     cases: false
   });
-  const { setCurrentBreadcrumb: breadcrumbContextSetCurrentBreadcrumb } = useBreadcrumb();
+  const { setCurrentBreadcrumb } = useBreadcrumb();
 
   // Fetch basic details
   useEffect(() => {
@@ -156,10 +156,10 @@ const EmployeeProfile = ({ setCurrentBreadcrumb }) => {
           
           // Update breadcrumb with employee name
           setCurrentBreadcrumb([
-            { label: 'Dashboard', link: '/' },
-            { label: 'Corporations', link: '/corporations' },
-            { label: corporationId ? `Corporation Details` : 'Employees', link: corporationId ? `/corporations/${corporationId}` : '/employees' },
-            { label: response.data.name || 'Employee Details', link: '#' }
+            { name: 'Home', path: '/dashboard' },
+            { name: 'Corporations', path: '/corporations' },
+            { name: corporationId ? `Corporation Details` : 'Employees', path: corporationId ? `/corporations/${corporationId}` : '/employees' },
+            { name: response.data.name || 'Employee Details', path: '#' }
           ]);
         } else {
           console.error('Invalid response format:', response);
@@ -175,6 +175,9 @@ const EmployeeProfile = ({ setCurrentBreadcrumb }) => {
     };
 
     fetchBasicDetails();
+    return () => {
+      setCurrentBreadcrumb([]);
+    };
   }, [employeeId, corporationId, setCurrentBreadcrumb]);
 
   // Fetch documents when profile tab is active

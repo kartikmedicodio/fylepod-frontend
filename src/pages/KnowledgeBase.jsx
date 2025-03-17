@@ -7,7 +7,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import { toast } from 'react-hot-toast';
 
-const KnowledgeBase = ({ setCurrentBreadcrumb }) => {
+const KnowledgeBase = () => {
   const [categories, setCategories] = useState([]);
   const [masterDocuments, setMasterDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,13 +17,14 @@ const KnowledgeBase = ({ setCurrentBreadcrumb }) => {
   const [editingDeadline, setEditingDeadline] = useState(null);
   const [deadlineValue, setDeadlineValue] = useState('');
   const { setPageTitle } = usePage();
+  const { setCurrentBreadcrumb } = useBreadcrumb();
   const navigate = useNavigate();
 
   useEffect(() => {
     setPageTitle('Knowledge Base');
     setCurrentBreadcrumb([
-      { label: 'Dashboard', link: '/' },
-      { label: 'Knowledge Base', link: '#' }
+      { label: 'Home', link: '/' },
+      { label: 'Knowledge Base', link: '/knowledge' }
     ]);
     if (selectedCategory === 'Process Template') {
       fetchCategories();

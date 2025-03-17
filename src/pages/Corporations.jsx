@@ -4,6 +4,7 @@ import { getStoredUser } from '../utils/auth';
 import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, CirclePlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 
 const CorporationsSkeleton = () => (
   <div className="p-4">
@@ -55,6 +56,14 @@ const Corporations = () => {
   const [employeeFilter, setEmployeeFilter] = useState('all');
   const navigate = useNavigate();
   const filterRef = useRef(null);
+  const { setCurrentBreadcrumb } = useBreadcrumb();
+
+  useEffect(() => {
+    setCurrentBreadcrumb([
+      { name: 'Home', path: '/' },
+      { name: 'Corporations', path: '/corporations' }
+    ]);
+  }, [setCurrentBreadcrumb]);
 
   useEffect(() => {
     fetchUserAndCorporations();
@@ -237,11 +246,11 @@ const Corporations = () => {
           <div className="relative" ref={filterRef}>
             <button 
               onClick={() => setShowFilters(!showFilters)}
-              className={`px-4 py-2.5 border rounded-xl bg-gray-50 flex items-center gap-2 transition-all duration-200
-                ${employeeFilter !== 'all'
+              className={`px-4 py-2.5 border rounded-xl bg-gray-50 flex items-center gap-2 transition-all duration-200 ${
+                employeeFilter !== 'all'
                   ? 'bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100'
                   : 'border-gray-200 hover:border-gray-300 hover:bg-gray-100'
-                }`}
+              }`}
             >
               <SlidersHorizontal size={16} />
               <span>Filter</span>
@@ -351,11 +360,7 @@ const Corporations = () => {
             <button
               onClick={() => handlePageChange(pagination.currentPage - 1)}
               disabled={pagination.currentPage === 1}
-              className={`p-2 rounded-lg border transition-all duration-200 ${
-                pagination.currentPage === 1
-                  ? 'text-gray-300 border-gray-200 cursor-not-allowed'
-                  : 'text-gray-600 border-gray-200 hover:bg-gray-100 active:transform active:scale-95'
-              }`}
+              className={`p-2 rounded-lg border transition-all duration-200 ${pagination.currentPage === 1 ? 'text-gray-300 border-gray-200 cursor-not-allowed' : 'text-gray-600 border-gray-200 hover:bg-gray-100 active:transform active:scale-95'}`}
             >
               <ChevronLeft size={18} />
             </button>
@@ -367,11 +372,7 @@ const Corporations = () => {
             <button
               onClick={() => handlePageChange(pagination.currentPage + 1)}
               disabled={pagination.currentPage === Math.ceil(getFilteredAndSortedCorporations().length / pagination.itemsPerPage)}
-              className={`p-2 rounded-lg border transition-all duration-200 ${
-                pagination.currentPage === Math.ceil(getFilteredAndSortedCorporations().length / pagination.itemsPerPage)
-                  ? 'text-gray-300 border-gray-200 cursor-not-allowed'
-                  : 'text-gray-600 border-gray-200 hover:bg-gray-100 active:transform active:scale-95'
-              }`}
+              className={`p-2 rounded-lg border transition-all duration-200 ${pagination.currentPage === Math.ceil(getFilteredAndSortedCorporations().length / pagination.itemsPerPage) ? 'text-gray-300 border-gray-200 cursor-not-allowed' : 'text-gray-600 border-gray-200 hover:bg-gray-100 active:transform active:scale-95'}`}
             >
               <ChevronRight size={18} />
             </button>
@@ -414,4 +415,4 @@ const Corporations = () => {
   );
 };
 
-export default Corporations; 
+export default Corporations;

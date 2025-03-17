@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import { toast } from 'react-hot-toast';
 import { Check, FileText, Users, ClipboardCheck, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -158,9 +159,10 @@ CaseProgressCard.propTypes = {
   onClick: PropTypes.func.isRequired,
 };
 
-const FNDashboard = ({ setCurrentBreadcrumb }) => {
+const FNDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { setCurrentBreadcrumb } = useBreadcrumb();
   const [loading, setLoading] = useState(true);
   const [currentUserCases, setCurrentUserCases] = useState([]);
   const [otherUserCases, setOtherUserCases] = useState({});
@@ -502,11 +504,6 @@ const FNDashboard = ({ setCurrentBreadcrumb }) => {
       </div>
     </div>
   );
-};
-
-// Add PropTypes validation
-FNDashboard.propTypes = {
-  setCurrentBreadcrumb: PropTypes.func.isRequired
 };
 
 export default FNDashboard;

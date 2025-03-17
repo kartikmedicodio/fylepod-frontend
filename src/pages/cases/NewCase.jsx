@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getStoredUser } from '../../utils/auth';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
+import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 
 const FionaIcon = () => (
   <div className="w-6 h-6 rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 flex items-center justify-center text-white font-semibold text-sm">
@@ -17,6 +18,7 @@ const NewCase = () => {
   const { setPageTitle } = usePage();
   const navigate = useNavigate();
   const { isAuthenticated, loading, user } = useAuth();
+  const { setCurrentBreadcrumb } = useBreadcrumb();
   const [categories, setCategories] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [isTemplateDropdownOpen, setIsTemplateDropdownOpen] = useState(false);
@@ -61,9 +63,16 @@ const NewCase = () => {
   }, [isAuthenticated, loading, navigate]);
 
   useEffect(() => {
-    setPageTitle('Create New Case');
-    return () => setPageTitle('');
-  }, [setPageTitle]);
+    setPageTitle('New Case');
+    setCurrentBreadcrumb([
+      { name: 'Home', path: '/dashboard' },
+      { name: 'New Case', path: '/cases/new' }
+    ]);
+    return () => {
+      setPageTitle('');
+      setCurrentBreadcrumb([]);
+    };
+  }, [setPageTitle, setCurrentBreadcrumb]);
 
   useEffect(() => {
     const getUserFromLocalStorage = () => {

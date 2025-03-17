@@ -1,9 +1,8 @@
 import { useAuth } from '../contexts/AuthContext';
 import Dashboard from '../pages/Dashboard';
 import FNDashboard from '../pages/FNdashboard';
-import PropTypes from 'prop-types';
 
-const DashboardRouter = ({ setCurrentBreadcrumb }) => {
+const DashboardRouter = () => {
   const { user } = useAuth();
 
   // Check if user role is attorney or admin
@@ -13,13 +12,8 @@ const DashboardRouter = ({ setCurrentBreadcrumb }) => {
   return isAdminOrAttorney ? (
     <Dashboard />
   ) : (
-    <FNDashboard setCurrentBreadcrumb={setCurrentBreadcrumb} />
+    <FNDashboard />
   );
-};
-
-// Add PropTypes validation
-DashboardRouter.propTypes = {
-  setCurrentBreadcrumb: PropTypes.func.isRequired
 };
 
 export default DashboardRouter; 
