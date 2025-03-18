@@ -259,20 +259,23 @@ const DocumentRow = ({
           </div>
         </div>
 
-        {/* Progress States */}
+        {/* Progress States - Remove Extract state */}
         <div className="flex items-center gap-3 px-1 py-3">
-          {document.states.map((state, index) => (
-            <React.Fragment key={state.name}>
-              <ProcessState 
-                state={state.name}
-                status={state.status}
-                onClick={() => onStateClick(state.name.toLowerCase().replace(' ', '-'), document)}
-              />
-              {index < document.states.length - 1 && (
-                <div className="w-2 flex-shrink-0" />
-              )}
-            </React.Fragment>
-          ))}
+          {document.states
+            // Filter out the Extract state
+            .filter(state => state.name !== 'Extract')
+            .map((state, index, filteredStates) => (
+              <React.Fragment key={state.name}>
+                <ProcessState 
+                  state={state.name}
+                  status={state.status}
+                  onClick={() => onStateClick(state.name.toLowerCase().replace(' ', '-'), document)}
+                />
+                {index < filteredStates.length - 1 && (
+                  <div className="w-2 flex-shrink-0" />
+                )}
+              </React.Fragment>
+            ))}
         </div>
       </div>
     </>
