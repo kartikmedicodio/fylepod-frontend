@@ -14,7 +14,6 @@ const DocumentChecklist = () => {
   const [masterDocuments, setMasterDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Process Template');
   const { setCurrentBreadcrumb } = useBreadcrumb();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -67,47 +66,47 @@ const DocumentChecklist = () => {
   };
 
   const sidebarCategories = [
-    { id: 'kb', name: 'Knowledge Base', path: '/knowledge', clickable: true },
+    { id: 'back', name: '← Back', path: '/knowledge', clickable: true },
     { id: 'pt', name: 'Process Template', path: '/knowledge/templates', clickable: true },
-    { id: 'mdl', name: 'Master Document List', path: '/knowledge/master-documents', clickable: true },
-    { id: 'fl', name: 'Forms List', path: '/knowledge/forms', clickable: false },
-    { id: 'lt', name: 'Letter Templates', path: '/knowledge/letter-templates', clickable: false }
-  ];
-
-  const navigationTabs = [
-    { id: 'doc-checklist', name: 'Document Checklist', path: '/knowledge/checklist' },
-    { id: 'forms-list', name: 'Forms List', path: '/knowledge/forms-list' },
-    { id: 'questionnaire-list', name: 'Questionnaire List', path: '/knowledge/questionnaire' },
-    { id: 'letter-templates', name: 'Letter Templates', path: '/knowledge/letters' }
+    { id: 'mdl', name: 'Master Document List', path: '/knowledge/master-documents', clickable: true }
   ];
 
   const handleSidebarClick = (categoryName, path, clickable) => {
     if (!clickable) return;
-    setSelectedCategory(categoryName);
+    if (categoryName === '← Back') {
+      navigate(path);
+      return;
+    }
+    if (categoryName === 'Process Template') {
+      setSelectedCategory(categoryName);
+      return;
+    }
     if (path === '/knowledge/master-documents') {
+      setSelectedCategory(categoryName);
       setCurrentBreadcrumb([
         { name: 'Dashboard', path: '/' },
         { name: 'Knowledge Base', path: '/knowledge' },
         { name: 'Master Document List', path: '#' }
       ]);
       fetchMasterDocuments();
-    } else {
-      navigate(path);
     }
   };
 
   const isSelected = (categoryPath) => {
-    if (location.pathname.includes('/knowledge/checklist')) {
-      return categoryPath === '/knowledge/templates';
+    if (categoryPath === '/knowledge') {
+      return false; // Back button is never selected
     }
-    if (location.pathname.includes('/knowledge/master-documents')) {
-      return categoryPath === '/knowledge/master-documents';
+    if (categoryPath === '/knowledge/templates') {
+      return selectedCategory === 'Process Template';
     }
-    return location.pathname === categoryPath;
+    if (categoryPath === '/knowledge/master-documents') {
+      return selectedCategory === 'Master Document List';
+    }
+    return false;
   };
 
   const renderSidebar = () => (
-    <div className="w-64 bg-white">
+    <div className="w-64 bg-white shadow-sm rounded-lg">
       <div className="p-4">
         {sidebarCategories.map((category) => (
           <Link
@@ -172,27 +171,11 @@ const DocumentChecklist = () => {
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full gap-4">
       {renderSidebar()}
 
       {/* Main Content */}
-      <div className="flex-1 bg-[#f8fafc]">
-        {/* Search Bar */}
-        <div className="px-6 pt-6">
-          <div className="relative">
-            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              type="text"
-              placeholder="Search"
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-        </div>
-
+      <div className="flex-1 bg-[#f8fafc] rounded-lg shadow-sm">
         {selectedCategory === 'Master Document List' ? (
           // Master Documents List View
           <div className="px-6 pt-6">
@@ -254,22 +237,6 @@ const DocumentChecklist = () => {
         ) : (
           // Original Process Template View
           <>
-            {/* Navigation Tabs */}
-            <div className="px-6 pt-6 flex gap-2">
-              {navigationTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  className={`px-4 py-2 rounded-lg text-sm ${
-                    tab.name === 'Document Checklist'
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:bg-white/50'
-                  }`}
-                >
-                  {tab.name}
-                </button>
-              ))}
-            </div>
-
             {/* Category Header with Description and AI Banner */}
             <div className="px-6 pt-6">
               <div className="flex items-center justify-between">
@@ -365,10 +332,6 @@ const DocumentChecklist = () => {
                 >
                   <Edit className="h-4 w-4" />
                   Edit Checklist
-                </button>
-                <button className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                  <Plus className="h-4 w-4" />
-                  Add more
                 </button>
               </div>
             </div>
