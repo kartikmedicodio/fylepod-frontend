@@ -630,38 +630,92 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     }
   };
 
-  // Add this function near the top of the component
+  // Modify the fetchValidationData function to only fetch if data doesn't exist
   const fetchValidationData = async () => {
-    try {
-      setIsLoadingValidation(true);
-      const response = await api.get(`/documents/management/${caseId}/validations`);
-      if (response.data.status === 'success') {
-        setValidationData(response.data.data);
+    // Only fetch if validation data doesn't exist yet
+    if (!validationData && !isLoadingValidation) {
+      try {
+        setIsLoadingValidation(true);
+        const response = await api.get(`/documents/management/${caseId}/validations`);
+        if (response.data.status === 'success') {
+          setValidationData(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching validation data:', error);
+        toast.error('Failed to load validation data');
+      } finally {
+        setIsLoadingValidation(false);
       }
-    } catch (error) {
-      console.error('Error fetching validation data:', error);
-      toast.error('Failed to load validation data');
-    } finally {
-      setIsLoadingValidation(false);
     }
   };
 
-  // Add this function with other data fetching functions in useEffect
+  // Similarly, modify the fetchExtractedData function
   const fetchExtractedData = async () => {
-    try {
-      setIsLoadingExtractedData(true);
-      const response = await api.get(`/documents/management/${caseId}/extracted-data`);
-      if (response.data.status === 'success') {
-        setExtractedData(response.data.data.extractedData);
+    // Only fetch if extracted data doesn't exist yet
+    if (!extractedData && !isLoadingExtractedData) {
+      try {
+        setIsLoadingExtractedData(true);
+        const response = await api.get(`/documents/management/${caseId}/extracted-data`);
+        if (response.data.status === 'success') {
+          setExtractedData(response.data.data.extractedData);
+        }
+      } catch (error) {
+        console.error('Error fetching extracted data:', error);
+        setExtractedDataError('Failed to load extracted data');
+        toast.error('Failed to load extracted data');
+      } finally {
+        setIsLoadingExtractedData(false);
       }
-    } catch (error) {
-      console.error('Error fetching extracted data:', error);
-      setExtractedDataError('Failed to load extracted data');
-      toast.error('Failed to load extracted data');
-    } finally {
-      setIsLoadingExtractedData(false);
     }
   };
+
+  // Add this function after the fetchExtractedData function
+  const fetchCrossVerificationData = async () => {
+    if (!verificationData && !isLoadingVerification) {
+      try {
+        setIsLoadingVerification(true);
+        const response = await api.get(`/management/${caseId}/cross-verify`);
+        if (response.data.status === 'success') {
+          setVerificationData(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching verification data:', error);
+        toast.error('Failed to load verification data');
+      } finally {
+        setIsLoadingVerification(false);
+      }
+    }
+  };
+
+  // Add or update this useEffect to load data when component mounts or tab changes
+  useEffect(() => {
+    // Check if we should load validation data when the component mounts
+    // or when the selected sub-tab changes
+    const loadInitialData = async () => {
+      const hasUploadedDocs = caseData?.documentTypes?.some(doc => 
+        doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
+      );
+      
+      // If we're on the validation tab and there are uploaded documents, fetch validation data
+      if (selectedSubTab === 'validation' && hasUploadedDocs && !validationData) {
+        await fetchValidationData();
+      }
+      
+      // If we're on the cross-verification tab and all docs are uploaded, fetch verification data
+      if (selectedSubTab === 'cross-verification' && areAllDocumentsUploaded() && !verificationData) {
+        await fetchCrossVerificationData();
+      }
+      
+      // If we're on the extracted-data tab and there are uploaded documents, fetch extracted data
+      if (selectedSubTab === 'extracted-data' && hasUploadedDocs && !extractedData) {
+        await fetchExtractedData();
+      }
+    };
+
+    if (caseData) {
+      loadInitialData();
+    }
+  }, [caseData, selectedSubTab]); // Add selectedSubTab as a dependency
 
   useEffect(() => {
     const fetchCaseDetails = async () => {
@@ -1059,28 +1113,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     );
   };
 
-  // Add useEffect to monitor document upload status and trigger cross verification
-  useEffect(() => {
-    const loadCrossVerificationData = async () => {
-      if (areAllDocumentsUploaded() && !verificationData && !isLoadingVerification) {
-        try {
-          setIsLoadingVerification(true);
-          const response = await api.get(`/management/${caseId}/cross-verify`);
-          if (response.data.status === 'success') {
-            setVerificationData(response.data.data);
-          }
-        } catch (error) {
-          console.error('Error fetching verification data:', error);
-          toast.error('Failed to load verification data');
-        } finally {
-          setIsLoadingVerification(false);
-        }
-      }
-    };
-
-    loadCrossVerificationData();
-  }, [caseData]); // Add caseData as dependency to monitor document status changes
-
   // Update the ProgressSteps component
   const ProgressSteps = () => {
     // Add null checks when accessing documentTypes
@@ -1439,6 +1471,20 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               onClick={() => {
                 if (!tab.disabled) {
                   setSelectedSubTab(tab.id);
+                  
+                  // Only fetch validation data if it doesn't exist yet
+                  if (tab.id === 'validation' && hasUploadedDocuments && !validationData) {
+                    fetchValidationData();
+                  }
+                  
+                  // Keep other tab handlers unchanged
+                  if (tab.id === 'extracted-data' && hasUploadedDocuments) {
+                    fetchExtractedData();
+                  }
+                  
+                  if (tab.id === 'cross-verification' && allDocsUploaded) {
+                    fetchCrossVerificationData();
+                  }
                 }
               }}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -1552,10 +1598,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                       {
                         name: 'Read',
                         status: doc.status !== 'pending' ? 'success' : 'pending'
-                      },
-                      {
-                        name: 'Extract',
-                        status: extractedData?.[doc.name] ? 'success' : 'pending'
                       },
                       {
                         name: 'Validation',
