@@ -424,7 +424,7 @@ const NewCase = () => {
           // Update the loading toast with success message
           toast.success(
             <div className="flex flex-col gap-1">
-              <span className="font-medium">Case created successfully! ✨</span>
+              <span className="font-medium font-semibold">Case created successfully! ✨</span>
               <span className="text-sm text-gray-600">
                 Fiona has prepared everything for you
               </span>
@@ -455,7 +455,7 @@ const NewCase = () => {
       // Show error toast
       toast.error(
         <div className="flex flex-col gap-1">
-          <span className="font-medium">Oops! Something went wrong</span>
+          <span className="font-medium font-semibold">Oops! Something went wrong</span>
           <span className="text-sm text-gray-600">
             Fiona could not create the case
           </span>
@@ -552,7 +552,7 @@ const NewCase = () => {
       <div className="flex-1 p-8">
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
           <strong className="font-bold">Error: </strong>
-          <span className="block sm:inline">{error}</span>
+          <span className="block sm:inline font-semibold">{error}</span>
         </div>
       </div>
     );
@@ -702,7 +702,7 @@ const NewCase = () => {
                             </span>
                           </div>
                           <div className="flex flex-col">
-                            <span className="font-medium">{user.name}</span>
+                            <span className="font-medium font-semibold">{user.name}</span>
                             {user.company_name && (
                               <span className="text-xs text-gray-500">
                                 {user.company_name}
@@ -791,7 +791,7 @@ const NewCase = () => {
                                 {attorney.name.charAt(0).toUpperCase()}
                               </span>
                             </div>
-                            <span className="font-medium">{attorney.name}</span>
+                            <span className="font-medium font-semibold">{attorney.name}</span>
                           </div>
                           {isSelected && (
                             <svg className="w-5 h-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
@@ -829,7 +829,7 @@ const NewCase = () => {
                 {isCreatingCase ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="animate-fadeIn">{getLoadingMessage()}</span>
+                    <span className="animate-fadeIn font-semibold">{getLoadingMessage()}</span>
                   </>
                 ) : (
                   'Create Case'
@@ -904,7 +904,7 @@ const NewCase = () => {
                             </svg>
                           )}
                         </button>
-                        <span className="text-sm">{doc.name}</span>
+                        <span className="text-sm font-semibold">{doc.name}</span>
                       </div>
                     </div>
                   );
