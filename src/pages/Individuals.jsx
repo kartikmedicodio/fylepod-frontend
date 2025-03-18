@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../utils/api';
 import { usePage } from '../contexts/PageContext';
+import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 
 const IndividualsSkeleton = () => (
   <div className="p-4">
@@ -53,6 +54,20 @@ const Individuals = () => {
   });
   const navigate = useNavigate();
   const { setPageTitle } = usePage();
+  const { setCurrentBreadcrumb } = useBreadcrumb();
+
+  // Set breadcrumb immediately when component mounts
+  useEffect(() => {
+    setCurrentBreadcrumb([
+      { name: 'Home', path: '/' },
+      { name: 'Individuals', path: '/individuals' }
+    ]);
+
+    // Cleanup breadcrumb when component unmounts
+    return () => {
+      setCurrentBreadcrumb([]);
+    };
+  }, []); // Empty dependency array to run only once on mount
 
   useEffect(() => {
     setPageTitle('Individuals');
