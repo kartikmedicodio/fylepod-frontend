@@ -125,11 +125,9 @@ const EmployeeProfile = () => {
   const { corporationId, employeeId } = useParams();
   const [activeTab, setActiveTab] = useState('profile');
   const [basicDetails, setBasicDetails] = useState(null);
-  const [documents, setDocuments] = useState(null);
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState({
     basic: true,
-    documents: true,
     cases: false
   });
   const { setCurrentBreadcrumb } = useBreadcrumb();
@@ -138,21 +136,12 @@ const EmployeeProfile = () => {
   useEffect(() => {
     const fetchBasicDetails = async () => {
       try {
-        setLoading(prev => ({ ...prev, basic: true, documents: true })); // Set documents loading
+        setLoading(prev => ({ ...prev, basic: true }));
         const response = await employeeService.getEmployeeBasicDetails(employeeId);
         console.log("response", response);
         
-        // Add null check and ensure data exists before accessing
         if (response?.success && response?.data) {
           setBasicDetails(response.data);
-          // If passport data exists in basic details, use it for documents
-          if (response.data.passport) {
-            setDocuments({
-              rawDocuments: {
-                Passport: response.data.passport
-              }
-            });
-          }
           
           // Update breadcrumb with employee name
           setCurrentBreadcrumb([
@@ -163,14 +152,13 @@ const EmployeeProfile = () => {
           ]);
         } else {
           console.error('Invalid response format:', response);
-          // Set some default state or error handling
           setBasicDetails(null);
         }
       } catch (error) {
         console.error('Error fetching employee basic details:', error);
         setBasicDetails(null);
       } finally {
-        setLoading(prev => ({ ...prev, basic: false, documents: false }));
+        setLoading(prev => ({ ...prev, basic: false }));
       }
     };
 
@@ -179,27 +167,6 @@ const EmployeeProfile = () => {
       setCurrentBreadcrumb([]);
     };
   }, [employeeId, corporationId, setCurrentBreadcrumb]);
-
-  // Fetch documents when profile tab is active
-//   useEffect(() => {
-//     const fetchDocuments = async () => {
-//       if (activeTab === 'profile' && !documents) {
-//         try {
-//           setLoading(prev => ({ ...prev, documents: true }));
-//           const response = await employeeService.getEmployeeDocuments(employeeId);
-//           if (response.success) {
-//             setDocuments(response.data);
-//           }
-//         } catch (error) {
-//           console.error('Error fetching employee documents:', error);
-//         } finally {
-//           setLoading(prev => ({ ...prev, documents: false }));
-//         }
-//       }
-//     };
-
-//     fetchDocuments();
-//   }, [activeTab, employeeId]);
 
   // Fetch cases when case tab is active
   useEffect(() => {
@@ -225,7 +192,7 @@ const EmployeeProfile = () => {
 
   // Update the passport details section
   const renderPassportDetails = () => {
-    if (loading.basic || loading.documents) {
+    if (loading.basic) {
       return (
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <SkeletonLoader lines={6} headerText="Passport Details" />
@@ -233,7 +200,7 @@ const EmployeeProfile = () => {
       );
     }
 
-    const passportData = basicDetails?.passport || (documents?.rawDocuments?.Passport);
+    const passportData = basicDetails?.passport;
     
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-6">
@@ -293,7 +260,7 @@ const EmployeeProfile = () => {
 
   // Update the work history section
   const renderWorkHistory = () => {
-    if (loading.documents) {
+    if (loading.basic) {
       return (
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <SkeletonLoader lines={3} headerText="Work History" />
@@ -326,7 +293,7 @@ const EmployeeProfile = () => {
 
   // Update the education history section
   const renderEducationHistory = () => {
-    if (loading.documents) {
+    if (loading.basic) {
       return (
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <SkeletonLoader lines={2} headerText="Education History" />
@@ -367,12 +334,6 @@ const EmployeeProfile = () => {
       id: 'case',
       label: 'Case List',
       count: cases.length || null
-    },
-    {
-      id: 'documents',
-      label: 'Documents',
-      count: null,
-      disabled: true
     }
   ];
 
@@ -393,26 +354,21 @@ const EmployeeProfile = () => {
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => !tab.disabled && setActiveTab(tab.id)}
-            disabled={tab.disabled}
+            onClick={() => setActiveTab(tab.id)}
             className={`
               relative flex items-center justify-center px-4 py-2 rounded-md
               font-medium text-sm transition-colors duration-200 min-w-[100px]
               ${activeTab === tab.id 
                 ? 'text-white'
-                : tab.disabled
-                  ? 'text-gray-400 cursor-not-allowed'
-                  : 'text-gray-600 hover:text-gray-800'
+                : 'text-gray-600 hover:text-gray-800'
               }
             `}
-            title={tab.disabled ? "Coming soon" : ""}
           >
             <span>{tab.label}</span>
-            {tab.count !== null && !tab.disabled && (
+            {tab.count !== null && (
               <span 
                 className={`
                   ml-2 px-1.5 py-0.5 text-xs rounded-full
-                  transition-colors duration-200
                   ${activeTab === tab.id 
                     ? 'bg-blue-500 text-white'
                     : 'bg-gray-200 text-gray-600'
@@ -421,9 +377,6 @@ const EmployeeProfile = () => {
               >
                 {tab.count}
               </span>
-            )}
-            {tab.disabled && (
-              <span className="ml-1 text-xs bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded"></span>
             )}
           </button>
         ))}
@@ -608,24 +561,6 @@ const EmployeeProfile = () => {
             ) : (
               <EmployeeCaseList cases={cases} />
             )
-          )}
-        </div>
-
-        {/* Documents Content */}
-        <div 
-          className={`
-            transition-all duration-300
-            ${activeTab === 'documents' 
-              ? 'opacity-100 translate-x-0' 
-              : 'opacity-0 translate-x-4 absolute inset-0 pointer-events-none'
-            }
-          `}
-        >
-          {activeTab === 'documents' && (
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold">Documents</h2>
-              {/* Documents content here */}
-            </div>
           )}
         </div>
       </div>
