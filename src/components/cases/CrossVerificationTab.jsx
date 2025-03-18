@@ -1,11 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, Mail, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, Mail, X, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 
-// New Email Modal Component
-const EmailModal = ({ isOpen, onClose, emailData, onSend }) => {
+// Create a separate EmailModal component
+const EmailModal = ({ isOpen, onClose, initialEmailData, onSend, recipientInfo }) => {
+  // Local state for email data
+  const [emailData, setEmailData] = useState(initialEmailData);
+
+  // Update local state when initialEmailData changes
+  useEffect(() => {
+    setEmailData(initialEmailData);
+  }, [initialEmailData]);
+
+  const handleEmailDataChange = (field, value) => {
+    setEmailData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleSend = () => {
+    onSend(emailData);
+  };
+
   if (!isOpen) return null;
+
+  const { email: emailToShow, name: recipientName } = recipientInfo;
+  const displayValue = emailToShow && recipientName 
+    ? `${recipientName} <${emailToShow}>`
+    : emailToShow || 'Loading recipient details...';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -22,9 +46,20 @@ const EmailModal = ({ isOpen, onClose, emailData, onSend }) => {
             <label className="block text-sm font-medium text-gray-700 mb-1">To:</label>
             <input 
               type="text" 
-              className="w-full p-2 border rounded-md" 
-              value="John Michael Doe"
+              className="w-full p-2 border rounded-md bg-gray-50" 
+              value={displayValue}
               readOnly
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">CC:</label>
+            <input 
+              type="email" 
+              className="w-full p-2 border rounded-md" 
+              value={emailData.cc}
+              onChange={(e) => handleEmailDataChange('cc', e.target.value)}
+              placeholder="Enter CC email address"
             />
           </div>
           
@@ -34,7 +69,7 @@ const EmailModal = ({ isOpen, onClose, emailData, onSend }) => {
               type="text" 
               className="w-full p-2 border rounded-md" 
               value={emailData.subject}
-              readOnly
+              onChange={(e) => handleEmailDataChange('subject', e.target.value)}
             />
           </div>
           
@@ -43,7 +78,7 @@ const EmailModal = ({ isOpen, onClose, emailData, onSend }) => {
             <textarea 
               className="w-full p-2 border rounded-md h-64 resize-none"
               value={emailData.body}
-              readOnly
+              onChange={(e) => handleEmailDataChange('body', e.target.value)}
             />
           </div>
         </div>
@@ -56,7 +91,7 @@ const EmailModal = ({ isOpen, onClose, emailData, onSend }) => {
             Cancel
           </button>
           <button
-            onClick={onSend}
+            onClick={handleSend}
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
           >
             Send
@@ -123,18 +158,35 @@ const VerificationCard = ({ title, children, isExpanded, onToggle }) => {
   );
 };
 
+// Add LoadingOverlay component at the top level
+const LoadingOverlay = () => (
+  <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50">
+    <div className="bg-white rounded-xl p-4 shadow-lg flex items-center gap-3">
+      <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+      <span className="text-sm font-medium">Generating email draft...</span>
+    </div>
+  </div>
+);
+
 const CrossVerificationTab = ({ 
   isLoading, 
   verificationData, 
   managementId,
-  recipientEmail = ''
+  recipientEmail = '',
+  onNextClick
 }) => {
   const [modalOpen, setModalOpen] = useState(false);
-  const [emailData, setEmailData] = useState({ subject: '', body: '' });
+  const [emailData, setEmailData] = useState({ 
+    subject: '', 
+    body: '',
+    cc: '' 
+  });
   const [caseData, setCaseData] = useState(null);
   const [loadingCaseData, setLoadingCaseData] = useState(false);
-  const [isDraftingEmail, setIsDraftingEmail] = useState(false);
-  const [expandedSections, setExpandedSections] = useState(['summary']); // Default expand summary
+  const [draftingEmailIds, setDraftingEmailIds] = useState(new Set()); // Track loading state per draft
+  const [expandedSections, setExpandedSections] = useState(['summary']);
+  const [ccEmail, setCcEmail] = useState(''); // Add state for CC email
+  const [isGeneratingDraft, setIsGeneratingDraft] = useState(false); // Add new state for loading overlay
 
   // Add console logs to debug recipient data
   useEffect(() => {
@@ -168,17 +220,31 @@ const CrossVerificationTab = ({
     fetchCaseData();
   }, [managementId]);
 
-  const handleDraftMail = async (errorType, errorDetails) => {
+  const handleDraftMail = async (errorType, errorDetails, errorId) => {
     try {
-      setIsDraftingEmail(true);
+      setIsGeneratingDraft(true); // Show loading overlay
+      setDraftingEmailIds(prev => new Set([...prev, errorId]));
+      
+      // Get recipient name from caseData
+      const recipientName = caseData?.userId?.name;
+      
+      // Get logged in user data from localStorage
+      const userData = JSON.parse(localStorage.getItem('auth_user') || '{}');
+      const senderName = userData.name;
+      
       const response = await api.post('/mail/draft', {
         errorType,
         errorDetails,
-        recipientEmail
+        recipientEmail,
+        recipientName,
+        senderName // Add sender's name for email signature
       });
 
       if (response.data.status === 'success') {
-        setEmailData(response.data.data);
+        setEmailData(prev => ({
+          ...response.data.data,
+          cc: prev.cc
+        }));
         setModalOpen(true);
       } else {
         toast.error('Failed to generate email draft');
@@ -187,39 +253,41 @@ const CrossVerificationTab = ({
       console.error('Error generating mail draft:', error);
       toast.error('Failed to generate email draft');
     } finally {
-      setIsDraftingEmail(false);
+      setDraftingEmailIds(prev => {
+        const next = new Set(prev);
+        next.delete(errorId);
+        return next;
+      });
+      setIsGeneratingDraft(false); // Hide loading overlay
     }
   };
 
-  const handleSendEmail = async () => {
+  const handleSendEmail = async (updatedEmailData) => {
     try {
       const emailToUse = caseData?.userId?.email;
       const nameToUse = caseData?.userId?.name;
-      
-      console.log('Sending email to:', emailToUse);
       
       if (!emailToUse) {
         toast.error('Recipient email address is missing');
         return;
       }
 
-      // Show loading toast
       const loadingToast = toast.loading('Sending email...');
 
-      // Send email through backend
       const response = await api.post('/mail/send', {
-        subject: emailData.subject,
-        body: emailData.body,
+        subject: updatedEmailData.subject,
+        body: updatedEmailData.body,
         recipientEmail: emailToUse,
-        recipientName: nameToUse
+        recipientName: nameToUse,
+        ccEmail: updatedEmailData.cc
       });
 
-      // Dismiss loading toast
       toast.dismiss(loadingToast);
 
       if (response.data.status === 'success') {
         toast.success('Email sent successfully');
         setModalOpen(false);
+        setEmailData({ subject: '', body: '', cc: '' });
       } else {
         toast.error(response.data.message || 'Failed to send email');
       }
@@ -243,7 +311,9 @@ const CrossVerificationTab = ({
             .map(([doc, value]) => `${doc}: ${value}`)
             .join('\n');
 
-      await handleDraftMail(errorType, errorDetails);
+      // Generate a unique ID for this error
+      const errorId = `${error.type}-${Date.now()}`;
+      await handleDraftMail(errorType, errorDetails, errorId);
     } catch (error) {
       console.error('Error handling draft mail click:', error);
       toast.error('Failed to generate email draft');
@@ -253,6 +323,7 @@ const CrossVerificationTab = ({
   // Update the handleSummaryDraftMailClick function
   const handleSummaryDraftMailClick = async () => {
     try {
+      setIsGeneratingDraft(true); // Show loading overlay
       const summaryErrors = verificationData?.verificationResults.summarizationErrors || [];
       const mismatchErrors = verificationData?.verificationResults.mismatchErrors || [];
       const missingErrors = verificationData?.verificationResults.missingErrors || [];
@@ -297,78 +368,94 @@ const CrossVerificationTab = ({
       // Send complete verification report
       await handleDraftMail(
         'Complete Verification Report', 
-        errorDetails
+        errorDetails,
+        'complete-verification-report'
       );
     } catch (error) {
       console.error('Error handling summary draft mail:', error);
       toast.error('Failed to generate verification report email');
+    } finally {
+      setIsGeneratingDraft(false); // Hide loading overlay
     }
   };
 
-  // Remove the button from SummaryHeader
-  const SummaryHeader = () => {
+
+
+  // Update the DraftSummaryButton component to include both buttons
+  const DraftSummaryButton = ({ onNextClick }) => {
+    const summaryDraftId = 'summary-draft';
+    const isLoading = draftingEmailIds.has(summaryDraftId);
+
+    const handleClick = async () => {
+      try {
+        setDraftingEmailIds(prev => new Set([...prev, summaryDraftId]));
+        await handleSummaryDraftMailClick();
+      } finally {
+        setDraftingEmailIds(prev => {
+          const next = new Set(prev);
+          next.delete(summaryDraftId);
+          return next;
+        });
+      }
+    };
+
     return (
-      <div className="p-4 border-b border-gray-200">
-        <h3 className="text-base font-semibold text-gray-900">Summary</h3>
+      <div className="flex items-center gap-3">
+        <button
+          className={`inline-flex items-center px-5 py-2.5 text-sm font-medium 
+            ${isLoading 
+              ? 'bg-gray-100 text-gray-500 cursor-wait' 
+              : 'bg-indigo-600 text-white hover:bg-indigo-700'
+            } 
+            rounded-lg transition-colors shadow-md hover:shadow-lg focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500`}
+          onClick={handleClick}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+              Preparing Summary...
+            </>
+          ) : (
+            <>
+              <Mail className="w-5 h-5 mr-2" />
+              Send Summarized Verification Mail
+            </>
+          )}
+        </button>
+
+        <button
+          onClick={onNextClick}
+          className="inline-flex items-center px-5 py-2.5 text-sm font-medium 
+            bg-blue-600 text-white hover:bg-blue-700
+            rounded-lg transition-colors shadow-md hover:shadow-lg"
+        >
+          Next : Finalize
+          <ChevronRight className="w-5 h-5" />
+        </button>
       </div>
     );
   };
 
-  // Update the DraftSummaryButton component with new name
-  const DraftSummaryButton = () => {
-    return (
-      <button
-        className={`inline-flex items-center px-5 py-2.5 text-sm font-medium 
-          ${isDraftingEmail 
-            ? 'bg-gray-100 text-gray-500 cursor-wait' 
-            : 'bg-indigo-600 text-white hover:bg-indigo-700'
-          } 
-          rounded-lg transition-colors shadow-md hover:shadow-lg focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500`}
-        onClick={handleSummaryDraftMailClick}
-        disabled={isDraftingEmail}
-      >
-        {isDraftingEmail ? (
-          <>
-            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-            Preparing Summary...
-          </>
-        ) : (
-          <>
-            <svg 
-              className="w-5 h-5 mr-2" 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-              />
-            </svg>
-            Send Summarized Verification Mail
-          </>
-        )}
-      </button>
-    );
-  };
-
-  // Modify ActionButtons to accept error data
+  // Modify ActionButtons to use error-specific loading state
   const ActionButtons = ({ error }) => {
+    // Generate consistent ID for this error
+    const errorId = `${error.type}-${JSON.stringify(error.details)}`;
+    const isLoading = draftingEmailIds.has(errorId);
+
     return (
       <div className="flex items-center gap-2 mt-4">
         <button
           className={`inline-flex items-center px-3 py-2 text-sm font-medium 
-            ${isDraftingEmail 
+            ${isLoading 
               ? 'bg-gray-100 text-gray-500 cursor-wait' 
               : 'text-gray-700 bg-white hover:bg-gray-50'
             } 
             border border-gray-300 rounded-md transition-colors`}
-          onClick={() => handleDraftMailClick(error)} // Pass the specific error
-          disabled={isDraftingEmail}
+          onClick={() => handleDraftMailClick(error)}
+          disabled={isLoading}
         >
-          {isDraftingEmail ? (
+          {isLoading ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               Drafting...
@@ -383,92 +470,6 @@ const CrossVerificationTab = ({
       </div>
     );
   };
-
-  // Update EmailModalWithRecipient to use the email state
-  const EmailModalWithRecipient = ({ isOpen, onClose, emailData, onSend }) => {
-    if (!isOpen) return null;
-
-    // Get email and name from case data
-    const emailToShow = caseData?.userId?.email || '';
-    const recipientName = caseData?.userId?.name || '';
-
-    console.log('Modal Email:', emailToShow);
-    console.log('Modal Recipient Name:', recipientName);
-
-    // Create display value with proper formatting
-    const displayValue = emailToShow && recipientName 
-      ? `${recipientName} <${emailToShow}>`
-      : emailToShow || 'Loading recipient details...';
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg w-[600px] max-h-[80vh] overflow-hidden">
-          <div className="flex items-center justify-between p-4 border-b">
-            <h3 className="text-lg font-semibold">Draft Mail</h3>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          
-          <div className="p-4 space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">To:</label>
-              <input 
-                type="text" 
-                className="w-full p-2 border rounded-md bg-gray-50" 
-                value={displayValue}
-                readOnly
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Subject:</label>
-              <input 
-                type="text" 
-                className="w-full p-2 border rounded-md" 
-                value={emailData.subject}
-                readOnly
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Message:</label>
-              <textarea 
-                className="w-full p-2 border rounded-md h-64 resize-none"
-                value={emailData.body}
-                readOnly
-              />
-            </div>
-          </div>
-          
-          <div className="flex justify-end gap-3 p-4 border-t bg-gray-50">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={onSend}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
-            >
-              Send
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Add a loading overlay component
-  const LoadingOverlay = () => (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-4 shadow-lg flex items-center gap-3">
-        <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-        <span className="text-sm font-medium">Generating email draft...</span>
-      </div>
-    </div>
-  );
 
   const toggleSection = (section) => {
     setExpandedSections(prev => 
@@ -495,7 +496,7 @@ const CrossVerificationTab = ({
       {/* Draft Summary Button */}
       <div className="">
         <div className="flex justify-end">
-          <DraftSummaryButton />
+          <DraftSummaryButton onNextClick={onNextClick} />
         </div>
       </div>
 
@@ -571,14 +572,19 @@ const CrossVerificationTab = ({
         </div>
       </div>
 
-      <EmailModalWithRecipient 
+      <EmailModal 
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        emailData={emailData}
+        initialEmailData={emailData}
         onSend={handleSendEmail}
+        recipientInfo={{
+          email: caseData?.userId?.email,
+          name: caseData?.userId?.name
+        }}
       />
 
-      {isDraftingEmail && <LoadingOverlay />}
+      {/* Add loading overlay */}
+      {isGeneratingDraft && <LoadingOverlay />}
     </div>
   );
 };
@@ -588,7 +594,8 @@ CrossVerificationTab.defaultProps = {
   recipientEmail: '',
   isLoading: false,
   verificationData: null,
-  managementId: null
+  managementId: null,
+  onNextClick: () => {}
 };
 
 export default CrossVerificationTab; 

@@ -670,6 +670,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         const response = await api.get(`/management/${caseId}`);
         if (response.data.status === 'success') {
           const caseData = response.data.data.entry;
+          console.log('Case data:', caseData);
           setCaseData(caseData);
           
           // Set breadcrumb with process name
@@ -1481,6 +1482,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               isLoading={isLoadingVerification}
               managementId={caseId}
               recipientEmail={recipientEmail}
+              onNextClick={handleNextClick}
             />
           );
         case 'finalize':
@@ -1976,7 +1978,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           form.getTextField('Date of Issue').setText(processedInfo?.Passport?.dateOfIssue || 'N/A');
           form.getTextField('Date of Expiry').setText(processedInfo?.Passport?.dateOfExpiry || 'N/A');
           form.getTextField('Mobile Phone').setText(processedInfo?.Resume?.cellNumber || 'N/A');
-          form.getTextField('EMail').setText(processedInfo?.Resume?.emailId || 'N/A');
+          form.getTextField('EMail Address').setText(processedInfo?.Resume?.emailId || 'N/A');
           
           // Employment and Education section
           form.getTextField('Name of the Current Employer').setText(
@@ -2296,7 +2298,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     return (
       <div className="p-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* First column - Employee Details (keep as is) */}
+          {/* First column - Employee Details */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <div className="mb-6">
               <h2 className="text-lg font-semibold">Employee Details</h2>
@@ -2338,7 +2340,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Email</label>
                 <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
-                  {profileData.email || profileData.contact?.email || 'N/A'}
+                  {profileData.contact?.email || profileData.email || 'N/A'}
                 </div>
               </div>
 
@@ -2357,6 +2359,18 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               </div>
 
               <div>
+                <label className="block text-sm text-gray-600 mb-1">Current Job</label>
+                <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                  {profileData.currentJob ? (
+                    <>
+                      {profileData.currentJob.jobTitle} at {profileData.currentJob.companyName}
+                      {profileData.currentJob.companyAddress && ` - ${profileData.currentJob.companyAddress}`}
+                    </>
+                  ) : 'N/A'}
+                </div>
+              </div>
+
+              <div>
                 <label className="block text-sm text-gray-600 mb-1">Address</label>
                 <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
                   {profileData.address ? (
@@ -2364,6 +2378,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                       {profileData.address.floorAptSuite && `${profileData.address.floorAptSuite}, `}
                       {profileData.address.streetNumber && `${profileData.address.streetNumber} `}
                       {profileData.address.streetName && `${profileData.address.streetName}, `}
+                      {profileData.address.district && `${profileData.address.district}, `}
                       {profileData.address.city && `${profileData.address.city}, `}
                       {profileData.address.stateProvince && `${profileData.address.stateProvince}, `}
                       {profileData.address.country && `${profileData.address.country} `}
@@ -2398,7 +2413,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
           {/* Second column - Passport, Education, and Work History */}
           <div className="space-y-6">
-            {/* Passport Details (keep existing passport section) */}
+            {/* Passport Details */}
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <h2 className="text-lg font-semibold mb-4">Passport Details</h2>
               {profileData.passport ? (
@@ -2456,7 +2471,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <h2 className="text-lg font-semibold mb-6">Education History</h2>
               <div className="space-y-4">
-                {profileData?.educationHistory && profileData.educationHistory.length > 0 ? (
+                {profileData.educationHistory && profileData.educationHistory.length > 0 ? (
                   profileData.educationHistory.map((edu, index) => (
                     <div key={index} className="p-4 border border-gray-200 rounded-lg">
                       <div className="font-medium">
@@ -2481,7 +2496,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <h2 className="text-lg font-semibold mb-6">Work History</h2>
               <div className="space-y-4">
-                {profileData?.workHistory && profileData.workHistory.length > 0 ? (
+                {profileData.workHistory && profileData.workHistory.length > 0 ? (
                   profileData.workHistory.map((exp, index) => (
                     <div key={index} className="p-4 border border-gray-200 rounded-lg">
                       <div className="font-medium">{exp.jobTitle}</div>
@@ -2512,6 +2527,12 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const handleEmailChange = (email) => {
     console.log('Email received from sidebar:', email);
     setRecipientEmail(email);
+  };
+
+  const handleNextClick = () => {
+    // Switch to finalize tab
+    setSelectedSubTab('finalize'); // Add this line to set the sub-navigation
+    setActiveTab('document-checklist'); // Keep the main tab as document-checklist
   };
 
   // Update the main container and its children to properly handle height
@@ -2552,7 +2573,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           
           <div className="flex-1 overflow-auto"> {/* This will scroll independently */}
             <div className="max-w-7xl mx-auto">
-              {activeTab === 'profile' && <ProfileTab profileData={profileData} />}
+              {activeTab === 'profile' && <ProfileTab profileData={caseData.userId} />}
               {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
