@@ -1091,12 +1091,27 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     // Check if preparation is complete (questionnaire completed and in forms tab)
     const isPreparationComplete = activeTab === 'forms' && isQuestionnaireCompleted;
 
-    // Define steps with dynamic completion status
+    // Get case status from caseData
+    const caseStatus = caseData?.categoryStatus?.toLowerCase() || 'pending';
+
+    // Define steps with dynamic completion status based on case status
     const steps = [
-      { name: 'Case Started', completed: true },
-      { name: 'Data Collection', completed: true },
-      { name: 'In Review', completed: allDocumentsApproved },
-      { name: 'Preparation', completed: allDocumentsApproved && isPreparationComplete }
+      { 
+        name: 'Case Started', 
+        completed: true 
+      },
+      { 
+        name: 'Data Collection', 
+        completed: ['reviewed', 'completed'].includes(caseStatus) || allDocumentsApproved 
+      },
+      { 
+        name: 'Review', 
+        completed: ['reviewed', 'completed'].includes(caseStatus) // Changed to include 'completed' status
+      },
+      { 
+        name: 'Preparation', 
+        completed: caseStatus === 'completed'
+      }
     ];
 
     return (
@@ -2015,22 +2030,42 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             `${processedInfo?.Resume?.currentPosition || 'N/A'}, ${processedInfo?.resume?.previousPosition || 'N/A'}`
           );
 
+          // Save and download the filled PDF
+          const pdfBytes = await pdfDoc.save();
+          const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.setAttribute('download', `form-${formId}.pdf`);
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          window.URL.revokeObjectURL(url);
+
+          // After successful download, update case status to completed
+          try {
+            await api.patch(`/management/${caseId}/status`, {
+              status: 'completed'
+            });
+            
+            // Show success message
+            toast.success('Form downloaded and case marked as completed');
+            
+            // Refresh case data to update UI
+            const response = await api.get(`/management/${caseId}`);
+            if (response.data.status === 'success') {
+              setCaseData(response.data.data.entry);
+            }
+          } catch (statusError) {
+            console.error('Error updating case status:', statusError);
+            toast.error('Form downloaded but failed to update case status');
+          }
+
         } catch (fieldError) {
           console.error('Error filling specific field:', fieldError);
           toast.error('Error filling some fields in the form');
+          throw fieldError;
         }
-
-        // Save and download the filled PDF
-        const pdfBytes = await pdfDoc.save();
-        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `form-${formId}.pdf`);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        window.URL.revokeObjectURL(url);
 
       } catch (err) {
         console.error('Error filling PDF:', err);

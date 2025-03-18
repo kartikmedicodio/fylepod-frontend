@@ -18,6 +18,8 @@ const CaseDetailsSidebar = ({ caseData, loading, error, onEmailChange }) => {
         return 'bg-green-50 text-green-700';
       case 'pending':
         return 'bg-red-50 text-red-700';
+      case 'reviewed':
+        return 'bg-yellow-50 text-yellow-700';
       default:
         return 'bg-gray-50 text-gray-700';
     }
