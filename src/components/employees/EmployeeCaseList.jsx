@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
-import { Search, SlidersHorizontal, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, SlidersHorizontal, Plus, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const EmployeeCaseList = ({ cases = [] }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    status: '',
+    documentStatus: '',
+    queriesPending: ''
+  });
   const casesPerPage = 6;
   const navigate = useNavigate();
 
@@ -12,9 +18,46 @@ const EmployeeCaseList = ({ cases = [] }) => {
     navigate(`case/${caseId}`);
   };
 
-  const filteredCases = cases.filter(caseItem => 
-    caseItem.categoryId?.name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handleFilterChange = (filterType, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [filterType]: value
+    }));
+    setCurrentPage(1); // Reset to first page when filters change
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      status: '',
+      documentStatus: '',
+      queriesPending: ''
+    });
+    setCurrentPage(1);
+  };
+
+  const applyFilters = () => {
+    setShowFilters(false);
+  };
+
+  const filteredCases = cases.filter(caseItem => {
+    // Search filter
+    const matchesSearch = caseItem.categoryId?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Status filter
+    const matchesStatus = !filters.status || caseItem.categoryStatus === filters.status;
+    
+    // Document status filter
+    const matchesDocumentStatus = !filters.documentStatus || 
+      (filters.documentStatus === 'complete' && caseItem.documentTypes?.length === 5) ||
+      (filters.documentStatus === 'incomplete' && caseItem.documentTypes?.length < 5);
+    
+    // Queries pending filter
+    const matchesQueries = !filters.queriesPending || 
+      (filters.queriesPending === 'yes' && caseItem.documentTypes?.length > 0) ||
+      (filters.queriesPending === 'no' && caseItem.documentTypes?.length === 0);
+
+    return matchesSearch && matchesStatus && matchesDocumentStatus && matchesQueries;
+  });
 
   // Get current cases
   const indexOfLastCase = currentPage * casesPerPage;
@@ -59,22 +102,81 @@ const EmployeeCaseList = ({ cases = [] }) => {
             />
           </div>
 
-          {/* Filters Button */}
-          <div className="flex items-center gap-2">
+          {/* Filters Button and Popup */}
+          <div className="flex items-center gap-2 relative">
             <button 
-              className="px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-400 cursor-not-allowed"
-              disabled
-              title="This feature is coming soon"
+              className="px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-200 transition-colors flex items-center gap-2"
+              onClick={() => setShowFilters(!showFilters)}
             >
-              All Filters
+              <SlidersHorizontal size={16} />
+              Filters
             </button>
-            <button 
-              className="px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-400 cursor-not-allowed"
-              disabled
-              title="This feature is coming soon"
-            >
-              Sort
-            </button>
+
+            {/* Filters Popup */}
+            {showFilters && (
+              <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                <div className="p-4 space-y-4">
+                  {/* Status Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Case Status</label>
+                    <select
+                      className="w-full px-2 py-1.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-blue-500"
+                      value={filters.status}
+                      onChange={(e) => handleFilterChange('status', e.target.value)}
+                    >
+                      <option value="">All Statuses</option>
+                      <option value="pending">Pending</option>
+                      <option value="completed">Completed</option>
+                      <option value="in_progress">In Progress</option>
+                    </select>
+                  </div>
+
+                  {/* Document Status Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Document Status</label>
+                    <select
+                      className="w-full px-2 py-1.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-blue-500"
+                      value={filters.documentStatus}
+                      onChange={(e) => handleFilterChange('documentStatus', e.target.value)}
+                    >
+                      <option value="">All Documents</option>
+                      <option value="complete">Complete</option>
+                      <option value="incomplete">Incomplete</option>
+                    </select>
+                  </div>
+
+                  {/* Queries Pending Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Queries Pending</label>
+                    <select
+                      className="w-full px-2 py-1.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:border-blue-500"
+                      value={filters.queriesPending}
+                      onChange={(e) => handleFilterChange('queriesPending', e.target.value)}
+                    >
+                      <option value="">All Cases</option>
+                      <option value="yes">Yes</option>
+                      <option value="no">No</option>
+                    </select>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                    <button
+                      onClick={clearFilters}
+                      className="text-sm text-gray-600 hover:text-gray-900"
+                    >
+                      Clear all
+                    </button>
+                    <button
+                      onClick={() => setShowFilters(false)}
+                      className="text-sm text-blue-600 hover:text-blue-700"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -82,8 +184,9 @@ const EmployeeCaseList = ({ cases = [] }) => {
         <div className="flex items-center gap-2">
           <button 
             className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
-            onClick={() => navigate('/add-new-case')}
+            onClick={() => navigate('/cases/new')}
           >
+            <Plus size={16} />
             Add New Case
           </button>
         </div>

@@ -239,7 +239,13 @@ const Cases = () => {
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pagination, setPagination] = useState(null);
+  const [displayCases, setDisplayCases] = useState([]);
+  const [pagination, setPagination] = useState({
+    total: 0,
+    currentPage: 1,
+    limit: 10,
+    totalPages: 0
+  });
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredCases, setFilteredCases] = useState([]);
   const [selectedCase, setSelectedCase] = useState(null);
@@ -304,6 +310,7 @@ const Cases = () => {
   const handleApplyFilters = () => {
     setFilters(tempFilters);
     setShowFilters(false);
+    setCurrentPage(1);
   };
 
   const clearAllFilters = () => {
@@ -315,6 +322,7 @@ const Cases = () => {
     setTempFilters(emptyFilters);
     setFilters(emptyFilters);
     setShowFilters(false);
+    setCurrentPage(1);
   };
 
   const applyFilters = (cases) => {
@@ -360,52 +368,6 @@ const Cases = () => {
     });
   };
 
-  const fetchCases = async (page, search = '') => {
-    try {
-      if (!loggedInUserDetails?.lawfirm_id?._id) {
-        console.log('No lawfirm ID available');
-        return;
-      }
-
-      const response = await api.get(`/management/all-managements?page=${page}`);
-      
-      if (response.data.status === 'success') {
-        // Filter cases by lawfirm ID
-        const allCases = response.data.data.managements.filter(caseItem => {
-          return caseItem.lawfirmId === loggedInUserDetails.lawfirm_id._id ||
-                 caseItem.createdBy?.lawfirm_id?._id === loggedInUserDetails.lawfirm_id._id;
-        });
-        
-        if (search.trim()) {
-          const searchLower = search.toLowerCase();
-          const filtered = allCases.filter(caseItem => 
-            (caseItem._id && caseItem._id.toLowerCase().includes(searchLower)) ||
-            (caseItem.userName && caseItem.userName.toLowerCase().includes(searchLower)) ||
-            (caseItem.name && caseItem.name.toLowerCase().includes(searchLower))
-          );
-          
-          setFilteredCases(filtered);
-          setPagination({
-            ...response.data.data.pagination,
-            total: filtered.length,
-            totalPages: Math.ceil(filtered.length / response.data.data.pagination.limit)
-          });
-        } else {
-          setFilteredCases(allCases);
-          setPagination({
-            ...response.data.data.pagination,
-            total: allCases.length,
-            totalPages: Math.ceil(allCases.length / response.data.data.pagination.limit)
-          });
-        }
-        setCases(allCases);
-      }
-    } catch (error) {
-      console.error('Error fetching cases:', error);
-      setError('Error loading cases. Please try again later.');
-    }
-  };
-
   // Combined initial data fetch
   useEffect(() => {
     let isMounted = true;
@@ -413,9 +375,11 @@ const Cases = () => {
     const fetchInitialData = async () => {
       try {
         setLoading(true);
+        console.log('Starting initial data fetch');
         
         // Get user data from localStorage instead of API call
         const userDetails = getStoredUser();
+        console.log('User details from localStorage:', userDetails);
         
         if (!isMounted) return;
 
@@ -425,27 +389,29 @@ const Cases = () => {
 
         if (!isMounted) return;
         
+        // Set logged in user details first
         setLoggedInUserDetails(userDetails);
 
         if (userDetails.lawfirm_id?._id) {
-          const casesResponse = await api.get('/management/all-managements?page=1');
+          console.log('Fetching cases for lawfirm:', userDetails.lawfirm_id._id);
+          const response = await api.get('/management/all-managements');
           
-          if (!isMounted) return;
-
-          if (casesResponse.data.status === 'success') {
-            const allCases = casesResponse.data.data.managements.filter(caseItem => {
+          if (response.data.status === 'success') {
+            console.log('Received cases from API:', response.data.data.managements);
+            // Filter cases by lawfirm ID
+            const allCases = response.data.data.managements.filter(caseItem => {
               return caseItem.lawfirmId === userDetails.lawfirm_id._id ||
                      caseItem.createdBy?.lawfirm_id?._id === userDetails.lawfirm_id._id;
             });
             
-            setFilteredCases(allCases);
-            setPagination({
-              ...casesResponse.data.data.pagination,
-              total: allCases.length,
-              totalPages: Math.ceil(allCases.length / casesResponse.data.data.pagination.limit)
-            });
-            setCases(allCases);
+            console.log('Filtered cases by lawfirm:', allCases);
+            if (isMounted) {
+              setCases(allCases);
+              processCases(allCases);
+            }
           }
+        } else {
+          console.log('No lawfirm ID in user details');
         }
       } catch (error) {
         if (isMounted) {
@@ -464,65 +430,126 @@ const Cases = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, []); // Remove currentPage dependency since we're handling pagination in frontend
 
-  useEffect(() => {
-    if (!loading && loggedInUserDetails?.lawfirm_id?._id) {
-      fetchCases(currentPage);
+  // Process cases with filtering, sorting, and pagination
+  const processCases = (cases) => {
+    console.log('Processing cases:', cases);
+    // Step 1: Filter by search term
+    const searchFiltered = searchTerm 
+      ? cases.filter(c => 
+          c.userName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          c.categoryName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          c._id?.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      : cases;
+      
+    console.log('After search filtering:', searchFiltered);
+    
+    // Step 2: Apply filters
+    let filtered = [...searchFiltered];
+    
+    if (filters.status) {
+      filtered = filtered.filter(c => c.categoryStatus === filters.status);
     }
-  }, [currentPage, loggedInUserDetails]);
-
-  useEffect(() => {
-    if (!loading) {
-      const delayDebounce = setTimeout(() => {
-        if (searchTerm) {
-          fetchCases(1, searchTerm);
-        } else {
-          fetchCases(1);
+    
+    if (filters.documentStatus) {
+      filtered = filtered.filter(c => {
+        const pendingCount = c.documentTypes?.filter(doc => 
+          doc.status === 'pending'
+        ).length || 0;
+        
+        if (filters.documentStatus === 'pending') {
+          return pendingCount > 0;
+        } else if (filters.documentStatus === 'complete') {
+          return pendingCount === 0;
         }
-      }, 300);
-
-      return () => clearTimeout(delayDebounce);
+        return true;
+      });
     }
-  }, [searchTerm]);
-
-  useEffect(() => {
-    if (!cases.length) return;
-
-    let filtered = [...cases];
-
-    // Apply search filter
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      filtered = filtered.filter(caseItem =>
-        (caseItem._id && caseItem._id.toLowerCase().includes(searchLower)) ||
-        (caseItem.userName && caseItem.userName.toLowerCase().includes(searchLower)) ||
-        (caseItem.name && caseItem.name.toLowerCase().includes(searchLower))
-      );
+    
+    if (filters.deadline) {
+      const today = new Date();
+      const weekEnd = new Date(today);
+      weekEnd.setDate(today.getDate() + 7);
+      const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+      
+      filtered = filtered.filter(c => {
+        const deadline = new Date(c.deadline);
+        switch (filters.deadline) {
+          case 'thisWeek':
+            return deadline <= weekEnd;
+          case 'thisMonth':
+            return deadline <= monthEnd;
+          case 'nextMonth':
+            return deadline > monthEnd && deadline <= nextMonthEnd;
+          default:
+            return true;
+        }
+      });
     }
+    
+    console.log('After applying filters:', filtered);
+    
+    // Step 3: Paginate the filtered data
+    const total = filtered.length;
+    const totalPages = Math.ceil(total / pagination.limit);
+    const startIndex = (currentPage - 1) * pagination.limit;
+    const endIndex = startIndex + pagination.limit;
+    const currentPageCases = filtered.slice(startIndex, endIndex);
+    
+    console.log('Final paginated cases:', currentPageCases);
+    console.log('Pagination info:', { total, currentPage, limit: pagination.limit, totalPages });
+    
+    // Update state with processed data
+    setDisplayCases(currentPageCases);
+    setPagination({
+      total,
+      currentPage,
+      limit: pagination.limit,
+      totalPages
+    });
+  };
 
-    // Apply other filters
-    filtered = applyFilters(filtered);
+  // Update handleSearch to use frontend filtering
+  const handleSearch = (e) => {
+    setSearchTerm(e.target.value);
+    setSearching(true);
+    setCurrentPage(1);
+    
+    // Simulate search delay
+    setTimeout(() => {
+      setSearching(false);
+    }, 500);
+  };
 
-    setFilteredCases(filtered);
-  }, [cases, searchTerm, filters]);
-
-  useEffect(() => {
-    if (showFilters) {
-      setTempFilters(filters);
-    }
-  }, [showFilters]);
-
+  // Update handlePageChange to use frontend pagination
   const handlePageChange = (newPage) => {
-    if (newPage >= 1 && newPage <= pagination?.totalPages) {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
       setCurrentPage(newPage);
     }
   };
 
-  const handleSearch = (e) => {
-    setSearchTerm(e.target.value);
-    setCurrentPage(1);
-  };
+  // Add useEffect to reprocess cases when filters, search, or page changes
+  useEffect(() => {
+    console.log('Reprocessing cases due to changes:', { searchTerm, filters, currentPage });
+    if (cases.length > 0) {
+      processCases(cases);
+    } else {
+      console.log('No cases to process');
+    }
+  }, [searchTerm, filters, currentPage]);
+
+  // Add useEffect to monitor displayCases changes
+  useEffect(() => {
+    console.log('Display cases updated:', displayCases);
+  }, [displayCases]);
+
+  // Add useEffect to monitor cases changes
+  useEffect(() => {
+    console.log('Cases state updated:', cases);
+  }, [cases]);
 
   const handleCaseClick = (caseItem) => {
     setCurrentBreadcrumb([
@@ -532,7 +559,6 @@ const Cases = () => {
     ]);
 
     navigate(`/cases/${caseItem._id}`);
-
     setSelectedCase(caseItem._id);
   };
 
@@ -575,8 +601,12 @@ const Cases = () => {
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-gray-900">Cases</h1>
-        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-          + New Case
+        <button 
+          onClick={() => navigate('/cases/new')}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+        >
+          <span>+</span>
+          New Case
         </button>
       </div>
 
@@ -631,7 +661,7 @@ const Cases = () => {
             </thead>
             <tbody className="divide-y divide-gray-100">
               <AnimatePresence>
-                {filteredCases.length === 0 ? (
+                {displayCases.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="px-6 py-8 text-center">
                       <div className="flex flex-col items-center justify-center space-y-2">
@@ -641,7 +671,7 @@ const Cases = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredCases.map((caseItem) => {
+                  displayCases.map((caseItem) => {
                     // Format deadline for this case
                     const formattedDeadline = caseItem.deadline 
                       ? new Date(caseItem.deadline).toLocaleDateString('en-US', {
@@ -698,7 +728,7 @@ const Cases = () => {
         </div>
 
         {/* Enhanced Pagination */}
-        {pagination && filteredCases.length > 0 && (
+        {pagination && pagination.total > 0 && (
           <div className="px-6 py-3 border-t border-gray-100 flex justify-between items-center bg-gray-50/80 backdrop-blur-sm">
             <span className="text-sm text-gray-600">
               Showing <span className="font-medium text-gray-900">{(currentPage - 1) * pagination.limit + 1}</span>

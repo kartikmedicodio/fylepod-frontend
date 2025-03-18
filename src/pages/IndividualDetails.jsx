@@ -83,8 +83,7 @@ const IndividualDetails = () => {
   // Define tabs
   const tabs = [
     { id: 'profile', label: 'Profile' },
-    { id: 'cases', label: 'Cases' },
-    { id: 'documents', label: 'Documents', disabled: true }
+    { id: 'cases', label: 'Cases' }
   ];
 
   useEffect(() => {
@@ -314,19 +313,12 @@ const IndividualDetails = () => {
                 transition-colors duration-200 z-10 whitespace-nowrap
                 ${activeTab === tab.id 
                   ? 'text-white'
-                  : tab.disabled 
-                    ? 'text-gray-400 cursor-not-allowed' 
-                    : 'text-gray-600 hover:text-gray-800'
+                  : 'text-gray-600 hover:text-gray-800'
                 }
               `}
-              onClick={() => !tab.disabled && setActiveTab(tab.id)}
-              disabled={tab.disabled}
-              title={tab.disabled ? "Coming soon" : ""}
+              onClick={() => setActiveTab(tab.id)}
             >
               {tab.label}
-              {tab.disabled && (
-                <span className="ml-1 text-xs bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">Soon</span>
-              )}
             </button>
           ))}
         </div>
@@ -648,19 +640,7 @@ const IndividualDetails = () => {
               </div>
             )}
           </motion.div>
-        ) : (
-          <motion.div
-            key="documents"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.2 }}
-            className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm"
-          >
-            <h2 className="text-2xl font-semibold text-gray-900">Documents</h2>
-            {/* Documents tab content here */}
-          </motion.div>
-        )}
+        ) : null}
       </AnimatePresence>
 
       {/* Error State */}
