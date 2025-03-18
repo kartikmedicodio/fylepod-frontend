@@ -306,7 +306,7 @@ const Dashboard = () => {
         const formattedCases = sortedManagements.map(caseData => {
           // Count uploaded documents to determine document collection status
           const uploadedDocs = caseData.documentTypes?.filter(doc => doc.status === 'uploaded').length || 0;
-          const totalDocCount = caseData.documentTypes?.length || 0; // Renamed to avoid linter error
+          const totalDocCount = caseData.documentTypes?.length || 0;
           
           // Calculate document completion percentage
           const docCompletionPercent = totalDocCount > 0 ? (uploadedDocs / totalDocCount) * 100 : 0;
@@ -316,11 +316,12 @@ const Dashboard = () => {
             caseId: caseData.caseId || caseData._id.substring(0, 8),
             userName: caseData.userName || (caseData.userId?.name) || 'Unknown Client',
             title: caseData.title || caseData.formName || caseData.categoryName || 'Untitled Case',
-            docCompletionPercent, // Add completion percentage
-            totalDocCount, // Add total document count
-            uploadedDocs, // Add uploaded document count
+            docCompletionPercent,
+            totalDocCount,
+            uploadedDocs,
             deadline: caseData.deadline ? new Date(caseData.deadline) : null,
-      status: {
+            updatedAt: caseData.updatedAt ? new Date(caseData.updatedAt) : new Date(caseData.createdAt),
+            status: {
               documentCollection: uploadedDocs > 0,
               aiVerification: caseData.verificationResults?.verifiedAt || caseData.lastVerifiedAt ? true : false,
               attorneyApproval: caseData.categoryStatus === 'approved' || caseData.isApproved || false,
@@ -611,6 +612,8 @@ const Dashboard = () => {
                           <span className="font-medium text-gray-800">Case ID - {caseItem.caseId}</span>
                           <span className="mx-2 text-gray-300">•</span>
                           <span>{caseItem.userName}</span>
+                          <span className="mx-2 text-gray-300">•</span>
+                          <span className="text-gray-500">Updated {formatDistanceToNow(caseItem.updatedAt, { addSuffix: true })}</span>
                         </div>
                         <h3 className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
                           {caseItem.title}
