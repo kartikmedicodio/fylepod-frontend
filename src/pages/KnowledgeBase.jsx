@@ -73,11 +73,8 @@ const KnowledgeBase = () => {
       );
 
   const sidebarCategories = [
-    { name: 'Knowledge Base', path: '/knowledge' },
     { name: 'Process Template', path: '/knowledge/process-templates' },
-    { name: 'Master Document List', path: '/knowledge/master-documents' },
-    { name: 'Forms List', path: '/knowledge/forms' },
-    { name: 'Letter Templates', path: '/knowledge/letter-templates' }
+    { name: 'Master Document List', path: '/knowledge/master-documents' }
   ];
 
   const handleRowClick = (categoryId) => {
@@ -132,9 +129,9 @@ const KnowledgeBase = () => {
   };
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full gap-4">
       {/* Left Sidebar */}
-      <div className="w-64 bg-white">
+      <div className="w-64 bg-white shadow-sm rounded-lg">
         <div className="p-4">
           {sidebarCategories.map((category) => (
             <Link
@@ -157,7 +154,7 @@ const KnowledgeBase = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 bg-[#f8fafc]">
+      <div className="flex-1 bg-[#f8fafc] rounded-lg shadow-sm">
         {/* Search Bar */}
         <div className="p-4 flex items-center gap-4">
           <div className="flex-1 relative">
@@ -172,13 +169,6 @@ const KnowledgeBase = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">
-            <SlidersHorizontal className="h-4 w-4" />
-            All Filters
-          </button>
-          <button className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">
-            Sort
-          </button>
         </div>
 
         {/* Main Content Table */}
@@ -189,44 +179,35 @@ const KnowledgeBase = () => {
                 <div className={`grid ${selectedCategory === 'Process Template' ? 'grid-cols-5' : 'grid-cols-4'} px-6 py-3 border-b border-gray-200`}>
                   {selectedCategory === 'Process Template' ? (
                     <>
-                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Process Name
-                        <span className="text-gray-400">↑↓</span>
                       </div>
-                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Process Description
-                        <span className="text-gray-400">↑↓</span>
                       </div>
-                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Status
-                        <span className="text-gray-400">↑↓</span>
                       </div>
-                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Deadline (days)
-                        <span className="text-gray-400">↑↓</span>
                       </div>
-                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Usage
-                        <span className="text-gray-400">↑↓</span>
                       </div>
                     </>
                   ) : (
                     <>
-                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Document Name
-                        <span className="text-gray-400">↑↓</span>
                       </div>
-                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Required
-                        <span className="text-gray-400">↑↓</span>
                       </div>
-                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Validations
-                        <span className="text-gray-400">↑↓</span>
                       </div>
-                      <div className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1 justify-end">
+                      <div className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Created At
-                        <span className="text-gray-400">↑↓</span>
                       </div>
                     </>
                   )}
