@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Search, CirclePlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../utils/api';
+import { usePage } from '../contexts/PageContext';
 
 const IndividualsSkeleton = () => (
   <div className="p-4">
@@ -51,6 +52,12 @@ const Individuals = () => {
     itemsPerPage: 10
   });
   const navigate = useNavigate();
+  const { setPageTitle } = usePage();
+
+  useEffect(() => {
+    setPageTitle('Individuals');
+    return () => setPageTitle('');
+  }, [setPageTitle]);
 
   useEffect(() => {
     fetchIndividuals();

@@ -36,6 +36,7 @@ import CrossVerificationTab from '../components/cases/CrossVerificationTab';
 import ValidationTab from '../components/cases/ValidationTab';
 import ExtractedDataTab from '../components/cases/ExtractedDataTab';
 import FinalizeTab from '../components/cases/FinalizeTab';
+import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 
 
 // Add a new status type to track document states
@@ -131,6 +132,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   // Get caseId from either props or URL params
   const { caseId: paramsCaseId } = useParams();
   const caseId = propsCaseId || paramsCaseId;
+  const { setCurrentBreadcrumb } = useBreadcrumb();
 
   const [activeTab, setActiveTab] = useState('document-checklist');
   const [caseData, setCaseData] = useState(null);
@@ -664,28 +666,36 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   useEffect(() => {
     const fetchCaseDetails = async () => {
       try {
+        setIsLoading(true);
         const response = await api.get(`/management/${caseId}`);
         if (response.data.status === 'success') {
-          setCaseData(response.data.data.entry);
+          const caseData = response.data.data.entry;
+          setCaseData(caseData);
           
-          // Check if there are any uploaded or approved documents
-          const hasUploadedDocuments = response.data.data.entry.documentTypes.some(
-            doc => doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
-          );
-
-          // If there are uploaded documents, fetch validation and extracted data
-          if (hasUploadedDocuments) {
-            await Promise.all([
-              fetchValidationData(),
-              fetchExtractedData()
-            ]);
-          }
+          // Set breadcrumb with process name
+          setCurrentBreadcrumb([
+            { name: 'Home', path: '/dashboard' },
+            { name: 'Cases', path: '/cases' },
+            { name: caseData.categoryName || `Case ${caseId.substring(0, 6)}`, path: `/cases/${caseId}` }
+          ]);
         }
       } catch (error) {
         console.error('Error fetching case details:', error);
+        setError('Failed to load case details');
+      } finally {
+        setIsLoading(false);
       }
     };
 
+    fetchCaseDetails();
+
+    // Cleanup
+    return () => {
+      setCurrentBreadcrumb([]);
+    };
+  }, [caseId, setCurrentBreadcrumb]);
+
+  useEffect(() => {
     const fetchProfileData = async () => {
       try {
         const response = await api.get('/auth/me');
@@ -723,7 +733,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       }
     };
 
-    fetchCaseDetails();
     fetchProfileData();
     fetchQuestionnaires();
     fetchForms();

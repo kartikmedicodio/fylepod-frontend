@@ -10,6 +10,7 @@ import { toast } from 'react-hot-toast';
 import api from '../utils/api';
 import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
+import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 
 const getInitials = (name) => {
   return name
@@ -169,6 +170,7 @@ DocumentProgressBar.propTypes = {
 
 const IndividualCaseDetails = () => {
   const { caseId } = useParams();
+  const { setCurrentBreadcrumb } = useBreadcrumb();
   
   // Group all useState hooks
   const [activeTab, setActiveTab] = useState('documents-checklist');
@@ -634,8 +636,15 @@ const IndividualCaseDetails = () => {
       try {
         const response = await api.get(`/management/${caseId}`);
         if (response.data.status === 'success') {
-          setCaseData(response.data.data.entry);
+          const caseData = response.data.data.entry;
+          setCaseData(caseData);
           
+          // Set breadcrumb
+          setCurrentBreadcrumb([
+            { name: 'All Cases', path: '/individual-cases' },
+            { name: caseData.categoryName || 'Case Details', path: `/individuals/case/${caseId}` }
+          ]);
+
           // Update uploadStatus based on document status
           const hasPendingDocs = response.data.data.entry.documentTypes.some(doc => doc.status === 'pending');
           setUploadStatus(hasPendingDocs ? 'pending' : 'uploaded');
@@ -703,7 +712,12 @@ const IndividualCaseDetails = () => {
 
     fetchCaseDetails();
     fetchQuestionnaires();
-  }, [caseId]);
+
+    // Cleanup breadcrumb on unmount
+    return () => {
+      setCurrentBreadcrumb([]);
+    };
+  }, [caseId, setCurrentBreadcrumb]);
 
   useEffect(() => {
     if (questionnaireData?.responses?.[0]?.processedInformation) {

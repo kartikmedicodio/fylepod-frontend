@@ -15,19 +15,19 @@ const Header = ({ sidebarCollapsed, onAgentClick }) => {
     const path = location.pathname;
 
     // If we have currentBreadcrumb array, use it
-    if (Array.isArray(currentBreadcrumb)) {
+    if (Array.isArray(currentBreadcrumb) && currentBreadcrumb.length > 0) {
       return currentBreadcrumb.map(item => ({
-        name: item.label,
-        path: item.link
+        name: item.name || item.label, // Support both name and legacy label
+        path: item.path || item.link  // Support both path and legacy link
       }));
     }
 
     // Add a special case for individual case details
     if (path.includes('/individuals/case/')) {
-      return [{
-        name: 'Case Details',
-        path: path
-      }];
+      return [
+        { name: 'All Cases', path: '/individual-cases' },
+        { name: currentBreadcrumb?.name || 'Case Details', path: path }
+      ];
     }
 
     if (pageTitle) {
@@ -65,14 +65,56 @@ const Header = ({ sidebarCollapsed, onAgentClick }) => {
         ];
 
       case 'corporations':
-        // If we have a currentBreadcrumb array, use it
-        if (Array.isArray(currentBreadcrumb)) {
-          return currentBreadcrumb;
+        if (paths.length === 1) {
+          return [
+            { name: 'Home', path: '/dashboard' },
+            { name: 'Corporations', path: '/corporations' }
+          ];
+        } else if (paths.length === 2) {
+          // Corporation Details page
+          return [
+            { name: 'Home', path: '/dashboard' },
+            { name: 'Corporations', path: '/corporations' },
+            { name: 'Corporation Details', path: `/corporations/${paths[1]}` }
+          ];
+        } else if (paths.length >= 4 && paths[2] === 'employee') {
+          // Employee page within corporation
+          const corporationPath = `/corporations/${paths[1]}`;
+          const employeePath = `${corporationPath}/employee/${paths[3]}`;
+          
+          if (paths.length >= 6 && paths[4] === 'case') {
+            // Case details page for employee
+            return [
+              { name: 'Home', path: '/dashboard' },
+              { name: 'Corporations', path: '/corporations' },
+              { name: 'Corporation Details', path: corporationPath },
+              { name: currentBreadcrumb?.employeeName || 'Employee Details', path: employeePath },
+              { name: 'Case Details', path: location.pathname }
+            ];
+          }
+          
+          return [
+            { name: 'Home', path: '/dashboard' },
+            { name: 'Corporations', path: '/corporations' },
+            { name: 'Corporation Details', path: corporationPath },
+            { name: currentBreadcrumb?.employeeName || 'Employee Details', path: employeePath }
+          ];
         }
-        // Otherwise, use default
         return [
-          { name: 'Home', path: '/' },
+          { name: 'Home', path: '/dashboard' },
           { name: 'Corporations', path: '/corporations' }
+        ];
+
+      case 'cases':
+        if (paths[1] === 'new') {
+          return [
+            { name: 'Home', path: '/dashboard' },
+            { name: 'New Case', path: '/cases/new' }
+          ];
+        }
+        return [
+          { name: 'Home', path: '/dashboard' },
+          { name: 'Cases', path: '/cases' }
         ];
 
       case 'knowledge':
@@ -96,14 +138,7 @@ const Header = ({ sidebarCollapsed, onAgentClick }) => {
 
   const breadcrumbs = getBreadcrumbs();
 
-  const handleBreadcrumbClick = (path, index, totalLength) => {
-    // If it's Process Templates breadcrumb, always navigate to /knowledge
-    if (index === 1 && currentBreadcrumb?.breadcrumbs?.[index]?.name === 'Process Templates') {
-      navigate('/knowledge');
-      return;
-    }
-    
-    // For other breadcrumbs, use their defined paths
+  const handleBreadcrumbClick = (path, index) => {
     navigate(path);
   };
 
@@ -116,7 +151,7 @@ const Header = ({ sidebarCollapsed, onAgentClick }) => {
               <span className="mx-2 text-gray-400">{'>'}</span>
             )}
             <button
-              onClick={() => handleBreadcrumbClick(breadcrumb.path, index, breadcrumbs.length)}
+              onClick={() => handleBreadcrumbClick(breadcrumb.path, index)}
               className={`text-sm font-medium text-gray-600 hover:text-blue-600 transition-all duration-300 
                 ${sidebarCollapsed ? 'truncate max-w-[150px]' : 'truncate max-w-[200px]'}
                 ${index === breadcrumbs.length - 1 ? 'text-gray-900' : ''}`}

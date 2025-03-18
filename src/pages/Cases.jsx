@@ -261,6 +261,18 @@ const Cases = () => {
   const navigate = useNavigate();
   const { setCurrentBreadcrumb } = useBreadcrumb();
 
+  // Set initial breadcrumb
+  useEffect(() => {
+    setCurrentBreadcrumb([
+      { name: 'Home', path: '/dashboard' },
+      { name: 'Cases', path: '/cases' }
+    ]);
+
+    return () => {
+      setCurrentBreadcrumb([]);
+    };
+  }, [setCurrentBreadcrumb]);
+
   const filterOptions = {
     status: [
       { value: '', label: 'All Status' },
@@ -514,8 +526,9 @@ const Cases = () => {
 
   const handleCaseClick = (caseItem) => {
     setCurrentBreadcrumb([
-      { name: 'All Cases', path: '/individual-cases' },
-      { name: `Case ${caseItem._id.substring(0, 6)}`, path: `/cases/${caseItem._id}` }
+      { name: 'Home', path: '/dashboard' },
+      { name: 'Cases', path: '/cases' },
+      { name: caseItem.categoryName || `Case ${caseItem._id.substring(0, 6)}`, path: `/cases/${caseItem._id}` }
     ]);
 
     navigate(`/cases/${caseItem._id}`);

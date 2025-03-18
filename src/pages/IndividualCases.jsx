@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 
 // Reuse the same skeleton component
 const CasesSkeleton = () => {
@@ -55,6 +56,7 @@ const CasesSkeleton = () => {
 
 const IndividualCases = () => {
   const { user } = useAuth();
+  const { setCurrentBreadcrumb } = useBreadcrumb();
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -259,6 +261,13 @@ const IndividualCases = () => {
     });
   };
 
+  // Set breadcrumb immediately when component mounts
+  useEffect(() => {
+    setCurrentBreadcrumb([
+      { name: 'All Cases', path: '/individual-cases' }
+    ]);
+  }, []); // Empty dependency array to run only once on mount
+
   // Initial load - fetch related users and then their cases
   useEffect(() => {
     if (user?.id) {
@@ -269,6 +278,13 @@ const IndividualCases = () => {
       loadData();
     }
   }, [user?.id]);
+
+  useEffect(() => {
+    // Cleanup breadcrumb on unmount
+    return () => {
+      setCurrentBreadcrumb([]);
+    };
+  }, [setCurrentBreadcrumb]);
 
   // Reprocess cases when filtering, sorting, or pagination changes
   useEffect(() => {

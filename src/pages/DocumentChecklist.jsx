@@ -6,7 +6,7 @@ import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import EditChecklistModal from '../components/modals/EditChecklistModal';
 import PropTypes from 'prop-types';
 
-const DocumentChecklist = ({ setCurrentBreadcrumb }) => {
+const DocumentChecklist = () => {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -16,7 +16,7 @@ const DocumentChecklist = ({ setCurrentBreadcrumb }) => {
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Process Template');
-  const { setCurrentBreadcrumb: contextSetBreadcrumb } = useBreadcrumb();
+  const { setCurrentBreadcrumb } = useBreadcrumb();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   useEffect(() => {
@@ -50,11 +50,10 @@ const DocumentChecklist = ({ setCurrentBreadcrumb }) => {
       const response = await api.get(`/categories/${id}`);
       if (response.data.status === 'success') {
         setCategory(response.data.data.category);
-        // Use the prop instead of context
         setCurrentBreadcrumb([
-          { label: 'Dashboard', link: '/' },
-          { label: 'Knowledge Base', link: '/knowledge' },
-          { label: response.data.data.category.name, link: '#' }
+          { name: 'Dashboard', path: '/' },
+          { name: 'Knowledge Base', path: '/knowledge' },
+          { name: response.data.data.category.name, path: '#' }
         ]);
       }
     } catch (err) {
@@ -86,11 +85,10 @@ const DocumentChecklist = ({ setCurrentBreadcrumb }) => {
     if (!clickable) return;
     setSelectedCategory(categoryName);
     if (path === '/knowledge/master-documents') {
-      // Navigate to master documents list
       setCurrentBreadcrumb([
-        { label: 'Dashboard', link: '/' },
-        { label: 'Knowledge Base', link: '/knowledge' },
-        { label: 'Master Document List', link: '#' }
+        { name: 'Dashboard', path: '/' },
+        { name: 'Knowledge Base', path: '/knowledge' },
+        { name: 'Master Document List', path: '#' }
       ]);
       fetchMasterDocuments();
     } else {
