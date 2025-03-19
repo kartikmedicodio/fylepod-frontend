@@ -209,11 +209,6 @@ const IndividualDetails = () => {
         })
       : '-';
 
-    // Update documents pending count logic
-    const totalDocuments = caseItem.documentTypes?.length || 0;
-    const completedDocuments = caseItem.documentTypes?.filter(doc => doc.status === 'completed').length || 0;
-    const pendingDocuments = totalDocuments - completedDocuments;
-
     return (
       <motion.tr
         initial={{ opacity: 0 }}
@@ -237,11 +232,16 @@ const IndividualDetails = () => {
           </span>
         </td>
         <td className="px-6 py-4 text-sm text-gray-600">
-          {pendingDocuments === 0 ? (
-            <span className="text-green-600">All documents completed</span>
-          ) : (
-            <span>{pendingDocuments} pending</span>
-          )}
+          {caseItem.documentTypes ? (
+            <span>
+              {(() => {
+                const pendingCount = caseItem.documentTypes.filter(doc => 
+                  doc.status === 'pending'
+                ).length;
+                return pendingCount === 0 ? '0 (completed)' : pendingCount;
+              })()}
+            </span>
+          ) : '-'}
         </td>
       </motion.tr>
     );

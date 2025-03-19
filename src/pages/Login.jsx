@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { FileText, Lock } from 'lucide-react';
 
@@ -7,14 +7,26 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
+
+  useEffect(() => {
+    // Check for success message in navigation state
+    if (location.state?.message) {
+      setSuccess(location.state.message);
+      // Clear the message from navigation state
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       setError('');
+      setSuccess('');
       setLoading(true);
       await login({ email, password });
       navigate('/');
@@ -100,6 +112,15 @@ const Login = () => {
                         placeholder="••••••••"
                       />
                     </div>
+                    <div className="mt-2 flex items-center justify-end">
+                      <button
+                        type="button"
+                        onClick={() => navigate('/forgot-password')}
+                        className="text-sm font-medium text-blue-600 hover:text-blue-500 transition-colors"
+                      >
+                        Forgot your password?
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -107,6 +128,12 @@ const Login = () => {
                   <div className="flex items-center space-x-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg animate-shake">
                     <Lock className="w-4 h-4" />
                     <p>{error}</p>
+                  </div>
+                )}
+
+                {success && (
+                  <div className="flex items-center space-x-2 text-sm text-green-600 bg-green-50 p-3 rounded-lg">
+                    <p>{success}</p>
                   </div>
                 )}
 

@@ -23,7 +23,6 @@ const NewIndividual = () => {
     name: '',
     sex: '',
     email: '',
-    password: 'fylepod@123',
     role: 'individual',
     attorney_id: '',
     attorney_name: '',

@@ -433,11 +433,6 @@ const Dashboard = () => {
     }
   };
 
-  // Function to handle notification click
-  const handleNotificationClick = (notification) => {
-    // ... existing notification click code ...
-  };
-
   return (
     <>
       <style>

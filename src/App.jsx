@@ -1,6 +1,8 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Cases from './pages/Cases';
 import Layout from './components/dashboard/Layout';
 import Corporations from './pages/Corporations';
@@ -49,6 +51,8 @@ const App = () => {
             <PageProvider>
               <Routes>
                 <Route path="/login" element={<Login />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password/:token" element={<ResetPassword />} />
                 <Route path="/*" element={
                   <PrivateRoute>
                     <Layout>
