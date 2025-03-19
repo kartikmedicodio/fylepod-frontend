@@ -21,7 +21,6 @@ const NewCorpAdmin = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    password: 'fylepod@123',
     role: 'corp_admin',
     sex: 'Male',
     company_id: companyId,
@@ -103,7 +102,6 @@ const NewCorpAdmin = () => {
       const userData = {
         name: formData.name,
         email: formData.email,
-        password: formData.password,
         role: 'corp_admin',
         sex: formData.sex,
         company_id: formData.company_id,

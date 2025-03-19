@@ -22,7 +22,6 @@ const NewEmployee = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    password: 'fylepod@123',
     role: 'employee',
     sex: 'Male',
     company_id: '',
@@ -130,7 +129,6 @@ const NewEmployee = () => {
       const userData = {
         name: formData.name,
         email: formData.email,
-        password: formData.password,
         role: 'employee',
         sex: formData.sex,
         company_id: formData.company_id,
