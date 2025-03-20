@@ -630,7 +630,7 @@ const NewCase = () => {
                 )}
               </div>
 
-              {selectedTemplate && (
+              {/* {selectedTemplate && (
                 <button
                   type="button"
                   onClick={handleEditTemplate}
@@ -639,7 +639,7 @@ const NewCase = () => {
                 >
                   <Pencil className="h-5 w-5" />
                 </button>
-              )}
+              )} */}
             </div>
           </div>
 
