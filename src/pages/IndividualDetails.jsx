@@ -238,7 +238,7 @@ const IndividualDetails = () => {
                 const pendingCount = caseItem.documentTypes.filter(doc => 
                   doc.status === 'pending'
                 ).length;
-                return pendingCount === 0 ? '0 (completed)' : pendingCount;
+                return pendingCount === 0 ? '0' : pendingCount;
               })()}
             </span>
           ) : '-'}

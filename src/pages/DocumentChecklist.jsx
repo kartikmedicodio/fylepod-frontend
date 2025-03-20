@@ -182,42 +182,22 @@ const DocumentChecklist = () => {
             <div className="bg-white rounded-lg border border-gray-200">
               <div className="min-w-full divide-y divide-gray-200">
                 <div className="bg-white">
-                  <div className="grid grid-cols-4 px-6 py-3 border-b border-gray-200">
-                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                  <div className="grid grid-cols-3 px-6 py-3 border-b border-gray-200">
+                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Document Name
-                      <span className="text-gray-400">↑↓</span>
                     </div>
-                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                      Required
-                      <span className="text-gray-400">↑↓</span>
-                    </div>
-                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Validations
-                      <span className="text-gray-400">↑↓</span>
                     </div>
-                    <div className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-1 justify-end">
+                    <div className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider justify-end">
                       Created At
-                      <span className="text-gray-400">↑↓</span>
                     </div>
                   </div>
                 </div>
                 <div className="bg-white divide-y divide-gray-200">
                   {masterDocuments.map((doc) => (
-                    <div key={doc._id} className="grid grid-cols-4 px-6 py-4 hover:bg-gray-50">
+                    <div key={doc._id} className="grid grid-cols-3 px-6 py-4 hover:bg-gray-50">
                       <div className="text-sm text-gray-900">{doc.name}</div>
-                      <div className="text-sm text-gray-500">
-                        {doc.required ? (
-                          <span className="flex items-center text-green-600">
-                            <CheckCircle className="w-4 h-4 mr-1" />
-                            Required
-                          </span>
-                        ) : (
-                          <span className="flex items-center text-gray-500">
-                            <XCircle className="w-4 h-4 mr-1" />
-                            Optional
-                          </span>
-                        )}
-                      </div>
                       <div className="text-sm text-gray-500">
                         <ul className="list-disc pl-4 space-y-1">
                           {doc.validations.map((validation, index) => (

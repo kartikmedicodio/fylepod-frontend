@@ -83,7 +83,7 @@ const CaseRow = ({ caseItem, onClick }) => {
               const pendingCount = caseItem.documentTypes.filter(doc => 
                 doc.status === 'pending'
               ).length;
-              return pendingCount === 0 ? '0 (completed)' : pendingCount;
+              return pendingCount === 0 ? '0' : pendingCount;
             })()}
           </span>
         ) : '-'}
@@ -701,7 +701,9 @@ const Cases = () => {
                           <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
                             caseItem.categoryStatus === 'completed' 
                               ? 'bg-green-50 text-green-700 ring-1 ring-green-600/20'
-                              : 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-600/20'
+                              : caseItem.categoryStatus === 'Reviewed'
+                                ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-600/20'
+                                : 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-600/20'
                           }`}>
                             {caseItem.categoryStatus}
                           </span>
@@ -713,7 +715,7 @@ const Cases = () => {
                                 const pendingCount = caseItem.documentTypes.filter(doc => 
                                   doc.status === 'pending'
                                 ).length;
-                                return pendingCount === 0 ? '0 (completed)' : pendingCount;
+                                return pendingCount === 0 ? '0' : pendingCount;
                               })()}
                             </span>
                           ) : '-'}
