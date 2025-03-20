@@ -54,7 +54,7 @@ const CasesSkeleton = () => {
   );
 };
 
-const IndividualCases = () => {
+const FNCases = () => {
   const { user } = useAuth();
   const { setCurrentBreadcrumb } = useBreadcrumb();
   const [loading, setLoading] = useState(true);
@@ -669,4 +669,4 @@ const IndividualCases = () => {
   );
 };
 
-export default IndividualCases;     
+export default FNCases;     
