@@ -79,7 +79,7 @@ const ValidationCard = ({ documentValidation, isExpanded, onToggle }) => {
   );
 };
 
-const ValidationTab = ({ validationData, isLoading, onTabChange }) => {
+const ValidationTab = ({ validationData, isLoading, onTabChange, caseData }) => {
   const [expandedDocs, setExpandedDocs] = useState([]);
   const navigate = useNavigate();
 
@@ -98,9 +98,15 @@ const ValidationTab = ({ validationData, isLoading, onTabChange }) => {
     );
   };
 
+  // Add function to check if all documents are uploaded
+  const areAllDocumentsUploaded = caseData?.documentTypes?.every(doc => 
+    doc.status === 'uploaded' || doc.status === 'approved'
+  ) || false;
+
   const handleNext = () => {
-    // Instead of navigation, call the onTabChange prop
-    onTabChange('cross-verification');
+    if (areAllDocumentsUploaded) {
+      onTabChange('cross-verification');
+    }
   };
 
   if (isLoading) {
@@ -127,11 +133,16 @@ const ValidationTab = ({ validationData, isLoading, onTabChange }) => {
         <div className="flex justify-end">
           <button
             onClick={handleNext}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors duration-150 shadow-sm"
+            disabled={!areAllDocumentsUploaded}
+            className={`inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-150 shadow-sm
+              ${areAllDocumentsUploaded 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'}`}
+            title={!areAllDocumentsUploaded ? 'All documents must be uploaded to proceed' : ''}
           >
             Next : Cross Verification
             <svg 
-              className="ml-2 w-4 h-4" 
+              className={`ml-2 w-4 h-4 ${!areAllDocumentsUploaded ? 'text-gray-400' : ''}`}
               fill="none" 
               stroke="currentColor" 
               viewBox="0 0 24 24"
@@ -162,6 +173,14 @@ const ValidationTab = ({ validationData, isLoading, onTabChange }) => {
       </div>
     </div>
   );
+};
+
+// Add defaultProps
+ValidationTab.defaultProps = {
+  validationData: null,
+  isLoading: false,
+  onTabChange: () => {},
+  caseData: null
 };
 
 export default ValidationTab; 
