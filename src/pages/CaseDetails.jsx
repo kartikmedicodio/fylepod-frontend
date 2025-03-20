@@ -314,7 +314,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     let failedUploads = 0;
 
     try {
-      setProcessingStep(0); // Start with analyzing
+      setProcessingStep(0);
       // Upload all files
       const uploadPromises = files.map(async (file) => {
         if (!validateFileType(file)) {
@@ -416,7 +416,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         })
       );
 
-      // If any documents were uploaded successfully, process questionnaires
+      // If any documents were uploaded successfully
       if (successfulUploads > 0) {
         try {
           // Create a promise that resolves after showing all loading steps
@@ -437,6 +437,15 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
           // Wait for loading steps to complete and make API calls
           await showLoadingSteps;
+
+          // Refresh case data first
+          const response = await api.get(`/management/${caseId}`);
+          if (response.data.status === 'success') {
+            setCaseData(response.data.data.entry);
+          }
+
+          // Fetch fresh validation data for newly uploaded documents
+          await fetchValidationData();
 
           // Make API calls for each questionnaire
           const questionnaireResponses = await Promise.all(
@@ -469,157 +478,17 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             await new Promise(resolve => setTimeout(resolve, 1000));
             
             toast.success('All questionnaires processed successfully');
-            // Change this line to set the finalize tab instead of questionnaire
             setSelectedSubTab('validation');
           }
-        } catch (error) {
-          console.error('Error processing questionnaires:', error);
-          toast.error('Failed to process questionnaires');
-        }
-      }
 
-      // Show error toast if any documents failed
-      if (failedUploads > 0) {
-        toast.custom((t) => (
-          <div className={`${
-            t.visible ? 'animate-enter' : 'animate-leave'
-          } max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
-            <div className="flex-1 w-0 p-4">
-              <div className="flex items-start">
-                <div className="flex-shrink-0 pt-0.5">
-                  <div className="relative">
-                    {/* Animated Background Rings */}
-                    <div className="absolute inset-0 -m-2">
-                      <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-red-500/20 via-pink-500/20 to-rose-500/20 rounded-full blur-lg"></div>
-                    </div>
-                    {/* Avatar Container */}
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-red-500 via-pink-500 to-rose-500 flex items-center justify-center shadow-md relative">
-                      <div className="absolute -inset-0.5 bg-gradient-to-r from-red-500 via-pink-500 to-rose-500 rounded-lg animate-spin" style={{ animationDuration: '3s' }}></div>
-                      <div className="absolute inset-0 bg-gradient-to-r from-red-500 via-pink-500 to-rose-500 rounded-lg"></div>
-                      <span className="relative text-xs font-semibold text-white">Diana</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="ml-3 flex-1">
-                  <p className="text-sm font-medium text-gray-900">
-                    Diana encountered some issues
-                  </p>
-                  <p className="mt-1 text-sm text-gray-500">
-                    {failedUploads} document{failedUploads !== 1 ? 's' : ''} failed verification. Please try again.
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="flex border-l border-gray-200">
-              <button
-                onClick={() => toast.dismiss(t.id)}
-                className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-red-600 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-500"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        ), { duration: 5000 });
-      }
-
-      // Refresh case data
-      const response = await api.get(`/management/${caseId}`);
-      if (response.data.status === 'success') {
-        setCaseData(response.data.data.entry);
-      }
-
-      // Reset chat after successful upload
-      if (successfulUploads > 0) {
-        // Reset chat states
-        setCurrentChat(null);
-        setMessages([{
-          role: 'assistant',
-          content: "Hello! I'm Sophia from support. I'm here to assist you with your case and answer any questions you might have. How can I help you today?"
-        }]);
-        
-        // Initialize chat automatically
-        try {
-          // Get case details
-          const caseResponse = await api.get(`/management/${caseId}`);
-          
-          if (caseResponse.data?.status === 'success' && caseResponse.data?.data?.entry) {
-            const managementData = caseResponse.data.data.entry;
-            
-            // Prepare management context
-            const managementContext = {
-              caseId: managementData._id,
-              categoryName: managementData.categoryName,
-              categoryStatus: managementData.categoryStatus,
-              deadline: managementData.deadline,
-              documentTypes: managementData.documentTypes.map(doc => ({
-                name: doc.name,
-                status: doc.status,
-                required: doc.required
-              }))
-            };
-            
-            // Get uploaded documents
-            const validDocuments = managementData.documentTypes
-              .filter(docType => docType && (docType.status === 'uploaded' || docType.status === 'approved'))
-              .map(docType => ({
-                id: docType._id,
-                name: docType.name
-              }))
-              .filter(doc => doc.id);
-              
-            if (validDocuments.length > 0) {
-              // Get document IDs
-              const validDocTypeIds = validDocuments.map(doc => doc.id);
-              
-              const documentsResponse = await api.post('/documents/management-docs', {
-                managementId: caseId,
-                docTypeIds: validDocTypeIds
-              });
-              
-              if (documentsResponse.data?.data?.documents) {
-                const validDocs = documentsResponse.data.data.documents
-                  .filter(doc => doc && doc._id);
-                
-                if (validDocs.length > 0) {
-                  // Extract document IDs for chat creation
-                  const docIds = validDocs.map(doc => doc._id);
-                  
-                  // Create new chat with the documents and management data
-                  const chatResponse = await api.post('/chat', {
-                    documentIds: docIds,
-                    managementId: caseId,
-                    managementContext: managementContext
-                  });
-                  
-                  if (chatResponse.data?.status === 'success' && chatResponse.data?.data?.chat) {
-                    setCurrentChat(chatResponse.data.data.chat);
-                    
-                    // Add a message indicating the chat has been updated with new documents
-                    setMessages(prev => [
-                      prev[0], // Keep welcome message
-                      {
-                        role: 'assistant',
-                        content: `I've analyzed your newly uploaded documents. You can now ask me questions about them!`
-                      }
-                    ]);
-                  }
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Error initializing chat after upload:', error);
-          // Don't show error to user, just log it - chat will initialize on first message
+        } catch (err) {
+          console.error('Error refreshing data after upload:', err);
+          toast.error('Some data might not be up to date. Please refresh the page.');
         }
       }
 
       setFiles([]);
 
-      // If any documents were uploaded successfully, refresh validation data
-      if (successfulUploads > 0) {
-        await fetchValidationData();
-        await fetchExtractedData();
-      }
     } catch (err) {
       console.error('Error in file upload process:', err);
       toast.error('Error processing documents');
@@ -630,42 +499,24 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     }
   };
 
-  // Modify the fetchValidationData function to only fetch if data doesn't exist
+  // Update fetchValidationData to be more robust
   const fetchValidationData = async () => {
-    // Only fetch if validation data doesn't exist yet
-    if (!validationData && !isLoadingValidation) {
-      try {
-        setIsLoadingValidation(true);
-        const response = await api.get(`/documents/management/${caseId}/validations`);
-        if (response.data.status === 'success') {
-          setValidationData(response.data.data);
-        }
-      } catch (error) {
-        console.error('Error fetching validation data:', error);
-        toast.error('Failed to load validation data');
-      } finally {
-        setIsLoadingValidation(false);
+    // Prevent multiple simultaneous calls
+    if (isLoadingValidation) return;
+    
+    try {
+      setIsLoadingValidation(true);
+      const response = await api.get(`/documents/management/${caseId}/validations`);
+      if (response.data.status === 'success') {
+        setValidationData(response.data.data);
+      } else {
+        throw new Error('Failed to fetch validation data');
       }
-    }
-  };
-
-  // Similarly, modify the fetchExtractedData function
-  const fetchExtractedData = async () => {
-    // Only fetch if extracted data doesn't exist yet
-    if (!extractedData && !isLoadingExtractedData) {
-      try {
-        setIsLoadingExtractedData(true);
-        const response = await api.get(`/documents/management/${caseId}/extracted-data`);
-        if (response.data.status === 'success') {
-          setExtractedData(response.data.data.extractedData);
-        }
-      } catch (error) {
-        console.error('Error fetching extracted data:', error);
-        setExtractedDataError('Failed to load extracted data');
-        toast.error('Failed to load extracted data');
-      } finally {
-        setIsLoadingExtractedData(false);
-      }
+    } catch (error) {
+      console.error('Error fetching validation data:', error);
+      toast.error('Failed to load validation data');
+    } finally {
+      setIsLoadingValidation(false);
     }
   };
 
@@ -687,36 +538,21 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     }
   };
 
-  // Add or update this useEffect to load data when component mounts or tab changes
+  // Remove validation fetch from tab change useEffect since we don't want to fetch on tab change
   useEffect(() => {
-    // Check if we should load validation data when the component mounts
-    // or when the selected sub-tab changes
     const loadInitialData = async () => {
-      const hasUploadedDocs = caseData?.documentTypes?.some(doc => 
-        doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
-      );
-      
-      // If we're on the validation tab and there are uploaded documents, fetch validation data
-      if (selectedSubTab === 'validation' && hasUploadedDocs && !validationData) {
-        await fetchValidationData();
-      }
-      
-      // If we're on the cross-verification tab and all docs are uploaded, fetch verification data
-      if (selectedSubTab === 'cross-verification' && areAllDocumentsUploaded() && !verificationData) {
+      // Only fetch cross-verification data when tab changes
+      if (selectedSubTab === 'cross-verification' && areAllDocumentsUploaded()) {
         await fetchCrossVerificationData();
-      }
-      
-      // If we're on the extracted-data tab and there are uploaded documents, fetch extracted data
-      if (selectedSubTab === 'extracted-data' && hasUploadedDocs && !extractedData) {
-        await fetchExtractedData();
       }
     };
 
     if (caseData) {
       loadInitialData();
     }
-  }, [caseData, selectedSubTab]); // Add selectedSubTab as a dependency
+  }, [caseData, selectedSubTab]);
 
+  // Update the useEffect for initial data loading
   useEffect(() => {
     const fetchCaseDetails = async () => {
       try {
@@ -726,6 +562,16 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           const caseData = response.data.data.entry;
           console.log('Case data:', caseData);
           setCaseData(caseData);
+          
+          // Check if there are any uploaded documents
+          const hasUploadedDocs = caseData.documentTypes.some(doc => 
+            doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
+          );
+
+          // If there are uploaded documents, fetch validation data
+          if (hasUploadedDocs) {
+            await fetchValidationData();
+          }
           
           // Set breadcrumb with process name
           setCurrentBreadcrumb([
@@ -1294,20 +1140,12 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       }
     };
 
+    // Update the renderDocumentsList function
     const renderDocumentsList = () => (
-      <div className={`${
-        // Take 8 columns (about 66%) of the width
-        'col-span-8'
-      } bg-white rounded-lg border border-gray-200 p-6`}>
-        <div className="flex gap-2 mb-6 border-b border-gray-100 pb-4">
-          <button 
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700`}
-          >
-            Documents ({pendingDocuments.length})
-          </button>
-        </div>
-
+      <div className="col-span-8 bg-white rounded-lg border border-gray-200 p-6">
+        {/* Remove the redundant Upload Pending button/header */}
         <div className="space-y-3">
+          {/* Show only pending documents */}
           {pendingDocuments.length > 0 ? (
             pendingDocuments.map((doc) => (
               <div key={doc._id} className="bg-gray-50 rounded-lg border border-gray-200 p-4">
@@ -1438,7 +1276,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     // Sub-tabs navigation component
     const SubTabNavigation = () => {
-      // Keep both checks
       const hasUploadedDocuments = caseData.documentTypes.some(doc => 
         doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
       );
@@ -1450,19 +1287,18 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       return (
         <div className="mb-6 flex items-center gap-2">
           {[
-            { id: 'all', label: 'Upload Pending' },  
-            // { id: 'extracted-data', label: 'Extracted data' },
+            { id: 'all', label: 'Upload Pending' },
             { id: 'validation', label: 'Validation' },
             { 
               id: 'cross-verification', 
               label: 'Cross Verification',
-              disabled: !allDocsUploaded, // Use allDocsUploaded for cross-verification
+              disabled: !allDocsUploaded,
               tooltip: 'All documents must be uploaded to enable cross verification'
             },
             { 
               id: 'finalize', 
               label: 'Finalize',
-              disabled: !hasUploadedDocuments, // Keep finalize enabled with at least one doc
+              disabled: !hasUploadedDocuments,
               tooltip: 'Upload at least one document to enable this feature'
             }
           ].map(tab => (
@@ -1471,20 +1307,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               onClick={() => {
                 if (!tab.disabled) {
                   setSelectedSubTab(tab.id);
-                  
-                  // Only fetch validation data if it doesn't exist yet
-                  if (tab.id === 'validation' && hasUploadedDocuments && !validationData) {
-                    fetchValidationData();
-                  }
-                  
-                  // Keep other tab handlers unchanged
-                  if (tab.id === 'extracted-data' && hasUploadedDocuments) {
-                    fetchExtractedData();
-                  }
-                  
-                  if (tab.id === 'cross-verification' && allDocsUploaded) {
-                    fetchCrossVerificationData();
-                  }
+                  // Remove validation fetch from here since it's handled by useEffect
                 }
               }}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -1534,6 +1357,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               validationData={validationData} 
               isLoading={isLoading}
               onTabChange={(tab) => setSelectedSubTab(tab)}
+              caseData={caseData} // Add this prop
             />
           );
         case 'cross-verification':
@@ -1697,25 +1521,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
   // Update the QuestionnaireDetailView component
   const QuestionnaireDetailView = ({ questionnaire, onBack }) => {
-    // Add local state for form data
-    const [localFormData, setLocalFormData] = useState(formData);
-
-    // Update local form data when parent form data changes
-    useEffect(() => {
-      setLocalFormData(formData);
-    }, [formData]);
-
-    const handleLocalInputChange = (section, field, value) => {
-      setLocalFormData(prevData => ({
-        ...prevData,
-        [section]: {
-          ...(prevData[section] || {}),
-          [field]: value
-        }
-      }));
-    };
-
-    // Add back the field counting functionality
+    // Add function to count filled fields
     const getFilledFieldsCount = () => {
       let totalFields = 0;
       let filledFields = 0;
@@ -1724,7 +1530,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       const passportFields = questionnaire.field_mappings.filter(field => field.sourceDocument === 'Passport');
       totalFields += passportFields.length;
       passportFields.forEach(field => {
-        if (localFormData?.Passport?.[field.fieldName]) {
+        if (formData?.Passport?.[field.fieldName]) {
           filledFields++;
         }
       });
@@ -1735,12 +1541,12 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         if (field.fieldName === 'educationalQualification') {
           // Count educational qualification as one field
           totalFields += 1;
-          if (localFormData?.Resume?.educationalQualification?.length > 0) {
+          if (formData?.Resume?.educationalQualification?.length > 0) {
             filledFields++;
           }
         } else {
           totalFields += 1;
-          if (localFormData?.Resume?.[field.fieldName]) {
+          if (formData?.Resume?.[field.fieldName]) {
             filledFields++;
           }
         }
@@ -1749,33 +1555,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       return { filledFields, totalFields };
     };
 
-    // Calculate filled fields count
     const { filledFields, totalFields } = getFilledFieldsCount();
 
-    // Add save handler that updates parent form data
-    const handleLocalSave = async () => {
-      try {
-        // First update the parent form data
-        setFormData(localFormData);
-        
-        // Then make the API call with the latest local form data
-        const response = await api.put(`/questionnaire-responses/management/${caseId}`, {
-          templateId: selectedQuestionnaire._id,
-          processedInformation: localFormData  // Use localFormData instead of formData
-        });
-
-        if (response.data.status === 'success') {
-          toast.success('Changes saved successfully');
-          setIsQuestionnaireCompleted(true);
-          setActiveTab('forms');
-        }
-      } catch (error) {
-        console.error('Error saving questionnaire:', error);
-        toast.error('Failed to save changes');
-      }
-    };
-
-    // Update the input fields to use localFormData and handleLocalInputChange
     return (
       <div className="p-6">
         {/* Header with Back Button */}
@@ -1822,7 +1603,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               </div>
             </div>
             <button
-              onClick={handleLocalSave}
+              onClick={handleSave}
               disabled={isSavingQuestionnaire}
               className="px-6 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center gap-2"
             >
@@ -1854,8 +1635,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                     </label>
                     <input
                       type="text"
-                      value={localFormData?.Passport?.[field.fieldName] || ''}
-                      onChange={(e) => handleLocalInputChange('Passport', field.fieldName, e.target.value)}
+                      value={formData?.Passport?.[field.fieldName] || ''}
+                      onChange={(e) => handleInputChange('Passport', field.fieldName, e.target.value)}
                       className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                     />
                   </div>
@@ -1946,8 +1727,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                       </label>
                       <input
                         type={field.fieldName.toLowerCase().includes('email') ? 'email' : 'text'}
-                        value={localFormData?.Resume?.[field.fieldName] || ''}
-                        onChange={(e) => handleLocalInputChange('Resume', field.fieldName, e.target.value)}
+                        value={formData?.Resume?.[field.fieldName] || ''}
+                        onChange={(e) => handleInputChange('Resume', field.fieldName, e.target.value)}
                         className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                       />
                     </div>
