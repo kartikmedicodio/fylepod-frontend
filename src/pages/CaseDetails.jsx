@@ -1697,7 +1697,25 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
   // Update the QuestionnaireDetailView component
   const QuestionnaireDetailView = ({ questionnaire, onBack }) => {
-    // Add function to count filled fields
+    // Add local state for form data
+    const [localFormData, setLocalFormData] = useState(formData);
+
+    // Update local form data when parent form data changes
+    useEffect(() => {
+      setLocalFormData(formData);
+    }, [formData]);
+
+    const handleLocalInputChange = (section, field, value) => {
+      setLocalFormData(prevData => ({
+        ...prevData,
+        [section]: {
+          ...(prevData[section] || {}),
+          [field]: value
+        }
+      }));
+    };
+
+    // Add back the field counting functionality
     const getFilledFieldsCount = () => {
       let totalFields = 0;
       let filledFields = 0;
@@ -1706,7 +1724,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       const passportFields = questionnaire.field_mappings.filter(field => field.sourceDocument === 'Passport');
       totalFields += passportFields.length;
       passportFields.forEach(field => {
-        if (formData?.Passport?.[field.fieldName]) {
+        if (localFormData?.Passport?.[field.fieldName]) {
           filledFields++;
         }
       });
@@ -1717,12 +1735,12 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         if (field.fieldName === 'educationalQualification') {
           // Count educational qualification as one field
           totalFields += 1;
-          if (formData?.Resume?.educationalQualification?.length > 0) {
+          if (localFormData?.Resume?.educationalQualification?.length > 0) {
             filledFields++;
           }
         } else {
           totalFields += 1;
-          if (formData?.Resume?.[field.fieldName]) {
+          if (localFormData?.Resume?.[field.fieldName]) {
             filledFields++;
           }
         }
@@ -1731,8 +1749,33 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       return { filledFields, totalFields };
     };
 
+    // Calculate filled fields count
     const { filledFields, totalFields } = getFilledFieldsCount();
 
+    // Add save handler that updates parent form data
+    const handleLocalSave = async () => {
+      try {
+        // First update the parent form data
+        setFormData(localFormData);
+        
+        // Then make the API call with the latest local form data
+        const response = await api.put(`/questionnaire-responses/management/${caseId}`, {
+          templateId: selectedQuestionnaire._id,
+          processedInformation: localFormData  // Use localFormData instead of formData
+        });
+
+        if (response.data.status === 'success') {
+          toast.success('Changes saved successfully');
+          setIsQuestionnaireCompleted(true);
+          setActiveTab('forms');
+        }
+      } catch (error) {
+        console.error('Error saving questionnaire:', error);
+        toast.error('Failed to save changes');
+      }
+    };
+
+    // Update the input fields to use localFormData and handleLocalInputChange
     return (
       <div className="p-6">
         {/* Header with Back Button */}
@@ -1779,7 +1822,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               </div>
             </div>
             <button
-              onClick={handleSave}
+              onClick={handleLocalSave}
               disabled={isSavingQuestionnaire}
               className="px-6 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center gap-2"
             >
@@ -1811,8 +1854,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                     </label>
                     <input
                       type="text"
-                      value={formData?.Passport?.[field.fieldName] || ''}
-                      onChange={(e) => handleInputChange('Passport', field.fieldName, e.target.value)}
+                      value={localFormData?.Passport?.[field.fieldName] || ''}
+                      onChange={(e) => handleLocalInputChange('Passport', field.fieldName, e.target.value)}
                       className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                     />
                   </div>
@@ -1903,8 +1946,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                       </label>
                       <input
                         type={field.fieldName.toLowerCase().includes('email') ? 'email' : 'text'}
-                        value={formData?.Resume?.[field.fieldName] || ''}
-                        onChange={(e) => handleInputChange('Resume', field.fieldName, e.target.value)}
+                        value={localFormData?.Resume?.[field.fieldName] || ''}
+                        onChange={(e) => handleLocalInputChange('Resume', field.fieldName, e.target.value)}
                         className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                       />
                     </div>
