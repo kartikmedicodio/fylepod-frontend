@@ -168,7 +168,7 @@ DocumentProgressBar.propTypes = {
   status: PropTypes.string.isRequired
 };
 
-const IndividualCaseDetails = () => {
+const FNCaseDetails = () => {
   const { caseId } = useParams();
   const { setCurrentBreadcrumb } = useBreadcrumb();
   
@@ -176,11 +176,8 @@ const IndividualCaseDetails = () => {
   const [activeTab, setActiveTab] = useState('documents-checklist');
   const [caseData, setCaseData] = useState(null);
   const [profileData, setProfileData] = useState(null);
-  const [uploadStatus, setUploadStatus] = useState(() => {
-    // Check if there are any pending documents
-    const hasPendingDocs = caseData?.documentTypes?.some(doc => doc.status === 'pending');
-    return hasPendingDocs ? 'pending' : 'uploaded';
-  });
+  const [isLoading, setIsLoading] = useState(true); // Single loading state for all data
+  const [uploadStatus, setUploadStatus] = useState('pending'); // Default to pending
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -632,11 +629,15 @@ const IndividualCaseDetails = () => {
   };
 
   useEffect(() => {
-    const fetchCaseDetails = async () => {
+    const fetchAllData = async () => {
       try {
-        const response = await api.get(`/management/${caseId}`);
-        if (response.data.status === 'success') {
-          const caseData = response.data.data.entry;
+        setIsLoading(true);
+        
+        // Fetch case details
+        const caseResponse = await api.get(`/management/${caseId}`);
+
+        if (caseResponse.data.status === 'success') {
+          const caseData = caseResponse.data.data.entry;
           setCaseData(caseData);
           
           // Set breadcrumb
@@ -646,58 +647,38 @@ const IndividualCaseDetails = () => {
           ]);
 
           // Update uploadStatus based on document status
-          const hasPendingDocs = response.data.data.entry.documentTypes.some(doc => doc.status === 'pending');
+          const hasPendingDocs = caseData.documentTypes.some(doc => doc.status === 'pending');
           setUploadStatus(hasPendingDocs ? 'pending' : 'uploaded');
-          
-          // Use the user data included in the case as a basic profile
-          if (response.data.data.entry?.userId) {
-            // Set basic profile from case data
-            setProfileData({
-              _id: response.data.data.entry.userId._id,
-              name: response.data.data.entry.userName || response.data.data.entry.userId.name,
-              email: response.data.data.entry.userId.email,
-              manager: response.data.data.entry.createdBy?.name || 'Not assigned'
-            });
-            
-            // Then try to fetch complete profile
-            if (response.data.data.entry.userId._id) {
-              fetchUserProfile(response.data.data.entry.userId._id);
+
+          // If we have a userId, fetch the complete profile
+          if (caseData.userId?._id) {
+            const profileResponse = await api.get(`/auth/users/${caseData.userId._id}`);
+            if (profileResponse.data.success && profileResponse.data.data) {
+              setProfileData(profileResponse.data.data);
             }
           }
         }
       } catch (error) {
-        console.error('Error fetching case details:', error);
+        console.error('Error fetching data:', error);
         toast.error('Failed to load case details');
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    const fetchUserProfile = async (userId) => {
-      try {
-        const response = await api.get(`/auth/users/${userId}`);
-        
-        // Handle different response formats
-        if (response.data.success && response.data.data) {
-          // New API format
-          setProfileData(response.data.data);
-        } else if (response.data.user || response.data._id) {
-          // Legacy API format
-          setProfileData(response.data);
-        } else {
-          console.error('Unexpected API response format:', response.data);
-          // Keep existing basic profile data
-        }
-      } catch (error) {
-        console.error('Error fetching user profile:', error);
-        if (error.response?.status === 500) {
-          console.error('Server error occurred while fetching profile');
-          // Keep existing basic profile data instead of showing error
-        }
-        // Don't show error toast since we already have basic profile data
-      }
-    };
+    fetchAllData();
 
+    // Cleanup breadcrumb on unmount
+    return () => {
+      setCurrentBreadcrumb([]);
+    };
+  }, [caseId, setCurrentBreadcrumb]);
+
+  // Add separate useEffect for questionnaires
+  useEffect(() => {
     const fetchQuestionnaires = async () => {
       try {
+        setIsLoadingQuestionnaires(true);
         const response = await api.get('/questionnaires');
         if (response.data.status === 'success') {
           setQuestionnaires(response.data.data.templates);
@@ -710,14 +691,11 @@ const IndividualCaseDetails = () => {
       }
     };
 
-    fetchCaseDetails();
-    fetchQuestionnaires();
-
-    // Cleanup breadcrumb on unmount
-    return () => {
-      setCurrentBreadcrumb([]);
-    };
-  }, [caseId, setCurrentBreadcrumb]);
+    // Only fetch questionnaires when the questionnaire tab is active
+    if (activeTab === 'questionnaire') {
+      fetchQuestionnaires();
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (questionnaireData?.responses?.[0]?.processedInformation) {
@@ -914,14 +892,69 @@ const IndividualCaseDetails = () => {
     }
   };
 
-  if (!caseData || !profileData) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        <span className="ml-2 text-lg text-gray-700">Loading case details...</span>
+  // Add ProfileSkeleton component
+  const ProfileSkeleton = () => (
+    <div className="bg-white rounded-lg border border-gray-200 p-4">
+      <div className="flex items-start gap-6">
+        {/* Profile header skeleton */}
+        <div className="flex-shrink-0">
+          <div className="w-20 h-20 rounded-full bg-gray-200 animate-pulse"></div>
+        </div>
+
+        {/* Profile Info Grid skeleton */}
+        <div className="flex-grow grid grid-cols-2 gap-x-12 gap-y-2">
+          {/* Left Column - Basic Info skeleton */}
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i}>
+                <div className="h-4 w-16 bg-gray-200 rounded animate-pulse mb-1"></div>
+                <div className="h-5 w-32 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            ))}
+          </div>
+
+          {/* Right Column - Location Info skeleton */}
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i}>
+                <div className="h-4 w-16 bg-gray-200 rounded animate-pulse mb-1"></div>
+                <div className="h-5 w-32 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
-    );
-  }
+    </div>
+  );
+
+  // Add CaseDetailsSkeleton component
+  const CaseDetailsSkeleton = () => (
+    <div className="bg-white rounded-lg border border-gray-200 p-4 h-full">
+      <div className="flex items-start gap-6">
+        <div className="flex-grow grid grid-cols-2 gap-x-12 gap-y-2">
+          {/* Left Column - Basic Info skeleton */}
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i}>
+                <div className="h-4 w-16 bg-gray-200 rounded animate-pulse mb-1"></div>
+                <div className="h-5 w-32 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            ))}
+          </div>
+
+          {/* Right Column - Status Info skeleton */}
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i}>
+                <div className="h-4 w-16 bg-gray-200 rounded animate-pulse mb-1"></div>
+                <div className="h-5 w-32 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   const CaseDetailsTab = () => (
     <div className="bg-white border border-gray-200 rounded-lg p-6">
@@ -1083,14 +1116,14 @@ const IndividualCaseDetails = () => {
     </div>
   );
 
-  const QueriesTab = () => (
-    <div className="bg-white border border-gray-200 rounded-lg p-6 opacity-70">
-      <h3 className="text-lg font-semibold mb-6">
-        Queries <span className="text-sm font-normal text-gray-500 ml-2">Coming Soon</span>
-      </h3>
-      <div>Queries Content</div>
-    </div>
-  );
+  // const QueriesTab = () => (
+  //   <div className="bg-white border border-gray-200 rounded-lg p-6 opacity-70">
+  //     <h3 className="text-lg font-semibold mb-6">
+  //       Queries <span className="text-sm font-normal text-gray-500 ml-2">Coming Soon</span>
+  //     </h3>
+  //     <div>Queries Content</div>
+  //   </div>
+  // );
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -1754,109 +1787,117 @@ const IndividualCaseDetails = () => {
       <div className="p-6 flex gap-6">
         {/* Profile Section */}
         <div className="w-1/2">
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="flex items-start gap-6">
-              {/* Profile header with label */}
-              <div className="flex-shrink-0">
-                <div className="w-20 h-20 rounded-full bg-blue-100 overflow-hidden flex items-center justify-center">
-                  <span className="text-2xl font-medium text-blue-600">
-                    {profileData ? getInitials(profileData.name) : '...'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Profile Info Grid */}
-              <div className="flex-grow grid grid-cols-2 gap-x-12 gap-y-2">
-                {/* Left Column - Basic Info */}
-                <div className="space-y-2">
-                  <div>
-                    <div className="text-sm text-gray-500">Name</div>
-                    <div className="font-medium">{profileData?.name || '-'}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-500">Phone Number</div>
-                    <div className="font-medium">
-                      {profileData?.contact?.mobileNumber || profileData?.contact?.residencePhone || '-'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-500">Email</div>
-                    <div className="font-medium">{profileData?.email || '-'}</div>
+          {isLoading ? (
+            <ProfileSkeleton />
+          ) : (
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="flex items-start gap-6">
+                {/* Profile header with label */}
+                <div className="flex-shrink-0">
+                  <div className="w-20 h-20 rounded-full bg-blue-100 overflow-hidden flex items-center justify-center">
+                    <span className="text-2xl font-medium text-blue-600">
+                      {profileData ? getInitials(profileData.name) : '...'}
+                    </span>
                   </div>
                 </div>
 
-                {/* Right Column - Location Info */}
-                <div className="space-y-2">
-                  <div>
-                    <div className="text-sm text-gray-500">Nationality</div>
-                    <div className="font-medium">{profileData?.address?.country || '-'}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-500">Address</div>
-                    <div className="font-medium">
-                      {profileData?.address ? 
-                        [
-                          profileData.address.city,
-                          profileData.address.country,
-                          profileData.address.zipCode
-                        ]
-                          .filter(Boolean)
-                          .join(', ') 
-                        : '-'}
+                {/* Profile Info Grid */}
+                <div className="flex-grow grid grid-cols-2 gap-x-12 gap-y-2">
+                  {/* Left Column - Basic Info */}
+                  <div className="space-y-2">
+                    <div>
+                      <div className="text-sm text-gray-500">Name</div>
+                      <div className="font-medium">{profileData?.name || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Phone Number</div>
+                      <div className="font-medium">
+                        {profileData?.contact?.mobileNumber || profileData?.contact?.residencePhone || '-'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Email</div>
+                      <div className="font-medium">{profileData?.email || '-'}</div>
                     </div>
                   </div>
-                  <div>
-                    <div className="text-sm text-gray-500">Passport Number</div>
-                    <div className="font-medium">{profileData?.passport?.number || '-'}</div>
+
+                  {/* Right Column - Location Info */}
+                  <div className="space-y-2">
+                    <div>
+                      <div className="text-sm text-gray-500">Nationality</div>
+                      <div className="font-medium">{profileData?.address?.country || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Address</div>
+                      <div className="font-medium">
+                        {profileData?.address ? 
+                          [
+                            profileData.address.city,
+                            profileData.address.country,
+                            profileData.address.zipCode
+                          ]
+                            .filter(Boolean)
+                            .join(', ') 
+                          : '-'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Passport Number</div>
+                      <div className="font-medium">{profileData?.passport?.number || '-'}</div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Case Details Section */}
         <div className="w-1/2">
-          <div className="bg-white rounded-lg border border-gray-200 p-4 h-full">
-            <div className="flex items-start gap-6">
-              {/* Case Info Grid */}
-              <div className="flex-grow grid grid-cols-2 gap-x-12 gap-y-2">
-                {/* Left Column - Basic Info */}
-                <div className="space-y-2">
-                  <div>
-                    <div className="text-sm text-gray-500">Case Applicant</div>
-                    <div className="font-medium">{caseData.userName}</div>
+          {isLoading ? (
+            <CaseDetailsSkeleton />
+          ) : (
+            <div className="bg-white rounded-lg border border-gray-200 p-4 h-full">
+              <div className="flex items-start gap-6">
+                {/* Case Info Grid */}
+                <div className="flex-grow grid grid-cols-2 gap-x-12 gap-y-2">
+                  {/* Left Column - Basic Info */}
+                  <div className="space-y-2">
+                    <div>
+                      <div className="text-sm text-gray-500">Case Applicant</div>
+                      <div className="font-medium">{caseData.userName}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Case Manager</div>
+                      <div className="font-medium">{caseData.caseManagerName || caseData.createdBy?.name || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Case Name</div>
+                      <div className="font-medium">{caseData.categoryName}</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-sm text-gray-500">Case Manager</div>
-                    <div className="font-medium">{caseData.caseManagerName || caseData.createdBy?.name || '-'}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-500">Case Name</div>
-                    <div className="font-medium">{caseData.categoryName}</div>
-                  </div>
-                </div>
 
-                {/* Right Column - Status Info */}
-                <div className="space-y-2">
-                  <div>
-                    <div className="text-sm text-gray-500">Current Status</div>
-                    <div className="font-medium">{caseData.categoryStatus}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-500">Created Date</div>
-                    <div className="font-medium">{new Date(caseData.createdAt).toLocaleDateString()}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-500">Deadline</div>
-                    <div className="font-medium">
-                      {caseData.deadline ? new Date(caseData.deadline).toLocaleDateString() : '-'}
+                  {/* Right Column - Status Info */}
+                  <div className="space-y-2">
+                    <div>
+                      <div className="text-sm text-gray-500">Current Status</div>
+                      <div className="font-medium">{caseData.categoryStatus}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Created Date</div>
+                      <div className="font-medium">{new Date(caseData.createdAt).toLocaleDateString()}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Deadline</div>
+                      <div className="font-medium">
+                        {caseData.deadline ? new Date(caseData.deadline).toLocaleDateString() : '-'}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -1881,15 +1922,26 @@ const IndividualCaseDetails = () => {
 
       {/* Tab Content */}
       <div className="p-6">
-        {activeTab === 'documents-checklist' && (
-          <div className="bg-white rounded-lg border border-gray-200">
-            <DocumentsChecklistTab />
+        {isLoading ? (
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <div className="space-y-4">
+              <div className="h-6 w-48 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-32 bg-gray-200 rounded animate-pulse"></div>
+            </div>
           </div>
-        )}
-        {activeTab === 'questionnaire' && (
-          <div className="bg-white rounded-lg border border-gray-200">
-            <QuestionnaireTab />
-          </div>
+        ) : (
+          <>
+            {activeTab === 'documents-checklist' && (
+              <div className="bg-white rounded-lg border border-gray-200">
+                <DocumentsChecklistTab />
+              </div>
+            )}
+            {activeTab === 'questionnaire' && (
+              <div className="bg-white rounded-lg border border-gray-200">
+                <QuestionnaireTab />
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -1899,4 +1951,4 @@ const IndividualCaseDetails = () => {
   );
 };
 
-export default IndividualCaseDetails;
+export default FNCaseDetails;

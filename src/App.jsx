@@ -14,9 +14,9 @@ import { BreadcrumbProvider } from './contexts/BreadcrumbContext';
 import KnowledgeBase from './pages/KnowledgeBase';
 import DocumentChecklist from './pages/DocumentChecklist';
 import EmployeeProfile from './pages/EmployeeProfile';
-import IndividualCases from './pages/IndividualCases';
+import FNCases from './pages/FNCases';
 import CaseDetails from './pages/CaseDetails';
-import IndividualCaseDetails from './pages/IndividualCaseDetails';
+import FNCaseDetails from './pages/FNCaseDetails';
 import DashboardRouter from './components/DashboardRouter';
 import Profile from './pages/Profile';
 import NewCompany from './pages/NewCompany';
@@ -71,8 +71,8 @@ const App = () => {
                         <Route path="/cases/new" element={<NewCase />} />
                         <Route path="/cases/:caseId" element={<CaseDetails />} />
                         
-                        <Route path="/individual-cases" element={<IndividualCases />} />
-                        <Route path="/individuals/case/:caseId" element={<IndividualCaseDetails />} />
+                        <Route path="/individual-cases" element={<FNCases />} />
+                        <Route path="/individuals/case/:caseId" element={<FNCaseDetails />} />
                         
                         {/* Corporation Routes */}
                         <Route path="/corporations" element={<Corporations />} />
