@@ -373,14 +373,50 @@ const FNCaseDetails = () => {
               setProcessingStep(3); // Verifying document type
               const extractedType = processedDoc.extractedData.document_type.toLowerCase().trim();
               
-              // Find matching document type that's not already uploaded
+              // Enhanced document type matching logic
               const matchingDocType = caseData.documentTypes.find(type => {
-                return type.name.toLowerCase().trim() === extractedType && 
-                       type.status !== 'uploaded' &&
-                       type.status !== 'approved';
+                const typeName = type.name.toLowerCase().trim();
+                const isPending = type.status !== 'uploaded' && type.status !== 'approved';
+                
+                // Check for exact match
+                if (typeName === extractedType) return isPending;
+                
+                // Check for partial matches (e.g., "passport" matches "passport copy")
+                if (typeName.includes(extractedType) || extractedType.includes(typeName)) return isPending;
+                
+                // Check for common variations
+                const variations = {
+                  'passport': ['passport copy', 'passport scan', 'passport photo'],
+                  'resume': ['cv', 'curriculum vitae', 'resume copy'],
+                  'photo': ['photograph', 'photo id', 'id photo'],
+                  'id': ['identity document', 'id proof', 'identity proof']
+                };
+                
+                return Object.entries(variations).some(([key, values]) => {
+                  if (key === extractedType) return values.includes(typeName) && isPending;
+                  if (values.includes(extractedType)) return key === typeName && isPending;
+                  return false;
+                });
               });
 
               if (matchingDocType) {
+                // Additional validation of extracted data
+                const validationResults = processedDoc.validationResults || {};
+                const hasRequiredFields = Object.entries(validationResults).every(([field, result]) => {
+                  if (!matchingDocType.required) return true;
+                  return result.isValid;
+                });
+
+                if (!hasRequiredFields) {
+                  console.log(`Document ${doc._id} missing required fields. Deleting...`);
+                  await api.delete(`/documents/${doc._id}`);
+                  return { 
+                    success: false, 
+                    docId: doc._id, 
+                    error: 'Missing required fields' 
+                  };
+                }
+
                 // Update document with correct management document ID
                 await api.patch(`/documents/${doc._id}`, {
                   documentTypeId: matchingDocType.documentTypeId,
@@ -397,12 +433,20 @@ const FNCaseDetails = () => {
                 // No matching pending document type found - delete the document
                 console.log(`No matching pending document type found for ${extractedType}. Deleting document ${doc._id}`);
                 await api.delete(`/documents/${doc._id}`);
-                return { success: false, docId: doc._id, error: 'Document type mismatch' };
+                return { 
+                  success: false, 
+                  docId: doc._id, 
+                  error: 'Document type mismatch' 
+                };
               }
             } else {
               // No document type extracted - delete the document
               await api.delete(`/documents/${doc._id}`);
-              return { success: false, docId: doc._id, error: 'Could not extract document type' };
+              return { 
+                success: false, 
+                docId: doc._id, 
+                error: 'Could not extract document type' 
+              };
             }
           } catch (err) {
             console.error(`Error processing document ${doc._id}:`, err);
@@ -412,7 +456,11 @@ const FNCaseDetails = () => {
             } catch (deleteErr) {
               console.error(`Error deleting failed document ${doc._id}:`, deleteErr);
             }
-            return { success: false, docId: doc._id, error: err.message };
+            return { 
+              success: false, 
+              docId: doc._id, 
+              error: err.message 
+            };
           }
         })
       );
@@ -421,19 +469,32 @@ const FNCaseDetails = () => {
       const successfulUploads = processResults.filter(result => result.success).length;
       const failedUploads = processResults.filter(result => !result.success).length;
 
-      // Refresh data after processing
-      const caseResponse = await api.get(`/management/${caseId}`);
-      if (caseResponse.data.status === 'success') {
-        setCaseData(caseResponse.data.data.entry);
-        
-        // Check if all documents are uploaded and switch to Questionnaire tab
-        const allDocsUploaded = caseResponse.data.data.entry.documentTypes.every(doc => 
-          doc.status === 'uploaded' || doc.status === 'approved'
-        );
-        
-        if (allDocsUploaded) {
-          setActiveTab('questionnaire');
-          toast.success('All documents uploaded! Please complete the questionnaire.');
+      // If there are successful uploads, perform cross-verification
+      if (successfulUploads > 0) {
+        try {
+          setProcessingStep(4); // Cross-verifying documents
+          const crossVerifyResponse = await api.get(`/management/${caseId}/cross-verify`);
+          
+          if (crossVerifyResponse.data.status === 'success') {
+            // Update case data with verification results
+            const caseResponse = await api.get(`/management/${caseId}`);
+            if (caseResponse.data.status === 'success') {
+              setCaseData(caseResponse.data.data.entry);
+              
+              // Check if all documents are uploaded and switch to Questionnaire tab
+              const allDocsUploaded = caseResponse.data.data.entry.documentTypes.every(doc => 
+                doc.status === 'uploaded' || doc.status === 'approved'
+              );
+              
+              if (allDocsUploaded) {
+                setActiveTab('questionnaire');
+                toast.success('All documents uploaded! Please complete the questionnaire.');
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error during cross-verification:', error);
+          // Don't show error to user, just log it
         }
       }
       
