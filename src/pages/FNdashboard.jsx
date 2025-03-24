@@ -13,32 +13,119 @@ import { AGENT_INFO } from '../constants/agentInfo';
 // Loading skeleton component
 const DashboardSkeleton = () => {
   return (
-    <div className="animate-pulse p-5 w-1/2">
-      <div className="h-8 w-48 bg-gray-200 rounded mb-6"></div>
-      
-      {[...Array(3)].map((_, i) => (
-        <div key={i} className="mb-6">
-          <div className="h-6 w-36 bg-gray-200 rounded mb-3"></div>
-          <div className="bg-white rounded-lg shadow-sm p-4 mb-3">
-            <div className="flex justify-between mb-6">
-              <div className="h-5 w-20 bg-gray-200 rounded"></div>
-              <div className="h-5 w-24 bg-gray-200 rounded"></div>
+    <div className="w-full">
+      <div className="px-6 py-4">
+        <div className="max-w-[2000px] mx-auto">
+          {/* Header Skeleton */}
+          <div className="flex items-center gap-4 mb-6">
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-2.5 rounded-lg">
+              <div className="w-6 h-6 bg-gray-200 rounded animate-pulse"></div>
             </div>
-            <div className="flex justify-between mb-5">
-              {[...Array(5)].map((_, j) => (
-                <div key={j} className="flex flex-col items-center w-full">
-                  <div className="w-4 h-4 rounded-full bg-gray-200 mb-2"></div>
-                  <div className="h-3 w-16 bg-gray-200 rounded"></div>
+            <div>
+              <div className="h-8 w-48 bg-gray-200 rounded animate-pulse mb-2"></div>
+              <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+            </div>
+          </div>
+
+          {/* Profile Cards Grid Skeleton */}
+          <div className="grid grid-cols-2 gap-6">
+            {/* Diana's Card Skeleton */}
+            <div className="flex flex-col rounded-xl overflow-hidden border border-gray-100 bg-white shadow-sm h-full">
+              {/* Profile Section */}
+              <div className="relative px-8 py-6 bg-white min-h-[180px]">
+                <div className="flex items-center">
+                  <div className="w-40 h-40 rounded-full bg-gray-200 animate-pulse"></div>
+                  <div className="flex-1 ml-8">
+                    <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-3"></div>
+                    <div className="h-5 w-32 bg-gray-200 rounded animate-pulse mb-4"></div>
+                    <div className="space-y-2">
+                      <div className="h-4 w-40 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-4 w-40 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-4 w-40 bg-gray-200 rounded animate-pulse"></div>
+                    </div>
+                  </div>
                 </div>
-              ))}
+              </div>
+              
+              {/* Description Section */}
+              <div className="border-b border-gray-100 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-gray-200 animate-pulse"></div>
+                  <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+              </div>
+
+              {/* Pending Documents Section */}
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="h-5 w-40 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-6 w-20 bg-gray-200 rounded-full animate-pulse"></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="flex items-center gap-2 bg-white rounded-lg p-3 border border-gray-100">
+                      <div className="w-8 h-8 rounded-lg bg-gray-200 animate-pulse"></div>
+                      <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-6 flex justify-center">
+                  <div className="h-10 w-32 bg-gray-200 rounded-full animate-pulse"></div>
+                </div>
+              </div>
             </div>
-            <div className="flex justify-between mt-4">
-              <div className="h-10 w-32 bg-gray-200 rounded"></div>
-              <div className="h-10 w-32 bg-gray-200 rounded"></div>
+
+            {/* Fiona's Card Skeleton */}
+            <div className="flex flex-col rounded-xl overflow-hidden border border-gray-100 bg-white shadow-sm h-full">
+              {/* Profile Section */}
+              <div className="relative px-8 py-6 bg-white min-h-[180px]">
+                <div className="flex items-center">
+                  <div className="w-40 h-40 rounded-full bg-gray-200 animate-pulse"></div>
+                  <div className="flex-1 ml-8">
+                    <div className="h-6 w-48 bg-gray-200 rounded animate-pulse mb-3"></div>
+                    <div className="h-5 w-32 bg-gray-200 rounded animate-pulse mb-4"></div>
+                    <div className="space-y-2">
+                      <div className="h-4 w-40 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-4 w-40 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-4 w-40 bg-gray-200 rounded animate-pulse"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Description Section */}
+              <div className="border-b border-gray-100 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-gray-200 animate-pulse"></div>
+                  <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+              </div>
+
+              {/* Cases Section */}
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="h-5 w-40 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-6 w-20 bg-gray-200 rounded-full animate-pulse"></div>
+                </div>
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-start gap-3 bg-white rounded-lg p-3 border border-gray-100">
+                      <div className="w-8 h-8 rounded-lg bg-gray-200 animate-pulse"></div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+                          <div className="h-5 w-20 bg-gray-200 rounded-full animate-pulse"></div>
+                        </div>
+                        <div className="h-4 w-48 bg-gray-200 rounded animate-pulse"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      ))}
+      </div>
     </div>
   );
 };
@@ -812,8 +899,6 @@ const FNDashboard = () => {
   // Fetch all cases for users
   const fetchAllUsersCases = async (userIds) => {
     try {
-      setLoading(true);
-      
       if (!userIds.length) {
         console.log('No user IDs available');
         return;
@@ -832,8 +917,6 @@ const FNDashboard = () => {
     } catch (error) {
       console.error('Error fetching cases:', error);
       toast.error('Failed to fetch cases');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -867,12 +950,14 @@ const FNDashboard = () => {
       }, {});
     
     setOtherUserCases(otherUsersGrouped);
+    setLoading(false);
   };
 
   // Initial load
   useEffect(() => {
     if (user?.id) {
       const loadData = async () => {
+        setLoading(true);
         const userIds = await fetchRelatedUsers();
         await fetchAllUsersCases(userIds);
       };
