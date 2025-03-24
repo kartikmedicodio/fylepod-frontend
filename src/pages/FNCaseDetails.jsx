@@ -481,19 +481,42 @@ const FNCaseDetails = () => {
             if (caseResponse.data.status === 'success') {
               setCaseData(caseResponse.data.data.entry);
               
-              // Check if all documents are uploaded and switch to Questionnaire tab
+              // Check if all documents are uploaded
               const allDocsUploaded = caseResponse.data.data.entry.documentTypes.every(doc => 
                 doc.status === 'uploaded' || doc.status === 'approved'
               );
               
               if (allDocsUploaded) {
-                setActiveTab('questionnaire');
-                toast.success('All documents uploaded! Please complete the questionnaire.');
+                // Get the first questionnaire template
+                const questionnaireResponse = await api.get('/questionnaires');
+                if (questionnaireResponse.data.status === 'success' && questionnaireResponse.data.data.templates.length > 0) {
+                  const template = questionnaireResponse.data.data.templates[0];
+                  
+                  // Get organized documents and fill questionnaire
+                  const organizedDocsResponse = await api.post(`/documents/management/${caseId}/organized`, {
+                    templateId: template._id
+                  });
+
+                  if (organizedDocsResponse.data.status === 'success') {
+                    // Set questionnaire data
+                    setQuestionnaireData({
+                      responses: [{
+                        processedInformation: organizedDocsResponse.data.data.processedInformation
+                      }]
+                    });
+                    setSelectedQuestionnaire(template);
+                    setFormData(organizedDocsResponse.data.data.processedInformation);
+                    
+                    // Switch to questionnaire tab
+                    setActiveTab('questionnaire');
+                    toast.success('All documents uploaded! Questionnaire has been auto-filled.');
+                  }
+                }
               }
             }
           }
         } catch (error) {
-          console.error('Error during cross-verification:', error);
+          console.error('Error during cross-verification or questionnaire filling:', error);
           // Don't show error to user, just log it
         }
       }
