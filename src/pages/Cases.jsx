@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Search, SlidersHorizontal } from 'lucide-rea
 import CaseDetails from './CaseDetails';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getStoredUser } from '../utils/auth';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 
 // Components
@@ -265,6 +265,7 @@ const Cases = () => {
 
   // Navigation hooks
   const navigate = useNavigate();
+  const location = useLocation();
   const { setCurrentBreadcrumb } = useBreadcrumb();
 
   // Set initial breadcrumb
@@ -284,7 +285,7 @@ const Cases = () => {
       { value: '', label: 'All Status' },
       { value: 'pending', label: 'Pending' },
       { value: 'completed', label: 'Completed' },
-      { value: 'processing', label: 'Processing' }
+      { value: 'Reviewed', label: 'Reviewed' }
     ],
     documentStatus: [
       { value: '', label: 'All Document Status' },
@@ -433,26 +434,25 @@ const Cases = () => {
   }, []); // Remove currentPage dependency since we're handling pagination in frontend
 
   // Process cases with filtering, sorting, and pagination
-  const processCases = (cases) => {
-    console.log('Processing cases:', cases);
+  const processCases = (casesToProcess) => {
+    console.log('Processing cases with filters:', filters);
+    
     // Step 1: Filter by search term
-    const searchFiltered = searchTerm 
-      ? cases.filter(c => 
+    let filtered = searchTerm 
+      ? casesToProcess.filter(c => 
           c.userName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           c.categoryName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           c._id?.toLowerCase().includes(searchTerm.toLowerCase())
         )
-      : cases;
+      : casesToProcess;
       
-    console.log('After search filtering:', searchFiltered);
-    
-    // Step 2: Apply filters
-    let filtered = [...searchFiltered];
-    
+    // Step 2: Apply status filter first (since this is our primary filter from dashboard)
     if (filters.status) {
+      console.log('Applying status filter:', filters.status);
       filtered = filtered.filter(c => c.categoryStatus === filters.status);
     }
     
+    // Step 3: Apply other filters
     if (filters.documentStatus) {
       filtered = filtered.filter(c => {
         const pendingCount = c.documentTypes?.filter(doc => 
@@ -490,26 +490,24 @@ const Cases = () => {
       });
     }
     
-    console.log('After applying filters:', filtered);
-    
-    // Step 3: Paginate the filtered data
+    // Step 4: Update pagination
     const total = filtered.length;
     const totalPages = Math.ceil(total / pagination.limit);
     const startIndex = (currentPage - 1) * pagination.limit;
     const endIndex = startIndex + pagination.limit;
     const currentPageCases = filtered.slice(startIndex, endIndex);
     
-    console.log('Final paginated cases:', currentPageCases);
-    console.log('Pagination info:', { total, currentPage, limit: pagination.limit, totalPages });
+    console.log('Filtered cases:', filtered.length);
+    console.log('Current page cases:', currentPageCases.length);
     
-    // Update state with processed data
+    // Update state
     setDisplayCases(currentPageCases);
-    setPagination({
+    setPagination(prev => ({
+      ...prev,
       total,
-      currentPage,
-      limit: pagination.limit,
-      totalPages
-    });
+      totalPages,
+      currentPage: Math.min(currentPage, totalPages)
+    }));
   };
 
   // Update handleSearch to use frontend filtering
@@ -550,6 +548,29 @@ const Cases = () => {
   useEffect(() => {
     console.log('Cases state updated:', cases);
   }, [cases]);
+
+  // Add this useEffect to handle incoming state and apply filter immediately
+  useEffect(() => {
+    if (location.state?.applyFilter) {
+      // Apply the filter that was passed from Dashboard
+      const newFilters = {
+        ...filters,
+        [location.state.filterType]: location.state.filterValue
+      };
+      
+      // Update both temp and active filters
+      setTempFilters(newFilters);
+      setFilters(newFilters);
+      
+      // Force reprocess cases with new filter
+      if (cases.length > 0) {
+        processCases(cases.map(c => ({...c}))); // Create new array to force update
+      }
+
+      // Clear the location state to prevent re-applying filter on page refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location, cases]); // Add cases as dependency
 
   const handleCaseClick = (caseItem) => {
     setCurrentBreadcrumb([
