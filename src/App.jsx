@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { DocumentProvider } from './contexts/DocumentContext';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
@@ -48,57 +49,59 @@ const App = () => {
       <BreadcrumbProvider>
         <Router>
           <AuthProvider>
-            <PageProvider>
-              <Routes>
-                <Route path="/login" element={<Login />} />
-                <Route path="/forgot-password" element={<ForgotPassword />} />
-                <Route path="/reset-password/:token" element={<ResetPassword />} />
-                <Route path="/*" element={
-                  <PrivateRoute>
-                    <Layout>
-                      <Routes>
-                        {/* Home Route - Now redirects to dashboard */}
-                        <Route path="/" element={<HomeRedirect />} />
-                        
-                        {/* Dashboard route now uses DashboardRouter */}
-                        <Route path="/dashboard" element={<DashboardRouter />} />
-                        
-                        {/* Profile Route */}
-                        <Route path="/profile/:profileId" element={<Profile />} />
-                        
-                        {/* Other existing routes */}
-                        <Route path="/cases" element={<Cases />} />
-                        <Route path="/cases/new" element={<NewCase />} />
-                        <Route path="/cases/:caseId" element={<CaseDetails />} />
-                        
-                        <Route path="/individual-cases" element={<FNCases />} />
-                        <Route path="/individuals/case/:caseId" element={<FNCaseDetails />} />
-                        
-                        {/* Corporation Routes */}
-                        <Route path="/corporations" element={<Corporations />} />
-                        <Route path="/corporations/:corporationId" element={<CorporationDetails />} />
-                        <Route path="/corporations/:corporationId/employee/:employeeId" element={<EmployeeProfile />} />
-                        <Route path="/corporations/:corporationId/employee/:employeeId/case/:caseId" element={<CaseDetails />} />
-                        
-                        {/* Individual Routes */}
-                        <Route path="/individuals" element={<Individuals />} />
-                        <Route path="/individuals/:individualId" element={<IndividualDetails />} />
-                        
-                        {/* New Customer Routes */}
-                        <Route path="/company/new" element={<NewCompany />} />
-                        <Route path="/companies/:companyId/admin/new" element={<NewCorpAdmin />} />
-                        <Route path="/employee/new" element={<NewEmployee />} />
-                        <Route path="/individual/new" element={<NewIndividual />} />
-                        
-                        {/* Knowledge Base Routes */}
-                        <Route path="/knowledge" element={<KnowledgeBase />} />
-                        <Route path="/knowledge/checklist/:id" element={<DocumentChecklist />} />
-                      </Routes>
-                    </Layout>
-                  </PrivateRoute>
-                } />
-              </Routes>
-            </PageProvider>
+            <DocumentProvider>
+              <PageProvider>
+                <Routes>
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/reset-password/:token" element={<ResetPassword />} />
+                  <Route path="/*" element={
+                    <PrivateRoute>
+                      <Layout>
+                        <Routes>
+                          {/* Home Route - Now redirects to dashboard */}
+                          <Route path="/" element={<HomeRedirect />} />
+                          
+                          {/* Dashboard route now uses DashboardRouter */}
+                          <Route path="/dashboard" element={<DashboardRouter />} />
+                          
+                          {/* Profile Route */}
+                          <Route path="/profile/:profileId" element={<Profile />} />
+                          
+                          {/* Other existing routes */}
+                          <Route path="/cases" element={<Cases />} />
+                          <Route path="/cases/new" element={<NewCase />} />
+                          <Route path="/cases/:caseId" element={<CaseDetails />} />
+                          
+                          <Route path="/individual-cases" element={<FNCases />} />
+                          <Route path="/individuals/case/:caseId" element={<FNCaseDetails />} />
+                          
+                          {/* Corporation Routes */}
+                          <Route path="/corporations" element={<Corporations />} />
+                          <Route path="/corporations/:corporationId" element={<CorporationDetails />} />
+                          <Route path="/corporations/:corporationId/employee/:employeeId" element={<EmployeeProfile />} />
+                          <Route path="/corporations/:corporationId/employee/:employeeId/case/:caseId" element={<CaseDetails />} />
+                          
+                          {/* Individual Routes */}
+                          <Route path="/individuals" element={<Individuals />} />
+                          <Route path="/individuals/:individualId" element={<IndividualDetails />} />
+                          
+                          {/* New Customer Routes */}
+                          <Route path="/company/new" element={<NewCompany />} />
+                          <Route path="/companies/:companyId/admin/new" element={<NewCorpAdmin />} />
+                          <Route path="/employee/new" element={<NewEmployee />} />
+                          <Route path="/individual/new" element={<NewIndividual />} />
+                          
+                          {/* Knowledge Base Routes */}
+                          <Route path="/knowledge" element={<KnowledgeBase />} />
+                          <Route path="/knowledge/checklist/:id" element={<DocumentChecklist />} />
+                        </Routes>
+                      </Layout>
+                    </PrivateRoute>
+                  } />
+                </Routes>
+              </PageProvider>
+            </DocumentProvider>
           </AuthProvider>
         </Router>
       </BreadcrumbProvider>

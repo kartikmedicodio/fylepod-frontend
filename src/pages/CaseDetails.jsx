@@ -1414,6 +1414,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                     status: doc.status === 'approved' ? 'Approved' : 'Verification pending',
                     documentTypeId: doc.documentTypeId,
                     updatedAt: doc.updatedAt,
+                    managementId: caseId, // Add the managementId from the caseId
                     states: [
                       {
                         name: 'Document collection',
