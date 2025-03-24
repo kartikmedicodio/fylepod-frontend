@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Check, AlertTriangle, X, FileText, Bot, ChevronRight, Loader2, Eye } from 'lucide-react';
+  import { useDocumentContext } from '../../contexts/DocumentContext';
 
 const ProcessState = ({ state, status, onClick }) => {
   const getStateStyles = () => {
@@ -92,71 +93,12 @@ const DocumentStatus = ({ status }) => {
 
 const DocumentRow = ({ 
   document, 
+  documentDetails,
   onStateClick, 
   onApprove, 
   onRequestReupload,
-  onViewDocument,
   processingDocuments 
 }) => {
-  const [documentDetails, setDocumentDetails] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchDocumentDetails = async () => {
-      try {
-        setIsLoading(true);
-        
-        const token = localStorage.getItem('auth_token');
-        
-        if (!token) {
-          return;
-        }
-
-        const response = await fetch(`https://api-dev.relayzen.com/api/documents/management-document/${document.id}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        if (data.status === 'success') {
-          setDocumentDetails(data.data.document);
-        }
-      } catch (error) {
-        // Handle error silently or show user feedback if needed
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (document.id) {
-      fetchDocumentDetails();
-    }
-  }, [document.id]);
-
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
-    
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return ''; // Return empty string for invalid dates
-      
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
-    } catch (error) {
-      return '';
-    }
-  };
-
-  // Helper function to format file size
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -168,7 +110,11 @@ const DocumentRow = ({
   const handleViewDocument = (e) => {
     e.stopPropagation();
     if (documentDetails?.fileUrl) {
-      window.open(documentDetails.fileUrl, '_blank');
+      const token = localStorage.getItem('auth_token');
+      const url = new URL(documentDetails.fileUrl);
+      url.searchParams.set('token', token);
+      url.searchParams.set('t', Date.now());
+      window.open(url.toString(), '_blank');
     }
   };
 
@@ -183,12 +129,12 @@ const DocumentRow = ({
             </div>
             <div className="space-y-1">
               <span className="text-base font-medium text-slate-900">
-                {document.name}
+                {documentDetails?.type || 'Unknown Type'}
               </span>
               {documentDetails && (
                 <div className="text-sm text-slate-500">
                   <p>Size: {formatFileSize(documentDetails.size)}</p>
-                  <p>Type: {documentDetails.type}</p>
+                  <p>Type: {documentDetails.mimeType}</p>
                 </div>
               )}
             </div>
@@ -288,9 +234,18 @@ const FinalizeTab = ({
   onStateClick,
   onApprove,
   onRequestReupload,
-  onViewDocument,
   processingDocuments = {}
 }) => {
+  const { documentDetailsMap, isLoading, fetchDocumentDetails } = useDocumentContext();
+
+  useEffect(() => {
+    // Only fetch if we don't already have the details for these documents
+    const needsFetch = documents.some(doc => !documentDetailsMap[doc.id]);
+    if (needsFetch) {
+      fetchDocumentDetails(documents);
+    }
+  }, [documents]);
+
   return (
     <div>
       {/* Header Section */}
@@ -301,7 +256,7 @@ const FinalizeTab = ({
             <div className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-blue-50/50 to-indigo-50/50 border border-blue-100/50 ring-1 ring-blue-100/20 flex items-center gap-2">
               <Bot className="w-4 h-4 text-blue-500" />
               <span className="text-sm font-medium bg-gradient-to-r from-blue-500 to-indigo-500 bg-clip-text text-transparent">
-                Diana's analysis
+                Diana&apos;s analysis
               </span>
             </div>
           </div>
@@ -342,17 +297,27 @@ const FinalizeTab = ({
       {/* Documents List */}
       <div className="p-4">
         <div className="space-y-3">
-          {documents.map(doc => (
-            <DocumentRow 
-              key={doc.id} 
-              document={doc} 
-              onStateClick={onStateClick}
-              onApprove={onApprove}
-              onRequestReupload={onRequestReupload}
-              onViewDocument={onViewDocument}
-              processingDocuments={processingDocuments}
-            />
-          ))}
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+            </div>
+          ) : (
+            documents.map(doc => {
+              console.log('Rendering document:', doc);
+              console.log('Document details for this doc:', documentDetailsMap[doc.id]);
+              return (
+                <DocumentRow 
+                  key={doc.id} 
+                  document={doc} 
+                  documentDetails={documentDetailsMap[doc.id]}
+                  onStateClick={onStateClick}
+                  onApprove={onApprove}
+                  onRequestReupload={onRequestReupload}
+                  processingDocuments={processingDocuments}
+                />
+              );
+            })
+          )}
         </div>
       </div>
     </div>
