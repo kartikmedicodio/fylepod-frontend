@@ -305,7 +305,7 @@ const ProfileCard = () => {
       {/* Diana's Card */}
       <div className="flex flex-col rounded-xl overflow-hidden border border-gray-100 bg-white shadow-sm h-full">
         {/* Profile Section */}
-        <div className="relative px-8 py-6 bg-white min-h-[180px]">
+        <div className="relative px-8 py-2 bg-white min-h-[180px]">
           {/* Gradient Rectangle */}
           <div 
             className="absolute top-1/2 left-[20px] -translate-y-1/2 w-[95%] h-[140px] rounded-2xl"
@@ -336,15 +336,15 @@ const ProfileCard = () => {
                 </p>
                 <div className="space-y-1 mt-2">
                   <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    <span className="w-1 h-1 rounded-full bg-blue-500"></span>
+                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
                     Active Since 1 month
                   </p>
                   <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    <span className="w-1 h-1 rounded-full bg-blue-500"></span>
+                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
                     Diana@gmail.com
                   </p>
                   <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    <span className="w-1 h-1 rounded-full bg-blue-500"></span>
+                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
                     ID- 122
                   </p>
                 </div>
@@ -355,11 +355,11 @@ const ProfileCard = () => {
         
         {/* Description Section */}
         <div className="border-b border-gray-100">
-          <div className="p-4 flex items-center gap-3">
+          <div className="px-4 py-2 flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
               <FileText className="w-4 h-4 text-blue-500" />
             </div>
-            <p className="text-[#000D3B] font-medium text-sm">
+            <p className="text-[#000D3B] font-medium text-md">
               I&apos;m here to help you organize and manage your case documents efficiently.
             </p>
           </div>
@@ -419,7 +419,7 @@ const ProfileCard = () => {
       {/* Fiona's Card */}
       <div className="flex flex-col rounded-xl overflow-hidden border border-gray-100 bg-white shadow-sm h-full">
         {/* Profile Section */}
-        <div className="relative px-8 py-6 bg-white min-h-[180px]">
+        <div className="relative px-8 py-2 bg-white min-h-[180px]">
           {/* Gradient Rectangle */}
           <div 
             className="absolute top-1/2 left-[20px] -translate-y-1/2 w-[95%] h-[140px] rounded-2xl"
@@ -450,16 +450,16 @@ const ProfileCard = () => {
                 </p>
                 <div className="space-y-1 mt-2">
                   <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    <span className="w-1 h-1 rounded-full bg-blue-500"></span>
+                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
                     Active Since 1 month
                   </p>
                   <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    <span className="w-1 h-1 rounded-full bg-blue-500"></span>
+                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
                     Fiona@gmail.com
                   </p>
                   <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    <span className="w-1 h-1 rounded-full bg-blue-500"></span>
-                    ID- 122
+                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
+                    ID- 123
                   </p>
                 </div>
               </div>
@@ -469,12 +469,12 @@ const ProfileCard = () => {
         
         {/* Description Section */}
         <div className="border-b border-gray-100">
-          <div className="p-4 flex items-center gap-3">
+          <div className="px-4 py-2 flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center flex-shrink-0">
               <FileText className="w-4 h-4 text-pink-500" />
             </div>
-            <p className="text-[#000D3B] font-medium text-sm">
-              I&apos;m here to guide you through your immigration case and keep everything on track.
+            <p className="text-[#000D3B] font-medium text-md">
+              I&apos;m here to guide you through your case and keep everything on track.
             </p>
           </div>
         </div>
