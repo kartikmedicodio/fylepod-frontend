@@ -8,7 +8,7 @@ import Cases from './pages/Cases';
 import Layout from './components/dashboard/Layout';
 import Corporations from './pages/Corporations';
 import CorporationDetails from './pages/CorporationDetails';
-import NewCase from './pages/cases/NewCase';
+import NewCase from './pages/NewCase';
 import PrivateRoute from './components/auth/PrivateRoute';
 import { PageProvider } from './contexts/PageContext';
 import { BreadcrumbProvider } from './contexts/BreadcrumbContext';
