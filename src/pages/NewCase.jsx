@@ -1,12 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
 import { ChevronDown, Pencil, X, Loader2 } from 'lucide-react';
-import { usePage } from '../../contexts/PageContext';
+import { usePage } from '../contexts/PageContext';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
-import { getStoredUser } from '../../utils/auth';
-import api from '../../utils/api';
+import { useAuth } from '../contexts/AuthContext';
+import { getStoredUser } from '../utils/auth';
+import api from '../utils/api';
 import toast from 'react-hot-toast';
-import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
+import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 
 const FionaIcon = () => (
   <div className="w-6 h-6 rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 flex items-center justify-center text-white font-semibold text-sm">
