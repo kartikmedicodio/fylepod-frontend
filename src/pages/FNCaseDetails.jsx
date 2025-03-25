@@ -4,7 +4,9 @@ import {
   Loader2,
   Bot,
   SendHorizontal,
-  ChevronLeft
+  ChevronLeft,
+  Eye,
+  AlertCircle
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
@@ -198,6 +200,8 @@ const FNCaseDetails = () => {
     Resume: {}
   });
   const [processingStep, setProcessingStep] = useState(0);
+  const [isSavingQuestionnaire, setIsSavingQuestionnaire] = useState(false);
+  const [isQuestionnaireCompleted, setIsQuestionnaireCompleted] = useState(false);
 
   // Group all useRef hooks
   const messagesEndRef = useRef(null);
@@ -508,7 +512,7 @@ const FNCaseDetails = () => {
                     setFormData(organizedDocsResponse.data.data.processedInformation);
                     
                     // Switch to questionnaire tab
-                    setActiveTab('questionnaire');
+                    setUploadStatus('uploaded')
                     toast.success('All documents uploaded! Questionnaire has been auto-filled.');
                   }
                 }
@@ -1589,6 +1593,8 @@ const FNCaseDetails = () => {
   };
 
   const QuestionnaireDetailView = ({ questionnaire, onBack }) => {
+    // Add state for empty fields toggle
+    const [showOnlyEmpty, setShowOnlyEmpty] = useState(false);
     // Add local state for form data
     const [localFormData, setLocalFormData] = useState(formData);
 
@@ -1597,38 +1603,57 @@ const FNCaseDetails = () => {
       setLocalFormData(formData);
     }, [formData]);
 
+    // Add function to check if a field is empty
+    const isFieldEmpty = (section, field) => {
+      if (field === 'educationalQualification') {
+        const eduData = localFormData?.[section]?.[field] || [];
+        if (!Array.isArray(eduData) || eduData.length === 0) return true;
+        return eduData.some(edu => {
+          if (typeof edu === 'string') return !edu;
+          return !edu.degree || !edu.institution || !edu.years;
+        });
+      }
+      return !localFormData?.[section]?.[field];
+    };
+
+    // Update input change handler to use local state
     const handleLocalInputChange = (section, field, value) => {
-      setLocalFormData(prevData => ({
-        ...prevData,
+      setLocalFormData(prev => ({
+        ...prev,
         [section]: {
-          ...(prevData[section] || {}),
+          ...(prev[section] || {}),
           [field]: value
         }
       }));
     };
 
-    // Add save handler that updates parent form data
+    // Update save handler to use local state
     const handleLocalSave = async () => {
       try {
-        // First update the parent form data
+        setIsSavingQuestionnaire(true);
+        
+        // Update parent state
         setFormData(localFormData);
         
-        // Then make the API call with the latest local form data
         const response = await api.put(`/questionnaire-responses/management/${caseId}`, {
           templateId: selectedQuestionnaire._id,
-          processedInformation: localFormData  // Use localFormData instead of formData
+          processedInformation: localFormData
         });
 
         if (response.data.status === 'success') {
           toast.success('Changes saved successfully');
+          setIsQuestionnaireCompleted(true);
+          setActiveTab('questionnaire');
         }
       } catch (error) {
         console.error('Error saving questionnaire:', error);
         toast.error('Failed to save changes');
+      } finally {
+        setIsSavingQuestionnaire(false);
       }
     };
 
-    // Add function to count filled fields
+    // Add function to count filled fields using local state
     const getFilledFieldsCount = () => {
       let totalFields = 0;
       let filledFields = 0;
@@ -1646,7 +1671,6 @@ const FNCaseDetails = () => {
       const resumeFields = questionnaire.field_mappings.filter(field => field.sourceDocument === 'Resume');
       resumeFields.forEach(field => {
         if (field.fieldName === 'educationalQualification') {
-          // Count educational qualification as one field
           totalFields += 1;
           if (localFormData?.Resume?.educationalQualification?.length > 0) {
             filledFields++;
@@ -1664,50 +1688,93 @@ const FNCaseDetails = () => {
 
     const { filledFields, totalFields } = getFilledFieldsCount();
 
+    // Add function to check if field should be visible
+    const shouldShowField = (section, field) => {
+      if (!showOnlyEmpty) return true;
+      return field.required && isFieldEmpty(section, field.fieldName);
+    };
+
     return (
       <div className="p-6">
         {/* Header with Back Button */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={onBack}
-                className="text-gray-600 hover:text-gray-800 transition-colors"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <h2 className="text-lg font-medium text-gray-900">Questionnaire</h2>
-            </div>
-            
-            {/* Progress indicator */}
-            <div className="flex items-center gap-14">
-              <div className="flex flex-col items-center gap-2">
-                <div className="text-sm text-gray-600">
-                  {filledFields} out of {totalFields} fields completed
-                </div>
-                {/* Progress bar with animated dots */}
-                <div className="relative w-32">
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-green-500 transition-all duration-500"
-                      style={{ width: `${(filledFields / totalFields) * 100}%` }}
-                    />
-                  </div>
-                  {/* Animated dots for remaining fields */}
-                  {filledFields < totalFields && (
-                    <div className="absolute top-0 left-0 w-full h-full flex items-center justify-end pr-2">
-                      <div className="flex gap-1">
-                        <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '0ms' }} />
-                        <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '200ms' }} />
-                        <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '400ms' }} />
-                      </div>
-                    </div>
-                  )}
-                </div>
+        <div className="mb-6 flex justify-between">
+          <div className="flex items-center gap-8">
+            <button 
+              onClick={onBack}
+              className="text-gray-600 hover:text-gray-800 transition-colors"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <div className="flex items-center gap-8">
+                <h2 className="text-lg font-medium text-gray-900">Questionnaire</h2>
               </div>
+              <p className="text-sm text-gray-600">{questionnaire.questionnaire_name}</p>
             </div>
           </div>
-          <p className="text-sm text-gray-600 ml-8">{questionnaire.questionnaire_name}</p>
+          <div className='flex items-center gap-4'>
+            {/* Add Empty Fields Toggle Button */}
+            <button
+              onClick={() => setShowOnlyEmpty(!showOnlyEmpty)}
+              className={`px-4 py-2 rounded text-sm font-medium transition-colors flex items-center gap-2
+                ${showOnlyEmpty 
+                  ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+            >
+              {showOnlyEmpty ? (
+                <>
+                  <Eye className="w-4 h-4" />
+                  Show All Fields
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="w-4 h-4" />
+                  Show Empty Fields
+                </>
+              )}
+            </button>
+
+            <div className="flex items-center gap-2">
+              <div className="text-sm text-gray-600">
+                {filledFields} out of {totalFields} fields completed
+              </div>
+              {/* Progress bar with animated dots */}
+              <div className="relative w-32">
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-green-500 transition-all duration-500"
+                    style={{ width: `${(filledFields / totalFields) * 100}%` }}
+                  />
+                </div>
+                {/* Animated dots for remaining fields */}
+                {filledFields < totalFields && (
+                  <div className="absolute top-0 left-0 w-full h-full flex items-center justify-end pr-2">
+                    <div className="flex gap-1">
+                      <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '0ms' }} />
+                      <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '200ms' }} />
+                      <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '400ms' }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <button
+              onClick={handleLocalSave}
+              disabled={isSavingQuestionnaire}
+              className="px-6 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isSavingQuestionnaire ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                'Save'
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Form Content */}
@@ -1719,18 +1786,24 @@ const FNCaseDetails = () => {
               {questionnaire.field_mappings
                 .filter(field => field.sourceDocument === 'Passport')
                 .map(field => (
-                  <div key={field._id}>
-                    <label className="block text-xs text-gray-500 mb-1">
-                      {field.fieldName}
-                      {field.required && <span className="text-red-500 ml-1">*</span>}
-                    </label>
-                    <input
-                      type="text"
-                      value={localFormData?.Passport?.[field.fieldName] || ''}
-                      onChange={(e) => handleLocalInputChange('Passport', field.fieldName, e.target.value)}
-                      className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-                    />
-                  </div>
+                  shouldShowField('Passport', field) && (
+                    <div key={field._id}>
+                      <label className="block text-xs text-gray-500 mb-1">
+                        {field.fieldName}
+                        {field.required && <span className="text-red-500 ml-1">*</span>}
+                      </label>
+                      <input
+                        type="text"
+                        value={localFormData?.Passport?.[field.fieldName] || ''}
+                        onChange={(e) => handleLocalInputChange('Passport', field.fieldName, e.target.value)}
+                        className={`w-full px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 
+                          ${field.required && isFieldEmpty('Passport', field.fieldName)
+                            ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                            : 'border-gray-200 focus:border-blue-400'
+                          }`}
+                      />
+                    </div>
+                  )
                 ))}
             </div>
           </div>
@@ -1741,33 +1814,159 @@ const FNCaseDetails = () => {
             <div className="grid grid-cols-2 gap-4">
               {questionnaire.field_mappings
                 .filter(field => field.sourceDocument === 'Resume')
-                .map(field => (
-                  <div key={field._id}>
-                    <label className="block text-xs text-gray-500 mb-1">
-                      {field.fieldName}
-                      {field.required && <span className="text-red-500 ml-1">*</span>}
-                    </label>
-                    <input
-                      type={field.fieldName.toLowerCase().includes('email') ? 'email' : 'text'}
-                      value={localFormData?.Resume?.[field.fieldName] || ''}
-                      onChange={(e) => handleLocalInputChange('Resume', field.fieldName, e.target.value)}
-                      className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-                    />
-                  </div>
-                ))}
+                .map(field => {
+                  if (field.fieldName === 'educationalQualification') {
+                    // Show educational qualification section only if it should be visible
+                    return shouldShowField('Resume', field) && (
+                      <div key={field._id} className="col-span-2">
+                        <label className="block text-xs text-gray-500 mb-1">
+                          {field.fieldName}
+                          {field.required && <span className="text-red-500 ml-1">*</span>}
+                        </label>
+                        <div className="space-y-2">
+                          {Array.isArray(localFormData?.Resume?.educationalQualification)
+                            ? localFormData.Resume.educationalQualification.map((edu, index) => (
+                              <div key={index} className="grid grid-cols-3 gap-2">
+                                <input
+                                  type="text"
+                                  value={typeof edu === 'string' ? edu : edu.degree || ''}
+                                  placeholder="Degree"
+                                  onChange={(e) => {
+                                    const newEdu = [...localFormData.Resume.educationalQualification];
+                                    newEdu[index] = typeof edu === 'string' 
+                                      ? e.target.value
+                                      : { ...newEdu[index], degree: e.target.value };
+                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                  }}
+                                  className={`w-full px-3 py-1.5 border rounded text-sm
+                                    ${field.required && (!edu || (typeof edu !== 'string' && !edu.degree))
+                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                      : 'border-gray-200 focus:border-blue-400'
+                                    }`}
+                                />
+                                <input
+                                  type="text"
+                                  value={typeof edu === 'string' ? '' : edu.institution || ''}
+                                  placeholder="Institution"
+                                  onChange={(e) => {
+                                    const newEdu = [...localFormData.Resume.educationalQualification];
+                                    newEdu[index] = { 
+                                      ...(typeof edu === 'string' ? { degree: edu } : newEdu[index]), 
+                                      institution: e.target.value 
+                                    };
+                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                  }}
+                                  className={`w-full px-3 py-1.5 border rounded text-sm
+                                    ${field.required && (!edu || (typeof edu !== 'string' && !edu.institution))
+                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                      : 'border-gray-200 focus:border-blue-400'
+                                    }`}
+                                />
+                                <input
+                                  type="text"
+                                  value={typeof edu === 'string' ? '' : (edu.years || edu.duration || '')}
+                                  placeholder="Years"
+                                  onChange={(e) => {
+                                    const newEdu = [...localFormData.Resume.educationalQualification];
+                                    newEdu[index] = { 
+                                      ...(typeof edu === 'string' ? { degree: edu } : newEdu[index]), 
+                                      years: e.target.value 
+                                    };
+                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                  }}
+                                  className={`w-full px-3 py-1.5 border rounded text-sm
+                                    ${field.required && (!edu || (typeof edu !== 'string' && !edu.years))
+                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                      : 'border-gray-200 focus:border-blue-400'
+                                    }`}
+                                />
+                              </div>
+                            )) : (
+                              <div className="grid grid-cols-3 gap-2">
+                                <input
+                                  type="text"
+                                  value={localFormData?.Resume?.educationalQualification?.degree || ''}
+                                  placeholder="Degree"
+                                  onChange={(e) => {
+                                    const newEdu = { ...localFormData.Resume.educationalQualification };
+                                    newEdu.degree = e.target.value;
+                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                  }}
+                                  className={`w-full px-3 py-1.5 border rounded text-sm
+                                    ${field.required && (!localFormData?.Resume?.educationalQualification?.degree || !localFormData?.Resume?.educationalQualification?.institution || !localFormData?.Resume?.educationalQualification?.years)
+                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                      : 'border-gray-200 focus:border-blue-400'
+                                    }`}
+                                />
+                                <input
+                                  type="text"
+                                  value={localFormData?.Resume?.educationalQualification?.institution || ''}
+                                  placeholder="Institution"
+                                  onChange={(e) => {
+                                    const newEdu = { ...localFormData.Resume.educationalQualification };
+                                    newEdu.institution = e.target.value;
+                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                  }}
+                                  className={`w-full px-3 py-1.5 border rounded text-sm
+                                    ${field.required && (!localFormData?.Resume?.educationalQualification?.degree || !localFormData?.Resume?.educationalQualification?.institution || !localFormData?.Resume?.educationalQualification?.years)
+                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                      : 'border-gray-200 focus:border-blue-400'
+                                    }`}
+                                />
+                                <input
+                                  type="text"
+                                  value={localFormData?.Resume?.educationalQualification?.years || ''}
+                                  placeholder="Years"
+                                  onChange={(e) => {
+                                    const newEdu = { ...localFormData.Resume.educationalQualification };
+                                    newEdu.years = e.target.value;
+                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                  }}
+                                  className={`w-full px-3 py-1.5 border rounded text-sm
+                                    ${field.required && (!localFormData?.Resume?.educationalQualification?.degree || !localFormData?.Resume?.educationalQualification?.institution || !localFormData?.Resume?.educationalQualification?.years)
+                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                      : 'border-gray-200 focus:border-blue-400'
+                                    }`}
+                                />
+                              </div>
+                            )}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return shouldShowField('Resume', field) && (
+                    <div key={field._id}>
+                      <label className="block text-xs text-gray-500 mb-1">
+                        {field.fieldName}
+                        {field.required && <span className="text-red-500 ml-1">*</span>}
+                      </label>
+                      <input
+                        type={field.fieldName.toLowerCase().includes('email') ? 'email' : 'text'}
+                        value={localFormData?.Resume?.[field.fieldName] || ''}
+                        onChange={(e) => handleLocalInputChange('Resume', field.fieldName, e.target.value)}
+                        className={`w-full px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 
+                          ${field.required && isFieldEmpty('Resume', field.fieldName)
+                            ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                            : 'border-gray-200 focus:border-blue-400'
+                          }`}
+                      />
+                    </div>
+                  );
+                })}
             </div>
           </div>
         </div>
 
-        {/* Save Button */}
-        <div className="flex justify-end mt-6">
-          <button
-            onClick={handleLocalSave}
-            className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors"
-          >
-            Save
-          </button>
-        </div>
+        {/* Show message when no empty fields are found */}
+        {showOnlyEmpty && 
+         !questionnaire.field_mappings.some(field => 
+           shouldShowField(field.sourceDocument, field)
+         ) && (
+          <div className="text-center py-8 text-gray-500">
+            No empty required fields found!
+          </div>
+        )}
       </div>
     );
   };
