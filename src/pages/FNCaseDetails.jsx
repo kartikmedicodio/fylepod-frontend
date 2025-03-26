@@ -6,13 +6,20 @@ import {
   SendHorizontal,
   ChevronLeft,
   Eye,
-  AlertCircle
+  AlertCircle,
+  ChevronRight,
+  Check,
+  ChevronUp,
+  ChevronDown,
+  X // Add these imports for the new icons
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
 import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
+import ProgressSteps from '../components/ProgressSteps';
+import CrossVerificationTab from '../components/cases/CrossVerificationTab';
 
 const getInitials = (name) => {
   return name
@@ -174,12 +181,12 @@ const FNCaseDetails = () => {
   const { caseId } = useParams();
   const { setCurrentBreadcrumb } = useBreadcrumb();
   
-  // Group all useState hooks
+  // Set initial states
   const [activeTab, setActiveTab] = useState('documents-checklist');
+  const [uploadStatus, setUploadStatus] = useState('pending'); // Ensure this is 'pending'
   const [caseData, setCaseData] = useState(null);
   const [profileData, setProfileData] = useState(null);
   const [isLoading, setIsLoading] = useState(true); // Single loading state for all data
-  const [uploadStatus, setUploadStatus] = useState('pending'); // Default to pending
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -202,6 +209,18 @@ const FNCaseDetails = () => {
   const [processingStep, setProcessingStep] = useState(0);
   const [isSavingQuestionnaire, setIsSavingQuestionnaire] = useState(false);
   const [isQuestionnaireCompleted, setIsQuestionnaireCompleted] = useState(false);
+  // Add this state to track saved fields
+  const [savedFields, setSavedFields] = useState({
+    Passport: {},
+    Resume: {}
+  });
+  // Add new state for questionnaire status
+  const [questionnaireStatus, setQuestionnaireStatus] = useState('pending'); // possible values: 'pending', 'saved'
+  const [verificationData, setVerificationData] = useState(null);
+  const [isVerificationLoading, setIsVerificationLoading] = useState(false);
+  // Add new states for validation data
+  const [validationData, setValidationData] = useState(null);
+  const [isValidationLoading, setIsValidationLoading] = useState(false);
 
   // Group all useRef hooks
   const messagesEndRef = useRef(null);
@@ -301,12 +320,14 @@ const FNCaseDetails = () => {
   };
 
   const handleFileUpload = async (files) => {
+    try {
+      setIsProcessing(true);
+      setProcessingStep(1);
+
     if (!files.length) return;
     
-    setIsProcessing(true);
     const uploadedDocIds = [];
 
-    try {
       // Upload all files
       const uploadPromises = files.map(async (file) => {
         if (!validateFileType(file)) {
@@ -491,6 +512,15 @@ const FNCaseDetails = () => {
               );
               
               if (allDocsUploaded) {
+                // Set verification data from cross-verify response
+                setVerificationData(crossVerifyResponse.data.data);
+                
+                // Fetch validation data
+                const validationResponse = await api.get(`/documents/management/${caseId}/validations`);
+                if (validationResponse.data.status === 'success') {
+                  setValidationData(validationResponse.data.data);
+                }
+
                 // Get the first questionnaire template
                 const questionnaireResponse = await api.get('/questionnaires');
                 if (questionnaireResponse.data.status === 'success' && questionnaireResponse.data.data.templates.length > 0) {
@@ -512,7 +542,7 @@ const FNCaseDetails = () => {
                     setFormData(organizedDocsResponse.data.data.processedInformation);
                     
                     // Switch to questionnaire tab
-                    setUploadStatus('uploaded')
+                    setUploadStatus('validation')
                     toast.success('All documents uploaded! Questionnaire has been auto-filled.');
                   }
                 }
@@ -698,26 +728,22 @@ const FNCaseDetails = () => {
         ), { duration: 5000 });
       }
 
-    } catch (err) {
-      console.error('Error in file upload process:', err);
-      toast.error('Error processing documents');
-      
-      // Clean up any remaining uploaded documents on error
-      await Promise.all(
-        uploadedDocIds.map(docId =>
-          api.delete(`/documents/${docId}`).catch(err => {
-            console.error(`Error deleting document ${docId}:`, err);
-          })
-        )
-      );
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      toast.error('Failed to upload files');
     } finally {
       setIsProcessing(false);
       setProcessingStep(0);
     }
   };
 
+  // Update the initial setup useEffect
   useEffect(() => {
-    const fetchAllData = async () => {
+    // Always start with documents-checklist tab and upload pending status
+    setActiveTab('documents-checklist');
+    setUploadStatus('pending');
+
+    const fetchData = async () => {
       try {
         setIsLoading(true);
         
@@ -734,9 +760,12 @@ const FNCaseDetails = () => {
             { name: caseData.categoryName || 'Case Details', path: `/individuals/case/${caseId}` }
           ]);
 
+          // Remove this section to ensure we always start with 'pending'
+          /* 
           // Update uploadStatus based on document status
           const hasPendingDocs = caseData.documentTypes.some(doc => doc.status === 'pending');
           setUploadStatus(hasPendingDocs ? 'pending' : 'uploaded');
+          */
 
           // If we have a userId, fetch the complete profile
           if (caseData.userId?._id) {
@@ -754,7 +783,9 @@ const FNCaseDetails = () => {
       }
     };
 
-    fetchAllData();
+    if (caseId) {
+      fetchData();
+    }
 
     // Cleanup breadcrumb on unmount
     return () => {
@@ -1460,7 +1491,8 @@ const FNCaseDetails = () => {
         <h3 className="text-lg font-semibold mb-4">Documents Checklist</h3>
         
         {/* Status Buttons */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex gap-2">
           <button 
             onClick={() => setUploadStatus('pending')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -1472,56 +1504,191 @@ const FNCaseDetails = () => {
             Upload Pending
           </button>
           <button 
-            onClick={() => setUploadStatus('uploaded')}
+              onClick={() => {
+                setUploadStatus('validation');
+                handleCrossVerification();
+                fetchValidationData(); // Fetch validation data when switching to validation tab
+              }}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              uploadStatus === 'uploaded'
+                uploadStatus === 'validation'
                 ? 'bg-blue-600 text-white hover:bg-blue-700'
                 : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
             }`}
           >
-            Uploaded
+              Validation Check
           </button>
+          </div>
         </div>
 
-        {/* Diana's AI Capabilities Section */}
-        <div className="mb-6 bg-white rounded-xl border border-gray-100 p-4 relative overflow-hidden">
-          <div className="flex items-start gap-4 relative z-10">
-            {/* Diana's Avatar */}
-            <div className="flex-shrink-0">
-              <div className="relative">
-                {/* Animated Background Ring */}
-                <div className="absolute inset-0 -m-2">
-                  <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 rounded-full blur-lg"></div>
+        {uploadStatus === 'pending' && (
+          <div className="flex gap-6">
+            {renderDocumentsList()}
+            {renderSmartUpload()}
                 </div>
-                {/* Avatar Container */}
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl"></div>
-                  <span className="relative text-sm font-semibold text-white">Diana</span>
+        )}
+
+        {uploadStatus === 'validation' && (
+          <div>
+            {/* Header with Next Button */}
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Validation Results</h3>
+              <button
+                onClick={() => {
+                  setActiveTab('questionnaire');
+                  setUploadStatus('uploaded');
+                }}
+                className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium 
+                  hover:bg-blue-700 transition-colors shadow-sm"
+              >
+                <span>Next: Questionnaire</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
                 </div>
+
+            {/* Accordions */}
+            <div className="space-y-4">
+              {/* Cross Verification Accordion */}
+              <CrossVerificationTab
+                isLoading={isVerificationLoading}
+                verificationData={verificationData}
+                managementId={caseId}
+              />
+
+              {/* Document Validation Accordion */}
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <ValidationAccordion
+                  isLoading={isValidationLoading}
+                  validationData={validationData}
+                  caseData={caseData}
+                />
               </div>
             </div>
+          </div>
+        )}
+            </div>
+    );
+  };
 
-            {/* Description Text */}
-            <div className="flex-1">
-              <h4 className="text-base font-semibold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-1">
-                Intelligent Document Processing
+  // Update the ValidationAccordion component
+  const ValidationAccordion = ({ isLoading, validationData, caseData }) => {
+    const [isExpanded, setIsExpanded] = useState(false); // Changed to false
+
+    // Add function to check if all documents are uploaded
+    const areAllDocumentsUploaded = caseData?.documentTypes?.every(doc => 
+      doc.status === 'uploaded' || doc.status === 'approved'
+    ) || false;
+
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center h-32">
+          <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+        </div>
+      );
+    }
+
+    if (!validationData?.mergedValidations?.length) {
+      return (
+        <div className="flex flex-col items-center justify-center h-32">
+          <AlertCircle className="w-8 h-8 text-gray-400 mb-2" />
+          <p className="text-gray-600">No validation data available</p>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        {/* Accordion Header */}
+        <div 
+          className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          <div className="flex items-center gap-3">
+            <h3 className="text-lg font-semibold text-gray-900">Document Validation Results</h3>
+            <span className={`px-2.5 py-1 rounded-full text-xs font-medium
+              ${validationData.mergedValidations.every(doc => doc.passed) 
+                ? 'bg-green-100 text-green-700' 
+                : 'bg-red-100 text-red-700'}`}
+            >
+              {validationData.mergedValidations.every(doc => doc.passed) 
+                ? 'All Valid' 
+                : `${validationData.mergedValidations.filter(doc => !doc.passed).length} Issues Found`}
+            </span>
+          </div>
+          {isExpanded ? (
+            <ChevronUp className="w-5 h-5 text-gray-400" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-gray-400" />
+          )}
+        </div>
+
+        {/* Accordion Content */}
+        {isExpanded && (
+          <div className="border-t border-gray-100">
+            <div className="p-4 space-y-4">
+              {validationData.mergedValidations.map((documentValidation, index) => (
+                <div key={index} className="bg-gray-50 rounded-lg overflow-hidden">
+                  <div className="p-4">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        documentValidation.passed 
+                          ? 'bg-green-50 text-green-600' 
+                          : 'bg-red-50 text-red-600'
+                      }`}>
+                        {documentValidation.passed ? (
+                          <Check className="w-5 h-5" />
+                        ) : (
+                          <X className="w-5 h-5" />
+                        )}
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-gray-900">
+                          {documentValidation.documentType}
               </h4>
-              <p className="text-sm text-gray-600 leading-relaxed">
-                Agent Diana automatically identifies, sorts, and extracts relevant data from uploaded documents. It then performs human language-based validations to ensure the accuracy of the extracted data before storing it securely in the system.
+                        <p className={`text-sm ${
+                          documentValidation.passed 
+                            ? 'text-green-600' 
+                            : 'text-red-600'
+                        }`}>
+                          {documentValidation.passed ? 'Passed' : 'Failed'} • {documentValidation.validations.length} Validation{documentValidation.validations.length !== 1 ? 's' : ''}
               </p>
             </div>
           </div>
 
-          {/* Decorative Background Elements */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-500/5 via-purple-500/5 to-pink-500/5 rounded-full transform translate-x-32 -translate-y-32"></div>
-          <div className="absolute bottom-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-500/5 via-purple-500/5 to-pink-500/5 rounded-full transform translate-x-16 translate-y-16"></div>
+                    <div className="divide-y divide-gray-100">
+                      {documentValidation.validations.map((validation, vIndex) => (
+                        <div 
+                          key={vIndex}
+                          className="flex items-start gap-4 py-4"
+                        >
+                          <div className={`mt-1 w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            validation.passed 
+                              ? 'bg-green-100 text-green-600' 
+                              : 'bg-red-100 text-red-600'
+                          }`}>
+                            {validation.passed ? (
+                              <Check className="w-3 h-3" />
+                            ) : (
+                              <X className="w-3 h-3" />
+                            )}
         </div>
-
-        <div className="flex gap-6">
-          {renderDocumentsList()}
-          {renderSmartUpload()}
+                          <div className="flex-1">
+                            <h5 className="text-sm font-medium text-gray-900 mb-1">
+                              {validation.rule}
+                            </h5>
+                            <p className="text-sm text-gray-600">
+                              {validation.message}
+                            </p>
         </div>
       </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </>
     );
   };
 
@@ -1535,7 +1702,23 @@ const FNCaseDetails = () => {
         });
         
         if (response.data.status === 'success') {
+          // Get the first response
+          const questionnaireResponse = response.data.data.responses[0];
+          
+          // Set questionnaire data
           setQuestionnaireData(response.data.data);
+          
+          // Set form data from processed information
+          setFormData(questionnaireResponse.processedInformation);
+          
+          // Set saved fields if status is 'saved'
+          if (questionnaireResponse.status === 'saved') {
+            setSavedFields(questionnaireResponse.processedInformation);
+            setQuestionnaireStatus('saved');
+          } else {
+            setQuestionnaireStatus('pending');
+            setSavedFields({ Passport: {}, Resume: {} });
+          }
         }
       } catch (error) {
         console.error('Error fetching questionnaire details:', error);
@@ -1632,18 +1815,25 @@ const FNCaseDetails = () => {
       try {
         setIsSavingQuestionnaire(true);
         
-        // Update parent state
-        setFormData(localFormData);
-        
-        const response = await api.put(`/questionnaire-responses/management/${caseId}`, {
+        // First update the form data
+        const formResponse = await api.put(`/questionnaire-responses/management/${caseId}`, {
           templateId: selectedQuestionnaire._id,
           processedInformation: localFormData
         });
 
-        if (response.data.status === 'success') {
+        if (formResponse.data.status === 'success') {
+          // Then update the questionnaire status
+          const statusResponse = await api.patch(`/management/questionnaire-response/${caseId}/status`, {
+            status: 'saved'
+          });
+
+          if (statusResponse.data.status === 'success') {
           toast.success('Changes saved successfully');
-          setIsQuestionnaireCompleted(true);
-          setActiveTab('questionnaire');
+            setIsQuestionnaireCompleted(true);
+            setActiveTab('questionnaire');
+            setSavedFields(localFormData);
+            setQuestionnaireStatus('saved'); // Update the status
+          }
         }
       } catch (error) {
         console.error('Error saving questionnaire:', error);
@@ -1694,21 +1884,37 @@ const FNCaseDetails = () => {
       return field.required && isFieldEmpty(section, field.fieldName);
     };
 
+    // Add function to check if a field is saved
+    const isFieldSaved = (section, field) => {
+      // If questionnaire status is saved, all fields are considered saved
+      if (questionnaireStatus === 'saved') {
+        return true;
+      }
+
+      if (field === 'educationalQualification') {
+        return savedFields?.[section]?.educationalQualification !== undefined &&
+               JSON.stringify(savedFields?.[section]?.educationalQualification) === 
+               JSON.stringify(localFormData?.[section]?.educationalQualification);
+      }
+      return savedFields?.[section]?.[field] !== undefined && 
+             savedFields?.[section]?.[field] === localFormData?.[section]?.[field];
+    };
+
     return (
       <div className="p-6">
         {/* Header with Back Button */}
         <div className="mb-6 flex justify-between">
           <div className="flex items-center gap-8">
-            <button 
-              onClick={onBack}
-              className="text-gray-600 hover:text-gray-800 transition-colors"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
+              <button 
+                onClick={onBack}
+                className="text-gray-600 hover:text-gray-800 transition-colors"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
             <div>
               <div className="flex items-center gap-8">
-                <h2 className="text-lg font-medium text-gray-900">Questionnaire</h2>
-              </div>
+              <h2 className="text-lg font-medium text-gray-900">Questionnaire</h2>
+            </div>
               <p className="text-sm text-gray-600">{questionnaire.questionnaire_name}</p>
             </div>
           </div>
@@ -1736,44 +1942,55 @@ const FNCaseDetails = () => {
             </button>
 
             <div className="flex items-center gap-2">
-              <div className="text-sm text-gray-600">
-                {filledFields} out of {totalFields} fields completed
-              </div>
-              {/* Progress bar with animated dots */}
-              <div className="relative w-32">
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-green-500 transition-all duration-500"
-                    style={{ width: `${(filledFields / totalFields) * 100}%` }}
-                  />
+                <div className="text-sm text-gray-600">
+                  {filledFields} out of {totalFields} fields completed
                 </div>
-                {/* Animated dots for remaining fields */}
-                {filledFields < totalFields && (
-                  <div className="absolute top-0 left-0 w-full h-full flex items-center justify-end pr-2">
-                    <div className="flex gap-1">
-                      <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '0ms' }} />
-                      <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '200ms' }} />
-                      <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '400ms' }} />
-                    </div>
+                {/* Progress bar with animated dots */}
+                <div className="relative w-32">
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-green-500 transition-all duration-500"
+                      style={{ width: `${(filledFields / totalFields) * 100}%` }}
+                    />
                   </div>
-                )}
+                  {/* Animated dots for remaining fields */}
+                  {filledFields < totalFields && (
+                    <div className="absolute top-0 left-0 w-full h-full flex items-center justify-end pr-2">
+                      <div className="flex gap-1">
+                        <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '0ms' }} />
+                        <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '200ms' }} />
+                        <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '400ms' }} />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
             
-            <button
-              onClick={handleLocalSave}
-              disabled={isSavingQuestionnaire}
-              className="px-6 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isSavingQuestionnaire ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Saving...</span>
-                </>
-              ) : (
-                'Save'
+            <div className="relative group">
+              <button
+                onClick={handleLocalSave}
+                disabled={isSavingQuestionnaire || questionnaireStatus === 'saved'}
+                className="px-6 py-2 bg-blue-600 text-white rounded text-sm font-medium transition-colors 
+                  disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2
+                  hover:bg-blue-700 group-hover:disabled:bg-gray-300"
+              >
+                {isSavingQuestionnaire ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : questionnaireStatus === 'saved' ? (
+                  'Saved'
+                ) : (
+                  'Save'
+                )}
+              </button>
+              {questionnaireStatus === 'saved' && (
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                  Questionnaire has been saved and cannot be edited
+            </div>
               )}
-            </button>
+          </div>
           </div>
         </div>
 
@@ -1787,22 +2004,25 @@ const FNCaseDetails = () => {
                 .filter(field => field.sourceDocument === 'Passport')
                 .map(field => (
                   shouldShowField('Passport', field) && (
-                    <div key={field._id}>
-                      <label className="block text-xs text-gray-500 mb-1">
-                        {field.fieldName}
-                        {field.required && <span className="text-red-500 ml-1">*</span>}
-                      </label>
-                      <input
-                        type="text"
-                        value={localFormData?.Passport?.[field.fieldName] || ''}
-                        onChange={(e) => handleLocalInputChange('Passport', field.fieldName, e.target.value)}
+                  <div key={field._id}>
+                    <label className="block text-xs text-gray-500 mb-1">
+                      {field.fieldName}
+                      {field.required && <span className="text-red-500 ml-1">*</span>}
+                    </label>
+                    <input
+                      type="text"
+                      value={localFormData?.Passport?.[field.fieldName] || ''}
+                      onChange={(e) => handleLocalInputChange('Passport', field.fieldName, e.target.value)}
+                        disabled={isFieldSaved('Passport', field.fieldName)}
                         className={`w-full px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 
-                          ${field.required && isFieldEmpty('Passport', field.fieldName)
-                            ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                            : 'border-gray-200 focus:border-blue-400'
+                          ${isFieldSaved('Passport', field.fieldName)
+                            ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
+                            : field.required && isFieldEmpty('Passport', field.fieldName)
+                              ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                              : 'border-gray-200 focus:border-blue-400'
                           }`}
-                      />
-                    </div>
+                    />
+                  </div>
                   )
                 ))}
             </div>
@@ -1831,53 +2051,68 @@ const FNCaseDetails = () => {
                                   type="text"
                                   value={typeof edu === 'string' ? edu : edu.degree || ''}
                                   placeholder="Degree"
+                                  disabled={isFieldSaved('Resume', 'educationalQualification')}
                                   onChange={(e) => {
-                                    const newEdu = [...localFormData.Resume.educationalQualification];
-                                    newEdu[index] = typeof edu === 'string' 
-                                      ? e.target.value
-                                      : { ...newEdu[index], degree: e.target.value };
-                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                    if (!isFieldSaved('Resume', 'educationalQualification')) {
+                                      const newEdu = [...(localFormData.Resume.educationalQualification || [])];
+                                      newEdu[index] = typeof edu === 'string' 
+                                        ? e.target.value
+                                        : { ...newEdu[index], degree: e.target.value };
+                                      handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                    }
                                   }}
                                   className={`w-full px-3 py-1.5 border rounded text-sm
-                                    ${field.required && (!edu || (typeof edu !== 'string' && !edu.degree))
-                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                                      : 'border-gray-200 focus:border-blue-400'
+                                    ${isFieldSaved('Resume', 'educationalQualification')
+                                      ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
+                                      : field.required && (!edu || (typeof edu !== 'string' && !edu.degree))
+                                        ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                        : 'border-gray-200 focus:border-blue-400'
                                     }`}
                                 />
                                 <input
                                   type="text"
                                   value={typeof edu === 'string' ? '' : edu.institution || ''}
                                   placeholder="Institution"
+                                  disabled={isFieldSaved('Resume', 'educationalQualification')}
                                   onChange={(e) => {
-                                    const newEdu = [...localFormData.Resume.educationalQualification];
-                                    newEdu[index] = { 
-                                      ...(typeof edu === 'string' ? { degree: edu } : newEdu[index]), 
-                                      institution: e.target.value 
-                                    };
-                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                    if (!isFieldSaved('Resume', 'educationalQualification')) {
+                                      const newEdu = [...(localFormData.Resume.educationalQualification || [])];
+                                      newEdu[index] = { 
+                                        ...(typeof edu === 'string' ? { degree: edu } : newEdu[index]), 
+                                        institution: e.target.value 
+                                      };
+                                      handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                    }
                                   }}
                                   className={`w-full px-3 py-1.5 border rounded text-sm
-                                    ${field.required && (!edu || (typeof edu !== 'string' && !edu.institution))
-                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                                      : 'border-gray-200 focus:border-blue-400'
+                                    ${isFieldSaved('Resume', 'educationalQualification')
+                                      ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
+                                      : field.required && (!edu || (typeof edu !== 'string' && !edu.institution))
+                                        ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                        : 'border-gray-200 focus:border-blue-400'
                                     }`}
                                 />
                                 <input
                                   type="text"
                                   value={typeof edu === 'string' ? '' : (edu.years || edu.duration || '')}
                                   placeholder="Years"
+                                  disabled={isFieldSaved('Resume', 'educationalQualification')}
                                   onChange={(e) => {
-                                    const newEdu = [...localFormData.Resume.educationalQualification];
-                                    newEdu[index] = { 
-                                      ...(typeof edu === 'string' ? { degree: edu } : newEdu[index]), 
-                                      years: e.target.value 
-                                    };
-                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                    if (!isFieldSaved('Resume', 'educationalQualification')) {
+                                      const newEdu = [...(localFormData.Resume.educationalQualification || [])];
+                                      newEdu[index] = { 
+                                        ...(typeof edu === 'string' ? { degree: edu } : newEdu[index]), 
+                                        years: e.target.value 
+                                      };
+                                      handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                    }
                                   }}
                                   className={`w-full px-3 py-1.5 border rounded text-sm
-                                    ${field.required && (!edu || (typeof edu !== 'string' && !edu.years))
-                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                                      : 'border-gray-200 focus:border-blue-400'
+                                    ${isFieldSaved('Resume', 'educationalQualification')
+                                      ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
+                                      : field.required && (!edu || (typeof edu !== 'string' && !edu.years))
+                                        ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                        : 'border-gray-200 focus:border-blue-400'
                                     }`}
                                 />
                               </div>
@@ -1887,45 +2122,66 @@ const FNCaseDetails = () => {
                                   type="text"
                                   value={localFormData?.Resume?.educationalQualification?.degree || ''}
                                   placeholder="Degree"
+                                  disabled={isFieldSaved('Resume', 'educationalQualification')}
                                   onChange={(e) => {
-                                    const newEdu = { ...localFormData.Resume.educationalQualification };
-                                    newEdu.degree = e.target.value;
-                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                    if (!isFieldSaved('Resume', 'educationalQualification')) {
+                                      const newEdu = { 
+                                        ...(localFormData?.Resume?.educationalQualification || {}),
+                                        degree: e.target.value 
+                                      };
+                                      handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                    }
                                   }}
                                   className={`w-full px-3 py-1.5 border rounded text-sm
-                                    ${field.required && (!localFormData?.Resume?.educationalQualification?.degree || !localFormData?.Resume?.educationalQualification?.institution || !localFormData?.Resume?.educationalQualification?.years)
-                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                                      : 'border-gray-200 focus:border-blue-400'
+                                    ${isFieldSaved('Resume', 'educationalQualification')
+                                      ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
+                                      : field.required && !localFormData?.Resume?.educationalQualification?.degree
+                                        ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                        : 'border-gray-200 focus:border-blue-400'
                                     }`}
                                 />
                                 <input
                                   type="text"
                                   value={localFormData?.Resume?.educationalQualification?.institution || ''}
                                   placeholder="Institution"
+                                  disabled={isFieldSaved('Resume', 'educationalQualification')}
                                   onChange={(e) => {
-                                    const newEdu = { ...localFormData.Resume.educationalQualification };
-                                    newEdu.institution = e.target.value;
-                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                    if (!isFieldSaved('Resume', 'educationalQualification')) {
+                                      const newEdu = { 
+                                        ...(localFormData?.Resume?.educationalQualification || {}),
+                                        institution: e.target.value 
+                                      };
+                                      handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                    }
                                   }}
                                   className={`w-full px-3 py-1.5 border rounded text-sm
-                                    ${field.required && (!localFormData?.Resume?.educationalQualification?.degree || !localFormData?.Resume?.educationalQualification?.institution || !localFormData?.Resume?.educationalQualification?.years)
-                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                                      : 'border-gray-200 focus:border-blue-400'
+                                    ${isFieldSaved('Resume', 'educationalQualification')
+                                      ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
+                                      : field.required && !localFormData?.Resume?.educationalQualification?.institution
+                                        ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                        : 'border-gray-200 focus:border-blue-400'
                                     }`}
                                 />
                                 <input
                                   type="text"
                                   value={localFormData?.Resume?.educationalQualification?.years || ''}
                                   placeholder="Years"
+                                  disabled={isFieldSaved('Resume', 'educationalQualification')}
                                   onChange={(e) => {
-                                    const newEdu = { ...localFormData.Resume.educationalQualification };
-                                    newEdu.years = e.target.value;
-                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                    if (!isFieldSaved('Resume', 'educationalQualification')) {
+                                      const newEdu = { 
+                                        ...(localFormData?.Resume?.educationalQualification || {}),
+                                        years: e.target.value 
+                                      };
+                                      handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                    }
                                   }}
                                   className={`w-full px-3 py-1.5 border rounded text-sm
-                                    ${field.required && (!localFormData?.Resume?.educationalQualification?.degree || !localFormData?.Resume?.educationalQualification?.institution || !localFormData?.Resume?.educationalQualification?.years)
-                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                                      : 'border-gray-200 focus:border-blue-400'
+                                    ${isFieldSaved('Resume', 'educationalQualification')
+                                      ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
+                                      : field.required && !localFormData?.Resume?.educationalQualification?.years
+                                        ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                        : 'border-gray-200 focus:border-blue-400'
                                     }`}
                                 />
                               </div>
@@ -1936,22 +2192,25 @@ const FNCaseDetails = () => {
                   }
 
                   return shouldShowField('Resume', field) && (
-                    <div key={field._id}>
-                      <label className="block text-xs text-gray-500 mb-1">
-                        {field.fieldName}
-                        {field.required && <span className="text-red-500 ml-1">*</span>}
-                      </label>
-                      <input
-                        type={field.fieldName.toLowerCase().includes('email') ? 'email' : 'text'}
-                        value={localFormData?.Resume?.[field.fieldName] || ''}
-                        onChange={(e) => handleLocalInputChange('Resume', field.fieldName, e.target.value)}
+                  <div key={field._id}>
+                    <label className="block text-xs text-gray-500 mb-1">
+                      {field.fieldName}
+                      {field.required && <span className="text-red-500 ml-1">*</span>}
+                    </label>
+                    <input
+                      type={field.fieldName.toLowerCase().includes('email') ? 'email' : 'text'}
+                      value={localFormData?.Resume?.[field.fieldName] || ''}
+                      onChange={(e) => handleLocalInputChange('Resume', field.fieldName, e.target.value)}
+                        disabled={isFieldSaved('Resume', field.fieldName)}
                         className={`w-full px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 
-                          ${field.required && isFieldEmpty('Resume', field.fieldName)
-                            ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                            : 'border-gray-200 focus:border-blue-400'
+                          ${isFieldSaved('Resume', field.fieldName)
+                            ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
+                            : field.required && isFieldEmpty('Resume', field.fieldName)
+                              ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                              : 'border-gray-200 focus:border-blue-400'
                           }`}
-                      />
-                    </div>
+                    />
+                  </div>
                   );
                 })}
             </div>
@@ -1965,7 +2224,7 @@ const FNCaseDetails = () => {
          ) && (
           <div className="text-center py-8 text-gray-500">
             No empty required fields found!
-          </div>
+        </div>
         )}
       </div>
     );
@@ -2110,6 +2369,76 @@ const FNCaseDetails = () => {
     );
   };
 
+  // Add useEffect to fetch initial questionnaire status
+  useEffect(() => {
+    const fetchQuestionnaireStatus = async () => {
+      try {
+        const response = await api.get(`/management/questionnaire-response/${caseId}/status`);
+        if (response.data.status === 'success') {
+          setQuestionnaireStatus(response.data.data.status);
+        }
+      } catch (error) {
+        console.error('Error fetching questionnaire status:', error);
+      }
+    };
+
+    if (caseId) {
+      fetchQuestionnaireStatus();
+    }
+  }, [caseId]);
+
+  // Add function to handle cross verification
+  const handleCrossVerification = async () => {
+    try {
+      setIsVerificationLoading(true);
+      const response = await api.get(`/management/${caseId}/cross-verify`);
+      
+      if (response.data.status === 'success') {
+        setVerificationData(response.data.data);
+        // Update case data to reflect any status changes
+        const caseResponse = await api.get(`/management/${caseId}`);
+        if (caseResponse.data.status === 'success') {
+          setCaseData(caseResponse.data.data.entry);
+        }
+      }
+    } catch (error) {
+      console.error('Error during cross-verification:', error);
+      toast.error('Failed to perform cross-verification');
+    } finally {
+      setIsVerificationLoading(false);
+    }
+  };
+
+  // Add function to fetch validation data
+  const fetchValidationData = async () => {
+    // Prevent multiple simultaneous calls
+    if (isValidationLoading) return;
+    
+    try {
+      setIsValidationLoading(true);
+      const response = await api.get(`/documents/management/${caseId}/validations`);
+      if (response.data.status === 'success') {
+        setValidationData(response.data.data);
+      } else {
+        throw new Error('Failed to fetch validation data');
+      }
+    } catch (error) {
+      console.error('Error fetching validation data:', error);
+      toast.error('Failed to load validation data');
+    } finally {
+      setIsValidationLoading(false);
+    }
+  };
+
+  // Update the tab click handler
+  const handleTabClick = (tab) => {
+    const newTab = tab.toLowerCase().replace(' ', '-');
+    setActiveTab(newTab);
+    if (newTab === 'documents-checklist') {
+      setUploadStatus('pending');
+    }
+  };
+
   // Main component return
   return (
     <>
@@ -2230,6 +2559,13 @@ const FNCaseDetails = () => {
           )}
         </div>
       </div>
+       {/* Add ProgressSteps at the top */}
+       <ProgressSteps 
+        caseData={caseData}
+        activeTab={activeTab}
+        isQuestionnaireCompleted={isQuestionnaireCompleted}
+      />
+
 
       {/* Tabs Navigation */}
       <div className="px-6 py-4">
@@ -2242,7 +2578,7 @@ const FNCaseDetails = () => {
                   ? 'bg-white border border-gray-200 text-blue-600'
                   : 'text-gray-600 hover:bg-gray-100'
               }`}
-              onClick={() => setActiveTab(tab.toLowerCase().replace(' ', '-'))}
+              onClick={() => handleTabClick(tab)}
             >
               {tab}
             </button>
