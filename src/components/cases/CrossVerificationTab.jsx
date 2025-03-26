@@ -335,37 +335,21 @@ const CrossVerificationTab = ({
         return;
       }
 
+      // Fetch validation data
+      const validationResponse = await api.get(`/documents/management/${managementId}/validations`);
+      const validationResults = validationResponse.data.data.mergedValidations.flatMap(doc => 
+        doc.validations.map(validation => ({
+          ...validation,
+          documentType: doc.documentType
+        }))
+      );
+
       // Combine all information
-      let errorDetails = '';
-
-      // Add Summary section
-      if (summaryErrors.length > 0) {
-        errorDetails += '=== Summary ===\n';
-        errorDetails += summaryErrors
-          .map(error => `${error.type}:\n${error.details}`)
-          .join('\n\n');
-      }
-
-      // Add Mismatch Errors section
-      if (mismatchErrors.length > 0) {
-        errorDetails += '\n\n=== Mismatch Errors ===\n';
-        errorDetails += mismatchErrors
-          .map(error => {
-            const details = Object.entries(error.details)
-              .map(([doc, value]) => `${doc}: ${value}`)
-              .join('\n');
-            return `${error.type}:\n${details}`;
-          })
-          .join('\n\n');
-      }
-
-      // Add Missing Errors section
-      if (missingErrors.length > 0) {
-        errorDetails += '\n\n=== Missing Information ===\n';
-        errorDetails += missingErrors
-          .map(error => `${error.type}:\n${error.details}`)
-          .join('\n\n');
-      }
+      let errorDetails = {
+        validationResults,
+        mismatchErrors,
+        missingErrors
+      };
 
       // Send complete verification report
       await handleDraftMail(
@@ -380,8 +364,6 @@ const CrossVerificationTab = ({
       setIsGeneratingDraft(false); // Hide loading overlay
     }
   };
-
-
 
   // Update the DraftSummaryButton component to include both buttons
   const DraftSummaryButton = ({ onNextClick }) => {
