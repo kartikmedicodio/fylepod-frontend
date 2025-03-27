@@ -527,10 +527,12 @@ const ProcessState = ({ state, status, onClick, validationErrors }) => {
   const [showErrors, setShowErrors] = useState(false);
   const popupRef = useRef(null);
   const timeoutRef = useRef(null);
+  const containerRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (popupRef.current && !popupRef.current.contains(event.target)) {
+      if (popupRef.current && !popupRef.current.contains(event.target) && 
+          containerRef.current && !containerRef.current.contains(event.target)) {
         setShowErrors(false);
       }
     };
@@ -581,7 +583,7 @@ const ProcessState = ({ state, status, onClick, validationErrors }) => {
   };
 
   return (
-    <div className="relative flex flex-col items-center gap-1.5">
+    <div ref={containerRef} className="relative flex flex-col items-center gap-1.5">
       {/* State Label */}
       <div 
         className={`text-[11px] font-medium whitespace-nowrap transition-colors ${
@@ -613,17 +615,18 @@ const ProcessState = ({ state, status, onClick, validationErrors }) => {
       {showErrors && validationErrors?.length > 0 && (
         <div 
           ref={popupRef}
-          className="fixed transform -translate-x-1/2 mt-2 w-64 bg-white rounded-lg shadow-lg border border-rose-100 p-3 z-[9999]"
+          className="absolute z-50 mt-2 w-64 bg-white rounded-lg shadow-lg border border-rose-100 p-3"
           style={{
-            left: popupRef.current ? popupRef.current.getBoundingClientRect().left + (popupRef.current.offsetWidth / 2) : '50%',
-            top: popupRef.current ? popupRef.current.getBoundingClientRect().bottom + 8 : 'auto'
+            left: '50%',
+            transform: 'translateX(-50%)',
+            top: '100%'
           }}
         >
           <div className="text-xs font-medium text-rose-700 mb-2">Validation Errors:</div>
           <ul className="space-y-1.5">
             {validationErrors.map((error, index) => (
               <li key={index} className="text-xs text-rose-600">
-                • {error.message}
+                • {error.message || error.rule}
               </li>
             ))}
           </ul>
@@ -791,9 +794,6 @@ const FNDashboard = () => {
   const [otherUserCases, setOtherUserCases] = useState({});
   const [timeOfDay, setTimeOfDay] = useState('');
 
-  console.log('FNDashboard rendering, user:', user);
-  console.log('currentUserCases:', currentUserCases);
-
   const getTimeIcon = () => {
     switch (timeOfDay) {
       case 'morning':
@@ -900,7 +900,6 @@ const FNDashboard = () => {
   const fetchAllUsersCases = async (userIds) => {
     try {
       if (!userIds.length) {
-        console.log('No user IDs available');
         return;
       }
 
@@ -922,7 +921,6 @@ const FNDashboard = () => {
 
   // Process cases and separate current user's cases from others
   const processAndSeparateCases = (cases) => {
-    console.log('Processing cases:', cases);
     const currentUserName = user?.name || user?.email || '';
     const userCases = cases
       .filter(caseItem => caseItem.userName === currentUserName)
@@ -931,7 +929,6 @@ const FNDashboard = () => {
         ...getStepMapping(caseItem)
       }));
     
-    console.log('Filtered user cases:', userCases);
     setCurrentUserCases(userCases);
     
     const otherUsersGrouped = cases

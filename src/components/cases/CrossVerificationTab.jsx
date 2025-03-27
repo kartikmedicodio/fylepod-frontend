@@ -43,31 +43,11 @@ const LoadingOverlay = () => (
 const CrossVerificationTab = ({ 
   isLoading, 
   verificationData, 
-  managementId,
-  recipientEmail = '',
-  onNextClick
+  managementId
 }) => {
-  const [modalOpen, setModalOpen] = useState(false);
-  const [emailData, setEmailData] = useState({ 
-    subject: '', 
-    body: '',
-    cc: '' 
-  });
   const [caseData, setCaseData] = useState(null);
   const [loadingCaseData, setLoadingCaseData] = useState(false);
-  const [draftingEmailIds, setDraftingEmailIds] = useState(new Set()); // Track loading state per draft
-  const [expandedSections, setExpandedSections] = useState(['summary']);
-  const [ccEmail, setCcEmail] = useState(''); // Add state for CC email
-  const [isGeneratingDraft, setIsGeneratingDraft] = useState(false); // Add new state for loading overlay
   const [isExpanded, setIsExpanded] = useState(false);
-
-  // Add console logs to debug recipient data
-  useEffect(() => {
-    console.log('Case Data:', caseData);
-    console.log('Recipient Email:', recipientEmail);
-    console.log('User Email from Case:', caseData?.userId?.email);
-    console.log('Contact Email from Case:', caseData?.userId?.contact?.email);
-  }, [caseData, recipientEmail]);
 
   // Fetch case data when component mounts
   useEffect(() => {
@@ -92,247 +72,6 @@ const CrossVerificationTab = ({
 
     fetchCaseData();
   }, [managementId]);
-
-  const handleDraftMail = async (errorType, errorDetails, errorId) => {
-    try {
-      setIsGeneratingDraft(true); // Show loading overlay
-      setDraftingEmailIds(prev => new Set([...prev, errorId]));
-      
-      // Get recipient name from caseData
-      const recipientName = caseData?.userId?.name;
-      
-      // Get logged in user data from localStorage
-      const userData = JSON.parse(localStorage.getItem('auth_user') || '{}');
-      const senderName = userData.name;
-      
-      const response = await api.post('/mail/draft', {
-        errorType,
-        errorDetails,
-        recipientEmail,
-        recipientName,
-        senderName // Add sender's name for email signature
-      });
-
-      if (response.data.status === 'success') {
-        setEmailData(prev => ({
-          ...response.data.data,
-          cc: prev.cc
-        }));
-        setModalOpen(true);
-      } else {
-        toast.error('Failed to generate email draft');
-      }
-    } catch (error) {
-      console.error('Error generating mail draft:', error);
-      toast.error('Failed to generate email draft');
-    } finally {
-      setDraftingEmailIds(prev => {
-        const next = new Set(prev);
-        next.delete(errorId);
-        return next;
-      });
-      setIsGeneratingDraft(false); // Hide loading overlay
-    }
-  };
-
-  const handleSendEmail = async (updatedEmailData) => {
-    try {
-      const emailToUse = caseData?.userId?.email;
-      const nameToUse = caseData?.userId?.name;
-      
-      if (!emailToUse) {
-        toast.error('Recipient email address is missing');
-        return;
-      }
-
-      const loadingToast = toast.loading('Sending email...');
-
-      const response = await api.post('/mail/send', {
-        subject: updatedEmailData.subject,
-        body: updatedEmailData.body,
-        recipientEmail: emailToUse,
-        recipientName: nameToUse,
-        ccEmail: updatedEmailData.cc
-      });
-
-      toast.dismiss(loadingToast);
-
-      if (response.data.status === 'success') {
-        toast.success('Email sent successfully');
-        setModalOpen(false);
-        setEmailData({ subject: '', body: '', cc: '' });
-      } else {
-        toast.error(response.data.message || 'Failed to send email');
-      }
-    } catch (error) {
-      console.error('Error sending email:', error);
-      toast.error(error.response?.data?.message || 'Failed to send email');
-    }
-  };
-
-  const handleDraftMailClick = async (error) => {
-    try {
-      if (!error) {
-        toast.error('No validation error found to draft email about');
-        return;
-      }
-
-      const errorType = error.type;
-      const errorDetails = typeof error.details === 'string' 
-        ? error.details 
-        : Object.entries(error.details)
-            .map(([doc, value]) => `${doc}: ${value}`)
-            .join('\n');
-
-      // Generate a unique ID for this error
-      const errorId = `${error.type}-${Date.now()}`;
-      await handleDraftMail(errorType, errorDetails, errorId);
-    } catch (error) {
-      console.error('Error handling draft mail click:', error);
-      toast.error('Failed to generate email draft');
-    }
-  };
-
-  // Update the handleSummaryDraftMailClick function
-  const handleSummaryDraftMailClick = async () => {
-    try {
-      setIsGeneratingDraft(true); // Show loading overlay
-      const summaryErrors = verificationData?.verificationResults.summarizationErrors || [];
-      const mismatchErrors = verificationData?.verificationResults.mismatchErrors || [];
-      const missingErrors = verificationData?.verificationResults.missingErrors || [];
-
-      if (summaryErrors.length === 0 && mismatchErrors.length === 0 && missingErrors.length === 0) {
-        toast.error('No verification information available');
-        return;
-      }
-
-      // Fetch validation data
-      const validationResponse = await api.get(`/documents/management/${managementId}/validations`);
-      const validationResults = validationResponse.data.data.mergedValidations.flatMap(doc => 
-        doc.validations.map(validation => ({
-          ...validation,
-          documentType: doc.documentType
-        }))
-      );
-
-      // Combine all information
-      let errorDetails = {
-        validationResults,
-        mismatchErrors,
-        missingErrors
-      };
-
-      // Send complete verification report
-      await handleDraftMail(
-        'Complete Verification Report', 
-        errorDetails,
-        'complete-verification-report'
-      );
-    } catch (error) {
-      console.error('Error handling summary draft mail:', error);
-      toast.error('Failed to generate verification report email');
-    } finally {
-      setIsGeneratingDraft(false); // Hide loading overlay
-    }
-  };
-
-  // Update the DraftSummaryButton component to include both buttons
-  const DraftSummaryButton = ({ onNextClick }) => {
-    const summaryDraftId = 'summary-draft';
-    const isLoading = draftingEmailIds.has(summaryDraftId);
-
-    const handleClick = async () => {
-      try {
-        setDraftingEmailIds(prev => new Set([...prev, summaryDraftId]));
-        await handleSummaryDraftMailClick();
-      } finally {
-        setDraftingEmailIds(prev => {
-          const next = new Set(prev);
-          next.delete(summaryDraftId);
-          return next;
-        });
-      }
-    };
-
-    return (
-      <div className="flex items-center gap-3">
-        <button
-          className={`inline-flex items-center px-5 py-2.5 text-sm font-medium 
-            ${isLoading 
-              ? 'bg-gray-100 text-gray-500 cursor-wait' 
-              : 'bg-indigo-600 text-white hover:bg-indigo-700'
-            } 
-            rounded-lg transition-colors shadow-md hover:shadow-lg focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500`}
-          onClick={handleClick}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <>
-              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-              Preparing Summary...
-            </>
-          ) : (
-            <>
-              <Mail className="w-5 h-5 mr-2" />
-              Send Summarized Verification Mail
-            </>
-          )}
-        </button>
-
-        <button
-          onClick={onNextClick}
-          className="inline-flex items-center px-5 py-2.5 text-sm font-medium 
-            bg-blue-600 text-white hover:bg-blue-700
-            rounded-lg transition-colors shadow-md hover:shadow-lg"
-        >
-          Next : Finalize
-          <ChevronRight className="w-5 h-5" />
-        </button>
-      </div>
-    );
-  };
-
-  // Modify ActionButtons to use error-specific loading state
-  const ActionButtons = ({ error }) => {
-    // Generate consistent ID for this error
-    const errorId = `${error.type}-${JSON.stringify(error.details)}`;
-    const isLoading = draftingEmailIds.has(errorId);
-
-    return (
-      <div className="flex items-center gap-2 mt-4">
-        <button
-          className={`inline-flex items-center px-3 py-2 text-sm font-medium 
-            ${isLoading 
-              ? 'bg-gray-100 text-gray-500 cursor-wait' 
-              : 'text-gray-700 bg-white hover:bg-gray-50'
-            } 
-            border border-gray-300 rounded-md transition-colors`}
-          onClick={() => handleDraftMailClick(error)}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Drafting...
-            </>
-          ) : (
-            <>
-              <Mail className="w-4 h-4 mr-2" />
-              Draft mail
-            </>
-          )}
-        </button>
-      </div>
-    );
-  };
-
-  const toggleSection = (section) => {
-    setExpandedSections(prev => 
-      prev.includes(section)
-        ? prev.filter(s => s !== section)
-        : [...prev, section]
-    );
-  };
 
   if (isLoading || loadingCaseData) {
     return (
@@ -458,7 +197,6 @@ const CrossVerificationTab = ({
                           {error.details}
                         </p>
                       )}
-                      <ActionButtons error={error} />
                     </div>
                   </div>
                 ))
@@ -467,7 +205,6 @@ const CrossVerificationTab = ({
           </div>
         )}
       </div>
-      {isGeneratingDraft && <LoadingOverlay />}
     </div>
   );
 };
@@ -475,9 +212,7 @@ const CrossVerificationTab = ({
 CrossVerificationTab.propTypes = {
   isLoading: PropTypes.bool,
   verificationData: PropTypes.object,
-  managementId: PropTypes.string,
-  recipientEmail: PropTypes.string,
-  onNextClick: PropTypes.func
+  managementId: PropTypes.string
 };
 
 export default CrossVerificationTab; 
