@@ -1528,7 +1528,7 @@ const FNCaseDetails = () => {
         )}
 
         {uploadStatus === 'validation' && (
-          <div>
+          <div className="w-full"> {/* Change from max-w-5xl mx-auto to w-full */}
             {/* Header with Next Button */}
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Validation Results</h3>
@@ -1543,19 +1543,21 @@ const FNCaseDetails = () => {
                 <span>Next: Questionnaire</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
-                </div>
+            </div>
 
             {/* Accordions */}
             <div className="space-y-4">
               {/* Cross Verification Accordion */}
-              <CrossVerificationTab
-                isLoading={isVerificationLoading}
-                verificationData={verificationData}
-                managementId={caseId}
-              />
+              <div className="w-full bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <CrossVerificationTab
+                  isLoading={isVerificationLoading}
+                  verificationData={verificationData}
+                  managementId={caseId}
+                />
+              </div>
 
               {/* Document Validation Accordion */}
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="w-full bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <ValidationAccordion
                   isLoading={isValidationLoading}
                   validationData={validationData}
@@ -1569,21 +1571,44 @@ const FNCaseDetails = () => {
     );
   };
 
-  // Update the ValidationAccordion component
-  const ValidationAccordion = ({ isLoading, validationData, caseData }) => {
-    const [isExpanded, setIsExpanded] = useState(false); // Changed to false
+  // Add this AccordionSkeleton component at the top of the file
+  const AccordionSkeleton = ({ title }) => (
+    <div className="w-full bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-7 w-48 bg-gray-200 rounded-lg animate-pulse"></div>
+            <div className="h-6 w-24 bg-gray-200 rounded-full animate-pulse"></div>
+          </div>
+          <div className="h-5 w-5 bg-gray-200 rounded animate-pulse"></div>
+        </div>
+        <div className="mt-6 space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-gray-50 rounded-lg p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                <div className="flex-1">
+                  <div className="h-5 w-32 bg-gray-200 rounded animate-pulse mb-2"></div>
+                  <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="h-4 w-full bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 
-    // Add function to check if all documents are uploaded
-    const areAllDocumentsUploaded = caseData?.documentTypes?.every(doc => 
-      doc.status === 'uploaded' || doc.status === 'approved'
-    ) || false;
+  // Update the ValidationAccordion component's loading state
+  const ValidationAccordion = ({ isLoading, validationData, caseData }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
 
     if (isLoading) {
-      return (
-        <div className="flex items-center justify-center h-32">
-          <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-        </div>
-      );
+      return <AccordionSkeleton title="Document Validation Results" />;
     }
 
     if (!validationData?.mergedValidations?.length) {
@@ -1628,32 +1653,48 @@ const FNCaseDetails = () => {
               {validationData.mergedValidations.map((documentValidation, index) => (
                 <div key={index} className="bg-gray-50 rounded-lg overflow-hidden">
                   <div className="p-4">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        documentValidation.passed 
-                          ? 'bg-green-50 text-green-600' 
-                          : 'bg-red-50 text-red-600'
-                      }`}>
-                        {documentValidation.passed ? (
-                          <Check className="w-5 h-5" />
-                        ) : (
-                          <X className="w-5 h-5" />
-                        )}
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-900">
-                          {documentValidation.documentType}
-              </h4>
-                        <p className={`text-sm ${
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                           documentValidation.passed 
-                            ? 'text-green-600' 
-                            : 'text-red-600'
+                            ? 'bg-green-50 text-green-600' 
+                            : 'bg-red-50 text-red-600'
                         }`}>
-                          {documentValidation.passed ? 'Passed' : 'Failed'} • {documentValidation.validations.length} Validation{documentValidation.validations.length !== 1 ? 's' : ''}
-              </p>
-            </div>
-          </div>
+                          {documentValidation.passed ? (
+                            <Check className="w-5 h-5" />
+                          ) : (
+                            <X className="w-5 h-5" />
+                          )}
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900">
+                            {documentValidation.documentType}
+                          </h4>
+                          <p className={`text-sm ${
+                            documentValidation.passed 
+                              ? 'text-green-600' 
+                              : 'text-red-600'
+                          }`}>
+                            {documentValidation.passed ? 'Passed' : 'Failed'} • {documentValidation.validations.length} Validation{documentValidation.validations.length !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                      </div>
 
+                      {/* Use URLs from validationData */}
+                      {validationData.documentUrls?.[documentValidation.documentType] && (
+                        <a 
+                          href={validationData.documentUrls[documentValidation.documentType]} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-2"
+                        >
+                          <Eye className="w-4 h-4" />
+                          View Document
+                        </a>
+                      )}
+                    </div>
+
+                    {/* Keep existing validation details... */}
                     <div className="divide-y divide-gray-100">
                       {documentValidation.validations.map((validation, vIndex) => (
                         <div 
@@ -1670,7 +1711,7 @@ const FNCaseDetails = () => {
                             ) : (
                               <X className="w-3 h-3" />
                             )}
-        </div>
+                          </div>
                           <div className="flex-1">
                             <h5 className="text-sm font-medium text-gray-900 mb-1">
                               {validation.rule}
@@ -1678,8 +1719,8 @@ const FNCaseDetails = () => {
                             <p className="text-sm text-gray-600">
                               {validation.message}
                             </p>
-        </div>
-      </div>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -2411,14 +2452,38 @@ const FNCaseDetails = () => {
 
   // Add function to fetch validation data
   const fetchValidationData = async () => {
-    // Prevent multiple simultaneous calls
     if (isValidationLoading) return;
     
     try {
       setIsValidationLoading(true);
-      const response = await api.get(`/documents/management/${caseId}/validations`);
-      if (response.data.status === 'success') {
-        setValidationData(response.data.data);
+      
+      // Fetch both validation data and document URLs in parallel
+      const [validationResponse, documentsResponse] = await Promise.all([
+        api.get(`/documents/management/${caseId}/validations`),
+        api.post('/documents/management-docs', {
+          managementId: caseId,
+          docTypeIds: caseData.documentTypes
+            .filter(doc => doc.status === 'uploaded' || doc.status === 'approved')
+            .map(doc => doc._id)
+        })
+      ]);
+
+      if (validationResponse.data.status === 'success') {
+        // Create document URL mapping
+        const urlMapping = documentsResponse.data.status === 'success' 
+          ? documentsResponse.data.data.documents.reduce((acc, doc) => {
+              acc[doc.type] = doc.fileUrl;
+              return acc;
+            }, {})
+          : {};
+
+        // Add URLs to validation data
+        const validationDataWithUrls = {
+          ...validationResponse.data.data,
+          documentUrls: urlMapping
+        };
+
+        setValidationData(validationDataWithUrls);
       } else {
         throw new Error('Failed to fetch validation data');
       }

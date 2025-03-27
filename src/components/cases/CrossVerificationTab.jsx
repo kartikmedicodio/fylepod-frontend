@@ -336,8 +336,30 @@ const CrossVerificationTab = ({
 
   if (isLoading || loadingCaseData) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      <div className="w-full bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-7 w-48 bg-gray-200 rounded-lg animate-pulse"></div>
+              <div className="h-6 w-24 bg-gray-200 rounded-full animate-pulse"></div>
+            </div>
+            <div className="h-5 w-5 bg-gray-200 rounded animate-pulse"></div>
+          </div>
+          <div className="mt-6 space-y-4">
+            {[1, 2].map((i) => (
+              <div key={i} className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="h-6 w-28 bg-gray-200 rounded-full animate-pulse"></div>
+                </div>
+                <div className="h-5 w-3/4 bg-gray-200 rounded animate-pulse mb-4"></div>
+                <div className="flex flex-wrap gap-3">
+                  <div className="h-10 w-32 bg-gray-200 rounded-lg animate-pulse"></div>
+                  <div className="h-10 w-40 bg-gray-200 rounded-lg animate-pulse"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
