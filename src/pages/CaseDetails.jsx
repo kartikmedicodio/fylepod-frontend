@@ -1595,7 +1595,67 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
   // Update the QuestionnaireDetailView component
   const QuestionnaireDetailView = ({ questionnaire, onBack }) => {
-    // Add function to count filled fields
+    // Add state for empty fields toggle
+    const [showOnlyEmpty, setShowOnlyEmpty] = useState(false);
+    // Add local state for form data
+    const [localFormData, setLocalFormData] = useState(formData);
+
+    // Update local form data when parent form data changes
+    useEffect(() => {
+      setLocalFormData(formData);
+    }, [formData]);
+
+    // Add function to check if a field is empty
+    const isFieldEmpty = (section, field) => {
+      if (field === 'educationalQualification') {
+        const eduData = localFormData?.[section]?.[field] || [];
+        if (!Array.isArray(eduData) || eduData.length === 0) return true;
+        return eduData.some(edu => {
+          if (typeof edu === 'string') return !edu;
+          return !edu.degree || !edu.institution || !edu.years;
+        });
+      }
+      return !localFormData?.[section]?.[field];
+    };
+
+    // Update input change handler to use local state
+    const handleLocalInputChange = (section, field, value) => {
+      setLocalFormData(prev => ({
+        ...prev,
+        [section]: {
+          ...(prev[section] || {}),
+          [field]: value
+        }
+      }));
+    };
+
+    // Update save handler to use local state
+    const handleLocalSave = async () => {
+      try {
+        setIsSavingQuestionnaire(true);
+        
+        // Update parent state
+        setFormData(localFormData);
+        
+        const response = await api.put(`/questionnaire-responses/management/${caseId}`, {
+          templateId: selectedQuestionnaire._id,
+          processedInformation: localFormData
+        });
+
+        if (response.data.status === 'success') {
+          toast.success('Changes saved successfully');
+          setIsQuestionnaireCompleted(true);
+          setActiveTab('forms');
+        }
+      } catch (error) {
+        console.error('Error saving questionnaire:', error);
+        toast.error('Failed to save changes');
+      } finally {
+        setIsSavingQuestionnaire(false);
+      }
+    };
+
+    // Add function to count filled fields using local state
     const getFilledFieldsCount = () => {
       let totalFields = 0;
       let filledFields = 0;
@@ -1604,7 +1664,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       const passportFields = questionnaire.field_mappings.filter(field => field.sourceDocument === 'Passport');
       totalFields += passportFields.length;
       passportFields.forEach(field => {
-        if (formData?.Passport?.[field.fieldName]) {
+        if (localFormData?.Passport?.[field.fieldName]) {
           filledFields++;
         }
       });
@@ -1613,14 +1673,13 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       const resumeFields = questionnaire.field_mappings.filter(field => field.sourceDocument === 'Resume');
       resumeFields.forEach(field => {
         if (field.fieldName === 'educationalQualification') {
-          // Count educational qualification as one field
           totalFields += 1;
-          if (formData?.Resume?.educationalQualification?.length > 0) {
+          if (localFormData?.Resume?.educationalQualification?.length > 0) {
             filledFields++;
           }
         } else {
           totalFields += 1;
-          if (formData?.Resume?.[field.fieldName]) {
+          if (localFormData?.Resume?.[field.fieldName]) {
             filledFields++;
           }
         }
@@ -1630,6 +1689,12 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     };
 
     const { filledFields, totalFields } = getFilledFieldsCount();
+
+    // Add function to check if field should be visible
+    const shouldShowField = (section, field) => {
+      if (!showOnlyEmpty) return true;
+      return field.required && isFieldEmpty(section, field.fieldName);
+    };
 
     return (
       <div className="p-6">
@@ -1645,13 +1710,33 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             <div>
               <div className="flex items-center gap-8">
                 <h2 className="text-lg font-medium text-gray-900">Questionnaire</h2>
-                {/* Add field count indicator */}
-               
               </div>
               <p className="text-sm text-gray-600">{questionnaire.questionnaire_name}</p>
             </div>
           </div>
-          <div className='flex items-center gap-14'>
+          <div className='flex items-center gap-4'>
+            {/* Add Empty Fields Toggle Button */}
+            <button
+              onClick={() => setShowOnlyEmpty(!showOnlyEmpty)}
+              className={`px-4 py-2 rounded text-sm font-medium transition-colors flex items-center gap-2
+                ${showOnlyEmpty 
+                  ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+            >
+              {showOnlyEmpty ? (
+                <>
+                  <Eye className="w-4 h-4" />
+                  Show All Fields
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="w-4 h-4" />
+                  Show Empty Fields
+                </>
+              )}
+            </button>
+
             <div className="flex items-center gap-2">
               <div className="text-sm text-gray-600">
                 {filledFields} out of {totalFields} fields completed
@@ -1676,8 +1761,9 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 )}
               </div>
             </div>
+            
             <button
-              onClick={handleSave}
+              onClick={handleLocalSave}
               disabled={isSavingQuestionnaire}
               className="px-6 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center gap-2"
             >
@@ -1702,18 +1788,24 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               {questionnaire.field_mappings
                 .filter(field => field.sourceDocument === 'Passport')
                 .map(field => (
-                  <div key={field._id}>
-                    <label className="block text-xs text-gray-500 mb-1">
-                      {field.fieldName}
-                      {field.required && <span className="text-red-500 ml-1">*</span>}
-                    </label>
-                    <input
-                      type="text"
-                      value={formData?.Passport?.[field.fieldName] || ''}
-                      onChange={(e) => handleInputChange('Passport', field.fieldName, e.target.value)}
-                      className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-                    />
-                  </div>
+                  shouldShowField('Passport', field) && (
+                    <div key={field._id}>
+                      <label className="block text-xs text-gray-500 mb-1">
+                        {field.fieldName}
+                        {field.required && <span className="text-red-500 ml-1">*</span>}
+                      </label>
+                      <input
+                        type="text"
+                        value={localFormData?.Passport?.[field.fieldName] || ''}
+                        onChange={(e) => handleLocalInputChange('Passport', field.fieldName, e.target.value)}
+                        className={`w-full px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 
+                          ${field.required && isFieldEmpty('Passport', field.fieldName)
+                            ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                            : 'border-gray-200 focus:border-blue-400'
+                          }`}
+                      />
+                    </div>
+                  )
                 ))}
             </div>
           </div>
@@ -1725,75 +1817,127 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               {questionnaire.field_mappings
                 .filter(field => field.sourceDocument === 'Resume')
                 .map(field => {
-                  // Special handling for educational qualifications
                   if (field.fieldName === 'educationalQualification') {
-                    // Convert to array if it's an object or string
-                    const educationData = Array.isArray(formData?.Resume?.educationalQualification)
-                      ? formData.Resume.educationalQualification
-                      : typeof formData?.Resume?.educationalQualification === 'string'
-                        ? [{ degree: formData.Resume.educationalQualification }]
-                        : formData?.Resume?.educationalQualification
-                          ? [formData.Resume.educationalQualification]
-                          : [];
-
-                    return (
+                    // Show educational qualification section only if it should be visible
+                    return shouldShowField('Resume', field) && (
                       <div key={field._id} className="col-span-2">
                         <label className="block text-xs text-gray-500 mb-1">
                           {field.fieldName}
                           {field.required && <span className="text-red-500 ml-1">*</span>}
                         </label>
                         <div className="space-y-2">
-                          {educationData.map((edu, index) => (
-                            <div key={index} className="grid grid-cols-3 gap-2">
-                              <input
-                                type="text"
-                                value={typeof edu === 'string' ? edu : edu.degree || ''}
-                                placeholder="Degree"
-                                onChange={(e) => {
-                                  const newEdu = [...educationData];
-                                  newEdu[index] = typeof edu === 'string' 
-                                    ? e.target.value
-                                    : { ...newEdu[index], degree: e.target.value };
-                                  handleInputChange('Resume', 'educationalQualification', newEdu);
-                                }}
-                                className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm"
-                              />
-                              <input
-                                type="text"
-                                value={typeof edu === 'string' ? '' : edu.institution || ''}
-                                placeholder="Institution"
-                                onChange={(e) => {
-                                  const newEdu = [...educationData];
-                                  newEdu[index] = { 
-                                    ...(typeof edu === 'string' ? { degree: edu } : newEdu[index]), 
-                                    institution: e.target.value 
-                                  };
-                                  handleInputChange('Resume', 'educationalQualification', newEdu);
-                                }}
-                                className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm"
-                              />
-                              <input
-                                type="text"
-                                value={typeof edu === 'string' ? '' : (edu.years || edu.duration || '')}
-                                placeholder="Years"
-                                onChange={(e) => {
-                                  const newEdu = [...educationData];
-                                  newEdu[index] = { 
-                                    ...(typeof edu === 'string' ? { degree: edu } : newEdu[index]), 
-                                    years: e.target.value 
-                                  };
-                                  handleInputChange('Resume', 'educationalQualification', newEdu);
-                                }}
-                                className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm"
-                              />
-                            </div>
-                          ))}
+                          {Array.isArray(localFormData?.Resume?.educationalQualification)
+                            ? localFormData.Resume.educationalQualification.map((edu, index) => (
+                              <div key={index} className="grid grid-cols-3 gap-2">
+                                <input
+                                  type="text"
+                                  value={typeof edu === 'string' ? edu : edu.degree || ''}
+                                  placeholder="Degree"
+                                  onChange={(e) => {
+                                    const newEdu = [...localFormData.Resume.educationalQualification];
+                                    newEdu[index] = typeof edu === 'string' 
+                                      ? e.target.value
+                                      : { ...newEdu[index], degree: e.target.value };
+                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                  }}
+                                  className={`w-full px-3 py-1.5 border rounded text-sm
+                                    ${field.required && (!edu || (typeof edu !== 'string' && !edu.degree))
+                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                      : 'border-gray-200 focus:border-blue-400'
+                                    }`}
+                                />
+                                <input
+                                  type="text"
+                                  value={typeof edu === 'string' ? '' : edu.institution || ''}
+                                  placeholder="Institution"
+                                  onChange={(e) => {
+                                    const newEdu = [...localFormData.Resume.educationalQualification];
+                                    newEdu[index] = { 
+                                      ...(typeof edu === 'string' ? { degree: edu } : newEdu[index]), 
+                                      institution: e.target.value 
+                                    };
+                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                  }}
+                                  className={`w-full px-3 py-1.5 border rounded text-sm
+                                    ${field.required && (!edu || (typeof edu !== 'string' && !edu.institution))
+                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                      : 'border-gray-200 focus:border-blue-400'
+                                    }`}
+                                />
+                                <input
+                                  type="text"
+                                  value={typeof edu === 'string' ? '' : (edu.years || edu.duration || '')}
+                                  placeholder="Years"
+                                  onChange={(e) => {
+                                    const newEdu = [...localFormData.Resume.educationalQualification];
+                                    newEdu[index] = { 
+                                      ...(typeof edu === 'string' ? { degree: edu } : newEdu[index]), 
+                                      years: e.target.value 
+                                    };
+                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                  }}
+                                  className={`w-full px-3 py-1.5 border rounded text-sm
+                                    ${field.required && (!edu || (typeof edu !== 'string' && !edu.years))
+                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                      : 'border-gray-200 focus:border-blue-400'
+                                    }`}
+                                />
+                              </div>
+                            )) : (
+                              <div className="grid grid-cols-3 gap-2">
+                                <input
+                                  type="text"
+                                  value={localFormData?.Resume?.educationalQualification?.degree || ''}
+                                  placeholder="Degree"
+                                  onChange={(e) => {
+                                    const newEdu = { ...localFormData.Resume.educationalQualification };
+                                    newEdu.degree = e.target.value;
+                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                  }}
+                                  className={`w-full px-3 py-1.5 border rounded text-sm
+                                    ${field.required && (!localFormData?.Resume?.educationalQualification?.degree || !localFormData?.Resume?.educationalQualification?.institution || !localFormData?.Resume?.educationalQualification?.years)
+                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                      : 'border-gray-200 focus:border-blue-400'
+                                    }`}
+                                />
+                                <input
+                                  type="text"
+                                  value={localFormData?.Resume?.educationalQualification?.institution || ''}
+                                  placeholder="Institution"
+                                  onChange={(e) => {
+                                    const newEdu = { ...localFormData.Resume.educationalQualification };
+                                    newEdu.institution = e.target.value;
+                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                  }}
+                                  className={`w-full px-3 py-1.5 border rounded text-sm
+                                    ${field.required && (!localFormData?.Resume?.educationalQualification?.degree || !localFormData?.Resume?.educationalQualification?.institution || !localFormData?.Resume?.educationalQualification?.years)
+                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                      : 'border-gray-200 focus:border-blue-400'
+                                    }`}
+                                />
+                                <input
+                                  type="text"
+                                  value={localFormData?.Resume?.educationalQualification?.years || ''}
+                                  placeholder="Years"
+                                  onChange={(e) => {
+                                    const newEdu = { ...localFormData.Resume.educationalQualification };
+                                    newEdu.years = e.target.value;
+                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                  }}
+                                  className={`w-full px-3 py-1.5 border rounded text-sm
+                                    ${field.required && (!localFormData?.Resume?.educationalQualification?.degree || !localFormData?.Resume?.educationalQualification?.institution || !localFormData?.Resume?.educationalQualification?.years)
+                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                      : 'border-gray-200 focus:border-blue-400'
+                                    }`}
+                                />
+                              </div>
+                            )}
                         </div>
                       </div>
                     );
                   }
 
-                  return (
+                  return shouldShowField('Resume', field) && (
                     <div key={field._id}>
                       <label className="block text-xs text-gray-500 mb-1">
                         {field.fieldName}
@@ -1801,9 +1945,13 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                       </label>
                       <input
                         type={field.fieldName.toLowerCase().includes('email') ? 'email' : 'text'}
-                        value={formData?.Resume?.[field.fieldName] || ''}
-                        onChange={(e) => handleInputChange('Resume', field.fieldName, e.target.value)}
-                        className="w-full px-3 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                        value={localFormData?.Resume?.[field.fieldName] || ''}
+                        onChange={(e) => handleLocalInputChange('Resume', field.fieldName, e.target.value)}
+                        className={`w-full px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 
+                          ${field.required && isFieldEmpty('Resume', field.fieldName)
+                            ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                            : 'border-gray-200 focus:border-blue-400'
+                          }`}
                       />
                     </div>
                   );
@@ -1811,6 +1959,16 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             </div>
           </div>
         </div>
+
+        {/* Show message when no empty fields are found */}
+        {showOnlyEmpty && 
+         !questionnaire.field_mappings.some(field => 
+           shouldShowField(field.sourceDocument, field)
+         ) && (
+          <div className="text-center py-8 text-gray-500">
+            No empty required fields found!
+          </div>
+        )}
       </div>
     );
   };
@@ -2509,6 +2667,58 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     // Switch to finalize tab
     setSelectedSubTab('finalize'); // Add this line to set the sub-navigation
     setActiveTab('document-checklist'); // Keep the main tab as document-checklist
+  };
+
+  const handleGenerateDraftMail = async () => {
+    try {
+      // First get the validation data
+      const validationResponse = await api.get(`/documents/management/${caseId}/validations`);
+      const validationData = validationResponse.data;
+
+      // Then get the cross-verification data
+      const crossVerifyResponse = await api.get(`/management/${caseId}/cross-verify`);
+      const crossVerifyData = crossVerifyResponse.data;
+
+      // Get recipient name from profile data or use a default
+      const recipientName = profileData?.name || 'Sir/Madam';
+
+      // Structure the request body correctly
+      const requestBody = {
+        validationData: {
+          status: "success",
+          data: {
+            managementId: caseId,
+            mergedValidations: validationData.data.mergedValidations
+          }
+        },
+        crossVerifyData: {
+          status: "success",
+          data: {
+            managementId: caseId,
+            verificationResults: crossVerifyData.data.verificationResults,
+            lastVerifiedAt: crossVerifyData.data.lastVerifiedAt
+          }
+        },
+        recipientEmail: recipientEmail,
+        recipientName: recipientName
+      };
+
+      // Generate the draft mail
+      const response = await api.post('/mail/draft', requestBody);
+      
+      if (response.data.status === 'success') {
+        // Handle successful response
+        console.log('Draft mail generated successfully:', response.data);
+        // You can add a success notification here
+      } else {
+        // Handle error response
+        console.error('Failed to generate draft mail:', response.data);
+        // You can add an error notification here
+      }
+    } catch (error) {
+      console.error('Error generating draft mail:', error);
+      // Handle error appropriately
+    }
   };
 
   // Update the main container and its children to properly handle height

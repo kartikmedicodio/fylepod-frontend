@@ -1,128 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, Mail, X, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronUp, Mail, ChevronRight } from 'lucide-react';
+import PropTypes from 'prop-types';
+import { toast } from 'react-hot-toast';
 import api from '../../utils/api';
-import toast from 'react-hot-toast';
 
-// Create a separate EmailModal component
-const EmailModal = ({ isOpen, onClose, initialEmailData, onSend, recipientInfo }) => {
-  // Local state for email data
-  const [emailData, setEmailData] = useState(initialEmailData);
-
-  // Update local state when initialEmailData changes
-  useEffect(() => {
-    setEmailData(initialEmailData);
-  }, [initialEmailData]);
-
-  const handleEmailDataChange = (field, value) => {
-    setEmailData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const handleSend = () => {
-    onSend(emailData);
-  };
-
-  if (!isOpen) return null;
-
-  const { email: emailToShow, name: recipientName } = recipientInfo;
-  const displayValue = emailToShow && recipientName 
-    ? `${recipientName} <${emailToShow}>`
-    : emailToShow || 'Loading recipient details...';
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-[600px] max-h-[80vh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="text-lg font-semibold">Draft Mail</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        
-        <div className="p-4 space-y-4 flex-1 overflow-y-auto">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">To:</label>
-            <input 
-              type="text" 
-              className="w-full p-2 border rounded-md bg-gray-50" 
-              value={displayValue}
-              readOnly
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">CC:</label>
-            <input 
-              type="email" 
-              className="w-full p-2 border rounded-md" 
-              value={emailData.cc}
-              onChange={(e) => handleEmailDataChange('cc', e.target.value)}
-              placeholder="Enter CC email address"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Subject:</label>
-            <input 
-              type="text" 
-              className="w-full p-2 border rounded-md" 
-              value={emailData.subject}
-              onChange={(e) => handleEmailDataChange('subject', e.target.value)}
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Message:</label>
-            <textarea 
-              className="w-full p-2 border rounded-md h-64 resize-none"
-              value={emailData.body}
-              onChange={(e) => handleEmailDataChange('body', e.target.value)}
-            />
-          </div>
-        </div>
-        
-        <div className="flex items-center justify-between p-4 border-t bg-gray-50">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-2"
-          >
-            <X className="w-4 h-4" />
-            Close
-          </button>
-          <button
-            onClick={handleSend}
-            className="px-6 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 flex items-center gap-2"
-          >
-            <Mail className="w-4 h-4" />
-            Send Mail
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Update the date formatting function to use spaces instead of slashes
+// Update the date formatting function
 const formatDate = (dateStr) => {
   try {
-    // Handle different date formats
     let date;
     if (dateStr.includes('/')) {
-      // Handle DD/MMM/YYYY format
       const [day, month, year] = dateStr.split('/');
       date = new Date(`${month} ${day} ${year}`);
     } else {
       date = new Date(dateStr);
     }
 
-    // Check if date is valid
     if (isNaN(date.getTime())) {
-      return dateStr; // Return original string if parsing fails
+      return dateStr;
     }
 
-    // Format to MM DD YYYY (with spaces)
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const day = date.getDate().toString().padStart(2, '0');
     const year = date.getFullYear();
@@ -130,34 +26,8 @@ const formatDate = (dateStr) => {
     return `${month} ${day} ${year}`;
   } catch (error) {
     console.error('Error formatting date:', error);
-    return dateStr; // Return original string if any error occurs
+    return dateStr;
   }
-};
-
-const VerificationCard = ({ title, children, isExpanded, onToggle }) => {
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden transition-all duration-200 hover:shadow-md">
-      {/* Header - acts as accordion trigger */}
-      <div 
-        className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
-        onClick={onToggle}
-      >
-        <h3 className="text-base font-semibold text-gray-900">{title}</h3>
-        {isExpanded ? (
-          <ChevronUp className="w-5 h-5 text-gray-400" />
-        ) : (
-          <ChevronDown className="w-5 h-5 text-gray-400" />
-        )}
-      </div>
-
-      {/* Content - expandable section */}
-      {isExpanded && (
-        <div className="border-t border-gray-100">
-          {children}
-        </div>
-      )}
-    </div>
-  );
 };
 
 // Add LoadingOverlay component at the top level
@@ -189,6 +59,7 @@ const CrossVerificationTab = ({
   const [expandedSections, setExpandedSections] = useState(['summary']);
   const [ccEmail, setCcEmail] = useState(''); // Add state for CC email
   const [isGeneratingDraft, setIsGeneratingDraft] = useState(false); // Add new state for loading overlay
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Add console logs to debug recipient data
   useEffect(() => {
@@ -475,111 +346,116 @@ const CrossVerificationTab = ({
     return null;
   }
 
+  // Combine all errors into one array with type indicators
+  const allErrors = [
+    ...(verificationData.verificationResults.summarizationErrors || []).map(error => ({
+      ...error,
+      errorType: 'Summary Issue'
+    })),
+    ...(verificationData.verificationResults.mismatchErrors || []).map(error => ({
+      ...error,
+      errorType: 'Data Mismatch'
+    })),
+    ...(verificationData.verificationResults.missingErrors || []).map(error => ({
+      ...error,
+      errorType: 'Missing Information'
+    }))
+  ];
+
   return (
-    <div>
-      {/* Draft Summary Button */}
-      <div className="">
-        <div className="flex justify-end">
-          <DraftSummaryButton onNextClick={onNextClick} />
+    <div className="p-4">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        {/* Accordion Header */}
+        <div 
+          className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          <div className="flex items-center gap-3">
+            <h3 className="text-lg font-semibold text-gray-900">Cross Verification Results</h3>
+            <span className={`px-2.5 py-1 rounded-full text-xs font-medium
+              ${allErrors.length === 0 ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}
+            >
+              {allErrors.length === 0 ? 'All Clear' : `${allErrors.length} ${allErrors.length === 1 ? 'Issue' : 'Issues'} Found`}
+            </span>
+          </div>
+          {isExpanded ? (
+            <ChevronUp className="w-5 h-5 text-gray-400" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-gray-400" />
+          )}
         </div>
-      </div>
 
-      {/* Content Area */}
-      <div className="p-4">
-        <div className="space-y-4">
-          {/* Summary Section */}
-          <VerificationCard 
-            title="Summary"
-            isExpanded={expandedSections.includes('summary')}
-            onToggle={() => toggleSection('summary')}
-          >
-            <div className="divide-y divide-gray-200">
-              {verificationData?.verificationResults.summarizationErrors.map((error, index) => (
-                <div key={index} className="p-4">
-                  <div className="mb-4">
-                    <h4 className="text-sm font-medium text-gray-900 mb-2">{error.type}</h4>
-                    <p className="text-base text-gray-700 bg-gray-50 p-3 rounded-lg">{error.details}</p>
+        {/* Accordion Content */}
+        {isExpanded && (
+          <div className="border-t border-gray-100">
+            <div className="p-4 space-y-4">
+              {allErrors.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-100 mb-4">
+                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
                   </div>
+                  <h3 className="text-lg font-medium text-gray-900">All Documents Verified</h3>
+                  <p className="mt-2 text-sm text-gray-500">No issues found in the uploaded documents.</p>
                 </div>
-              ))}
-            </div>
-          </VerificationCard>
+              ) : (
+                allErrors.map((error, index) => (
+                  <div key={index} className="bg-gray-50 rounded-lg overflow-hidden">
+                    <div className="p-4">
+                      {/* Error Type Badge */}
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium
+                          ${error.errorType === 'Summary Issue' ? 'bg-purple-100 text-purple-700' : 
+                            error.errorType === 'Data Mismatch' ? 'bg-amber-100 text-amber-700' :
+                            'bg-red-100 text-red-700'}`}
+                        >
+                          {error.errorType}
+                        </span>
+                      </div>
 
-          {/* Mismatch Errors Section */}
-          <VerificationCard 
-            title="Mismatch Errors"
-            isExpanded={expandedSections.includes('mismatch')}
-            onToggle={() => toggleSection('mismatch')}
-          >
-            <div className="divide-y divide-gray-200">
-              {verificationData?.verificationResults.mismatchErrors.map((error, index) => (
-                <div key={index} className="p-4">
-                  <div className="mb-4">
-                    <h4 className="text-sm font-medium text-gray-900 mb-3">{error.type}</h4>
-                    <div className="flex flex-wrap items-center gap-3">
-                      {Object.entries(error.details).map(([document, value], idx) => (
-                        <div key={idx} className="inline-flex items-center bg-gray-50 px-3 py-2 rounded-lg">
-                          <span className="text-sm font-medium text-gray-500 mr-2">{document}:</span>
-                          <span className="text-base text-gray-900">
-                            {error.type.toLowerCase().includes('date of birth') 
-                              ? formatDate(value)
-                              : value}
-                          </span>
+                      {/* Error Title */}
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">{error.type}</h4>
+
+                      {/* Error Details */}
+                      {error.details && typeof error.details === 'object' ? (
+                        <div className="flex flex-wrap items-center gap-3">
+                          {Object.entries(error.details).map(([document, value], idx) => (
+                            <div key={idx} className="inline-flex items-center bg-white px-3 py-2 rounded-lg">
+                              <span className="text-sm font-medium text-gray-500 mr-2">{document}:</span>
+                              <span className="text-sm text-gray-900">
+                                {error.type.toLowerCase().includes('date of birth') 
+                                  ? formatDate(value)
+                                  : value}
+                              </span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      ) : (
+                        <p className="text-sm text-gray-700 bg-white p-3 rounded-lg">
+                          {error.details}
+                        </p>
+                      )}
+                      <ActionButtons error={error} />
                     </div>
-                    <ActionButtons error={error} />
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
-          </VerificationCard>
-
-          {/* Missing Errors Section */}
-          <VerificationCard 
-            title="Missing Errors"
-            isExpanded={expandedSections.includes('missing')}
-            onToggle={() => toggleSection('missing')}
-          >
-            <div className="divide-y divide-gray-200">
-              {verificationData?.verificationResults.missingErrors.map((error, index) => (
-                <div key={index} className="p-4">
-                  <div className="mb-4">
-                    <h4 className="text-sm font-medium text-gray-900 mb-2">{error.type}</h4>
-                    <p className="text-base text-gray-700 bg-gray-50 p-3 rounded-lg">{error.details}</p>
-                    <ActionButtons error={error} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </VerificationCard>
-        </div>
+          </div>
+        )}
       </div>
-
-      <EmailModal 
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        initialEmailData={emailData}
-        onSend={handleSendEmail}
-        recipientInfo={{
-          email: caseData?.userId?.email,
-          name: caseData?.userId?.name
-        }}
-      />
-
-      {/* Add loading overlay */}
       {isGeneratingDraft && <LoadingOverlay />}
     </div>
   );
 };
 
-// Add defaultProps
-CrossVerificationTab.defaultProps = {
-  recipientEmail: '',
-  isLoading: false,
-  verificationData: null,
-  managementId: null,
-  onNextClick: () => {}
+CrossVerificationTab.propTypes = {
+  isLoading: PropTypes.bool,
+  verificationData: PropTypes.object,
+  managementId: PropTypes.string,
+  recipientEmail: PropTypes.string,
+  onNextClick: PropTypes.func
 };
 
 export default CrossVerificationTab; 
