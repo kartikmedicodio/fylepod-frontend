@@ -248,10 +248,11 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       // Refresh case data
       const response = await api.get(`/management/${caseId}`);
       if (response.data.status === 'success') {
-        setCaseData(response.data.data.entry);
+        const updatedCaseData = response.data.data.entry;
+        setCaseData(updatedCaseData);
         
         // Check if all documents are approved
-        const allApproved = response.data.data.entry.documentTypes.every(
+        const allApproved = updatedCaseData.documentTypes.every(
           doc => doc.status === DOCUMENT_STATUS.APPROVED
         );
 
@@ -290,7 +291,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       // Refresh case data
       const response = await api.get(`/management/${caseId}`);
       if (response.data.status === 'success') {
-        setCaseData(response.data.data.entry);
+        const updatedCaseData = response.data.data.entry;
+        setCaseData(updatedCaseData);
         toast.success('Document sent for reupload');
       }
     } catch (error) {
@@ -441,11 +443,82 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           // Refresh case data first
           const response = await api.get(`/management/${caseId}`);
           if (response.data.status === 'success') {
-            setCaseData(response.data.data.entry);
-          }
+            const updatedCaseData = response.data.data.entry;
+            setCaseData(updatedCaseData);
 
-          // Fetch fresh validation data for newly uploaded documents
-          await fetchValidationData();
+            // Fetch fresh validation data for newly uploaded documents
+            const validationResponse = await api.get(`/documents/management/${caseId}/validations`);
+            if (validationResponse.data.status === 'success') {
+              setValidationData(validationResponse.data.data);
+              const validationResults = validationResponse.data.data.mergedValidations.flatMap(doc => 
+                doc.validations.map(validation => ({
+                  ...validation,
+                  documentType: doc.documentType
+                }))
+              );
+
+              // Check if all documents are uploaded using the updated case data
+              const allDocsUploaded = updatedCaseData.documentTypes.every(doc => 
+                doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
+              );
+
+              // Only proceed with cross-verification if all documents are uploaded
+              if (allDocsUploaded) {
+                // Fetch cross-verification data
+                const crossVerificationResponse = await api.get(`/management/${caseId}/cross-verify`);
+                const verificationData = crossVerificationResponse.data.data;
+
+                // Generate and send email if there are verification results
+                if (verificationData?.verificationResults) {
+                  const summaryErrors = verificationData.verificationResults.summarizationErrors || [];
+                  const mismatchErrors = verificationData.verificationResults.mismatchErrors || [];
+                  const missingErrors = verificationData.verificationResults.missingErrors || [];
+
+                  if (summaryErrors.length > 0 || mismatchErrors.length > 0 || missingErrors.length > 0) {
+                    // Get recipient info from updated case data
+                    const recipientEmail = updatedCaseData.userId?.email;
+                    const recipientName = updatedCaseData.userId?.name;
+                    const userData = JSON.parse(localStorage.getItem('auth_user') || '{}');
+                    const senderName = userData.name;
+
+                    // Generate email draft with complete data
+                    const draftResponse = await api.post('/mail/draft', {
+                      errorType: 'Complete Verification Report',
+                      errorDetails: {
+                        validationResults,
+                        mismatchErrors,
+                        missingErrors,
+                        summarizationErrors: summaryErrors
+                      },
+                      recipientEmail,
+                      recipientName,
+                      senderName
+                    });
+
+                    if (draftResponse.data.status === 'success') {
+                      try {
+                        // Send the email
+                        await api.post('/mail/send', {
+                          subject: draftResponse.data.data.subject,
+                          body: draftResponse.data.data.body,
+                          recipientEmail,
+                          recipientName,
+                          ccEmail: '' // No CC for automatic emails
+                        });
+                        toast.success('Verification report sent successfully');
+                      } catch (sendError) {
+                        console.error('Error sending email:', sendError);
+                        toast.error('Failed to send verification report');
+                      }
+                    } else {
+                      console.error('Failed to generate email draft:', draftResponse.data);
+                      toast.error('Failed to generate verification report');
+                    }
+                  }
+                }
+              }
+            }
+          }
 
           // Make API calls for each questionnaire
           const questionnaireResponses = await Promise.all(
@@ -2079,7 +2152,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             // Refresh case data to update UI
             const response = await api.get(`/management/${caseId}`);
             if (response.data.status === 'success') {
-              setCaseData(response.data.data.entry);
+              const updatedCaseData = response.data.data.entry;
+              setCaseData(updatedCaseData);
             }
           } catch (statusError) {
             console.error('Error updating case status:', statusError);
@@ -2593,6 +2667,58 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     // Switch to finalize tab
     setSelectedSubTab('finalize'); // Add this line to set the sub-navigation
     setActiveTab('document-checklist'); // Keep the main tab as document-checklist
+  };
+
+  const handleGenerateDraftMail = async () => {
+    try {
+      // First get the validation data
+      const validationResponse = await api.get(`/documents/management/${caseId}/validations`);
+      const validationData = validationResponse.data;
+
+      // Then get the cross-verification data
+      const crossVerifyResponse = await api.get(`/management/${caseId}/cross-verify`);
+      const crossVerifyData = crossVerifyResponse.data;
+
+      // Get recipient name from profile data or use a default
+      const recipientName = profileData?.name || 'Sir/Madam';
+
+      // Structure the request body correctly
+      const requestBody = {
+        validationData: {
+          status: "success",
+          data: {
+            managementId: caseId,
+            mergedValidations: validationData.data.mergedValidations
+          }
+        },
+        crossVerifyData: {
+          status: "success",
+          data: {
+            managementId: caseId,
+            verificationResults: crossVerifyData.data.verificationResults,
+            lastVerifiedAt: crossVerifyData.data.lastVerifiedAt
+          }
+        },
+        recipientEmail: recipientEmail,
+        recipientName: recipientName
+      };
+
+      // Generate the draft mail
+      const response = await api.post('/mail/draft', requestBody);
+      
+      if (response.data.status === 'success') {
+        // Handle successful response
+        console.log('Draft mail generated successfully:', response.data);
+        // You can add a success notification here
+      } else {
+        // Handle error response
+        console.error('Failed to generate draft mail:', response.data);
+        // You can add an error notification here
+      }
+    } catch (error) {
+      console.error('Error generating draft mail:', error);
+      // Handle error appropriately
+    }
   };
 
   // Update the main container and its children to properly handle height
