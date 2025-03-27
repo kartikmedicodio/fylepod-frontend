@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, ChevronDown, ChevronUp, Mail, ChevronRight } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronUp, Eye, Mail, ChevronRight } from 'lucide-react';
 import PropTypes from 'prop-types';
 import { toast } from 'react-hot-toast';
 import api from '../../utils/api';
@@ -426,7 +426,7 @@ const CrossVerificationTab = ({
                   <div key={index} className="bg-gray-50 rounded-lg overflow-hidden">
                     <div className="p-4">
                       {/* Error Type Badge */}
-                      <div className="flex items-center gap-2 mb-3">
+                      <div className="flex items-center justify-between mb-3">
                         <span className={`px-2.5 py-1 rounded-full text-xs font-medium
                           ${error.errorType === 'Summary Issue' ? 'bg-purple-100 text-purple-700' : 
                             error.errorType === 'Data Mismatch' ? 'bg-amber-100 text-amber-700' :
@@ -434,6 +434,19 @@ const CrossVerificationTab = ({
                         >
                           {error.errorType}
                         </span>
+
+                        {/* Add View Document link if URL exists */}
+                        {verificationData?.documentUrls?.[error.documentType] && (
+                          <a 
+                            href={verificationData.documentUrls[error.documentType]} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-2"
+                          >
+                            <Eye className="w-4 h-4" />
+                            View Document
+                          </a>
+                        )}
                       </div>
 
                       {/* Error Title */}

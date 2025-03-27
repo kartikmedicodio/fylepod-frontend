@@ -324,9 +324,9 @@ const FNCaseDetails = () => {
       setIsProcessing(true);
       setProcessingStep(1);
 
-    if (!files.length) return;
-    
-    const uploadedDocIds = [];
+      if (!files.length) return;
+      
+      const uploadedDocIds = [];
 
       // Upload all files
       const uploadPromises = files.map(async (file) => {
@@ -498,59 +498,149 @@ const FNCaseDetails = () => {
       if (successfulUploads > 0) {
         try {
           setProcessingStep(4); // Cross-verifying documents
-          const crossVerifyResponse = await api.get(`/management/${caseId}/cross-verify`);
           
+          // Fetch documents, validation data, and cross-verification in parallel
+          const [documentsResponse, validationResponse, crossVerifyResponse] = await Promise.all([
+            api.post('/documents/management-docs', {
+              managementId: caseId,
+              docTypeIds: caseData.documentTypes
+                .filter(doc => doc.status === 'uploaded' || doc.status === 'approved')
+                .map(doc => doc._id)
+            }),
+            api.get(`/documents/management/${caseId}/validations`),
+            api.get(`/management/${caseId}/cross-verify`)
+          ]);
+
+          // Create URL mapping
+          const urlMapping = documentsResponse.data.status === 'success' 
+            ? documentsResponse.data.data.documents.reduce((acc, doc) => {
+                acc[doc.type] = doc.fileUrl;
+                return acc;
+              }, {})
+            : {};
+
+          // Set validation data with URLs
+          if (validationResponse.data.status === 'success') {
+            setValidationData({
+              ...validationResponse.data.data,
+              documentUrls: urlMapping
+            });
+          }
+
+          // Set verification data with URLs
           if (crossVerifyResponse.data.status === 'success') {
-            // Update case data with verification results
-            const caseResponse = await api.get(`/management/${caseId}`);
-            if (caseResponse.data.status === 'success') {
-              setCaseData(caseResponse.data.data.entry);
-              
-              // Check if all documents are uploaded
-              const allDocsUploaded = caseResponse.data.data.entry.documentTypes.every(doc => 
-                doc.status === 'uploaded' || doc.status === 'approved'
-              );
-              
-              if (allDocsUploaded) {
-                // Set verification data from cross-verify response
-                setVerificationData(crossVerifyResponse.data.data);
+            setVerificationData({
+              ...crossVerifyResponse.data.data,
+              documentUrls: urlMapping
+            });
+          }
+
+          // Update case data
+          const caseResponse = await api.get(`/management/${caseId}`);
+          if (caseResponse.data.status === 'success') {
+            const updatedCaseData = caseResponse.data.data.entry;
+            setCaseData(updatedCaseData);
+
+            // Check if all documents are uploaded
+            const allDocsUploaded = updatedCaseData.documentTypes.every(doc => 
+              doc.status === 'uploaded' || doc.status === 'approved'
+            );
+
+            if (allDocsUploaded) {
+              // Get the first questionnaire template
+              const questionnaireResponse = await api.get('/questionnaires');
+              if (questionnaireResponse.data.status === 'success' && questionnaireResponse.data.data.templates.length > 0) {
+                const template = questionnaireResponse.data.data.templates[0];
                 
-                // Fetch validation data
-                const validationResponse = await api.get(`/documents/management/${caseId}/validations`);
-                if (validationResponse.data.status === 'success') {
-                  setValidationData(validationResponse.data.data);
-                }
+                // Get organized documents and fill questionnaire
+                const organizedDocsResponse = await api.post(`/documents/management/${caseId}/organized`, {
+                  templateId: template._id
+                });
 
-                // Get the first questionnaire template
-                const questionnaireResponse = await api.get('/questionnaires');
-                if (questionnaireResponse.data.status === 'success' && questionnaireResponse.data.data.templates.length > 0) {
-                  const template = questionnaireResponse.data.data.templates[0];
-                  
-                  // Get organized documents and fill questionnaire
-                  const organizedDocsResponse = await api.post(`/documents/management/${caseId}/organized`, {
-                    templateId: template._id
+                if (organizedDocsResponse.data.status === 'success') {
+                  // Set questionnaire data
+                  setQuestionnaireData({
+                    responses: [{
+                      processedInformation: organizedDocsResponse.data.data.processedInformation
+                    }]
                   });
-
-                  if (organizedDocsResponse.data.status === 'success') {
-                    // Set questionnaire data
-                    setQuestionnaireData({
-                      responses: [{
-                        processedInformation: organizedDocsResponse.data.data.processedInformation
-                      }]
-                    });
-                    setSelectedQuestionnaire(template);
-                    setFormData(organizedDocsResponse.data.data.processedInformation);
-                    
-                    // Switch to questionnaire tab
-                    setUploadStatus('validation')
-                    toast.success('All documents uploaded! Questionnaire has been auto-filled.');
+                  setSelectedQuestionnaire(template);
+                  setFormData(organizedDocsResponse.data.data.processedInformation);
+                  
+                  // Check if all validations passed before switching to questionnaire
+                  const allValidationsPassed = validationResponse.data.data.mergedValidations.every(doc => doc.passed);
+                  if (allValidationsPassed) {
+                    setActiveTab('questionnaire');
+                    setUploadStatus('uploaded');
+                    toast.success('All documents uploaded and validated! Questionnaire has been auto-filled.');
+                  } else {
+                    setUploadStatus('validation');
+                    toast.info('Please review document validations before proceeding to questionnaire.');
                   }
                 }
               }
             }
           }
+
+          // Initialize chat with new documents
+          if (successfulUploads > 0) {
+            try {
+              // Get case details for chat context
+              const managementData = caseResponse.data.data.entry;
+              
+              // Prepare management context
+              const managementContext = {
+                caseId: managementData._id,
+                categoryName: managementData.categoryName,
+                categoryStatus: managementData.categoryStatus,
+                deadline: managementData.deadline,
+                documentTypes: managementData.documentTypes.map(doc => ({
+                  name: doc.name,
+                  status: doc.status,
+                  required: doc.required
+                }))
+              };
+
+              // Get uploaded documents for chat
+              const validDocuments = managementData.documentTypes
+                .filter(docType => docType && (docType.status === 'uploaded' || docType.status === 'approved'))
+                .map(docType => ({
+                  id: docType._id,
+                  name: docType.name
+                }))
+                .filter(doc => doc.id);
+
+              if (validDocuments.length > 0) {
+                const docIds = documentsResponse.data.data.documents
+                  .filter(doc => doc && doc._id)
+                  .map(doc => doc._id);
+
+                // Create new chat with the documents and management data
+                const chatResponse = await api.post('/chat', {
+                  documentIds: docIds,
+                  managementId: caseId,
+                  managementContext: managementContext
+                });
+
+                if (chatResponse.data?.status === 'success' && chatResponse.data?.data?.chat) {
+                  setCurrentChat(chatResponse.data.data.chat);
+                  setMessages(prev => [
+                    prev[0], // Keep welcome message
+                    {
+                      role: 'assistant',
+                      content: `I've analyzed your newly uploaded documents. You can now ask me questions about them!`
+                    }
+                  ]);
+                }
+              }
+            } catch (error) {
+              console.error('Error initializing chat after upload:', error);
+              // Don't show error to user, just log it - chat will initialize on first message
+            }
+          }
+
         } catch (error) {
-          console.error('Error during cross-verification or questionnaire filling:', error);
+          console.error('Error during validation and verification:', error);
           // Don't show error to user, just log it
         }
       }
@@ -559,91 +649,14 @@ const FNCaseDetails = () => {
 
       // Reset chat after successful upload
       if (successfulUploads > 0) {
-        // Reset chat states
+        // Reset chat states and show success message
         setCurrentChat(null);
         setMessages([{
           role: 'assistant',
           content: "Hello! I'm Sophia from support. I'm here to assist you with your case and answer any questions you might have. How can I help you today?"
         }]);
-        
-        // If there are successful uploads, initialize chat automatically
-        try {
-          // Get case details
-          const caseResponse = await api.get(`/management/${caseId}`);
-          
-          if (caseResponse.data?.status === 'success' && caseResponse.data?.data?.entry) {
-            const managementData = caseResponse.data.data.entry;
-            
-            // Prepare management context
-            const managementContext = {
-              caseId: managementData._id,
-              categoryName: managementData.categoryName,
-              categoryStatus: managementData.categoryStatus,
-              deadline: managementData.deadline,
-              documentTypes: managementData.documentTypes.map(doc => ({
-                name: doc.name,
-                status: doc.status,
-                required: doc.required
-              }))
-            };
-            
-            // Get uploaded documents
-            const validDocuments = managementData.documentTypes
-              .filter(docType => docType && (docType.status === 'uploaded' || docType.status === 'approved'))
-              .map(docType => ({
-                id: docType._id,
-                name: docType.name
-              }))
-              .filter(doc => doc.id);
-              
-            if (validDocuments.length > 0) {
-              // Get document IDs
-              const validDocTypeIds = validDocuments.map(doc => doc.id);
-              
-              const documentsResponse = await api.post('/documents/management-docs', {
-                managementId: caseId,
-                docTypeIds: validDocTypeIds
-              });
-              
-              if (documentsResponse.data?.data?.documents) {
-                const validDocs = documentsResponse.data.data.documents
-                  .filter(doc => doc && doc._id);
-                
-                if (validDocs.length > 0) {
-                  // Extract document IDs for chat creation
-                  const docIds = validDocs.map(doc => doc._id);
-                  
-                  // Create new chat with the documents and management data
-                  const chatResponse = await api.post('/chat', {
-                    documentIds: docIds,
-                    managementId: caseId,
-                    managementContext: managementContext
-                  });
-                  
-                  if (chatResponse.data?.status === 'success' && chatResponse.data?.data?.chat) {
-                    setCurrentChat(chatResponse.data.data.chat);
-                    
-                    // Add a message indicating the chat has been updated with new documents
-                    setMessages(prev => [
-                      prev[0], // Keep welcome message
-                      {
-                        role: 'assistant',
-                        content: `I've analyzed your newly uploaded documents. You can now ask me questions about them!`
-                      }
-                    ]);
-                  }
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Error initializing chat after upload:', error);
-          // Don't show error to user, just log it - chat will initialize on first message
-        }
-      }
 
-      // Show appropriate toast message
-      if (successfulUploads > 0) {
+        // Show success toast
         toast.custom((t) => (
           <div className={`${
             t.visible ? 'animate-enter' : 'animate-leave'
@@ -685,7 +698,9 @@ const FNCaseDetails = () => {
           </div>
         ), { duration: 5000 });
       }
+
       if (failedUploads > 0) {
+        // Show failure toast
         toast.custom((t) => (
           <div className={`${
             t.visible ? 'animate-enter' : 'animate-leave'
@@ -728,8 +743,8 @@ const FNCaseDetails = () => {
         ), { duration: 5000 });
       }
 
-    } catch (error) {
-      console.error('Error uploading files:', error);
+    } catch (err) {
+      console.error('Error uploading files:', err);
       toast.error('Failed to upload files');
     } finally {
       setIsProcessing(false);
@@ -1504,18 +1519,70 @@ const FNCaseDetails = () => {
             Upload Pending
           </button>
           <button 
-              onClick={() => {
-                setUploadStatus('validation');
-                handleCrossVerification();
-                fetchValidationData(); // Fetch validation data when switching to validation tab
-              }}
+            onClick={async () => {
+              setUploadStatus('validation');
+              setIsValidationLoading(true);
+              setIsVerificationLoading(true); // Add this line to show loading state for both accordions
+
+              try {
+                // First fetch documents to ensure we have the latest URLs
+                const documentsResponse = await api.post('/documents/management-docs', {
+                  managementId: caseId,
+                  docTypeIds: caseData.documentTypes
+                    .filter(doc => doc.status === 'uploaded' || doc.status === 'approved')
+                    .map(doc => doc._id)
+                });
+
+                // Create URL mapping first
+                const urlMapping = documentsResponse.data.status === 'success' 
+                  ? documentsResponse.data.data.documents.reduce((acc, doc) => {
+                      acc[doc.type] = doc.fileUrl;
+                      return acc;
+                    }, {})
+                  : {};
+
+                // Then fetch validation and cross-verification data
+                const [validationResponse, crossVerifyResponse] = await Promise.all([
+                  api.get(`/documents/management/${caseId}/validations`),
+                  api.get(`/management/${caseId}/cross-verify`)
+                ]);
+
+                // Handle cross-verification response
+                if (crossVerifyResponse.data.status === 'success') {
+                  setVerificationData({
+                    ...crossVerifyResponse.data.data,
+                    documentUrls: urlMapping // Add URLs to verification data
+                  });
+                }
+
+                // Handle validation response
+                if (validationResponse.data.status === 'success') {
+                  setValidationData({
+                    ...validationResponse.data.data,
+                    documentUrls: urlMapping
+                  });
+                }
+
+                // Update case data to reflect any status changes
+                const caseResponse = await api.get(`/management/${caseId}`);
+                if (caseResponse.data.status === 'success') {
+                  setCaseData(caseResponse.data.data.entry);
+                }
+              } catch (error) {
+                console.error('Error fetching validation data:', error);
+                toast.error('Failed to load validation data');
+              } finally {
+                setIsValidationLoading(false);
+                setIsVerificationLoading(false);
+              }
+            }}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                uploadStatus === 'validation'
+              uploadStatus === 'validation'
                 ? 'bg-blue-600 text-white hover:bg-blue-700'
                 : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
             }`}
           >
-              Validation Check
+            Validation Check
           </button>
           </div>
         </div>
@@ -1534,7 +1601,7 @@ const FNCaseDetails = () => {
               <h3 className="text-lg font-semibold">Validation Results</h3>
               <button
                 onClick={() => {
-                  setActiveTab('questionnaire');
+                  handleTabClick('Questionnaire');
                   setUploadStatus('uploaded');
                 }}
                 className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium 
@@ -1853,35 +1920,67 @@ const FNCaseDetails = () => {
 
     // Update save handler to use local state
     const handleLocalSave = async () => {
-      try {
-        setIsSavingQuestionnaire(true);
-        
-        // First update the form data
-        const formResponse = await api.put(`/questionnaire-responses/management/${caseId}`, {
-          templateId: selectedQuestionnaire._id,
-          processedInformation: localFormData
-        });
+      // Show confirmation toast
+      toast((t) => (
+        <div className="flex items-center justify-between w-[500px] p-2">
+          <div className="flex-1">
+            <p className="text-lg font-medium text-gray-900">Save questionnaire?</p>
+            <p className="text-sm text-gray-500 mt-1">This action cannot be undone</p>
+          </div>
+          <div className="flex gap-3 ml-8">
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors min-w-[80px]"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                toast.dismiss(t.id);
+                try {
+                  setIsSavingQuestionnaire(true);
+                  
+                  // First update the form data
+                  const formResponse = await api.put(`/questionnaire-responses/management/${caseId}`, {
+                    templateId: selectedQuestionnaire._id,
+                    processedInformation: localFormData
+                  });
 
-        if (formResponse.data.status === 'success') {
-          // Then update the questionnaire status
-          const statusResponse = await api.patch(`/management/questionnaire-response/${caseId}/status`, {
-            status: 'saved'
-          });
+                  if (formResponse.data.status === 'success') {
+                    // Then update the questionnaire status
+                    const statusResponse = await api.patch(`/management/questionnaire-response/${caseId}/status`, {
+                      status: 'saved'
+                    });
 
-          if (statusResponse.data.status === 'success') {
-          toast.success('Changes saved successfully');
-            setIsQuestionnaireCompleted(true);
-            setActiveTab('questionnaire');
-            setSavedFields(localFormData);
-            setQuestionnaireStatus('saved'); // Update the status
-          }
-        }
-      } catch (error) {
-        console.error('Error saving questionnaire:', error);
-        toast.error('Failed to save changes');
-      } finally {
-        setIsSavingQuestionnaire(false);
-      }
+                    if (statusResponse.data.status === 'success') {
+                      toast.success('Changes saved successfully');
+                      setIsQuestionnaireCompleted(true);
+                      setActiveTab('questionnaire');
+                      setSavedFields(localFormData);
+                      setQuestionnaireStatus('saved'); // Update the status
+                    }
+                  }
+                } catch (error) {
+                  console.error('Error saving questionnaire:', error);
+                  toast.error('Failed to save changes');
+                } finally {
+                  setIsSavingQuestionnaire(false);
+                }
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors min-w-[80px]"
+            >
+              Yes, submit
+            </button>
+          </div>
+        </div>
+      ), {
+        duration: 10000,
+        position: 'top-center',
+        style: {
+          maxWidth: '100%',
+          width: 'auto'
+        },
+      });
     };
 
     // Add function to count filled fields using local state
@@ -2428,74 +2527,7 @@ const FNCaseDetails = () => {
     }
   }, [caseId]);
 
-  // Add function to handle cross verification
-  const handleCrossVerification = async () => {
-    try {
-      setIsVerificationLoading(true);
-      const response = await api.get(`/management/${caseId}/cross-verify`);
-      
-      if (response.data.status === 'success') {
-        setVerificationData(response.data.data);
-        // Update case data to reflect any status changes
-        const caseResponse = await api.get(`/management/${caseId}`);
-        if (caseResponse.data.status === 'success') {
-          setCaseData(caseResponse.data.data.entry);
-        }
-      }
-    } catch (error) {
-      console.error('Error during cross-verification:', error);
-      toast.error('Failed to perform cross-verification');
-    } finally {
-      setIsVerificationLoading(false);
-    }
-  };
-
-  // Add function to fetch validation data
-  const fetchValidationData = async () => {
-    if (isValidationLoading) return;
-    
-    try {
-      setIsValidationLoading(true);
-      
-      // Fetch both validation data and document URLs in parallel
-      const [validationResponse, documentsResponse] = await Promise.all([
-        api.get(`/documents/management/${caseId}/validations`),
-        api.post('/documents/management-docs', {
-          managementId: caseId,
-          docTypeIds: caseData.documentTypes
-            .filter(doc => doc.status === 'uploaded' || doc.status === 'approved')
-            .map(doc => doc._id)
-        })
-      ]);
-
-      if (validationResponse.data.status === 'success') {
-        // Create document URL mapping
-        const urlMapping = documentsResponse.data.status === 'success' 
-          ? documentsResponse.data.data.documents.reduce((acc, doc) => {
-              acc[doc.type] = doc.fileUrl;
-              return acc;
-            }, {})
-          : {};
-
-        // Add URLs to validation data
-        const validationDataWithUrls = {
-          ...validationResponse.data.data,
-          documentUrls: urlMapping
-        };
-
-        setValidationData(validationDataWithUrls);
-      } else {
-        throw new Error('Failed to fetch validation data');
-      }
-    } catch (error) {
-      console.error('Error fetching validation data:', error);
-      toast.error('Failed to load validation data');
-    } finally {
-      setIsValidationLoading(false);
-    }
-  };
-
-  // Update the tab click handler
+  // Add back the handleTabClick function
   const handleTabClick = (tab) => {
     const newTab = tab.toLowerCase().replace(' ', '-');
     setActiveTab(newTab);
