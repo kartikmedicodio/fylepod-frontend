@@ -6,6 +6,8 @@ import { toast } from 'react-hot-toast';
 import { Check, FileText, Users, ClipboardCheck, Clock, Sun, Moon, Cloud } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
+// import DianaAvatar from '../assets/diana-avatar.png';
+// import FionaAvatar from '../assets/fiona-avatar.png';
 import { AGENT_INFO } from '../constants/agentInfo';
 
 // Loading skeleton component
