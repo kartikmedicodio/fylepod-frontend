@@ -498,6 +498,7 @@ const FNCaseDetails = () => {
       if (successfulUploads > 0) {
         try {
           setProcessingStep(4); // Cross-verifying documents
+
           
           // Fetch documents, validation data, and cross-verification in parallel
           const [documentsResponse, validationResponse, crossVerifyResponse] = await Promise.all([
@@ -540,6 +541,10 @@ const FNCaseDetails = () => {
           if (caseResponse.data.status === 'success') {
             const updatedCaseData = caseResponse.data.data.entry;
             setCaseData(updatedCaseData);
+            
+            setIsProcessing(false);
+            setFiles([]);
+            setUploadStatus('validation');
 
             // Check if all documents are uploaded
             const allDocsUploaded = updatedCaseData.documentTypes.every(doc => 
@@ -645,7 +650,6 @@ const FNCaseDetails = () => {
         }
       }
       
-      setFiles([]);
 
       // Reset chat after successful upload
       if (successfulUploads > 0) {
@@ -747,7 +751,7 @@ const FNCaseDetails = () => {
       console.error('Error uploading files:', err);
       toast.error('Failed to upload files');
     } finally {
-      setIsProcessing(false);
+     
       setProcessingStep(0);
     }
   };
