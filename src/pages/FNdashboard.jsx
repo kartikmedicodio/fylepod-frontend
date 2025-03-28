@@ -6,8 +6,6 @@ import { toast } from 'react-hot-toast';
 import { Check, FileText, Users, ClipboardCheck, Clock, Sun, Moon, Cloud } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
-import DianaAvatar from '../assets/diana-avatar.png';
-import FionaAvatar from '../assets/fiona-avatar.png';
 import { AGENT_INFO } from '../constants/agentInfo';
 
 // Loading skeleton component
@@ -319,7 +317,7 @@ const ProfileCard = () => {
             {/* Profile Image - Overlapping */}
             <div className="w-40 h-40 rounded-full overflow-hidden bg-white flex-shrink-0 transform hover:scale-105 transition-transform duration-300 relative z-10">
               <img 
-                src={DianaAvatar}
+                src="/assets/diana-avatar.png"
                 alt={`${agent.name} - ${agent.role}`}
                 className="w-full h-full object-cover"
               />
@@ -433,7 +431,7 @@ const ProfileCard = () => {
             {/* Profile Image - Overlapping */}
             <div className="w-40 h-40 rounded-full overflow-hidden bg-white flex-shrink-0 transform hover:scale-105 transition-transform duration-300 relative z-10">
               <img 
-                src={FionaAvatar}
+                src="/assets/fiona-avatar.png"
                 alt="Fiona - Your Case Manager"
                 className="w-full h-full object-cover"
               />
