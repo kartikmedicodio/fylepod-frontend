@@ -235,12 +235,32 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
 
   /**
    * Checks if a navigation item is currently active
-   * Special handling for Knowledge Base routes
+   * Handles parent-child route relationships
    */
   const isActive = (href) => {
     // Special case for Knowledge Base - it should be active for all /knowledge routes
     if (href === '/knowledge') {
       return location.pathname.startsWith('/knowledge');
+    }
+
+    // Handle parent-child relationships for main sections
+    if (href === '/cases') {
+      return location.pathname === '/cases' || location.pathname.startsWith('/cases/');
+    }
+
+    if (href === '/corporations') {
+      // Match /corporations and any path that starts with /corporations/
+      return location.pathname === '/corporations' || location.pathname.startsWith('/corporations/');
+    }
+
+    if (href === '/individuals') {
+      // Match /individuals and any path that starts with /individuals/
+      return location.pathname === '/individuals' || location.pathname.startsWith('/individuals/');
+    }
+
+    if (href === '/individual-cases') {
+      // Match /individual-cases and any path that includes /individuals/case/
+      return location.pathname === '/individual-cases' || location.pathname.includes('/individuals/case/');
     }
     
     // For other paths, exact match

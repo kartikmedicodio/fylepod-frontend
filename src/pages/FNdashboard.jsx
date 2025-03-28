@@ -255,6 +255,7 @@ const ProfileCard = () => {
   const navigate = useNavigate();
   const [pendingCase, setPendingCase] = useState(null);
   const [cases, setCases] = useState([]);
+  const { setCurrentBreadcrumb } = useBreadcrumb();
 
   useEffect(() => {
     const fetchPendingDocuments = async () => {
@@ -296,6 +297,11 @@ const ProfileCard = () => {
 
   const handleCaseClick = () => {
     if (pendingCase?._id) {
+      // Update breadcrumb before navigation
+      setCurrentBreadcrumb([
+        { label: 'All Cases', link: '/individual-cases' },
+        { label: pendingCase.categoryName, link: `/individuals/case/${pendingCase._id}` }
+      ]);
       navigate(`/individuals/case/${pendingCase._id}`);
     }
   };
@@ -383,18 +389,30 @@ const ProfileCard = () => {
                     <span className="font-medium">{pendingCase.categoryName}</span> requires your attention
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  {pendingCase.documentTypes
-                    .filter(doc => doc.status === 'pending')
-                    .map(doc => (
-                      <div key={doc._id} className="flex items-center gap-2 bg-white rounded-lg p-3 border border-gray-100 hover:border-blue-100 transition-colors">
-                        <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-                          <FileText className="w-4 h-4 text-blue-500" />
+                <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent hover:scrollbar-thumb-gray-300" style={{ maxHeight: "250px" }}>
+                  <div className="grid grid-cols-2 gap-3 pr-2">
+                    {pendingCase.documentTypes
+                      .filter(doc => doc.status === 'pending')
+                      .map(doc => (
+                        <div 
+                          key={doc._id} 
+                          className="flex items-center gap-2 bg-white rounded-lg p-3 border border-gray-100 hover:border-blue-100 transition-colors cursor-pointer hover:bg-blue-50/5"
+                          onClick={() => {
+                            setCurrentBreadcrumb([
+                              { label: 'All Cases', link: '/individual-cases' },
+                              { label: pendingCase.categoryName, link: `/individuals/case/${pendingCase._id}` }
+                            ]);
+                            navigate(`/individuals/case/${pendingCase._id}`);
+                          }}
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                            <FileText className="w-4 h-4 text-blue-500" />
+                          </div>
+                          <span className="text-sm font-medium">{doc.name}</span>
                         </div>
-                        <span className="text-sm font-medium">{doc.name}</span>
-                      </div>
-                    ))
-                  }
+                      ))
+                    }
+                  </div>
                 </div>
                 <div className="mt-auto flex justify-center">
                   <button
@@ -489,33 +507,43 @@ const ProfileCard = () => {
               {cases.length} Active
             </span>
           </div>
-          <div className="space-y-3">
-            {cases.map((caseItem, index) => (
-              <div 
-                key={caseItem._id} 
-                className="flex items-start gap-3 bg-white rounded-lg p-3 border border-gray-100 hover:border-pink-100 transition-colors"
-              >
-                <div className="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center flex-shrink-0">
-                  <FileText className="w-4 h-4 text-pink-500" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium text-[#000D3B]">{caseItem.categoryName}</span>
-                    <span className="text-xs text-pink-600 bg-pink-50 px-2 py-0.5 rounded-full">
-                      {caseItem.categoryStatus === 'pending' ? 'In Progress' : 'Active'}
-                    </span>
+          <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent hover:scrollbar-thumb-gray-300" style={{ maxHeight: "300px" }}>
+            <div className="space-y-3 pr-2">
+              {cases.map((caseItem, index) => (
+                <div 
+                  key={caseItem._id} 
+                  className="flex items-start gap-3 bg-white rounded-lg p-3 border border-gray-100 hover:border-pink-100 transition-colors cursor-pointer hover:bg-pink-50/5"
+                  onClick={() => {
+                    // Update breadcrumb before navigation
+                    setCurrentBreadcrumb([
+                      { label: 'All Cases', link: '/individual-cases' },
+                      { label: caseItem.categoryName, link: `/individuals/case/${caseItem._id}` }
+                    ]);
+                    navigate(`/individuals/case/${caseItem._id}`);
+                  }}
+                >
+                  <div className="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center flex-shrink-0">
+                    <FileText className="w-4 h-4 text-pink-500" />
                   </div>
-                  <div className="text-sm text-[#000D3B] opacity-70">
-                    <span className="font-medium">{caseItem.userName}</span> • Last updated{' '}
-                    {new Date(caseItem.updatedAt).toLocaleDateString('en-US', {
-                      month: 'long',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-medium text-[#000D3B]">{caseItem.categoryName}</span>
+                      <span className="text-xs text-pink-600 bg-pink-50 px-2 py-0.5 rounded-full">
+                        {caseItem.categoryStatus === 'pending' ? 'In Progress' : 'Active'}
+                      </span>
+                    </div>
+                    <div className="text-sm text-[#000D3B] opacity-70">
+                      <span className="font-medium">{caseItem.userName}</span> • Last updated{' '}
+                      {new Date(caseItem.updatedAt).toLocaleDateString('en-US', {
+                        month: 'long',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </div>

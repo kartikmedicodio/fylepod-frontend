@@ -65,7 +65,7 @@ const FNCases = () => {
   const [pagination, setPagination] = useState({
     total: 0,
     currentPage: 1,
-    limit: 5,
+    limit: 8,
     totalPages: 0
   });
   const [searchTerm, setSearchTerm] = useState('');

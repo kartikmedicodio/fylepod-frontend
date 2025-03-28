@@ -1507,83 +1507,96 @@ const FNCaseDetails = () => {
         
         {/* Status Buttons */}
         <div className="flex justify-between items-center mb-6">
-          <div className="flex gap-2">
-          <button 
-            onClick={() => setUploadStatus('pending')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              uploadStatus === 'pending'
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            Upload Pending
-          </button>
-          <button 
-            onClick={async () => {
-              setUploadStatus('validation');
-              setIsValidationLoading(true);
-              setIsVerificationLoading(true); // Add this line to show loading state for both accordions
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={() => setUploadStatus('pending')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                uploadStatus === 'pending'
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              Upload Pending
+            </button>
 
-              try {
-                // First fetch documents to ensure we have the latest URLs
-                const documentsResponse = await api.post('/documents/management-docs', {
-                  managementId: caseId,
-                  docTypeIds: caseData.documentTypes
-                    .filter(doc => doc.status === 'uploaded' || doc.status === 'approved')
-                    .map(doc => doc._id)
-                });
+            {/* Add arrow indicator */}
+            <div className="flex items-center px-2 text-gray-400">
+              <div className="relative group">
+                <ChevronRight className="w-5 h-5" />
+                {uploadStatus === 'pending' && (
+                  <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                    Next Step
+                  </div>
+                )}
+              </div>
+            </div>
 
-                // Create URL mapping first
-                const urlMapping = documentsResponse.data.status === 'success' 
-                  ? documentsResponse.data.data.documents.reduce((acc, doc) => {
-                      acc[doc.type] = doc.fileUrl;
-                      return acc;
-                    }, {})
-                  : {};
+            <button 
+              onClick={async () => {
+                setUploadStatus('validation');
+                setIsValidationLoading(true);
+                setIsVerificationLoading(true);
 
-                // Then fetch validation and cross-verification data
-                const [validationResponse, crossVerifyResponse] = await Promise.all([
-                  api.get(`/documents/management/${caseId}/validations`),
-                  api.get(`/management/${caseId}/cross-verify`)
-                ]);
-
-                // Handle cross-verification response
-                if (crossVerifyResponse.data.status === 'success') {
-                  setVerificationData({
-                    ...crossVerifyResponse.data.data,
-                    documentUrls: urlMapping // Add URLs to verification data
+                try {
+                  // First fetch documents to ensure we have the latest URLs
+                  const documentsResponse = await api.post('/documents/management-docs', {
+                    managementId: caseId,
+                    docTypeIds: caseData.documentTypes
+                      .filter(doc => doc.status === 'uploaded' || doc.status === 'approved')
+                      .map(doc => doc._id)
                   });
-                }
 
-                // Handle validation response
-                if (validationResponse.data.status === 'success') {
-                  setValidationData({
-                    ...validationResponse.data.data,
-                    documentUrls: urlMapping
-                  });
-                }
+                  // Create URL mapping first
+                  const urlMapping = documentsResponse.data.status === 'success' 
+                    ? documentsResponse.data.data.documents.reduce((acc, doc) => {
+                        acc[doc.type] = doc.fileUrl;
+                        return acc;
+                      }, {})
+                    : {};
 
-                // Update case data to reflect any status changes
-                const caseResponse = await api.get(`/management/${caseId}`);
-                if (caseResponse.data.status === 'success') {
-                  setCaseData(caseResponse.data.data.entry);
+                  // Then fetch validation and cross-verification data
+                  const [validationResponse, crossVerifyResponse] = await Promise.all([
+                    api.get(`/documents/management/${caseId}/validations`),
+                    api.get(`/management/${caseId}/cross-verify`)
+                  ]);
+
+                  // Handle cross-verification response
+                  if (crossVerifyResponse.data.status === 'success') {
+                    setVerificationData({
+                      ...crossVerifyResponse.data.data,
+                      documentUrls: urlMapping
+                    });
+                  }
+
+                  // Handle validation response
+                  if (validationResponse.data.status === 'success') {
+                    setValidationData({
+                      ...validationResponse.data.data,
+                      documentUrls: urlMapping
+                    });
+                  }
+
+                  // Update case data to reflect any status changes
+                  const caseResponse = await api.get(`/management/${caseId}`);
+                  if (caseResponse.data.status === 'success') {
+                    setCaseData(caseResponse.data.data.entry);
+                  }
+                } catch (error) {
+                  console.error('Error fetching validation data:', error);
+                  toast.error('Failed to load validation data');
+                } finally {
+                  setIsValidationLoading(false);
+                  setIsVerificationLoading(false);
                 }
-              } catch (error) {
-                console.error('Error fetching validation data:', error);
-                toast.error('Failed to load validation data');
-              } finally {
-                setIsValidationLoading(false);
-                setIsVerificationLoading(false);
-              }
-            }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              uploadStatus === 'validation'
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            Validation Check
-          </button>
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                uploadStatus === 'validation'
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              Validation Check
+            </button>
           </div>
         </div>
 
