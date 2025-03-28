@@ -1492,31 +1492,44 @@ const FNCaseDetails = () => {
         
         {/* Status Buttons */}
         <div className="flex justify-between items-center mb-6">
-          <div className="flex gap-2">
-          <button 
-            onClick={() => setUploadStatus('pending')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              uploadStatus === 'pending'
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            Upload Pending
-          </button>
-          <button 
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={() => setUploadStatus('pending')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                uploadStatus === 'pending'
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              Upload Pending
+            </button>
+
+            {/* Add arrow indicator */}
+            <div className="flex items-center px-2 text-gray-400">
+              <div className="relative group">
+                <ChevronRight className="w-5 h-5" />
+                {uploadStatus === 'pending' && (
+                  <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                    Next Step
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <button 
               onClick={() => {
                 setUploadStatus('validation');
                 handleCrossVerification();
-                fetchValidationData(); // Fetch validation data when switching to validation tab
+                fetchValidationData();
               }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 uploadStatus === 'validation'
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
-            }`}
-          >
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
               Validation Check
-          </button>
+            </button>
           </div>
         </div>
 
