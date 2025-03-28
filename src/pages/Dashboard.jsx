@@ -69,7 +69,7 @@ function Dashboard() {
           <div className="flex flex-col items-center">
             <div className="bg-white rounded-full p-1 mb-3">
               <img 
-                src="src\assets\diana-avatar.png" 
+                src="/assets/diana-avatar.png" 
                 alt="Diana"
                 className="w-24 h-24 rounded-full"
               />
@@ -156,7 +156,7 @@ function Dashboard() {
           <div className="flex flex-col items-center">
             <div className="bg-white rounded-full p-1 mb-3">
               <img 
-                src="src\assets\fiona-avatar.png" 
+                src="/assets/fiona-avatar.png" 
                 alt="Fiona"
                 className="w-24 h-24 rounded-full"
               />
