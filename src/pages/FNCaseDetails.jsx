@@ -255,19 +255,16 @@ const FNCaseDetails = () => {
         const document = response.data.data.document;
 
         if (document.processingError || document.status === 'failed') {
-          console.log(`Document ${documentId} processing failed`);
           return null;
         }
 
         if (document.extractedData?.document_type) {
-          console.log('Document processed successfully');
           return document;
         }
 
         attempts++;
         await new Promise(resolve => setTimeout(resolve, baseInterval * Math.min(Math.pow(1.5, attempts), 8)));
       } catch (err) {
-        console.error('Error checking document status:', err);
         return null;
       }
     }
@@ -427,13 +424,12 @@ const FNCaseDetails = () => {
               if (matchingDocType) {
                 // Additional validation of extracted data
                 const validationResults = processedDoc.validationResults || {};
-                const hasRequiredFields = Object.entries(validationResults).every(([field, result]) => {
+                const hasRequiredFields = Object.entries(validationResults).every(([_, result]) => {
                   if (!matchingDocType.required) return true;
                   return result.isValid;
                 });
 
                 if (!hasRequiredFields) {
-                  console.log(`Document ${doc._id} missing required fields. Deleting...`);
                   await api.delete(`/documents/${doc._id}`);
                   return { 
                     success: false, 
@@ -456,7 +452,6 @@ const FNCaseDetails = () => {
                 return { success: true, docId: doc._id };
               } else {
                 // No matching pending document type found - delete the document
-                console.log(`No matching pending document type found for ${extractedType}. Deleting document ${doc._id}`);
                 await api.delete(`/documents/${doc._id}`);
                 return { 
                   success: false, 
@@ -498,169 +493,178 @@ const FNCaseDetails = () => {
       if (successfulUploads > 0) {
         try {
           setProcessingStep(4); // Cross-verifying documents
-
           
-          // Fetch documents, validation data, and cross-verification in parallel
-          const [documentsResponse, validationResponse, crossVerifyResponse] = await Promise.all([
-            api.post('/documents/management-docs', {
-              managementId: caseId,
-              docTypeIds: caseData.documentTypes
-                .filter(doc => doc.status === 'uploaded' || doc.status === 'approved')
-                .map(doc => doc._id)
-            }),
-            api.get(`/documents/management/${caseId}/validations`),
-            api.get(`/management/${caseId}/cross-verify`)
-          ]);
-
-          // Create URL mapping
-          const urlMapping = documentsResponse.data.status === 'success' 
-            ? documentsResponse.data.data.documents.reduce((acc, doc) => {
-                acc[doc.type] = doc.fileUrl;
-                return acc;
-              }, {})
-            : {};
-
-          // Set validation data with URLs
-          if (validationResponse.data.status === 'success') {
-            setValidationData({
-              ...validationResponse.data.data,
-              documentUrls: urlMapping
-            });
-          }
-
-          // Set verification data with URLs
-          if (crossVerifyResponse.data.status === 'success') {
-            setVerificationData({
-              ...crossVerifyResponse.data.data,
-              documentUrls: urlMapping
-            });
-          }
-
-          // Update case data
+          // Get case data and check if all documents are uploaded
           const caseResponse = await api.get(`/management/${caseId}`);
           if (caseResponse.data.status === 'success') {
-            const updatedCaseData = caseResponse.data.data.entry;
-            setCaseData(updatedCaseData);
+            setCaseData(caseResponse.data.data.entry);
             
-            setIsProcessing(false);
-            setFiles([]);
-            setUploadStatus('validation');
-
             // Check if all documents are uploaded
-            const allDocsUploaded = updatedCaseData.documentTypes.every(doc => 
+            const allDocsUploaded = caseResponse.data.data.entry.documentTypes.every(doc => 
               doc.status === 'uploaded' || doc.status === 'approved'
             );
 
             if (allDocsUploaded) {
-              // Get the first questionnaire template
-              const questionnaireResponse = await api.get('/questionnaires');
-              if (questionnaireResponse.data.status === 'success' && questionnaireResponse.data.data.templates.length > 0) {
-                const template = questionnaireResponse.data.data.templates[0];
-                
-                // Get organized documents and fill questionnaire
-                const organizedDocsResponse = await api.post(`/documents/management/${caseId}/organized`, {
-                  templateId: template._id
-                });
+              // Perform cross-verification only once
+              const crossVerifyResponse = await api.get(`/management/${caseId}/cross-verify`);
+              
+              if (crossVerifyResponse.data.status === 'success') {
+                // Fetch validation data
+                const validationResponse = await api.get(`/documents/management/${caseId}/validations`);
+                if (validationResponse.data.status === 'success') {
+                  const validationData = validationResponse.data.data;
+                  const verificationData = crossVerifyResponse.data.data;
 
-                if (organizedDocsResponse.data.status === 'success') {
-                  // Set questionnaire data
-                  setQuestionnaireData({
-                    responses: [{
-                      processedInformation: organizedDocsResponse.data.data.processedInformation
-                    }]
+                  // Generate email draft
+                  const recipientEmail = profileData?.contact?.email || profileData?.email;
+                  const recipientName = profileData?.name || 'Applicant';
+
+                  if (!recipientEmail) {
+                    toast.error('Cannot send email: Missing recipient email');
+                    return;
+                  }
+
+                  const draftResponse = await api.post('/mail/draft', {
+                    errorType: 'document_validation',
+                    errorDetails: {
+                      validationResults: validationData.mergedValidations.flatMap(doc => 
+                        doc.validations.map(v => ({
+                          documentType: doc.documentType,
+                          rule: v.rule,
+                          passed: v.passed,
+                          message: v.message
+                        }))
+                      ),
+                      mismatchErrors: verificationData.verificationResults?.mismatchErrors || [],
+                      missingErrors: verificationData.verificationResults?.missingErrors || [],
+                      summarizationErrors: verificationData.verificationResults?.summarizationErrors || []
+                    },
+                    recipientEmail,
+                    recipientName
                   });
-                  setSelectedQuestionnaire(template);
-                  setFormData(organizedDocsResponse.data.data.processedInformation);
-                  
-                  // Check if all validations passed before switching to questionnaire
-                  const allValidationsPassed = validationResponse.data.data.mergedValidations.every(doc => doc.passed);
-                  if (allValidationsPassed) {
-                    setActiveTab('questionnaire');
-                    setUploadStatus('uploaded');
-                    toast.success('All documents uploaded and validated! Questionnaire has been auto-filled.');
+
+                  if (draftResponse.data && draftResponse.data.status === 'success' && draftResponse.data.data) {
+                    const { subject, body } = draftResponse.data.data;
+                    
+                    // Send the email
+                    const sendResponse = await api.post('/mail/send', {
+                      subject,
+                      body,
+                      recipientEmail,
+                      recipientName,
+                      ccEmail: [] // Optional CC field
+                    });
+
+                    if (sendResponse.data.status === 'success') {
+                      toast.success('Documents uploaded and email sent successfully');
+                    } else {
+                      toast.error('Failed to send email notification');
+                    }
                   } else {
-                    setUploadStatus('validation');
-                    toast.info('Please review document validations before proceeding to questionnaire.');
+                    toast.error('Failed to generate email notification');
                   }
                 }
               }
+
+              // Refresh case data
+              await refreshCaseData();
             }
           }
-
-          // Initialize chat with new documents
-          if (successfulUploads > 0) {
-            try {
-              // Get case details for chat context
-              const managementData = caseResponse.data.data.entry;
-              
-              // Prepare management context
-              const managementContext = {
-                caseId: managementData._id,
-                categoryName: managementData.categoryName,
-                categoryStatus: managementData.categoryStatus,
-                deadline: managementData.deadline,
-                documentTypes: managementData.documentTypes.map(doc => ({
-                  name: doc.name,
-                  status: doc.status,
-                  required: doc.required
-                }))
-              };
-
-              // Get uploaded documents for chat
-              const validDocuments = managementData.documentTypes
-                .filter(docType => docType && (docType.status === 'uploaded' || docType.status === 'approved'))
-                .map(docType => ({
-                  id: docType._id,
-                  name: docType.name
-                }))
-                .filter(doc => doc.id);
-
-              if (validDocuments.length > 0) {
-                const docIds = documentsResponse.data.data.documents
-                  .filter(doc => doc && doc._id)
-                  .map(doc => doc._id);
-
-                // Create new chat with the documents and management data
-                const chatResponse = await api.post('/chat', {
-                  documentIds: docIds,
-                  managementId: caseId,
-                  managementContext: managementContext
-                });
-
-                if (chatResponse.data?.status === 'success' && chatResponse.data?.data?.chat) {
-                  setCurrentChat(chatResponse.data.data.chat);
-                  setMessages(prev => [
-                    prev[0], // Keep welcome message
-                    {
-                      role: 'assistant',
-                      content: `I've analyzed your newly uploaded documents. You can now ask me questions about them!`
-                    }
-                  ]);
-                }
-              }
-            } catch (error) {
-              console.error('Error initializing chat after upload:', error);
-              // Don't show error to user, just log it - chat will initialize on first message
-            }
-          }
-
         } catch (error) {
-          console.error('Error during validation and verification:', error);
+          console.error('Error during cross-verification or questionnaire filling:', error);
           // Don't show error to user, just log it
         }
       }
       
+      setFiles([]);
 
       // Reset chat after successful upload
       if (successfulUploads > 0) {
-        // Reset chat states and show success message
+        // Reset chat states
         setCurrentChat(null);
         setMessages([{
           role: 'assistant',
           content: "Hello! I'm Sophia from support. I'm here to assist you with your case and answer any questions you might have. How can I help you today?"
         }]);
+        
+        // If there are successful uploads, initialize chat automatically
+        try {
+          // Get case details
+          const caseResponse = await api.get(`/management/${caseId}`);
+          
+          if (caseResponse.data?.status === 'success' && caseResponse.data?.data?.entry) {
+            const managementData = caseResponse.data.data.entry;
+            
+            // Prepare management context
+            const managementContext = {
+              caseId: managementData._id,
+              categoryName: managementData.categoryName,
+              categoryStatus: managementData.categoryStatus,
+              deadline: managementData.deadline,
+              documentTypes: managementData.documentTypes.map(doc => ({
+                name: doc.name,
+                status: doc.status,
+                required: doc.required
+              }))
+            };
+            
+            // Get uploaded documents
+            const validDocuments = managementData.documentTypes
+              .filter(docType => docType && (docType.status === 'uploaded' || docType.status === 'approved'))
+              .map(docType => ({
+                id: docType._id,
+                name: docType.name
+              }))
+              .filter(doc => doc.id);
+              
+            if (validDocuments.length > 0) {
+              // Get document IDs
+              const validDocTypeIds = validDocuments.map(doc => doc.id);
+              
+              const documentsResponse = await api.post('/documents/management-docs', {
+                managementId: caseId,
+                docTypeIds: validDocTypeIds
+              });
+              
+              if (documentsResponse.data?.data?.documents) {
+                const validDocs = documentsResponse.data.data.documents
+                  .filter(doc => doc && doc._id);
+                
+                if (validDocs.length > 0) {
+                  // Extract document IDs for chat creation
+                  const docIds = validDocs.map(doc => doc._id);
+                  
+                  // Create new chat with the documents and management data
+                  const chatResponse = await api.post('/chat', {
+                    documentIds: docIds,
+                    managementId: caseId,
+                    managementContext: managementContext
+                  });
+                  
+                  if (chatResponse.data?.status === 'success' && chatResponse.data?.data?.chat) {
+                    setCurrentChat(chatResponse.data.data.chat);
+                    
+                    // Add a message indicating the chat has been updated with new documents
+                    setMessages(prev => [
+                      prev[0], // Keep welcome message
+                      {
+                        role: 'assistant',
+                        content: `I've analyzed your newly uploaded documents. You can now ask me questions about them!`
+                      }
+                    ]);
+                  }
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error initializing chat after upload:', error);
+          // Don't show error to user, just log it - chat will initialize on first message
+        }
+      }
 
-        // Show success toast
+      // Show success/failure toasts
+      if (successfulUploads > 0) {
         toast.custom((t) => (
           <div className={`${
             t.visible ? 'animate-enter' : 'animate-leave'
@@ -704,7 +708,6 @@ const FNCaseDetails = () => {
       }
 
       if (failedUploads > 0) {
-        // Show failure toast
         toast.custom((t) => (
           <div className={`${
             t.visible ? 'animate-enter' : 'animate-leave'
@@ -746,12 +749,11 @@ const FNCaseDetails = () => {
           </div>
         ), { duration: 5000 });
       }
-
     } catch (err) {
       console.error('Error uploading files:', err);
       toast.error('Failed to upload files');
     } finally {
-     
+      setIsProcessing(false);
       setProcessingStep(0);
     }
   };
@@ -858,12 +860,9 @@ const FNCaseDetails = () => {
       // Initialize chat if it doesn't exist
       let messageResponse;
       if (!currentChat) {
-        console.log('Current case ID:', caseId);
-        
         try {
           // First get the case details to get document types
           const caseResponse = await api.get(`/management/${caseId}`);
-          console.log('Case response:', caseResponse.data);
 
           if (!(caseResponse.data?.status === 'success') || !caseResponse.data?.data?.entry) {
             throw new Error('Failed to fetch case details');
@@ -896,12 +895,8 @@ const FNCaseDetails = () => {
             }))
             .filter(doc => doc.id);
 
-          console.log('Valid documents:', validDocuments);
-          
           // Check if there are valid documents
           if (validDocuments.length === 0) {
-            console.log('No valid documents found. Creating chat with management data only.');
-            
             // Create chat with just management data (no documents)
             chatResponse = await api.post('/chat', {
               documentIds: [],
@@ -911,7 +906,6 @@ const FNCaseDetails = () => {
           } else {
             // Extract just the document type IDs
             const validDocTypeIds = validDocuments.map(doc => doc.id);
-            console.log('Valid document type IDs:', validDocTypeIds);
             
             // Use the new API endpoint with POST instead of GET
             const documentsResponse = await api.post('/documents/management-docs', {
@@ -925,8 +919,6 @@ const FNCaseDetails = () => {
 
             const validDocs = documentsResponse.data.data.documents
               .filter(doc => doc && doc._id);
-
-            console.log(`Found ${validDocs.length} valid documents for chat:`, validDocs);
             
             if (validDocs.length === 0) {
               // Create chat with just management data (no documents)
@@ -938,7 +930,6 @@ const FNCaseDetails = () => {
             } else {
               // Extract document IDs for chat creation
               const docIds = validDocs.map(doc => doc._id);
-              console.log('Using these document IDs for chat:', docIds);
               
               // Create the chat with documents and management data
               chatResponse = await api.post('/chat', {
@@ -948,8 +939,6 @@ const FNCaseDetails = () => {
               });
             }
           }
-          
-          console.log('Chat response:', chatResponse);
           
           if (!(chatResponse.data?.status === 'success') || !chatResponse.data?.data?.chat) {
             throw new Error(chatResponse.data?.message || 'Failed to create chat');
@@ -963,7 +952,6 @@ const FNCaseDetails = () => {
             message: chatInput
           });
         } catch (error) {
-          console.error('Error initializing chat:', error);
           setMessages(prev => [...prev, {
             role: 'assistant',
             content: error.message || "I'm sorry, I encountered an error while setting up the chat. Please ensure you have uploaded and processed documents first."
@@ -979,7 +967,6 @@ const FNCaseDetails = () => {
 
       // Handle the message response
       if (messageResponse?.data?.status === 'success' && messageResponse.data.data.message) {
-        console.log('Message response:', messageResponse.data);
         setMessages(prev => [...prev, messageResponse.data.data.message]);
       } else {
         throw new Error('Invalid message response');
@@ -1818,36 +1805,80 @@ const FNCaseDetails = () => {
   };
 
   const QuestionnaireTab = () => {
+    const [loadingStep, setLoadingStep] = useState(0);
+    const [isLoadingQuestionnaire, setIsLoadingQuestionnaire] = useState(false);
+
     const handleQuestionnaireClick = async (questionnaire) => {
+      setIsLoadingQuestionnaire(true);
       setSelectedQuestionnaire(questionnaire);
+      setLoadingStep(0);
       
       try {
-        const response = await api.get(`/questionnaire-responses/management/${caseId}`, {
+        // Get the organized data using POST request with templateId
+        const organizedResponse = await api.post(`/documents/management/${caseId}/organized`, {
           templateId: questionnaire._id
         });
         
-        if (response.data.status === 'success') {
-          // Get the first response
-          const questionnaireResponse = response.data.data.responses[0];
+        if (organizedResponse.data.status === 'success') {
+          setLoadingStep(1);
+          const { processedInformation } = organizedResponse.data.data;
           
-          // Set questionnaire data
-          setQuestionnaireData(response.data.data);
+          // Get the questionnaire response
+          const response = await api.get(`/questionnaire-responses/management/${caseId}`, {
+            params: {
+              templateId: questionnaire._id
+            }
+          });
           
-          // Set form data from processed information
-          setFormData(questionnaireResponse.processedInformation);
-          
-          // Set saved fields if status is 'saved'
-          if (questionnaireResponse.status === 'saved') {
-            setSavedFields(questionnaireResponse.processedInformation);
-            setQuestionnaireStatus('saved');
-          } else {
-            setQuestionnaireStatus('pending');
-            setSavedFields({ Passport: {}, Resume: {} });
+          if (response.data.status === 'success') {
+            setLoadingStep(2);
+            // Get the first response
+            const questionnaireResponse = response.data.data.responses[0];
+            
+            // Set questionnaire data
+            setQuestionnaireData(response.data.data);
+            
+            // Map the processed information to form data
+            const mappedData = {};
+            
+            // Process each field mapping
+            questionnaire.field_mappings.forEach(field => {
+              const sourceDoc = field.sourceDocument;
+              const fieldName = field.fieldName;
+              
+              // Get the processed data for this document type
+              const docData = processedInformation[sourceDoc];
+              
+              if (docData) {
+                // Initialize the section if it doesn't exist
+                if (!mappedData[sourceDoc]) {
+                  mappedData[sourceDoc] = {};
+                }
+                
+                // Map the field value
+                mappedData[sourceDoc][fieldName] = docData[fieldName] || '';
+              }
+            });
+            
+            // Set form data with mapped data
+            setFormData(mappedData);
+            
+            // Set saved fields if status is 'saved'
+            if (questionnaireResponse.status === 'saved') {
+              setSavedFields(questionnaireResponse.processedInformation);
+              setQuestionnaireStatus('saved');
+            } else {
+              setQuestionnaireStatus('pending');
+              setSavedFields({ Passport: {}, Resume: {} });
+            }
           }
         }
       } catch (error) {
         console.error('Error fetching questionnaire details:', error);
         toast.error('Failed to load questionnaire details');
+      } finally {
+        setIsLoadingQuestionnaire(false);
+        setLoadingStep(0);
       }
     };
 
@@ -1860,6 +1891,24 @@ const FNCaseDetails = () => {
     }
 
     if (selectedQuestionnaire) {
+      if (isLoadingQuestionnaire) {
+        return (
+          <div className="flex flex-col items-center justify-center h-64 space-y-4">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            <div className="text-gray-600 text-sm">
+              <div className="flex items-center space-x-2 transition-all duration-300">
+                <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                <span>
+                  {loadingStep === 0 && "Loading questionnaire data..."}
+                  {loadingStep === 1 && "Mapping form fields..."}
+                  {loadingStep === 2 && "Processing responses..."}
+                </span>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
       return (
         <div className="bg-white rounded-lg border border-gray-200">
           <QuestionnaireDetailView 
@@ -1901,106 +1950,67 @@ const FNCaseDetails = () => {
   };
 
   const QuestionnaireDetailView = ({ questionnaire, onBack }) => {
-    // Add state for empty fields toggle
     const [showOnlyEmpty, setShowOnlyEmpty] = useState(false);
-    // Add local state for form data
     const [localFormData, setLocalFormData] = useState(formData);
+    const [isSaving, setIsSaving] = useState(false);
 
-    // Update local form data when parent form data changes
     useEffect(() => {
       setLocalFormData(formData);
     }, [formData]);
 
-    // Add function to check if a field is empty
-    const isFieldEmpty = (section, field) => {
-      if (field === 'educationalQualification') {
-        const eduData = localFormData?.[section]?.[field] || [];
-        if (!Array.isArray(eduData) || eduData.length === 0) return true;
-        return eduData.some(edu => {
-          if (typeof edu === 'string') return !edu;
-          return !edu.degree || !edu.institution || !edu.years;
-        });
+    const shouldShowField = (section, field) => {
+      // If not showing only empty fields, show all fields
+      if (!showOnlyEmpty) {
+        return true;
       }
-      return !localFormData?.[section]?.[field];
+      
+      // Get the field name from the field object
+      const fieldName = field.fieldName;
+      
+      // Get the value from localFormData
+      const value = localFormData?.[section]?.[fieldName];
+      
+      // Check if value is empty
+      const isEmpty = !value || (typeof value === 'string' && value.trim() === '');
+      
+      return isEmpty;
     };
 
-    // Update input change handler to use local state
     const handleLocalInputChange = (section, field, value) => {
-      setLocalFormData(prev => ({
-        ...prev,
-        [section]: {
-          ...(prev[section] || {}),
-          [field]: value
-        }
-      }));
-    };
-
-    // Update save handler to use local state
-    const handleLocalSave = async () => {
-      // Show confirmation toast
-      toast((t) => (
-        <div className="flex items-center justify-between w-[500px] p-2">
-          <div className="flex-1">
-            <p className="text-lg font-medium text-gray-900">Save questionnaire?</p>
-            <p className="text-sm text-gray-500 mt-1">This action cannot be undone</p>
-          </div>
-          <div className="flex gap-3 ml-8">
-            <button
-              onClick={() => toast.dismiss(t.id)}
-              className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors min-w-[80px]"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={async () => {
-                toast.dismiss(t.id);
-                try {
-                  setIsSavingQuestionnaire(true);
-                  
-                  // First update the form data
-                  const formResponse = await api.put(`/questionnaire-responses/management/${caseId}`, {
-                    templateId: selectedQuestionnaire._id,
-                    processedInformation: localFormData
-                  });
-
-                  if (formResponse.data.status === 'success') {
-                    // Then update the questionnaire status
-                    const statusResponse = await api.patch(`/management/questionnaire-response/${caseId}/status`, {
-                      status: 'saved'
-                    });
-
-                    if (statusResponse.data.status === 'success') {
-                      toast.success('Changes saved successfully');
-                      setIsQuestionnaireCompleted(true);
-                      setActiveTab('questionnaire');
-                      setSavedFields(localFormData);
-                      setQuestionnaireStatus('saved'); // Update the status
-                    }
-                  }
-                } catch (error) {
-                  console.error('Error saving questionnaire:', error);
-                  toast.error('Failed to save changes');
-                } finally {
-                  setIsSavingQuestionnaire(false);
-                }
-              }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors min-w-[80px]"
-            >
-              Yes, submit
-            </button>
-          </div>
-        </div>
-      ), {
-        duration: 10000,
-        position: 'top-center',
-        style: {
-          maxWidth: '100%',
-          width: 'auto'
-        },
+      setLocalFormData(prev => {
+        const newData = {
+          ...prev,
+          [section]: {
+            ...(prev[section] || {}),
+            [field]: value
+          }
+        };
+        return newData;
       });
     };
 
-    // Add function to count filled fields using local state
+    const handleLocalSave = async () => {
+      try {
+        setIsSaving(true);
+        const response = await api.put(`/questionnaire-responses/management/${caseId}`, {
+          templateId: questionnaire._id,
+          processedInformation: localFormData
+        });
+
+        if (response.data.status === 'success') {
+          setFormData(localFormData);
+          setSavedFields(localFormData);
+          setQuestionnaireStatus('saved');
+          toast.success('Questionnaire saved successfully');
+        }
+      } catch (error) {
+        console.error('Error saving questionnaire:', error);
+        toast.error('Failed to save questionnaire');
+      } finally {
+        setIsSaving(false);
+      }
+    };
+
     const getFilledFieldsCount = () => {
       let totalFields = 0;
       let filledFields = 0;
@@ -2019,7 +2029,7 @@ const FNCaseDetails = () => {
       resumeFields.forEach(field => {
         if (field.fieldName === 'educationalQualification') {
           totalFields += 1;
-          if (localFormData?.Resume?.educationalQualification?.length > 0) {
+          if (localFormData?.Resume?.educationalQualification) {
             filledFields++;
           }
         } else {
@@ -2030,130 +2040,62 @@ const FNCaseDetails = () => {
         }
       });
 
-      return { filledFields, totalFields };
+      return { total: totalFields, filled: filledFields };
     };
 
-    const { filledFields, totalFields } = getFilledFieldsCount();
-
-    // Add function to check if field should be visible
-    const shouldShowField = (section, field) => {
-      if (!showOnlyEmpty) return true;
-      return field.required && isFieldEmpty(section, field.fieldName);
-    };
-
-    // Add function to check if a field is saved
     const isFieldSaved = (section, field) => {
-      // If questionnaire status is saved, all fields are considered saved
-      if (questionnaireStatus === 'saved') {
-        return true;
-      }
-
-      if (field === 'educationalQualification') {
-        return savedFields?.[section]?.educationalQualification !== undefined &&
-               JSON.stringify(savedFields?.[section]?.educationalQualification) === 
-               JSON.stringify(localFormData?.[section]?.educationalQualification);
-      }
-      return savedFields?.[section]?.[field] !== undefined && 
-             savedFields?.[section]?.[field] === localFormData?.[section]?.[field];
+      return savedFields?.[section]?.[field] === localFormData?.[section]?.[field];
     };
+
+    const { total, filled } = getFilledFieldsCount();
+    const progress = total > 0 ? Math.round((filled / total) * 100) : 0;
 
     return (
       <div className="p-6">
-        {/* Header with Back Button */}
-        <div className="mb-6 flex justify-between">
-          <div className="flex items-center gap-8">
-              <button 
-                onClick={onBack}
-                className="text-gray-600 hover:text-gray-800 transition-colors"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={onBack}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <ChevronLeft className="w-5 h-5 text-gray-600" />
+            </button>
             <div>
-              <div className="flex items-center gap-8">
               <h2 className="text-lg font-medium text-gray-900">Questionnaire</h2>
-            </div>
               <p className="text-sm text-gray-600">{questionnaire.questionnaire_name}</p>
             </div>
           </div>
           <div className='flex items-center gap-4'>
-            {/* Add Empty Fields Toggle Button */}
-            <button
-              onClick={() => setShowOnlyEmpty(!showOnlyEmpty)}
-              className={`px-4 py-2 rounded text-sm font-medium transition-colors flex items-center gap-2
-                ${showOnlyEmpty 
-                  ? 'bg-red-100 text-red-700 hover:bg-red-200' 
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-            >
-              {showOnlyEmpty ? (
-                <>
-                  <Eye className="w-4 h-4" />
-                  Show All Fields
-                </>
-              ) : (
-                <>
-                  <AlertCircle className="w-4 h-4" />
-                  Show Empty Fields
-                </>
-              )}
-            </button>
-
             <div className="flex items-center gap-2">
-                <div className="text-sm text-gray-600">
-                  {filledFields} out of {totalFields} fields completed
-                </div>
-                {/* Progress bar with animated dots */}
-                <div className="relative w-32">
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-green-500 transition-all duration-500"
-                      style={{ width: `${(filledFields / totalFields) * 100}%` }}
-                    />
-                  </div>
-                  {/* Animated dots for remaining fields */}
-                  {filledFields < totalFields && (
-                    <div className="absolute top-0 left-0 w-full h-full flex items-center justify-end pr-2">
-                      <div className="flex gap-1">
-                        <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '0ms' }} />
-                        <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '200ms' }} />
-                        <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '400ms' }} />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            
-            <div className="relative group">
-              <button
-                onClick={handleLocalSave}
-                disabled={isSavingQuestionnaire || questionnaireStatus === 'saved'}
-                className="px-6 py-2 bg-blue-600 text-white rounded text-sm font-medium transition-colors 
-                  disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2
-                  hover:bg-blue-700 group-hover:disabled:bg-gray-300"
-              >
-                {isSavingQuestionnaire ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Saving...</span>
-                  </>
-                ) : questionnaireStatus === 'saved' ? (
-                  'Saved'
-                ) : (
-                  'Save'
-                )}
-              </button>
-              {questionnaireStatus === 'saved' && (
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                  Questionnaire has been saved and cannot be edited
+              <input
+                type="checkbox"
+                id="showEmpty"
+                checked={showOnlyEmpty}
+                onChange={(e) => setShowOnlyEmpty(e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="showEmpty" className="text-sm text-gray-600">
+                Show only empty fields
+              </label>
             </div>
-              )}
-          </div>
+            <div className="text-sm text-gray-600">
+              {filled} of {total} fields filled
+            </div>
+            <button
+              onClick={handleLocalSave}
+              disabled={isSaving}
+              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                isSaving
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </button>
           </div>
         </div>
 
-        {/* Form Content */}
         <div className="space-y-6">
-          {/* Passport Information Section */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <h3 className="text-sm font-medium text-gray-900 mb-4">Passport Information</h3>
             <div className="grid grid-cols-3 gap-4">
@@ -2161,31 +2103,26 @@ const FNCaseDetails = () => {
                 .filter(field => field.sourceDocument === 'Passport')
                 .map(field => (
                   shouldShowField('Passport', field) && (
-                  <div key={field._id}>
-                    <label className="block text-xs text-gray-500 mb-1">
-                      {field.fieldName}
-                      {field.required && <span className="text-red-500 ml-1">*</span>}
-                    </label>
-                    <input
-                      type="text"
-                      value={localFormData?.Passport?.[field.fieldName] || ''}
-                      onChange={(e) => handleLocalInputChange('Passport', field.fieldName, e.target.value)}
-                        disabled={isFieldSaved('Passport', field.fieldName)}
-                        className={`w-full px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 
-                          ${isFieldSaved('Passport', field.fieldName)
-                            ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
-                            : field.required && isFieldEmpty('Passport', field.fieldName)
-                              ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                              : 'border-gray-200 focus:border-blue-400'
-                          }`}
-                    />
-                  </div>
+                    <div key={field._id}>
+                      <label className="block text-sm text-gray-600 mb-1">
+                        {field.displayName}
+                      </label>
+                      <input
+                        type="text"
+                        value={localFormData?.Passport?.[field.fieldName] || ''}
+                        onChange={(e) => handleLocalInputChange('Passport', field.fieldName, e.target.value)}
+                        className={`w-full px-3 py-2 border rounded-lg text-sm ${
+                          isFieldSaved('Passport', field.fieldName)
+                            ? 'border-gray-200 bg-gray-50'
+                            : 'border-blue-200 bg-blue-50'
+                        }`}
+                      />
+                    </div>
                   )
                 ))}
             </div>
           </div>
 
-          {/* Professional Information Section */}
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <h3 className="text-sm font-medium text-gray-900 mb-4">Professional Information</h3>
             <div className="grid grid-cols-2 gap-4">
@@ -2193,181 +2130,40 @@ const FNCaseDetails = () => {
                 .filter(field => field.sourceDocument === 'Resume')
                 .map(field => {
                   if (field.fieldName === 'educationalQualification') {
-                    // Show educational qualification section only if it should be visible
                     return shouldShowField('Resume', field) && (
                       <div key={field._id} className="col-span-2">
-                        <label className="block text-xs text-gray-500 mb-1">
-                          {field.fieldName}
-                          {field.required && <span className="text-red-500 ml-1">*</span>}
+                        <label className="block text-sm text-gray-600 mb-1">
+                          {field.displayName}
                         </label>
-                        <div className="space-y-2">
-                          {Array.isArray(localFormData?.Resume?.educationalQualification)
-                            ? localFormData.Resume.educationalQualification.map((edu, index) => (
-                              <div key={index} className="grid grid-cols-3 gap-2">
-                                <input
-                                  type="text"
-                                  value={typeof edu === 'string' ? edu : edu.degree || ''}
-                                  placeholder="Degree"
-                                  disabled={isFieldSaved('Resume', 'educationalQualification')}
-                                  onChange={(e) => {
-                                    if (!isFieldSaved('Resume', 'educationalQualification')) {
-                                      const newEdu = [...(localFormData.Resume.educationalQualification || [])];
-                                      newEdu[index] = typeof edu === 'string' 
-                                        ? e.target.value
-                                        : { ...newEdu[index], degree: e.target.value };
-                                      handleLocalInputChange('Resume', 'educationalQualification', newEdu);
-                                    }
-                                  }}
-                                  className={`w-full px-3 py-1.5 border rounded text-sm
-                                    ${isFieldSaved('Resume', 'educationalQualification')
-                                      ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
-                                      : field.required && (!edu || (typeof edu !== 'string' && !edu.degree))
-                                        ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                                        : 'border-gray-200 focus:border-blue-400'
-                                    }`}
-                                />
-                                <input
-                                  type="text"
-                                  value={typeof edu === 'string' ? '' : edu.institution || ''}
-                                  placeholder="Institution"
-                                  disabled={isFieldSaved('Resume', 'educationalQualification')}
-                                  onChange={(e) => {
-                                    if (!isFieldSaved('Resume', 'educationalQualification')) {
-                                      const newEdu = [...(localFormData.Resume.educationalQualification || [])];
-                                      newEdu[index] = { 
-                                        ...(typeof edu === 'string' ? { degree: edu } : newEdu[index]), 
-                                        institution: e.target.value 
-                                      };
-                                      handleLocalInputChange('Resume', 'educationalQualification', newEdu);
-                                    }
-                                  }}
-                                  className={`w-full px-3 py-1.5 border rounded text-sm
-                                    ${isFieldSaved('Resume', 'educationalQualification')
-                                      ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
-                                      : field.required && (!edu || (typeof edu !== 'string' && !edu.institution))
-                                        ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                                        : 'border-gray-200 focus:border-blue-400'
-                                    }`}
-                                />
-                                <input
-                                  type="text"
-                                  value={typeof edu === 'string' ? '' : (edu.years || edu.duration || '')}
-                                  placeholder="Years"
-                                  disabled={isFieldSaved('Resume', 'educationalQualification')}
-                                  onChange={(e) => {
-                                    if (!isFieldSaved('Resume', 'educationalQualification')) {
-                                      const newEdu = [...(localFormData.Resume.educationalQualification || [])];
-                                      newEdu[index] = { 
-                                        ...(typeof edu === 'string' ? { degree: edu } : newEdu[index]), 
-                                        years: e.target.value 
-                                      };
-                                      handleLocalInputChange('Resume', 'educationalQualification', newEdu);
-                                    }
-                                  }}
-                                  className={`w-full px-3 py-1.5 border rounded text-sm
-                                    ${isFieldSaved('Resume', 'educationalQualification')
-                                      ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
-                                      : field.required && (!edu || (typeof edu !== 'string' && !edu.years))
-                                        ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                                        : 'border-gray-200 focus:border-blue-400'
-                                    }`}
-                                />
-                              </div>
-                            )) : (
-                              <div className="grid grid-cols-3 gap-2">
-                                <input
-                                  type="text"
-                                  value={localFormData?.Resume?.educationalQualification?.degree || ''}
-                                  placeholder="Degree"
-                                  disabled={isFieldSaved('Resume', 'educationalQualification')}
-                                  onChange={(e) => {
-                                    if (!isFieldSaved('Resume', 'educationalQualification')) {
-                                      const newEdu = { 
-                                        ...(localFormData?.Resume?.educationalQualification || {}),
-                                        degree: e.target.value 
-                                      };
-                                      handleLocalInputChange('Resume', 'educationalQualification', newEdu);
-                                    }
-                                  }}
-                                  className={`w-full px-3 py-1.5 border rounded text-sm
-                                    ${isFieldSaved('Resume', 'educationalQualification')
-                                      ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
-                                      : field.required && !localFormData?.Resume?.educationalQualification?.degree
-                                        ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                                        : 'border-gray-200 focus:border-blue-400'
-                                    }`}
-                                />
-                                <input
-                                  type="text"
-                                  value={localFormData?.Resume?.educationalQualification?.institution || ''}
-                                  placeholder="Institution"
-                                  disabled={isFieldSaved('Resume', 'educationalQualification')}
-                                  onChange={(e) => {
-                                    if (!isFieldSaved('Resume', 'educationalQualification')) {
-                                      const newEdu = { 
-                                        ...(localFormData?.Resume?.educationalQualification || {}),
-                                        institution: e.target.value 
-                                      };
-                                      handleLocalInputChange('Resume', 'educationalQualification', newEdu);
-                                    }
-                                  }}
-                                  className={`w-full px-3 py-1.5 border rounded text-sm
-                                    ${isFieldSaved('Resume', 'educationalQualification')
-                                      ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
-                                      : field.required && !localFormData?.Resume?.educationalQualification?.institution
-                                        ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                                        : 'border-gray-200 focus:border-blue-400'
-                                    }`}
-                                />
-                                <input
-                                  type="text"
-                                  value={localFormData?.Resume?.educationalQualification?.years || ''}
-                                  placeholder="Years"
-                                  disabled={isFieldSaved('Resume', 'educationalQualification')}
-                                  onChange={(e) => {
-                                    if (!isFieldSaved('Resume', 'educationalQualification')) {
-                                      const newEdu = { 
-                                        ...(localFormData?.Resume?.educationalQualification || {}),
-                                        years: e.target.value 
-                                      };
-                                      handleLocalInputChange('Resume', 'educationalQualification', newEdu);
-                                    }
-                                  }}
-                                  className={`w-full px-3 py-1.5 border rounded text-sm
-                                    ${isFieldSaved('Resume', 'educationalQualification')
-                                      ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
-                                      : field.required && !localFormData?.Resume?.educationalQualification?.years
-                                        ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                                        : 'border-gray-200 focus:border-blue-400'
-                                    }`}
-                                />
-                              </div>
-                            )}
-                        </div>
+                        <textarea
+                          value={localFormData?.Resume?.educationalQualification || ''}
+                          onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', e.target.value)}
+                          rows={3}
+                          className={`w-full px-3 py-2 border rounded-lg text-sm ${
+                            isFieldSaved('Resume', 'educationalQualification')
+                              ? 'border-gray-200 bg-gray-50'
+                              : 'border-blue-200 bg-blue-50'
+                          }`}
+                        />
                       </div>
                     );
                   }
-
                   return shouldShowField('Resume', field) && (
-                  <div key={field._id}>
-                    <label className="block text-xs text-gray-500 mb-1">
-                      {field.fieldName}
-                      {field.required && <span className="text-red-500 ml-1">*</span>}
-                    </label>
-                    <input
-                      type={field.fieldName.toLowerCase().includes('email') ? 'email' : 'text'}
-                      value={localFormData?.Resume?.[field.fieldName] || ''}
-                      onChange={(e) => handleLocalInputChange('Resume', field.fieldName, e.target.value)}
-                        disabled={isFieldSaved('Resume', field.fieldName)}
-                        className={`w-full px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 
-                          ${isFieldSaved('Resume', field.fieldName)
-                            ? 'bg-gray-50 text-gray-500 cursor-not-allowed'
-                            : field.required && isFieldEmpty('Resume', field.fieldName)
-                              ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                              : 'border-gray-200 focus:border-blue-400'
-                          }`}
-                    />
-                  </div>
+                    <div key={field._id}>
+                      <label className="block text-sm text-gray-600 mb-1">
+                        {field.displayName}
+                      </label>
+                      <input
+                        type="text"
+                        value={localFormData?.Resume?.[field.fieldName] || ''}
+                        onChange={(e) => handleLocalInputChange('Resume', field.fieldName, e.target.value)}
+                        className={`w-full px-3 py-2 border rounded-lg text-sm ${
+                          isFieldSaved('Resume', field.fieldName)
+                            ? 'border-gray-200 bg-gray-50'
+                            : 'border-blue-200 bg-blue-50'
+                        }`}
+                      />
+                    </div>
                   );
                 })}
             </div>
@@ -2379,26 +2175,25 @@ const FNCaseDetails = () => {
          !questionnaire.field_mappings.some(field => 
            shouldShowField(field.sourceDocument, field)
          ) && (
-          <div className="text-center py-8 text-gray-500">
-            No empty required fields found!
-        </div>
-        )}
+           <div className="text-center py-8 text-gray-500">
+             No empty fields found
+           </div>
+         )}
       </div>
     );
   };
 
+  // Add PropTypes validation
   QuestionnaireDetailView.propTypes = {
     questionnaire: PropTypes.shape({
-      questionnaire_name: PropTypes.string,
-      field_mappings: PropTypes.arrayOf(
-        PropTypes.shape({
-          _id: PropTypes.string,
-          sourceDocument: PropTypes.string,
-          sourceField: PropTypes.string,
-          targetForm: PropTypes.string,
-          targetField: PropTypes.string
-        })
-      )
+      _id: PropTypes.string.isRequired,
+      questionnaire_name: PropTypes.string.isRequired,
+      field_mappings: PropTypes.arrayOf(PropTypes.shape({
+        _id: PropTypes.string.isRequired,
+        sourceDocument: PropTypes.string.isRequired,
+        fieldName: PropTypes.string.isRequired,
+        displayName: PropTypes.string.isRequired
+      })).isRequired
     }).isRequired,
     onBack: PropTypes.func.isRequired
   };
@@ -2544,7 +2339,86 @@ const FNCaseDetails = () => {
     }
   }, [caseId]);
 
-  // Add back the handleTabClick function
+  // Add function to handle cross verification
+  const handleCrossVerification = async () => {
+    try {
+      setIsVerificationLoading(true);
+      console.log('Starting cross-verification for case:', caseId);
+      
+      const response = await api.get(`/management/${caseId}/cross-verify`);
+      
+      if (response.data.status === 'success') {
+        console.log('Cross-verification response:', {
+          status: response.data.status,
+          data: response.data.data,
+          verificationResults: response.data.data.verificationResults,
+          mismatchErrors: response.data.data.verificationResults?.mismatchErrors,
+          missingErrors: response.data.data.verificationResults?.missingErrors
+        });
+        
+        setVerificationData(response.data.data);
+        
+        // Update case data to reflect any status changes
+        const caseResponse = await api.get(`/management/${caseId}`);
+        if (caseResponse.data.status === 'success') {
+          console.log('Updated case data:', caseResponse.data.data.entry);
+          setCaseData(caseResponse.data.data.entry);
+        }
+      }
+    } catch (error) {
+      console.error('Error during cross-verification:', error);
+      toast.error('Failed to perform cross-verification');
+    } finally {
+      setIsVerificationLoading(false);
+    }
+  };
+
+  // Add function to fetch validation data
+  const fetchValidationData = async () => {
+    if (isValidationLoading) return;
+    
+    try {
+      setIsValidationLoading(true);
+      
+      // Fetch both validation data and document URLs in parallel
+      const [validationResponse, documentsResponse] = await Promise.all([
+        api.get(`/documents/management/${caseId}/validations`),
+        api.post('/documents/management-docs', {
+          managementId: caseId,
+          docTypeIds: caseData.documentTypes
+            .filter(doc => doc.status === 'uploaded' || doc.status === 'approved')
+            .map(doc => doc._id)
+        })
+      ]);
+
+      if (validationResponse.data.status === 'success') {
+        // Create document URL mapping
+        const urlMapping = documentsResponse.data.status === 'success' 
+          ? documentsResponse.data.data.documents.reduce((acc, doc) => {
+              acc[doc.type] = doc.fileUrl;
+              return acc;
+            }, {})
+          : {};
+
+        // Add URLs to validation data
+        const validationDataWithUrls = {
+          ...validationResponse.data.data,
+          documentUrls: urlMapping
+        };
+
+        setValidationData(validationDataWithUrls);
+      } else {
+        throw new Error('Failed to fetch validation data');
+      }
+    } catch (error) {
+      console.error('Error fetching validation data:', error);
+      toast.error('Failed to load validation data');
+    } finally {
+      setIsValidationLoading(false);
+    }
+  };
+
+  // Update the tab click handler
   const handleTabClick = (tab) => {
     const newTab = tab.toLowerCase().replace(' ', '-');
     setActiveTab(newTab);
