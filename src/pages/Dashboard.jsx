@@ -136,12 +136,6 @@ function Dashboard() {
             </div>
             <p className="text-gray-600">of follow-up requests resulted in document submissions</p>
           </div>
-          <div>
-            <div className="text-2xl font-bold mb-2">
-              {dashboardData?.insights.metrics.reviewRate ?? 0}%
-            </div>
-            <p className="text-gray-600">of cases still missing documents, with X follow-ups pending</p>
-          </div>
         </div>
       </div>
     </div>
@@ -240,12 +234,6 @@ function Dashboard() {
               {dashboardData?.insights.metrics.caseCompletionRate ?? 0}%
             </div>
             <p className="text-gray-600">case completion rate this week</p>
-          </div>
-          <div>
-            <div className="text-2xl font-bold mb-2">
-              {dashboardData?.insights.metrics.pendingEmailRate ?? 0}%
-            </div>
-            <p className="text-gray-600">pending email rate this week</p>
           </div>
         </div>
       </div>
