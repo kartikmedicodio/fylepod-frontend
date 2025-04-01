@@ -106,7 +106,7 @@ function Dashboard() {
 
         {/* Pending Review - Warning Card - Full Width */}
         <div 
-          className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all"
+          className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all group relative"
           onClick={() => {
             navigate('/cases', { 
               state: { 
@@ -117,12 +117,23 @@ function Dashboard() {
             });
           }}
         >
-          <h3 className="text-gray-800 font-medium mb-2">Pending Review</h3>
-          <div className="text-xl font-bold text-gray-900">
-            {dashboardData?.pendingReviewCount ?? 'Loading...'}
+          <div>
+            <h3 className="text-gray-800 font-medium mb-2 group-hover:text-blue-600 flex items-center">
+              Pending Review
+              <span className="ml-2 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">
+              </span>
+            </h3>
+            <div className="text-xl font-bold text-gray-900">
+              {dashboardData?.pendingReviewCount ?? 'Loading...'}
+            </div>
+            <div className="bg-amber-50 rounded p-2 mt-1">
+              <p className="text-sm text-gray-700">Cases requires your attention</p>
+            </div>
           </div>
-          <div className="bg-amber-50 rounded p-2 mt-1">
-            <p className="text-sm text-gray-700">Cases requires your attention</p>
+
+          {/* Custom Tooltip */}
+          <div className="absolute invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 text-white text-sm rounded px-2 py-1 left-1/2 -translate-x-1/2 -top-8 whitespace-nowrap">
+            Click to view cases with pending review
           </div>
         </div>
       </div>
@@ -135,12 +146,6 @@ function Dashboard() {
               {dashboardData?.insights.metrics.documentCompletionRate ?? 0}%
             </div>
             <p className="text-gray-600">of follow-up requests resulted in document submissions</p>
-          </div>
-          <div>
-            <div className="text-2xl font-bold mb-2">
-              {dashboardData?.insights.metrics.reviewRate ?? 0}%
-            </div>
-            <p className="text-gray-600">of cases still missing documents, with X follow-ups pending</p>
           </div>
         </div>
       </div>
@@ -192,7 +197,7 @@ function Dashboard() {
 
           {/* Pending Review */}
           <div 
-            className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all"
+            className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all group relative"
             onClick={() => {
               navigate('/cases', { 
                 state: { 
@@ -203,16 +208,25 @@ function Dashboard() {
               });
             }}
           >
-            <h3 className="text-gray-800 font-medium mb-2">Pending Review</h3>
-            <div className="text-xl font-bold text-gray-900">
-              {dashboardData ? `${dashboardData.reviewedCount}` : 'Loading...'}
+            <div>
+              <h3 className="text-gray-800 font-medium mb-2 group-hover:text-blue-600 flex items-center">
+                Pending Review
+              </h3>
+              <div className="text-xl font-bold text-gray-900">
+                {dashboardData ? `${dashboardData.reviewedCount}` : 'Loading...'}
+              </div>
+              <p className="text-sm text-gray-600">cases have undergone review</p>
             </div>
-            <p className="text-sm text-gray-600">cases have undergone review</p>
+
+            {/* Custom Tooltip */}
+            <div className="absolute invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 text-white text-sm rounded px-2 py-1 left-1/2 -translate-x-1/2 -top-8 whitespace-nowrap">
+              Click to view cases that have been reviewed
+            </div>
           </div>
 
           {/* Preparation for Filing */}
           <div 
-            className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all"
+            className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all group relative"
             onClick={() => {
               navigate('/cases', { 
                 state: { 
@@ -223,11 +237,20 @@ function Dashboard() {
               });
             }}
           >
-            <h3 className="text-gray-800 font-medium mb-2">Preparation for Filing</h3>
-            <div className="text-xl font-bold text-gray-900">
-              {dashboardData ? `${dashboardData.completedCount}` : 'Loading...'}
+            <div>
+              <h3 className="text-gray-800 font-medium mb-2 group-hover:text-blue-600 flex items-center">
+                Preparation for Filing
+              </h3>
+              <div className="text-xl font-bold text-gray-900">
+                {dashboardData ? `${dashboardData.completedCount}` : 'Loading...'}
+              </div>
+              <p className="text-sm text-gray-600">cases have forms ready for submission</p>
             </div>
-            <p className="text-sm text-gray-600">cases have forms ready for submission</p>
+
+            {/* Custom Tooltip */}
+            <div className="absolute invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 text-white text-sm rounded px-2 py-1 left-1/2 -translate-x-1/2 -top-8 whitespace-nowrap">
+              Click to view cases ready for filing
+            </div>
           </div>
         </div>
       </div>
@@ -240,12 +263,6 @@ function Dashboard() {
               {dashboardData?.insights.metrics.caseCompletionRate ?? 0}%
             </div>
             <p className="text-gray-600">case completion rate this week</p>
-          </div>
-          <div>
-            <div className="text-2xl font-bold mb-2">
-              {dashboardData?.insights.metrics.pendingEmailRate ?? 0}%
-            </div>
-            <p className="text-gray-600">pending email rate this week</p>
           </div>
         </div>
       </div>
