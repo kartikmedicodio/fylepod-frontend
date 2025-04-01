@@ -69,23 +69,44 @@ const checkAllDocumentsApproved = (documentTypes) => {
   return documentTypes.every(doc => doc.status === DOCUMENT_STATUS.APPROVED);
 };
 
-const ProcessingIndicator = ({ currentStep }) => {
+const ProcessingIndicator = ({ currentStep, isComplete }) => {
   const [localStep, setLocalStep] = useState(currentStep);
 
   useEffect(() => {
+    if (isComplete) return;
+
     const interval = setInterval(() => {
       setLocalStep((prev) => (prev + 1) % processingSteps.length);
     }, 800);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isComplete]);
 
+  if (isComplete) {
   return (
+    <div className="absolute inset-0 bg-black/40 backdrop-blur-[3px] flex items-center justify-center rounded-lg z-50">
+      <div className="bg-white rounded-2xl p-4 shadow-2xl w-72 mx-auto border border-gray-100">
+        <div className="flex justify-center mb-4">
+          <div className="relative">
+              <div className="w-16 h-16 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 flex items-center justify-center shadow-lg">
+                <Check className="w-8 h-8 text-white" />
+            </div>
+            </div>
+          </div>
+          <div className="text-center">
+            <span className="text-sm font-medium text-gray-900">Processing Complete</span>
+        </div>
+      </div>
+    </div>
+  );
+  }
+
+    return (
     <div className="absolute inset-0 bg-black/40 backdrop-blur-[3px] flex items-center justify-center rounded-lg z-50">
       <div className="bg-white rounded-2xl p-4 shadow-2xl w-72 mx-auto border border-gray-100">
         {/* Diana's Avatar Section */}
         <div className="flex justify-center mb-4">
-          <div className="relative">
+                <div className="relative">
             {/* Animated Background Rings */}
             <div className="absolute inset-0 -m-4">
               <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 rounded-full blur-xl"></div>
@@ -195,6 +216,9 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const [isLoadingExtractedData, setIsLoadingExtractedData] = useState(false);
   const [extractedDataError, setExtractedDataError] = useState(null);
   const [recipientEmail, setRecipientEmail] = useState('');
+
+  // Add this state at the top with other state declarations
+  const [isProcessingComplete, setIsProcessingComplete] = useState(false);
 
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
@@ -451,6 +475,10 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             const validationResponse = await api.get(`/documents/management/${caseId}/validations`);
             if (validationResponse.data.status === 'success') {
               setValidationData(validationResponse.data.data);
+              // Add these two lines right here
+              setIsProcessingComplete(true);
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              
               const validationResults = validationResponse.data.data.mergedValidations.flatMap(doc => 
                 doc.validations.map(validation => ({
                   ...validation,
@@ -1342,102 +1370,121 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       </div>
     );
 
-    const renderSmartUpload = () => (
-      uploadStatus === DOCUMENT_STATUS.PENDING && (
-        <div className="col-span-4 bg-white rounded-lg border border-gray-200 p-6 relative">
-          {isUploading && <ProcessingIndicator currentStep={processingStep} />}
-          
-          <div className="mb-4 pb-4 border-b border-gray-100">
-            <h4 className="font-medium text-sm">Smart Upload Files</h4>
-          </div>
-          
-          <div 
-            className={`flex flex-col items-center justify-center py-8 rounded-lg transition-colors
-              ${isDragging 
-                ? 'bg-blue-50 border-2 border-dashed border-blue-300' 
-                : 'bg-gray-50 border border-gray-200'
-              }`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            <input
-              type="file"
-              multiple
-              className="hidden"
-              id="file-upload"
-              onChange={handleFileSelect}
-            />
+    const renderSmartUpload = () => {
+      // Add this check at the start of renderSmartUpload
+      const allDocsUploaded = caseData.documentTypes.every(doc => 
+        doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
+      );
+
+      return (
+        uploadStatus === DOCUMENT_STATUS.PENDING && (
+          <div className="col-span-4 bg-white rounded-lg border border-gray-200 p-6 relative">
+            {isUploading && <ProcessingIndicator currentStep={processingStep} isComplete={isProcessingComplete} />}
             
-            {files.length > 0 ? (
-              <div className="w-full px-6">
-                <div className="mb-4 text-center">
-                  <span className="text-sm text-gray-500">{files.length} file(s) selected</span>
-                </div>
-                <div className="space-y-2 mb-6 max-h-40 overflow-y-auto">
-                  {files.map((file, index) => (
-                    <div 
-                      key={index} 
-                      className="flex items-center justify-between bg-white border border-gray-200 p-2 rounded-lg"
-                    >
-                      <div className="flex items-center">
-                        <File className="w-4 h-4 text-gray-400 mr-2" />
-                        <span className="text-sm truncate max-w-xs">{file.name}</span>
-                      </div>
-                      <button 
-                        onClick={() => setFiles(files.filter((_, i) => i !== index))}
-                        className="text-gray-400 hover:text-gray-600"
+            <div className="mb-4 pb-4 border-b border-gray-100">
+              <h4 className="font-medium text-sm">Smart Upload Files</h4>
+            </div>
+            
+            <div 
+              className={`flex flex-col items-center justify-center py-8 rounded-lg transition-colors
+                ${isDragging 
+                  ? 'bg-blue-50 border-2 border-dashed border-blue-300' 
+                  : 'bg-gray-50 border border-gray-200'
+                }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                id="file-upload"
+                onChange={handleFileSelect}
+                disabled={allDocsUploaded}
+              />
+              
+              {files.length > 0 ? (
+                <div className="w-full px-6">
+                  <div className="mb-4 text-center">
+                    <span className="text-sm text-gray-500">{files.length} file(s) selected</span>
+                  </div>
+                  <div className="space-y-2 mb-6 max-h-40 overflow-y-auto">
+                    {files.map((file, index) => (
+                      <div 
+                        key={index} 
+                        className="flex items-center justify-between bg-white border border-gray-200 p-2 rounded-lg"
                       >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+                        <div className="flex items-center">
+                          <File className="w-4 h-4 text-gray-400 mr-2" />
+                          <span className="text-sm truncate max-w-xs">{file.name}</span>
+                        </div>
+                        <button 
+                          onClick={() => setFiles(files.filter((_, i) => i !== index))}
+                          className="text-gray-400 hover:text-gray-600"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label 
+                      htmlFor="file-upload"
+                      className={`bg-white border border-gray-200 text-gray-700 py-2.5 px-6 rounded-lg text-sm font-medium text-center
+                        ${allDocsUploaded 
+                          ? 'opacity-50 cursor-not-allowed' 
+                          : 'cursor-pointer hover:bg-gray-50 transition-colors'
+                        }`}
+                    >
+                      Browse More Files
+                    </label>
+                    <button 
+                      onClick={() => handleFileUpload(files)}
+                      disabled={isUploading || allDocsUploaded}
+                      className={`bg-blue-600 text-white py-2.5 px-6 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2
+                        ${(isUploading || allDocsUploaded) ? 'opacity-75 cursor-not-allowed' : ''}`}
+                    >
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        `Upload ${files.length} file${files.length !== 1 ? 's' : ''}`
+                      )}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex flex-col gap-2">
+              ) : (
+                <>
+                  <div className="w-12 h-12 bg-white rounded-full border border-gray-200 flex items-center justify-center mb-3">
+                    <Upload className="w-6 h-6 text-gray-400" />
+                  </div>
+                  <p className="text-sm text-gray-500 mb-2">
+                    {allDocsUploaded 
+                      ? 'All documents have been uploaded' 
+                      : isDragging ? 'Drop files here' : 'Drag and drop files here'
+                    }
+                  </p>
+                  <p className="text-sm text-gray-400 mb-6">or</p>
                   <label 
                     htmlFor="file-upload"
-                    className="bg-white border border-gray-200 text-gray-700 py-2.5 px-6 rounded-lg text-sm font-medium cursor-pointer hover:bg-gray-50 transition-colors text-center"
+                    className={`bg-blue-600 text-white py-2.5 px-6 rounded-lg text-sm font-medium transition-colors
+                      ${allDocsUploaded 
+                        ? 'opacity-50 cursor-not-allowed bg-gray-400' 
+                        : 'cursor-pointer hover:bg-blue-700'
+                      }`}
                   >
-                    Browse More Files
+                    Browse Files
                   </label>
-                  <button 
-                    onClick={() => handleFileUpload(files)}
-                    disabled={isUploading}
-                    className={`bg-blue-600 text-white py-2.5 px-6 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2
-                      ${isUploading ? 'opacity-75 cursor-not-allowed' : ''}`}
-                  >
-                    {isUploading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      `Upload ${files.length} file${files.length !== 1 ? 's' : ''}`
-                    )}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="w-12 h-12 bg-white rounded-full border border-gray-200 flex items-center justify-center mb-3">
-                  <Upload className="w-6 h-6 text-gray-400" />
-                </div>
-                <p className="text-sm text-gray-500 mb-2">
-                  {isDragging ? 'Drop files here' : 'Drag and drop files here'}
-                </p>
-                <p className="text-sm text-gray-400 mb-6">or</p>
-                <label 
-                  htmlFor="file-upload"
-                  className="bg-blue-600 text-white py-2.5 px-6 rounded-lg text-sm font-medium cursor-pointer hover:bg-blue-700 transition-colors"
-                >
-                  Browse Files
-                </label>
-              </>
-            )}
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      )
-    );
+        )
+      );
+    };
 
 
     // Sub-tabs navigation component
