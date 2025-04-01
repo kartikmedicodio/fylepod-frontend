@@ -25,7 +25,8 @@ import {
   Download,
   Bot,
   SendHorizontal,
-  Eye
+  Eye,
+  ChevronDown
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
@@ -1189,7 +1190,99 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     </div>
   );
 
-  // Enhanced document checklist
+  const DocumentVerificationSection = ({ document, validations = [] }) => {
+    const passedCount = validations.filter(v => v.passed).length;
+    const failedCount = validations.filter(v => !v.passed).length;
+    const [isExpanded, setIsExpanded] = useState(false);
+
+    return (
+      <div className="bg-white rounded-lg border border-gray-200">
+        {/* Header */}
+        <div 
+          className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50/50"
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+              failedCount > 0 ? 'bg-rose-50' : 'bg-emerald-50'
+            }`}>
+              {failedCount > 0 ? (
+                <X className="w-5 h-5 text-rose-500" />
+              ) : (
+                <Check className="w-5 h-5 text-emerald-500" />
+              )}
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-gray-900">{document.name}</h3>
+              <div className="flex items-center gap-3 mt-1">
+                {/* Passed count */}
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                  <span className="text-xs text-emerald-600 font-medium">
+                    {passedCount} Passed
+                  </span>
+                </div>
+                {/* Failed count */}
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-rose-500"></div>
+                  <span className="text-xs text-rose-600 font-medium">
+                    {failedCount} Failed
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {/* Overall status badge */}
+            <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+              failedCount > 0 
+                ? 'bg-rose-50 text-rose-600 border border-rose-200' 
+                : 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+            }`}>
+              {failedCount > 0 ? `${failedCount} Issues Found` : 'All Passed'}
+            </span>
+            <button className={`text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
+              <ChevronDown className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Validation Details */}
+        {isExpanded && (
+          <div className="border-t border-gray-100">
+            <div className="divide-y divide-gray-100">
+              {validations.map((validation, index) => (
+                <div 
+                  key={index}
+                  className={`p-4 flex items-start gap-3 ${
+                    validation.passed ? 'bg-white' : 'bg-rose-50/5'
+                  }`}
+                >
+                  <div className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    validation.passed ? 'bg-emerald-50' : 'bg-rose-50'
+                  }`}>
+                    {validation.passed ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-500" />
+                    ) : (
+                      <X className="w-3.5 h-3.5 text-rose-500" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-900">{validation.message}</p>
+                    {!validation.passed && validation.details && (
+                      <p className="text-sm text-gray-500 mt-1">{validation.details}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Update the DocumentsChecklistTab component
   const DocumentsChecklistTab = () => {
     const pendingDocuments = caseData.documentTypes.filter(doc => doc.status === DOCUMENT_STATUS.PENDING);
     const uploadedDocuments = caseData.documentTypes.filter(
@@ -1361,7 +1454,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         <div className="mb-6 flex items-center gap-2">
           {[
             { id: 'all', label: 'Upload Pending' },
-            { id: 'validation', label: 'Validation' },
+            { id: 'validation', label: 'Verification' },
             { 
               id: 'cross-verification', 
               label: 'Cross Verification',
@@ -1498,7 +1591,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                         status: doc.status !== 'pending' ? 'success' : 'pending'
                       },
                       {
-                        name: 'Validation',
+                        name: 'Verification',
                         status: getValidationStatus()
                       },
                       {
@@ -1538,34 +1631,51 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       }
     };
 
+    const renderValidationSection = () => {
+      if (!validationData?.mergedValidations?.length) return null;
+
+      const totalFailedValidations = validationData.mergedValidations.reduce((total, doc) => 
+        total + doc.validations.filter(v => !v.passed).length, 0
+      );
+
+      return (
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Document Verification</h2>
+            {totalFailedValidations > 0 ? (
+              <span className="px-3 py-1 rounded-full text-sm font-medium bg-rose-50 text-rose-600 border border-rose-200">
+                {totalFailedValidations} {totalFailedValidations === 1 ? 'Issue' : 'Issues'} Found
+              </span>
+            ) : (
+              <span className="px-3 py-1 rounded-full text-sm font-medium bg-emerald-50 text-emerald-600 border border-emerald-200">
+                All Verifications Passed
+              </span>
+            )}
+          </div>
+
+          {/* Documents List */}
+          <div className="space-y-4">
+            {validationData.mergedValidations.map((docValidation, index) => (
+              <DocumentVerificationSection
+                key={index}
+                document={{ name: docValidation.documentType }}
+                validations={docValidation.validations}
+              />
+            ))}
+          </div>
+        </div>
+      );
+    };
+
     return (
       <div className="p-6">
-        {/* Search and Filter Section */}
-        {/* <div className="mb-6 flex items-center justify-between">
-          <div className="relative w-64">
-            <input
-              type="text"
-              placeholder="Search..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-            />
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          </div>
-          <div className="flex items-center gap-2">
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
-              <Filter className="w-4 h-4" />
-              All Filters
-            </button>
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
-              Sort
-            </button>
-          </div>
-        </div> */}
-
-        {/* Sub-tabs Navigation */}
         <SubTabNavigation />
-
-        {/* Sub-tab Content */}
-        {renderSubTabContent()}
+        {selectedSubTab === 'validation' ? (
+          renderValidationSection()
+        ) : (
+          renderSubTabContent()
+        )}
       </div>
     );
   };

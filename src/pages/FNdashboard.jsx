@@ -639,27 +639,17 @@ const ProcessState = ({ state, status, onClick, validationErrors }) => {
         />
       </div>
 
-      {/* Validation Errors Popup */}
+      {/* Verification Errors Popup */}
       {showErrors && validationErrors?.length > 0 && (
-        <div 
-          ref={popupRef}
-          className="absolute z-50 mt-2 w-64 bg-white rounded-lg shadow-lg border border-rose-100 p-3"
-          style={{
-            left: '50%',
-            transform: 'translateX(-50%)',
-            top: '100%'
-          }}
-        >
-          <div className="text-xs font-medium text-rose-700 mb-2">Validation Errors:</div>
-          <ul className="space-y-1.5">
+        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 p-3 z-10">
+          <div className="text-xs font-medium text-rose-700 mb-2">Verification Errors:</div>
+          <div className="space-y-1.5">
             {validationErrors.map((error, index) => (
-              <li key={index} className="text-xs text-rose-600">
-                • {error.message || error.rule}
-              </li>
+              <div key={index} className="text-xs text-gray-600">
+                {error.message}
+              </div>
             ))}
-          </ul>
-          {/* Add a triangle pointer */}
-          <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-b-[8px] border-b-rose-100"></div>
+          </div>
         </div>
       )}
     </div>

@@ -1599,7 +1599,7 @@ const FNCaseDetails = () => {
                   : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
               }`}
             >
-              Validation Check
+              Verification Check
             </button>
           </div>
         </div>
@@ -1615,7 +1615,7 @@ const FNCaseDetails = () => {
           <div className="w-full"> {/* Change from max-w-5xl mx-auto to w-full */}
             {/* Header with Next Button */}
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Validation Results</h3>
+              <h3 className="text-lg font-semibold">Verification Results</h3>
               <button
                 onClick={() => {
                   handleTabClick('Questionnaire');
@@ -1640,7 +1640,7 @@ const FNCaseDetails = () => {
                 />
               </div>
 
-              {/* Document Validation Accordion */}
+              {/* Document Verification Accordion */}
               <div className="w-full bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <ValidationAccordion
                   isLoading={isValidationLoading}
@@ -1692,14 +1692,14 @@ const FNCaseDetails = () => {
     const [isExpanded, setIsExpanded] = useState(false);
 
     if (isLoading) {
-      return <AccordionSkeleton title="Document Validation Results" />;
+      return <AccordionSkeleton title="Document Verification Results" />;
     }
 
     if (!validationData?.mergedValidations?.length) {
       return (
         <div className="flex flex-col items-center justify-center h-32">
           <AlertCircle className="w-8 h-8 text-gray-400 mb-2" />
-          <p className="text-gray-600">No validation data available</p>
+          <p className="text-gray-600">No verification data available</p>
         </div>
       );
     }
@@ -1712,7 +1712,7 @@ const FNCaseDetails = () => {
           onClick={() => setIsExpanded(!isExpanded)}
         >
           <div className="flex items-center gap-3">
-            <h3 className="text-lg font-semibold text-gray-900">Document Validation Results</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Document Verification Results</h3>
             <span className={`px-2.5 py-1 rounded-full text-xs font-medium
               ${validationData.mergedValidations.every(doc => doc.passed) 
                 ? 'bg-green-100 text-green-700' 
@@ -1759,7 +1759,7 @@ const FNCaseDetails = () => {
                               ? 'text-green-600' 
                               : 'text-red-600'
                           }`}>
-                            {documentValidation.passed ? 'Passed' : 'Failed'} • {documentValidation.validations.length} Validation{documentValidation.validations.length !== 1 ? 's' : ''}
+                            {documentValidation.passed ? 'Passed' : 'Failed'} • {documentValidation.validations.length} Verification{documentValidation.validations.length !== 1 ? 's' : ''}
                           </p>
                         </div>
                       </div>
