@@ -2033,16 +2033,14 @@ const FNCaseDetails = () => {
         return true;
       }
       
-      // Get the field name from the field object
+      // Get the field name
       const fieldName = field.fieldName;
       
-      // Get the value from savedFields instead of localFormData
-      const value = savedFields?.[section]?.[fieldName];
+      // Get value from formData instead of savedFields
+      const value = formData?.[section]?.[fieldName];
       
-      // Check if value is empty
-      const isEmpty = !value || (typeof value === 'string' && value.trim() === '');
-      
-      return isEmpty;
+      // Check if empty
+      return !value || (typeof value === 'string' && value.trim() === '');
     };
 
     const handleLocalInputChange = (section, field, value) => {
@@ -2546,6 +2544,27 @@ const FNCaseDetails = () => {
   // Update the tab click handler
   const handleTabClick = (tab) => {
     const newTab = tab.toLowerCase().replace(' ', '-');
+    
+    // Check if any documents are uploaded
+    const hasUploadedDocuments = caseData?.documentTypes?.some(doc => 
+      doc.status === 'uploaded' || doc.status === 'approved'
+    );
+
+    // If trying to access questionnaire without documents, show toast and don't change tab
+    if (newTab === 'questionnaire' && !hasUploadedDocuments) {
+      toast.error('Please upload required documents before accessing the questionnaire', {
+        position: 'top-center',
+        duration: 3000,
+        style: {
+          background: '#fee2e2',
+          color: '#dc2626',
+          padding: '16px',
+          borderRadius: '8px',
+        },
+      });
+      return;
+    }
+
     setActiveTab(newTab);
     if (newTab === 'documents-checklist') {
       setUploadStatus('pending');
@@ -2683,19 +2702,37 @@ const FNCaseDetails = () => {
       {/* Tabs Navigation */}
       <div className="px-6 py-4">
         <div className="flex gap-2">
-          {['Documents Checklist', 'Questionnaire'].map((tab) => (
-            <button
-              key={tab}
-              className={`px-6 py-3 text-base font-medium rounded-lg transition-colors ${
-                activeTab === tab.toLowerCase().replace(' ', '-')
-                  ? 'bg-white border border-gray-200 text-blue-600'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-              onClick={() => handleTabClick(tab)}
-            >
-              {tab}
-            </button>
-          ))}
+          {['Documents Checklist', 'Questionnaire'].map((tab) => {
+            const isQuestionnaire = tab === 'Questionnaire';
+            const hasUploadedDocuments = caseData?.documentTypes?.some(doc => 
+              doc.status === 'uploaded' || doc.status === 'approved'
+            );
+            const isDisabled = isQuestionnaire && !hasUploadedDocuments;
+
+            return (
+              <div key={tab} className="relative group">
+                {/* Message shows only on hover */}
+                {isDisabled && isQuestionnaire && (
+                  <div className="absolute -top-8 left-0 text-sm text-red-600 bg-red-50 px-3 py-1 rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    Please upload required documents first
+                  </div>
+                )}
+                <button
+                  className={`px-6 py-3 text-base font-medium rounded-lg transition-colors ${
+                    activeTab === tab.toLowerCase().replace(' ', '-')
+                      ? 'bg-white border border-gray-200 text-blue-600'
+                      : isDisabled
+                        ? 'text-gray-400 cursor-not-allowed bg-gray-50'
+                        : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                  onClick={() => handleTabClick(tab)}
+                  disabled={isDisabled}
+                >
+                  {tab}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
 
