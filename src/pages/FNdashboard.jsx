@@ -248,62 +248,9 @@ CaseProgressCard.propTypes = {
   onClick: PropTypes.func.isRequired,
 };
 
-const ProfileCard = () => {
+const ProfileCard = ({ cases, pendingCase, onCaseClick, setCurrentBreadcrumb, navigate }) => {
   const { user } = useAuth();
-  const navigate = useNavigate();
-  const { setCurrentBreadcrumb } = useBreadcrumb();
-  const [pendingCase, setPendingCase] = useState(null);
-  const [cases, setCases] = useState([]);
   const [agents, setAgents] = useState(null);
-
-  useEffect(() => {
-    const fetchPendingDocuments = async () => {
-      try {
-        if (!user?.id) return;
-        
-        const response = await api.get('/management/users', {
-          params: {
-            userIds: user.id
-          }
-        });
-
-        if (response.data.status === 'success') {
-          const allCases = response.data.data.entries || [];
-          setCases(allCases);
-          
-          // Sort by updatedAt to get the most recent case
-          const sortedCases = allCases.sort((a, b) => 
-            new Date(b.updatedAt) - new Date(a.updatedAt)
-          );
-
-          // Find the first case that has any pending documents
-          const caseWithPendingDocs = sortedCases.find(caseItem => 
-            caseItem.documentTypes?.some(doc => doc.status === 'pending')
-          );
-
-          if (caseWithPendingDocs) {
-            setPendingCase(caseWithPendingDocs);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching pending documents:', error);
-        toast.error('Failed to fetch pending documents');
-      }
-    };
-
-    fetchPendingDocuments();
-  }, [user?.id]);
-
-  const handleCaseClick = () => {
-    if (pendingCase?._id) {
-      // Update breadcrumb before navigation
-      setCurrentBreadcrumb([
-        { label: 'All Cases', link: '/individual-cases' },
-        { label: pendingCase.categoryName, link: `/individuals/case/${pendingCase._id}` }
-      ]);
-      navigate(`/individuals/case/${pendingCase._id}`);
-    }
-  };
 
   const fetchAgents = async () => {
     try {
@@ -350,23 +297,23 @@ const ProfileCard = () => {
             </div>
             
             {/* Profile Info */}
-            <div className="flex-1 ml-8 text-right">
-              <div className="space-y-2">
+            <div className="flex-1 ml-8 py-4">
+              <div>
                 <h2 className="text-xl font-semibold text-[#000D3B]">
                   Hello {user?.name || 'there'}, I am {agents?.["1"]?.name || 'Diana'}
                 </h2>
                 <p className="text-[#000D3B] opacity-90 font-medium text-base">
                   {agents?.["1"]?.role || 'Your Data Collector'}
                 </p>
-                <div className="space-y-1 mt-2">
-                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    {agents?.["1"]?.status || 'Active Since 1 month'}
+                <div >
+                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center gap-2">
+                    <span className="font-medium">Status:</span> {agents?.["1"]?.status || 'Active Since 1 month'}
                   </p>
-                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    Age: {agents?.["1"]?.age || '1 month'}
+                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center gap-2">
+                    <span className="font-medium">Age:</span> {agents?.["1"]?.age || '1 month'}
                   </p>
-                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    ID- {agents?.["1"]?.agentId || '1'}
+                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center gap-2">
+                    <span className="font-medium">ID:</span> {agents?.["1"]?.agentId || '1'}
                   </p>
                 </div>
               </div>
@@ -432,7 +379,7 @@ const ProfileCard = () => {
                 </div>
                 <div className="mt-auto flex justify-center">
                   <button
-                    onClick={handleCaseClick}
+                    onClick={onCaseClick}
                     className="w-[200px] px-6 py-2.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-full transition-colors duration-200 flex items-center justify-center gap-2 shadow-sm hover:shadow"
                   >
                     Get Started!
@@ -474,23 +421,23 @@ const ProfileCard = () => {
             </div>
             
             {/* Profile Info */}
-            <div className="flex-1 ml-8 text-right">
-              <div className="space-y-2">
+            <div className="flex-1 ml-8 py-4">
+              <div >
                 <h2 className="text-xl font-semibold text-[#000D3B]">
                   Hello {user?.name || 'there'}, I am {agents?.["2"]?.name || 'Fiona'}
                 </h2>
                 <p className="text-[#000D3B] opacity-90 font-medium text-base">
                   {agents?.["2"]?.role || 'Your Case Manager'}
                 </p>
-                <div className="space-y-1 mt-2">
-                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    {agents?.["2"]?.status || 'Active Since 1 month'}
+                <div >
+                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center gap-2">
+                    <span className="font-medium">Status:</span> {agents?.["2"]?.status || 'Active Since 1 month'}
                   </p>
-                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    Age: {agents?.["2"]?.age || '1 month'}
+                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center gap-2">
+                    <span className="font-medium">Age:</span> {agents?.["2"]?.age || '1 month'}
                   </p>
-                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    ID- {agents?.["2"]?.agentId || '2'}
+                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center gap-2">
+                    <span className="font-medium">ID:</span> {agents?.["2"]?.agentId || '2'}
                   </p>
                 </div>
               </div>
@@ -517,12 +464,12 @@ const ProfileCard = () => {
               Case Overview
             </h3>
             <span className="px-2.5 py-1 bg-pink-50 text-pink-600 text-xs font-medium rounded-full">
-              {agents?.["2"]?.cases?.length} Active
+              {cases?.length || 0} Active
             </span>
           </div>
           <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent hover:scrollbar-thumb-gray-300" style={{ maxHeight: "300px" }}>
             <div className="space-y-3 pr-2">
-              {agents?.["2"]?.cases?.map((caseItem, index) => (
+              {cases?.map((caseItem) => (
                 <div 
                   key={caseItem._id} 
                   className="flex items-start gap-3 bg-white rounded-lg p-3 border border-gray-100 hover:border-pink-100 transition-colors cursor-pointer hover:bg-pink-50/5"
@@ -556,6 +503,11 @@ const ProfileCard = () => {
                   </div>
                 </div>
               ))}
+              {(!cases || cases.length === 0) && (
+                <div className="text-center py-4 text-gray-500 text-sm">
+                  No active cases at the moment
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -821,10 +773,59 @@ const FNDashboard = () => {
   const { user } = useAuth();
   const { setCurrentBreadcrumb } = useBreadcrumb();
   const [loading, setLoading] = useState(true);
-  const [currentUserCases, setCurrentUserCases] = useState([]);
-  const [otherUserCases, setOtherUserCases] = useState({});
+  const [cases, setCases] = useState([]);
+  const [pendingCase, setPendingCase] = useState(null);
   const [timeOfDay, setTimeOfDay] = useState('');
-  const [agents, setAgents] = useState(null);
+
+  useEffect(() => {
+    const fetchPendingDocuments = async () => {
+      try {
+        if (!user?.id) return;
+        
+        const response = await api.get('/management/users-with-documents', {
+          params: {
+            userIds: user.id
+          }
+        });
+
+        if (response.data.status === 'success') {
+          const allCases = response.data.data.entries || [];
+          setCases(allCases);
+          
+          // Sort by updatedAt to get the most recent case
+          const sortedCases = allCases.sort((a, b) => 
+            new Date(b.updatedAt) - new Date(a.updatedAt)
+          );
+
+          // Find the first case that has any pending documents
+          const caseWithPendingDocs = sortedCases.find(caseItem => 
+            caseItem.documentTypes?.some(doc => doc.status === 'pending')
+          );
+
+          if (caseWithPendingDocs) {
+            setPendingCase(caseWithPendingDocs);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching pending documents:', error);
+        toast.error('Failed to fetch pending documents');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPendingDocuments();
+  }, [user?.id]);
+
+  const handleCaseClick = () => {
+    if (pendingCase?._id) {
+      setCurrentBreadcrumb([
+        { label: 'All Cases', link: '/individual-cases' },
+        { label: pendingCase.categoryName, link: `/individuals/case/${pendingCase._id}` }
+      ]);
+      navigate(`/individuals/case/${pendingCase._id}`);
+    }
+  };
 
   const getTimeIcon = () => {
     switch (timeOfDay) {
@@ -908,112 +909,6 @@ const FNDashboard = () => {
     };
   };
 
-  // Fetch related users
-  const fetchRelatedUsers = async () => {
-    try {
-      if (!user?.id) return [];
-      
-      const response = await api.get(`/auth/user-relationships/${user.id}`);
-      
-      if (response.data.status === 'success') {
-        const relationships = response.data.data.relationships || [];
-        const relatedUserIds = relationships.map(rel => rel.user_id._id);
-        return [user.id, ...relatedUserIds];
-      }
-      return [user.id];
-    } catch (error) {
-      console.error('Error fetching user relationships:', error);
-      toast.error('Failed to fetch related users');
-      return [user.id];
-    }
-  };
-
-  // Fetch all cases for users
-  const fetchAllUsersCases = async (userIds) => {
-    try {
-      if (!userIds.length) {
-        return;
-      }
-
-      const response = await api.get('/management/users-with-documents', {
-        params: {
-          userIds: userIds.join(',')
-        }
-      });
-
-      if (response.data.status === 'success') {
-        const cases = response.data.data.entries || [];
-        processAndSeparateCases(cases);
-      }
-    } catch (error) {
-      console.error('Error fetching cases:', error);
-      toast.error('Failed to fetch cases');
-    }
-  };
-
-  // Process cases and separate current user's cases from others
-  const processAndSeparateCases = (cases) => {
-    const currentUserName = user?.name || user?.email || '';
-    const userCases = cases
-      .filter(caseItem => caseItem.userName === currentUserName)
-      .map(caseItem => ({
-        ...caseItem,
-        ...getStepMapping(caseItem)
-      }));
-    
-    setCurrentUserCases(userCases);
-    
-    const otherUsersGrouped = cases
-      .filter(caseItem => caseItem.userName !== currentUserName)
-      .reduce((acc, caseItem) => {
-        const userName = caseItem.userName || 'Unknown User';
-        if (!acc[userName]) {
-          acc[userName] = [];
-        }
-        const caseWithSteps = {
-          ...caseItem,
-          ...getStepMapping(caseItem)
-        };
-        acc[userName].push(caseWithSteps);
-        return acc;
-      }, {});
-    
-    setOtherUserCases(otherUsersGrouped);
-    setLoading(false);
-  };
-
-  // Initial load
-  useEffect(() => {
-    if (user?.id) {
-      const loadData = async () => {
-        setLoading(true);
-        const userIds = await fetchRelatedUsers();
-        await fetchAllUsersCases(userIds);
-      };
-      loadData();
-    }
-  }, [user?.id]);
-
-  const fetchAgents = async () => {
-    try {
-      const response = await api.get('/agents');
-      if (response.data.success) {
-        const agentObject = response.data.data.reduce((acc, agent) => {
-          acc[agent.agentId] = agent;
-          return acc;
-        }, {});
-        setAgents(agentObject);
-      }
-    } catch (error) {
-      console.error('Error fetching agents:', error);
-      toast.error('Failed to fetch agents data');
-    }
-  };
-
-  useEffect(() => {
-    fetchAgents();
-  }, []);
-
   if (loading) {
     return <DashboardSkeleton />;
   }
@@ -1044,10 +939,16 @@ const FNDashboard = () => {
             </div>
           </div>
           
-          <ProfileCard />
+          <ProfileCard 
+            cases={cases}
+            pendingCase={pendingCase}
+            onCaseClick={handleCaseClick}
+            setCurrentBreadcrumb={setCurrentBreadcrumb}
+            navigate={navigate}
+          />
           
-          {currentUserCases.length > 0 && (
-            <DocumentStatusCards cases={currentUserCases} />
+          {cases.length > 0 && (
+            <DocumentStatusCards cases={cases} />
           )}
         </div>
       </div>
