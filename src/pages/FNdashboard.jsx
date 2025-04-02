@@ -8,7 +8,6 @@ import { useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 // import DianaAvatar from '../assets/diana-avatar.png';
 // import FionaAvatar from '../assets/fiona-avatar.png';
-import { AGENT_INFO } from '../constants/agentInfo';
 
 // Loading skeleton component
 const DashboardSkeleton = () => {
@@ -250,12 +249,12 @@ CaseProgressCard.propTypes = {
 };
 
 const ProfileCard = () => {
-  const agent = AGENT_INFO.diana;
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { setCurrentBreadcrumb } = useBreadcrumb();
   const [pendingCase, setPendingCase] = useState(null);
   const [cases, setCases] = useState([]);
-  const { setCurrentBreadcrumb } = useBreadcrumb();
+  const [agents, setAgents] = useState(null);
 
   useEffect(() => {
     const fetchPendingDocuments = async () => {
@@ -306,6 +305,25 @@ const ProfileCard = () => {
     }
   };
 
+  const fetchAgents = async () => {
+    try {
+      const response = await api.get('/agents');
+      if (response.data.success) {
+        const agentObject = response.data.data.reduce((acc, agent) => {
+          acc[agent.agentId] = agent;
+          return acc;
+        }, {});
+        setAgents(agentObject);
+      }
+    } catch (error) {
+      console.error('Error fetching agents:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchAgents();
+  }, []);
+
   return (
     <div className="grid grid-cols-2 gap-6 mt-4">
       {/* Diana's Card */}
@@ -326,7 +344,7 @@ const ProfileCard = () => {
             <div className="w-40 h-40 rounded-full overflow-hidden bg-white flex-shrink-0 transform hover:scale-105 transition-transform duration-300 relative z-10">
               <img 
                 src="/assets/diana-avatar.png"
-                alt={`${agent.name} - ${agent.role}`}
+                alt={`${agents?.["1"]?.name || 'Diana'} - ${agents?.["1"]?.role || 'Agent'}`}
                 className="w-full h-full object-cover"
               />
             </div>
@@ -335,23 +353,20 @@ const ProfileCard = () => {
             <div className="flex-1 ml-8 text-right">
               <div className="space-y-2">
                 <h2 className="text-xl font-semibold text-[#000D3B]">
-                  Hello {user?.name || 'there'}, I am {agent.name}
+                  Hello {user?.name || 'there'}, I am {agents?.["1"]?.name || 'Diana'}
                 </h2>
                 <p className="text-[#000D3B] opacity-90 font-medium text-base">
-                  Your Data Collector
+                  {agents?.["1"]?.role || 'Your Data Collector'}
                 </p>
                 <div className="space-y-1 mt-2">
                   <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
-                    Active Since 1 month
+                    {agents?.["1"]?.status || 'Active Since 1 month'}
                   </p>
                   <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
-                    Diana@gmail.com
+                    Age: {agents?.["1"]?.age || '1 month'}
                   </p>
                   <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
-                    ID- 122
+                    ID- {agents?.["1"]?.agentId || '1'}
                   </p>
                 </div>
               </div>
@@ -366,7 +381,7 @@ const ProfileCard = () => {
               <FileText className="w-4 h-4 text-blue-500" />
             </div>
             <p className="text-[#000D3B] font-medium text-md">
-              I&apos;m here to help you organize and manage your case documents efficiently.
+              {agents?.["1"]?.description || "I'm here to help you organize and manage your case documents efficiently."}
             </p>
           </div>
         </div>
@@ -379,9 +394,10 @@ const ProfileCard = () => {
                 What You Need to Do today...
               </h3>
               <span className="px-2.5 py-1 bg-blue-50 text-blue-600 text-xs font-medium rounded-full">
-                {pendingCase?.documentTypes.filter(doc => doc.status === 'pending').length || 0} Pending
+                {pendingCase?.documentTypes?.filter(doc => doc.status === 'pending').length || 0} Pending
               </span>
             </div>
+            
             {pendingCase ? (
               <div className="text-[#000D3B] flex-1 flex flex-col">
                 <div className="bg-blue-50/50 rounded-lg p-3 mb-4">
@@ -452,7 +468,7 @@ const ProfileCard = () => {
             <div className="w-40 h-40 rounded-full overflow-hidden bg-white flex-shrink-0 transform hover:scale-105 transition-transform duration-300 relative z-10">
               <img 
                 src="/assets/fiona-avatar.png"
-                alt="Fiona - Your Case Manager"
+                alt={`${agents?.["2"]?.name || 'Fiona'} - ${agents?.["2"]?.role || 'Case Manager'}`}
                 className="w-full h-full object-cover"
               />
             </div>
@@ -461,23 +477,20 @@ const ProfileCard = () => {
             <div className="flex-1 ml-8 text-right">
               <div className="space-y-2">
                 <h2 className="text-xl font-semibold text-[#000D3B]">
-                  Hello {user?.name || 'there'}, I am Fiona
+                  Hello {user?.name || 'there'}, I am {agents?.["2"]?.name || 'Fiona'}
                 </h2>
                 <p className="text-[#000D3B] opacity-90 font-medium text-base">
-                  Your Case Manager
+                  {agents?.["2"]?.role || 'Your Case Manager'}
                 </p>
                 <div className="space-y-1 mt-2">
                   <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
-                    Active Since 1 month
+                    {agents?.["2"]?.status || 'Active Since 1 month'}
                   </p>
                   <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
-                    Fiona@gmail.com
+                    Age: {agents?.["2"]?.age || '1 month'}
                   </p>
                   <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
-                    ID- 123
+                    ID- {agents?.["2"]?.agentId || '2'}
                   </p>
                 </div>
               </div>
@@ -504,12 +517,12 @@ const ProfileCard = () => {
               Case Overview
             </h3>
             <span className="px-2.5 py-1 bg-pink-50 text-pink-600 text-xs font-medium rounded-full">
-              {cases.length} Active
+              {agents?.["2"]?.cases?.length} Active
             </span>
           </div>
           <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent hover:scrollbar-thumb-gray-300" style={{ maxHeight: "300px" }}>
             <div className="space-y-3 pr-2">
-              {cases.map((caseItem, index) => (
+              {agents?.["2"]?.cases?.map((caseItem, index) => (
                 <div 
                   key={caseItem._id} 
                   className="flex items-start gap-3 bg-white rounded-lg p-3 border border-gray-100 hover:border-pink-100 transition-colors cursor-pointer hover:bg-pink-50/5"
@@ -811,6 +824,7 @@ const FNDashboard = () => {
   const [currentUserCases, setCurrentUserCases] = useState([]);
   const [otherUserCases, setOtherUserCases] = useState({});
   const [timeOfDay, setTimeOfDay] = useState('');
+  const [agents, setAgents] = useState(null);
 
   const getTimeIcon = () => {
     switch (timeOfDay) {
@@ -979,6 +993,26 @@ const FNDashboard = () => {
       loadData();
     }
   }, [user?.id]);
+
+  const fetchAgents = async () => {
+    try {
+      const response = await api.get('/agents');
+      if (response.data.success) {
+        const agentObject = response.data.data.reduce((acc, agent) => {
+          acc[agent.agentId] = agent;
+          return acc;
+        }, {});
+        setAgents(agentObject);
+      }
+    } catch (error) {
+      console.error('Error fetching agents:', error);
+      toast.error('Failed to fetch agents data');
+    }
+  };
+
+  useEffect(() => {
+    fetchAgents();
+  }, []);
 
   if (loading) {
     return <DashboardSkeleton />;

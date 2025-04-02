@@ -22,6 +22,7 @@ function Dashboard() {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
+  const [agents, setAgents] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -60,6 +61,25 @@ function Dashboard() {
     fetchDashboardData();
   }, []);
 
+  useEffect(() => {
+    const fetchAgents = async () => {
+      try {
+        const response = await api.get('/agents');
+        if (response.data.success) {
+          const agentObject = response.data.data.reduce((acc, agent) => {
+            acc[agent.agentId] = agent;
+            return acc;
+          }, {});
+          setAgents(agentObject);
+        }
+      } catch (error) {
+        console.error('Error fetching agents:', error);
+      }
+    };
+
+    fetchAgents();
+  }, []);
+
   // First Dashboard Layout Component
   const FirstDashboardLayout = () => (
     <div className="flex gap-6">
@@ -70,14 +90,14 @@ function Dashboard() {
             <div className="bg-white rounded-full p-1 mb-3">
               <img 
                 src="/assets/diana-avatar.png" 
-                alt="Diana"
+                alt={agents?.["1"]?.name || 'Diana'}
                 className="w-24 h-24 rounded-full"
               />
             </div>
-            <h3 className="text-lg font-medium mb-1">Diana</h3>
-            <p className="text-gray-600 text-sm mb-1">Data collector</p>
-            <p className="text-gray-600 text-sm mb-1">Age: 1 month</p>
-            <p className="text-gray-600 text-sm">ID: 122</p>
+            <h3 className="text-lg font-medium mb-1">{agents?.["1"]?.name || 'Diana'}</h3>
+            <p className="text-gray-600 text-sm mb-1">{agents?.["1"]?.role || 'Data collector'}</p>
+            <p className="text-gray-600 text-sm mb-1">Age: {agents?.["1"]?.age || '1 month'}</p>
+            <p className="text-gray-600 text-sm">ID: {agents?.["1"]?.agentId || '1'}</p>
           </div>
         </div>
       </div>
@@ -162,14 +182,14 @@ function Dashboard() {
             <div className="bg-white rounded-full p-1 mb-3">
               <img 
                 src="/assets/fiona-avatar.png" 
-                alt="Fiona"
+                alt={agents?.["2"]?.name || 'Fiona'}
                 className="w-24 h-24 rounded-full"
               />
             </div>
-            <h3 className="text-lg font-medium mb-1">Fiona</h3>
-            <p className="text-gray-600 text-sm mb-1">Case manager</p>
-            <p className="text-gray-600 text-sm mb-1">Age: 1 month</p>
-            <p className="text-gray-600 text-sm">ID: {dashboardData?.caseManagerId?.slice(-4) ?? '...'}</p>
+            <h3 className="text-lg font-medium mb-1">{agents?.["2"]?.name || 'Fiona'}</h3>
+            <p className="text-gray-600 text-sm mb-1">{agents?.["2"]?.role || 'Case manager'}</p>
+            <p className="text-gray-600 text-sm mb-1">Age: {agents?.["2"]?.age || '1 month'}</p>
+            <p className="text-gray-600 text-sm">ID: {agents?.["2"]?.agentId || '2'}</p>
           </div>
         </div>
       </div>
