@@ -332,25 +332,22 @@ const ProfileCard = () => {
             </div>
             
             {/* Profile Info */}
-            <div className="flex-1 ml-8 text-right">
-              <div className="space-y-2">
+            <div className="flex-1 ml-8 py-4">
+              <div>
                 <h2 className="text-xl font-semibold text-[#000D3B]">
                   Hello {user?.name || 'there'}, I am {agent.name}
                 </h2>
                 <p className="text-[#000D3B] opacity-90 font-medium text-base">
                   Your Data Collector
                 </p>
-                <div className="space-y-1 mt-2">
-                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
+                <div>
+                  <p className="text-[#000D3B] opacity-70 text-sm">
                     Active Since 1 month
                   </p>
-                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
+                  <p className="text-[#000D3B] opacity-70 text-sm">
                     Diana@gmail.com
                   </p>
-                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
+                  <p className="text-[#000D3B] opacity-70 text-sm">
                     ID- 122
                   </p>
                 </div>
@@ -458,25 +455,22 @@ const ProfileCard = () => {
             </div>
             
             {/* Profile Info */}
-            <div className="flex-1 ml-8 text-right">
-              <div className="space-y-2">
+            <div className="flex-1 ml-8 py-4">
+              <div >
                 <h2 className="text-xl font-semibold text-[#000D3B]">
                   Hello {user?.name || 'there'}, I am Fiona
                 </h2>
                 <p className="text-[#000D3B] opacity-90 font-medium text-base">
                   Your Case Manager
                 </p>
-                <div className="space-y-1 mt-2">
-                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
+                <div>
+                  <p className="text-[#000D3B] opacity-70 text-sm">
                     Active Since 1 month
                   </p>
-                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
+                  <p className="text-[#000D3B] opacity-70 text-sm">
                     Fiona@gmail.com
                   </p>
-                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
+                  <p className="text-[#000D3B] opacity-70 text-sm">
                     ID- 123
                   </p>
                 </div>

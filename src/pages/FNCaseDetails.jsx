@@ -565,17 +565,61 @@ const FNCaseDetails = () => {
                   }
                 }
               }
-
-              // Refresh case data
-              await refreshCaseData();
             }
+
+            // After cross-verification, organize documents
+            setProcessingStep(5); // Organizing documents
+            try {
+              // Make API calls for each questionnaire
+              const questionnaireResponses = await Promise.all(
+                questionnaires.map(async (questionnaire) => {
+                  try {
+                    const response = await api.post(`/documents/management/${caseId}/organized`, {
+                      templateId: questionnaire._id
+                    });
+                    return {
+                      questionnaire,
+                      data: response.data
+                    };
+                  } catch (error) {
+                    console.error(`Error processing questionnaire ${questionnaire._id}:`, error);
+                    return {
+                      questionnaire,
+                      error: true
+                    };
+                  }
+                })
+              );
+
+              // Check if all API calls were successful
+              const hasErrors = questionnaireResponses.some(response => response.error);
+              if (hasErrors) {
+                toast.error('Some questionnaires could not be processed');
+              } else {
+                // Update case data with organized documents from the first successful response
+                const firstSuccessResponse = questionnaireResponses.find(response => !response.error);
+                if (firstSuccessResponse?.data?.status === 'success') {
+                  setCaseData(prevData => ({
+                    ...prevData,
+                    organizedDocuments: firstSuccessResponse.data.data.rawDocuments,
+                    processedInformation: firstSuccessResponse.data.data.processedInformation
+                  }));
+                }
+              }
+            } catch (error) {
+              console.error('Error organizing documents:', error);
+              toast.error('Failed to organize documents');
+            }
+
+            // Refresh case data
+            await refreshCaseData();
           }
         } catch (error) {
           console.error('Error during cross-verification or questionnaire filling:', error);
           // Don't show error to user, just log it
         }
       }
-      
+
       setFiles([]);
 
       // Reset chat after successful upload
@@ -831,11 +875,9 @@ const FNCaseDetails = () => {
       }
     };
 
-    // Only fetch questionnaires when the questionnaire tab is active
-    if (activeTab === 'questionnaire') {
-      fetchQuestionnaires();
-    }
-  }, [activeTab]);
+    // Fetch questionnaires when component mounts
+    fetchQuestionnaires();
+  }, []); // Empty dependency array means this runs once when component mounts
 
   useEffect(() => {
     if (questionnaireData?.responses?.[0]?.processedInformation) {
@@ -1814,63 +1856,60 @@ const FNCaseDetails = () => {
       setLoadingStep(0);
       
       try {
-        // Get the organized data using POST request with templateId
-        const organizedResponse = await api.post(`/documents/management/${caseId}/organized`, {
-          templateId: questionnaire._id
+        // Get the questionnaire response
+        const response = await api.get(`/questionnaire-responses/management/${caseId}`, {
+          params: {
+            templateId: questionnaire._id
+          }
         });
         
-        if (organizedResponse.data.status === 'success') {
-          setLoadingStep(1);
-          const { processedInformation } = organizedResponse.data.data;
+        if (response.data.status === 'success') {
+          setLoadingStep(2);
+          // Get the first response
+          const questionnaireResponse = response.data.data.responses[0];
           
-          // Get the questionnaire response
-          const response = await api.get(`/questionnaire-responses/management/${caseId}`, {
-            params: {
-              templateId: questionnaire._id
-            }
-          });
+          // Set questionnaire data
+          setQuestionnaireData(response.data.data);
           
-          if (response.data.status === 'success') {
-            setLoadingStep(2);
-            // Get the first response
-            const questionnaireResponse = response.data.data.responses[0];
+          // Map the processed information to form data
+          const mappedData = {};
+          
+          // Process each field mapping
+          questionnaire.field_mappings.forEach(field => {
+            const sourceDoc = field.sourceDocument;
+            const fieldName = field.fieldName;
             
-            // Set questionnaire data
-            setQuestionnaireData(response.data.data);
+            // Get the processed data for this document type
+            const docData = caseData.processedInformation?.[sourceDoc];
             
-            // Map the processed information to form data
-            const mappedData = {};
-            
-            // Process each field mapping
-            questionnaire.field_mappings.forEach(field => {
-              const sourceDoc = field.sourceDocument;
-              const fieldName = field.fieldName;
+            if (docData) {
+              // Initialize the section if it doesn't exist
+              if (!mappedData[sourceDoc]) {
+                mappedData[sourceDoc] = {};
+              }
               
-              // Get the processed data for this document type
-              const docData = processedInformation[sourceDoc];
-              
-              if (docData) {
-                // Initialize the section if it doesn't exist
-                if (!mappedData[sourceDoc]) {
-                  mappedData[sourceDoc] = {};
-                }
-                
+              // Special handling for educationalQualification object
+              if (fieldName === 'educationalQualification' && typeof docData[fieldName] === 'object') {
+                // Format educational qualification as a string
+                const edu = docData[fieldName];
+                mappedData[sourceDoc][fieldName] = `${edu.courseLevel} in ${edu.specialization} from ${edu.institution} (GPA: ${edu.gpa})`;
+              } else {
                 // Map the field value
                 mappedData[sourceDoc][fieldName] = docData[fieldName] || '';
               }
-            });
-            
-            // Set form data with mapped data
-            setFormData(mappedData);
-            
-            // Set saved fields if status is 'saved'
-            if (questionnaireResponse.status === 'saved') {
-              setSavedFields(questionnaireResponse.processedInformation);
-              setQuestionnaireStatus('saved');
-            } else {
-              setQuestionnaireStatus('pending');
-              setSavedFields({ Passport: {}, Resume: {} });
             }
+          });
+          
+          // Set form data with mapped data
+          setFormData(mappedData);
+          
+          // Set saved fields if status is 'saved'
+          if (questionnaireResponse.status === 'saved') {
+            setSavedFields(questionnaireResponse.processedInformation);
+            setQuestionnaireStatus('saved');
+          } else {
+            setQuestionnaireStatus('pending');
+            setSavedFields({ Passport: {}, Resume: {} });
           }
         }
       } catch (error) {
@@ -1967,8 +2006,8 @@ const FNCaseDetails = () => {
       // Get the field name from the field object
       const fieldName = field.fieldName;
       
-      // Get the value from localFormData
-      const value = localFormData?.[section]?.[fieldName];
+      // Get the value from savedFields instead of localFormData
+      const value = savedFields?.[section]?.[fieldName];
       
       // Check if value is empty
       const isEmpty = !value || (typeof value === 'string' && value.trim() === '');
@@ -2104,8 +2143,8 @@ const FNCaseDetails = () => {
                 .map(field => (
                   shouldShowField('Passport', field) && (
                     <div key={field._id}>
-                      <label className="block text-sm text-gray-600 mb-1">
-                        {field.displayName}
+                      <label className="block text-sm text-gray-600 mb-1 font-semibold">
+                        {field.fieldName}
                       </label>
                       <input
                         type="text"
@@ -2132,26 +2171,82 @@ const FNCaseDetails = () => {
                   if (field.fieldName === 'educationalQualification') {
                     return shouldShowField('Resume', field) && (
                       <div key={field._id} className="col-span-2">
-                        <label className="block text-sm text-gray-600 mb-1">
-                          {field.displayName}
+                        <label className="block text-sm text-gray-600 mb-1 font-semibold">
+                          {field.fieldName}
                         </label>
-                        <textarea
-                          value={localFormData?.Resume?.educationalQualification || ''}
-                          onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', e.target.value)}
-                          rows={3}
-                          className={`w-full px-3 py-2 border rounded-lg text-sm ${
-                            isFieldSaved('Resume', 'educationalQualification')
-                              ? 'border-gray-200 bg-gray-50'
-                              : 'border-blue-200 bg-blue-50'
-                          }`}
-                        />
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm text-gray-600 mb-1">Institution</label>
+                            <input
+                              type="text"
+                              value={localFormData?.Resume?.educationalQualification?.institution || ''}
+                              onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', {
+                                ...localFormData?.Resume?.educationalQualification,
+                                institution: e.target.value
+                              })}
+                              className={`w-full px-3 py-2 border rounded-lg text-sm ${
+                                isFieldSaved('Resume', 'educationalQualification')
+                                  ? 'border-gray-200 bg-gray-50'
+                                  : 'border-blue-200 bg-blue-50'
+                              }`}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-600 mb-1">Course Level</label>
+                            <input
+                              type="text"
+                              value={localFormData?.Resume?.educationalQualification?.courseLevel || ''}
+                              onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', {
+                                ...localFormData?.Resume?.educationalQualification,
+                                courseLevel: e.target.value
+                              })}
+                              className={`w-full px-3 py-2 border rounded-lg text-sm ${
+                                isFieldSaved('Resume', 'educationalQualification')
+                                  ? 'border-gray-200 bg-gray-50'
+                                  : 'border-blue-200 bg-blue-50'
+                              }`}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-600 mb-1">Specialization</label>
+                            <input
+                              type="text"
+                              value={localFormData?.Resume?.educationalQualification?.specialization || ''}
+                              onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', {
+                                ...localFormData?.Resume?.educationalQualification,
+                                specialization: e.target.value
+                              })}
+                              className={`w-full px-3 py-2 border rounded-lg text-sm ${
+                                isFieldSaved('Resume', 'educationalQualification')
+                                  ? 'border-gray-200 bg-gray-50'
+                                  : 'border-blue-200 bg-blue-50'
+                              }`}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-600 mb-1">GPA</label>
+                            <input
+                              type="text"
+                              value={localFormData?.Resume?.educationalQualification?.gpa || ''}
+                              onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', {
+                                ...localFormData?.Resume?.educationalQualification,
+                                gpa: e.target.value
+                              })}
+                              className={`w-full px-3 py-2 border rounded-lg text-sm ${
+                                isFieldSaved('Resume', 'educationalQualification')
+                                  ? 'border-gray-200 bg-gray-50'
+                                  : 'border-blue-200 bg-blue-50'
+                              }`}
+                            />
+                          </div>
+                        </div>
                       </div>
                     );
                   }
                   return shouldShowField('Resume', field) && (
                     <div key={field._id}>
-                      <label className="block text-sm text-gray-600 mb-1">
-                        {field.displayName}
+                      <label className="block text-sm text-gray-600 mb-1 font-semibold">
+                        {field.fieldName}
                       </label>
                       <input
                         type="text"
