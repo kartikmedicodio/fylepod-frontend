@@ -11,7 +11,8 @@ import {
   Check,
   ChevronUp,
   ChevronDown,
-  X // Add these imports for the new icons
+  X,
+  Upload // Add this import for the new icon
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
@@ -1671,7 +1672,7 @@ const FNCaseDetails = () => {
         )}
 
         {uploadStatus === 'validation' && (
-          <div className="w-full"> {/* Change from max-w-5xl mx-auto to w-full */}
+          <div className="w-full">
             {/* Header with Next Button */}
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Verification Results</h3>
@@ -1696,6 +1697,7 @@ const FNCaseDetails = () => {
                   isLoading={isVerificationLoading}
                   verificationData={verificationData}
                   managementId={caseId}
+                  className="bg-transparent"
                 />
               </div>
 
@@ -1825,15 +1827,32 @@ const FNCaseDetails = () => {
 
                       {/* Use URLs from validationData */}
                       {validationData.documentUrls?.[documentValidation.documentType] && (
-                        <a 
-                          href={validationData.documentUrls[documentValidation.documentType]} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-2"
-                        >
-                          <Eye className="w-4 h-4" />
-                          View Document
-                        </a>
+                        <div className="flex items-center gap-2">
+                          <a 
+                            href={validationData.documentUrls[documentValidation.documentType]} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-2"
+                          >
+                            <Eye className="w-4 h-4" />
+                            View Document
+                          </a>
+                          <button
+                            onClick={() => {
+                              // Find the document type ID from caseData
+                              const docType = caseData.documentTypes.find(dt => dt.name === documentValidation.documentType);
+                              if (docType?.documentTypeId) {
+                                handleDocumentReupload(docType.documentTypeId);
+                              } else {
+                                toast.error('Document type ID not found');
+                              }
+                            }}
+                            className="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 flex items-center gap-2 border border-red-200 rounded-lg hover:bg-red-50"
+                          >
+                            <Upload className="w-4 h-4" />
+                            Reupload
+                          </button>
+                        </div>
                       )}
                     </div>
 
@@ -2515,10 +2534,15 @@ const FNCaseDetails = () => {
       ]);
 
       if (validationResponse.data.status === 'success') {
-        // Create document URL mapping
+        // Create document URL mapping and document type ID mapping
         const urlMapping = documentsResponse.data.status === 'success' 
           ? documentsResponse.data.data.documents.reduce((acc, doc) => {
-              acc[doc.type] = doc.fileUrl;
+              // Find the matching document type from caseData
+              const docType = caseData.documentTypes.find(dt => dt.name === doc.type);
+              acc[doc.type] = {
+                url: doc.fileUrl,
+                documentTypeId: docType?.documentTypeId
+              };
               return acc;
             }, {})
           : {};
@@ -2568,6 +2592,32 @@ const FNCaseDetails = () => {
     setActiveTab(newTab);
     if (newTab === 'documents-checklist') {
       setUploadStatus('pending');
+    }
+  };
+
+  // Add this function near the other handler functions
+  const handleDocumentReupload = async (documentTypeId) => {
+    try {
+      const response = await api.patch(`/management/${caseId}/documents/${documentTypeId}/reupload`);
+      if (response.data.status === 'success') {
+        // Switch to documents checklist tab
+        handleTabClick('documents-checklist');
+        // Show success message
+        toast.success('Document reupload initiated successfully');
+        // Refresh data in background
+        try {
+          await Promise.all([
+            refreshCaseData(),
+            fetchValidationData()
+          ]);
+        } catch (refreshError) {
+          console.error('Error refreshing data:', refreshError);
+          // Don't show error to user since this is background refresh
+        }
+      }
+    } catch (error) {
+      console.error('Error reuploading document:', error);
+      toast.error('Failed to initiate document reupload');
     }
   };
 
