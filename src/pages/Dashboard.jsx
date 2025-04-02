@@ -22,6 +22,7 @@ function Dashboard() {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
+  const [agents, setAgents] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -60,6 +61,25 @@ function Dashboard() {
     fetchDashboardData();
   }, []);
 
+  useEffect(() => {
+    const fetchAgents = async () => {
+      try {
+        const response = await api.get('/agents');
+        if (response.data.success) {
+          const agentObject = response.data.data.reduce((acc, agent) => {
+            acc[agent.agentId] = agent;
+            return acc;
+          }, {});
+          setAgents(agentObject);
+        }
+      } catch (error) {
+        console.error('Error fetching agents:', error);
+      }
+    };
+
+    fetchAgents();
+  }, []);
+
   // First Dashboard Layout Component
   const FirstDashboardLayout = () => (
     <div className="flex gap-6">
@@ -70,14 +90,14 @@ function Dashboard() {
             <div className="bg-white rounded-full p-1 mb-3">
               <img 
                 src="/assets/diana-avatar.png" 
-                alt="Diana"
+                alt={agents?.["1"]?.name || 'Diana'}
                 className="w-24 h-24 rounded-full"
               />
             </div>
-            <h3 className="text-lg font-medium mb-1">Diana</h3>
-            <p className="text-gray-600 text-sm mb-1">Data collector</p>
-            <p className="text-gray-600 text-sm mb-1">Age: 1 month</p>
-            <p className="text-gray-600 text-sm">ID: 122</p>
+            <h3 className="text-lg font-medium mb-1">{agents?.["1"]?.name || 'Diana'}</h3>
+            <p className="text-gray-600 text-sm mb-1">{agents?.["1"]?.role || 'Data collector'}</p>
+            <p className="text-gray-600 text-sm mb-1">Age: {agents?.["1"]?.age || '1 month'}</p>
+            <p className="text-gray-600 text-sm">ID: {agents?.["1"]?.agentId || '1'}</p>
           </div>
         </div>
       </div>
@@ -106,7 +126,7 @@ function Dashboard() {
 
         {/* Pending Review - Warning Card - Full Width */}
         <div 
-          className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all"
+          className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all group relative"
           onClick={() => {
             navigate('/cases', { 
               state: { 
@@ -117,12 +137,23 @@ function Dashboard() {
             });
           }}
         >
-          <h3 className="text-gray-800 font-medium mb-2">Pending Review</h3>
-          <div className="text-xl font-bold text-gray-900">
-            {dashboardData?.pendingReviewCount ?? 'Loading...'}
+          <div>
+            <h3 className="text-gray-800 font-medium mb-2 group-hover:text-blue-600 flex items-center">
+              Pending Review
+              <span className="ml-2 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">
+              </span>
+            </h3>
+            <div className="text-xl font-bold text-gray-900">
+              {dashboardData?.pendingReviewCount ?? 'Loading...'}
+            </div>
+            <div className="bg-amber-50 rounded p-2 mt-1">
+              <p className="text-sm text-gray-700">Cases requires your attention</p>
+            </div>
           </div>
-          <div className="bg-amber-50 rounded p-2 mt-1">
-            <p className="text-sm text-gray-700">Cases requires your attention</p>
+
+          {/* Custom Tooltip */}
+          <div className="absolute invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 text-white text-sm rounded px-2 py-1 left-1/2 -translate-x-1/2 -top-8 whitespace-nowrap">
+            Click to view cases with pending review
           </div>
         </div>
       </div>
@@ -151,14 +182,14 @@ function Dashboard() {
             <div className="bg-white rounded-full p-1 mb-3">
               <img 
                 src="/assets/fiona-avatar.png" 
-                alt="Fiona"
+                alt={agents?.["2"]?.name || 'Fiona'}
                 className="w-24 h-24 rounded-full"
               />
             </div>
-            <h3 className="text-lg font-medium mb-1">Fiona</h3>
-            <p className="text-gray-600 text-sm mb-1">Case manager</p>
-            <p className="text-gray-600 text-sm mb-1">Age: 1 month</p>
-            <p className="text-gray-600 text-sm">ID: {dashboardData?.caseManagerId?.slice(-4) ?? '...'}</p>
+            <h3 className="text-lg font-medium mb-1">{agents?.["2"]?.name || 'Fiona'}</h3>
+            <p className="text-gray-600 text-sm mb-1">{agents?.["2"]?.role || 'Case manager'}</p>
+            <p className="text-gray-600 text-sm mb-1">Age: {agents?.["2"]?.age || '1 month'}</p>
+            <p className="text-gray-600 text-sm">ID: {agents?.["2"]?.agentId || '2'}</p>
           </div>
         </div>
       </div>
@@ -186,7 +217,7 @@ function Dashboard() {
 
           {/* Pending Review */}
           <div 
-            className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all"
+            className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all group relative"
             onClick={() => {
               navigate('/cases', { 
                 state: { 
@@ -197,16 +228,25 @@ function Dashboard() {
               });
             }}
           >
-            <h3 className="text-gray-800 font-medium mb-2">Pending Review</h3>
-            <div className="text-xl font-bold text-gray-900">
-              {dashboardData ? `${dashboardData.reviewedCount}` : 'Loading...'}
+            <div>
+              <h3 className="text-gray-800 font-medium mb-2 group-hover:text-blue-600 flex items-center">
+                Pending Review
+              </h3>
+              <div className="text-xl font-bold text-gray-900">
+                {dashboardData ? `${dashboardData.reviewedCount}` : 'Loading...'}
+              </div>
+              <p className="text-sm text-gray-600">cases have undergone review</p>
             </div>
-            <p className="text-sm text-gray-600">cases have undergone review</p>
+
+            {/* Custom Tooltip */}
+            <div className="absolute invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 text-white text-sm rounded px-2 py-1 left-1/2 -translate-x-1/2 -top-8 whitespace-nowrap">
+              Click to view cases that have been reviewed
+            </div>
           </div>
 
           {/* Preparation for Filing */}
           <div 
-            className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all"
+            className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all group relative"
             onClick={() => {
               navigate('/cases', { 
                 state: { 
@@ -217,11 +257,20 @@ function Dashboard() {
               });
             }}
           >
-            <h3 className="text-gray-800 font-medium mb-2">Preparation for Filing</h3>
-            <div className="text-xl font-bold text-gray-900">
-              {dashboardData ? `${dashboardData.completedCount}` : 'Loading...'}
+            <div>
+              <h3 className="text-gray-800 font-medium mb-2 group-hover:text-blue-600 flex items-center">
+                Preparation for Filing
+              </h3>
+              <div className="text-xl font-bold text-gray-900">
+                {dashboardData ? `${dashboardData.completedCount}` : 'Loading...'}
+              </div>
+              <p className="text-sm text-gray-600">cases have forms ready for submission</p>
             </div>
-            <p className="text-sm text-gray-600">cases have forms ready for submission</p>
+
+            {/* Custom Tooltip */}
+            <div className="absolute invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 text-white text-sm rounded px-2 py-1 left-1/2 -translate-x-1/2 -top-8 whitespace-nowrap">
+              Click to view cases ready for filing
+            </div>
           </div>
         </div>
       </div>

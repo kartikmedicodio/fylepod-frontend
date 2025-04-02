@@ -1421,118 +1421,148 @@ const FNCaseDetails = () => {
       </div>
     );
 
-    const renderSmartUpload = () => (
-      uploadStatus === 'pending' && (
-        <div className="flex-1 border border-gray-200 rounded-lg p-4 relative">
-          {/* Processing overlay */}
-          {isProcessing && <ProcessingIndicator currentStep={processingStep} />}
-          
-          <div className="mb-4">
-            <h4 className="font-medium text-sm">Smart Upload Files</h4>
-          </div>
-          
-          <div className={`transition-all ${isProcessing ? 'blur-sm' : ''}`}>
-            <div 
-              className={`flex flex-col items-center justify-center py-10 px-6 rounded-lg transition-all duration-300 ${
-                isDragging 
-                  ? 'bg-blue-100 border-2 border-dashed border-blue-300 shadow-inner' 
-                  : 'bg-blue-50 border-2 border-dashed border-blue-200 hover:bg-blue-100 hover:border-blue-300'
-              }`}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-            >
-              {/* Upload Icon */}
-              <div className={`mb-4 p-5 rounded-full ${isDragging ? 'bg-blue-100' : 'bg-blue-50'}`}>
-                <svg 
-                  className={`w-8 h-8 ${isDragging ? 'text-blue-700' : 'text-blue-600'}`} 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  strokeWidth="2"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-              </div>
-              
-              {/* Upload Instructions */}
-              <div className="text-center space-y-4">
-                <h3 className={`font-medium ${isDragging ? 'text-blue-900' : 'text-blue-800'}`}>
-                  {isDragging ? 'Drop files here' : 'Upload your documents'}
-                </h3>
-                <p className="text-sm text-gray-600 mb-2">
-                  Drag & drop files here or use the button below
-                </p>
-                
-                <label 
-                  htmlFor="smart-file-upload" 
-                  className="inline-flex items-center justify-center px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg cursor-pointer transition-all duration-200 shadow-sm hover:shadow-md group"
-                >
-                  <svg className="w-4 h-4 mr-2 text-white transition-transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l-3-3m0 0l-3 3m3-3v12M3 17.25V21h18v-3.75M3 10.5V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v3" />
+    const renderSmartUpload = () => {
+      // Add this check at the start of renderSmartUpload
+      const allDocsUploaded = caseData.documentTypes.every(doc => 
+        doc.status === 'uploaded' || doc.status === 'approved'
+      );
+
+      return (
+        uploadStatus === 'pending' && (
+          <div className="flex-1 border border-gray-200 rounded-lg p-4 relative">
+            {/* Processing overlay */}
+            {isProcessing && <ProcessingIndicator currentStep={processingStep} />}
+            
+            <div className="mb-4">
+              <h4 className="font-medium text-sm">Smart Upload Files</h4>
+            </div>
+            
+            <div className={`transition-all ${isProcessing ? 'blur-sm' : ''}`}>
+              <div 
+                className={`flex flex-col items-center justify-center py-10 px-6 rounded-lg transition-all duration-300 ${
+                  isDragging 
+                    ? 'bg-blue-100 border-2 border-dashed border-blue-300 shadow-inner' 
+                    : allDocsUploaded
+                      ? 'bg-gray-50 border-2 border-dashed border-gray-200 cursor-not-allowed'
+                      : 'bg-blue-50 border-2 border-dashed border-blue-200 hover:bg-blue-100 hover:border-blue-300'
+                }`}
+                onDragOver={!allDocsUploaded ? handleDragOver : undefined}
+                onDragLeave={!allDocsUploaded ? handleDragLeave : undefined}
+                onDrop={!allDocsUploaded ? handleDrop : undefined}
+              >
+                {/* Upload Icon */}
+                <div className={`mb-4 p-5 rounded-full ${
+                  isDragging ? 'bg-blue-100' : allDocsUploaded ? 'bg-gray-100' : 'bg-blue-50'
+                }`}>
+                  <svg 
+                    className={`w-8 h-8 ${
+                      isDragging ? 'text-blue-700' : allDocsUploaded ? 'text-gray-400' : 'text-blue-600'
+                    }`} 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    strokeWidth="2"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
-                  Browse Files
-                </label>
+                </div>
                 
-                <p className="text-xs text-gray-400 mt-2">
-                  Supports JPG, PNG and PDF (max 10MB)
-                </p>
-              </div>
-              
-              {/* Hidden file input */}
-              <input 
-                type="file" 
-                multiple 
-                accept="image/jpeg,image/png,image/jpg,application/pdf" 
-                className="hidden" 
-                onChange={handleFileSelect}
-                id="smart-file-upload"
-              />
-              
-              {/* Selected files preview */}
-              {files.length > 0 && (
-                <div className="w-full mt-6 space-y-2">
-                  <div className="text-sm font-medium text-gray-700 mb-2">Selected files:</div>
-                  {files.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-200">
-                      <div className="flex items-center">
-                        <div className="w-8 h-8 rounded-md bg-sky-50 flex items-center justify-center mr-3">
-                          <svg className="w-4 h-4 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                {/* Upload Instructions */}
+                <div className="text-center space-y-4">
+                  <h3 className={`font-medium ${
+                    isDragging ? 'text-blue-900' : allDocsUploaded ? 'text-gray-400' : 'text-blue-800'
+                  }`}>
+                    {allDocsUploaded 
+                      ? 'All documents uploaded' 
+                      : isDragging 
+                        ? 'Drop files here' 
+                        : 'Upload your documents'
+                    }
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-2">
+                    {allDocsUploaded 
+                      ? 'No more documents needed' 
+                      : 'Drag & drop files here or use the button below'
+                    }
+                  </p>
+                  
+                  <label 
+                    htmlFor="smart-file-upload" 
+                    className={`inline-flex items-center justify-center px-5 py-2.5 font-medium rounded-lg transition-all duration-200 ${
+                      allDocsUploaded
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-blue-600 hover:bg-blue-500 text-white cursor-pointer shadow-sm hover:shadow-md group'
+                    }`}
+                  >
+                    <svg className={`w-4 h-4 mr-2 ${
+                      allDocsUploaded ? 'text-gray-400' : 'text-white transition-transform group-hover:scale-110'
+                    }`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l-3-3m0 0l-3 3m3-3v12M3 17.25V21h18v-3.75M3 10.5V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v3" />
+                    </svg>
+                    Browse Files
+                  </label>
+                  
+                  <p className="text-xs text-gray-400 mt-2">
+                    Supports JPG, PNG and PDF (max 10MB)
+                  </p>
+                </div>
+                
+                {/* Hidden file input */}
+                <input 
+                  type="file" 
+                  multiple 
+                  accept="image/jpeg,image/png,image/jpg,application/pdf" 
+                  className="hidden" 
+                  onChange={handleFileSelect}
+                  id="smart-file-upload"
+                  disabled={allDocsUploaded}
+                />
+                
+                {/* Selected files preview - only show if not all docs uploaded */}
+                {!allDocsUploaded && files.length > 0 && (
+                  <div className="w-full mt-6 space-y-2">
+                    <div className="text-sm font-medium text-gray-700 mb-2">Selected files:</div>
+                    {files.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-200">
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 rounded-md bg-sky-50 flex items-center justify-center mr-3">
+                            <svg className="w-4 h-4 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-gray-800 truncate max-w-xs">{file.name}</div>
+                            <div className="text-xs text-gray-500">{(file.size / 1024 / 1024).toFixed(2)} MB</div>
+                          </div>
+                        </div>
+                        <button 
+                          className="text-gray-400 hover:text-red-500"
+                          onClick={() => setFiles(files.filter((_, i) => i !== index))}
+                        >
+                          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                           </svg>
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium text-gray-800 truncate max-w-xs">{file.name}</div>
-                          <div className="text-xs text-gray-500">{(file.size / 1024 / 1024).toFixed(2)} MB</div>
-                        </div>
+                        </button>
                       </div>
-                      <button 
-                        className="text-gray-400 hover:text-red-500"
-                        onClick={() => setFiles(files.filter((_, i) => i !== index))}
+                    ))}
+                    
+                    <div className="flex justify-end mt-4">
+                      <button
+                        onClick={() => handleFileUpload(files)}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        disabled={isProcessing}
                       >
-                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        {isProcessing ? 'Processing...' : 'Upload Files'}
                       </button>
                     </div>
-                  ))}
-                  
-                  <div className="flex justify-end mt-4">
-                    <button
-                      onClick={() => handleFileUpload(files)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                      disabled={isProcessing}
-                    >
-                      {isProcessing ? 'Processing...' : 'Upload Files'}
-                    </button>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )
-    );
+        )
+      );
+    };
 
     return (
       <div className="p-6">
