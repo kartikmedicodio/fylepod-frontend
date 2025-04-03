@@ -2149,6 +2149,24 @@ const FNCaseDetails = () => {
       return savedFields?.[section]?.[field] === localFormData?.[section]?.[field];
     };
 
+    const isFieldEmpty = (section, field) => {
+      const value = localFormData?.[section]?.[field];
+      if (typeof value === 'object' && value !== null) {
+        return Object.values(value).every(val => !val || (typeof val === 'string' && val.trim() === ''));
+      }
+      return !value || (typeof value === 'string' && value.trim() === '');
+    };
+
+    const getFieldClassName = (section, field, isRequired = true) => {
+      if (isFieldEmpty(section, field)) {
+        return 'border-red-300 bg-red-50/50';
+      }
+      if (isFieldSaved(section, field)) {
+        return 'border-gray-200 bg-gray-50';
+      }
+      return 'border-blue-200 bg-blue-50';
+    };
+
     const { total, filled } = getFilledFieldsCount();
     const progress = total > 0 ? Math.round((filled / total) * 100) : 0;
 
@@ -2169,15 +2187,22 @@ const FNCaseDetails = () => {
           </div>
           <div className='flex items-center gap-4'>
             <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="showEmpty"
-                checked={showOnlyEmpty}
-                onChange={(e) => setShowOnlyEmpty(e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <label htmlFor="showEmpty" className="text-sm text-gray-600">
-                Show only empty fields
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showOnlyEmpty}
+                  onChange={(e) => setShowOnlyEmpty(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 rounded-full peer 
+                  peer-checked:after:translate-x-full 
+                  after:content-[''] after:absolute after:top-0.5 after:left-[2px] 
+                  after:bg-white after:border-gray-300 after:border after:rounded-full 
+                  after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600">
+                </div>
+                <span className="ml-3 text-sm font-medium text-gray-700">
+                  Show only empty fields
+                </span>
               </label>
             </div>
             <div className="text-sm text-gray-600">
@@ -2213,11 +2238,7 @@ const FNCaseDetails = () => {
                         type="text"
                         value={localFormData?.Passport?.[field.fieldName] || ''}
                         onChange={(e) => handleLocalInputChange('Passport', field.fieldName, e.target.value)}
-                        className={`w-full px-3 py-2 border rounded-lg text-sm ${
-                          isFieldSaved('Passport', field.fieldName)
-                            ? 'border-gray-200 bg-gray-50'
-                            : 'border-blue-200 bg-blue-50'
-                        }`}
+                        className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Passport', field.fieldName, field.required)}`}
                       />
                     </div>
                   )
@@ -2247,11 +2268,7 @@ const FNCaseDetails = () => {
                                 ...localFormData?.Resume?.educationalQualification,
                                 institution: e.target.value
                               })}
-                              className={`w-full px-3 py-2 border rounded-lg text-sm ${
-                                isFieldSaved('Resume', 'educationalQualification')
-                                  ? 'border-gray-200 bg-gray-50'
-                                  : 'border-blue-200 bg-blue-50'
-                              }`}
+                              className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', 'educationalQualification', field.required)}`}
                             />
                           </div>
                           <div>
@@ -2263,11 +2280,7 @@ const FNCaseDetails = () => {
                                 ...localFormData?.Resume?.educationalQualification,
                                 courseLevel: e.target.value
                               })}
-                              className={`w-full px-3 py-2 border rounded-lg text-sm ${
-                                isFieldSaved('Resume', 'educationalQualification')
-                                  ? 'border-gray-200 bg-gray-50'
-                                  : 'border-blue-200 bg-blue-50'
-                              }`}
+                              className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', 'educationalQualification', field.required)}`}
                             />
                           </div>
                           <div>
@@ -2279,11 +2292,7 @@ const FNCaseDetails = () => {
                                 ...localFormData?.Resume?.educationalQualification,
                                 specialization: e.target.value
                               })}
-                              className={`w-full px-3 py-2 border rounded-lg text-sm ${
-                                isFieldSaved('Resume', 'educationalQualification')
-                                  ? 'border-gray-200 bg-gray-50'
-                                  : 'border-blue-200 bg-blue-50'
-                              }`}
+                              className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', 'educationalQualification', field.required)}`}
                             />
                           </div>
                           <div>
@@ -2295,11 +2304,7 @@ const FNCaseDetails = () => {
                                 ...localFormData?.Resume?.educationalQualification,
                                 gpa: e.target.value
                               })}
-                              className={`w-full px-3 py-2 border rounded-lg text-sm ${
-                                isFieldSaved('Resume', 'educationalQualification')
-                                  ? 'border-gray-200 bg-gray-50'
-                                  : 'border-blue-200 bg-blue-50'
-                              }`}
+                              className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', 'educationalQualification', field.required)}`}
                             />
                           </div>
                         </div>
@@ -2315,11 +2320,7 @@ const FNCaseDetails = () => {
                         type="text"
                         value={localFormData?.Resume?.[field.fieldName] || ''}
                         onChange={(e) => handleLocalInputChange('Resume', field.fieldName, e.target.value)}
-                        className={`w-full px-3 py-2 border rounded-lg text-sm ${
-                          isFieldSaved('Resume', field.fieldName)
-                            ? 'border-gray-200 bg-gray-50'
-                            : 'border-blue-200 bg-blue-50'
-                        }`}
+                        className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', field.fieldName, field.required)}`}
                       />
                     </div>
                   );
