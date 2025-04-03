@@ -1627,7 +1627,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                     status: doc.status === 'approved' ? 'Approved' : 'Verification pending',
                     documentTypeId: doc.documentTypeId,
                     updatedAt: doc.updatedAt,
-                    managementId: caseId, // Add the managementId from the caseId
+                    managementId: caseId,
                     states: [
                       {
                         name: 'Document collection',
@@ -1671,6 +1671,22 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               onApprove={handleDocumentApprove}
               onRequestReupload={handleRequestReupload}
               processingDocuments={processingDocuments}
+              onDocumentsUpdate={(updatedDocuments) => {
+                // Update the caseData state with the new document statuses
+                setCaseData(prevData => ({
+                  ...prevData,
+                  documentTypes: prevData.documentTypes.map(doc => {
+                    const updatedDoc = updatedDocuments.find(d => d.documentTypeId === doc.documentTypeId);
+                    if (updatedDoc) {
+                      return {
+                        ...doc,
+                        status: updatedDoc.status === 'Approved' ? DOCUMENT_STATUS.APPROVED : doc.status
+                      };
+                    }
+                    return doc;
+                  })
+                }));
+              }}
             />
           );
         default:

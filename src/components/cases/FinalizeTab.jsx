@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Check, AlertTriangle, X, FileText, Bot, ChevronRight, Loader2, Eye } from 'lucide-react';
-  import { useDocumentContext } from '../../contexts/DocumentContext';
+import { Check, AlertTriangle, X, FileText, Bot, Loader2, Eye } from 'lucide-react';
+import { useDocumentContext } from '../../contexts/DocumentContext';
+import api from '../../utils/api';
+import { toast } from 'react-hot-toast';
+import PropTypes from 'prop-types';
 
 const ProcessState = ({ state, status, onClick }) => {
   const getStateStyles = () => {
@@ -57,6 +60,12 @@ const ProcessState = ({ state, status, onClick }) => {
   );
 };
 
+ProcessState.propTypes = {
+  state: PropTypes.string.isRequired,
+  status: PropTypes.string.isRequired,
+  onClick: PropTypes.func.isRequired
+};
+
 const DocumentStatus = ({ status }) => {
   const getStatusConfig = () => {
     switch (status) {
@@ -89,6 +98,10 @@ const DocumentStatus = ({ status }) => {
       {text}
     </span>
   );
+};
+
+DocumentStatus.propTypes = {
+  status: PropTypes.string.isRequired
 };
 
 const DocumentRow = ({ 
@@ -228,15 +241,38 @@ const DocumentRow = ({
   );
 };
 
+DocumentRow.propTypes = {
+  document: PropTypes.shape({
+    id: PropTypes.string.isRequired,
+    documentTypeId: PropTypes.string.isRequired,
+    status: PropTypes.string.isRequired,
+    states: PropTypes.arrayOf(PropTypes.shape({
+      name: PropTypes.string.isRequired,
+      status: PropTypes.string.isRequired
+    })).isRequired
+  }).isRequired,
+  documentDetails: PropTypes.shape({
+    fileUrl: PropTypes.string,
+    type: PropTypes.string,
+    size: PropTypes.number,
+    mimeType: PropTypes.string
+  }),
+  onStateClick: PropTypes.func.isRequired,
+  onApprove: PropTypes.func.isRequired,
+  onRequestReupload: PropTypes.func.isRequired,
+  processingDocuments: PropTypes.object.isRequired
+};
+
 const FinalizeTab = ({ 
   documents = [], 
-  validationData, 
   onStateClick,
   onApprove,
   onRequestReupload,
-  processingDocuments = {}
+  processingDocuments = {},
+  onDocumentsUpdate
 }) => {
   const { documentDetailsMap, isLoading, fetchDocumentDetails } = useDocumentContext();
+  const [isBulkApproving, setIsBulkApproving] = useState(false);
 
   useEffect(() => {
     // Only fetch if we don't already have the details for these documents
@@ -245,6 +281,65 @@ const FinalizeTab = ({
       fetchDocumentDetails(documents);
     }
   }, [documents]);
+
+  const handleBulkApprove = async () => {
+    try {
+      setIsBulkApproving(true);
+      const documentTypeIds = documents
+        .filter(doc => doc.status === 'Verification pending')
+        .map(doc => doc.documentTypeId);
+
+      console.log('Documents to approve:', documents);
+      console.log('DocumentTypeIds to approve:', documentTypeIds);
+      console.log('Management ID:', documents[0]?.managementId);
+
+      if (documentTypeIds.length === 0) {
+        console.log('No documents to approve');
+        return;
+      }
+
+      if (!documents[0]?.managementId) {
+        console.error('No management ID found');
+        return;
+      }
+
+      const response = await api.patch(`/management/${documents[0].managementId}/documents/bulk-approve`, {
+        documentTypeIds
+      });
+
+      console.log('Bulk approve response:', response);
+
+      if (response.data?.status === 'success') {
+        // Update documents in the background
+        if (onDocumentsUpdate) {
+          const updatedDocuments = documents.map(doc => {
+            if (documentTypeIds.includes(doc.documentTypeId)) {
+              return {
+                ...doc,
+                status: 'Approved',
+                states: doc.states.map(state => ({
+                  ...state,
+                  status: state.name === 'Document collection' || state.name === 'Read' ? 'success' : state.status
+                }))
+              };
+            }
+            return doc;
+          });
+          onDocumentsUpdate(updatedDocuments);
+          toast.success('Documents approved successfully');
+        }
+      } else {
+        throw new Error('Failed to approve documents');
+      }
+    } catch (error) {
+      console.error('Error bulk approving documents:', error);
+      toast.error('Failed to approve documents');
+    } finally {
+      setIsBulkApproving(false);
+    }
+  };
+
+  const pendingDocumentsCount = documents.filter(doc => doc.status === 'Verification pending').length;
 
   return (
     <div>
@@ -260,8 +355,33 @@ const FinalizeTab = ({
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-sm text-slate-500">
-            <span>{documents.length} document{documents.length !== 1 ? 's' : ''} to review</span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <span>{documents.length} document{documents.length !== 1 ? 's' : ''} to review</span>
+            </div>
+            {pendingDocumentsCount > 0 && (
+              <button
+                onClick={handleBulkApprove}
+                disabled={isBulkApproving}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2
+                  ${isBulkApproving 
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                    : 'bg-green-500 text-white hover:bg-green-600 shadow-sm'
+                  }`}
+              >
+                {isBulkApproving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Approving All...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Approve All ({pendingDocumentsCount})
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
 
@@ -322,6 +442,23 @@ const FinalizeTab = ({
       </div>
     </div>
   );
+};
+
+FinalizeTab.propTypes = {
+  documents: PropTypes.arrayOf(PropTypes.shape({
+    id: PropTypes.string.isRequired,
+    documentTypeId: PropTypes.string.isRequired,
+    status: PropTypes.string.isRequired,
+    states: PropTypes.arrayOf(PropTypes.shape({
+      name: PropTypes.string.isRequired,
+      status: PropTypes.string.isRequired
+    })).isRequired
+  })),
+  onStateClick: PropTypes.func.isRequired,
+  onApprove: PropTypes.func.isRequired,
+  onRequestReupload: PropTypes.func.isRequired,
+  processingDocuments: PropTypes.object,
+  onDocumentsUpdate: PropTypes.func
 };
 
 export default FinalizeTab; 
