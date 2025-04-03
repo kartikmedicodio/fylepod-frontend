@@ -271,6 +271,10 @@ const ProfileCard = ({ cases, pendingCase, onCaseClick, setCurrentBreadcrumb, na
     fetchAgents();
   }, []);
 
+  const handleCaseClick = (caseId) => {
+    navigate(`/individuals/case/${caseId}`);
+  };
+
   return (
     <div className="grid grid-cols-2 gap-6 mt-4">
       {/* Diana's Card */}
@@ -353,20 +357,14 @@ const ProfileCard = ({ cases, pendingCase, onCaseClick, setCurrentBreadcrumb, na
                   </p>
                 </div>
                 <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent hover:scrollbar-thumb-gray-300" style={{ maxHeight: "250px" }}>
-                  <div className="grid grid-cols-2 gap-3 pr-2">
+                  <div className="grid grid-cols-2 gap-3">
                     {pendingCase.documentTypes
                       .filter(doc => doc.status === 'pending')
                       .map(doc => (
                         <div 
                           key={doc._id} 
                           className="flex items-center gap-2 bg-white rounded-lg p-3 border border-gray-100 hover:border-blue-100 transition-colors cursor-pointer hover:bg-blue-50/5"
-                          onClick={() => {
-                            setCurrentBreadcrumb([
-                              { label: 'All Cases', link: '/individual-cases' },
-                              { label: pendingCase.categoryName, link: `/individuals/case/${pendingCase._id}` }
-                            ]);
-                            navigate(`/individuals/case/${pendingCase._id}`);
-                          }}
+                          onClick={() => handleCaseClick(pendingCase._id)}
                         >
                           <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
                             <FileText className="w-4 h-4 text-blue-500" />
@@ -473,14 +471,7 @@ const ProfileCard = ({ cases, pendingCase, onCaseClick, setCurrentBreadcrumb, na
                 <div 
                   key={caseItem._id} 
                   className="flex items-start gap-3 bg-white rounded-lg p-3 border border-gray-100 hover:border-pink-100 transition-colors cursor-pointer hover:bg-pink-50/5"
-                  onClick={() => {
-                    // Update breadcrumb before navigation
-                    setCurrentBreadcrumb([
-                      { label: 'All Cases', link: '/individual-cases' },
-                      { label: caseItem.categoryName, link: `/individuals/case/${caseItem._id}` }
-                    ]);
-                    navigate(`/individuals/case/${caseItem._id}`);
-                  }}
+                  onClick={() => handleCaseClick(caseItem._id)}
                 >
                   <div className="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center flex-shrink-0">
                     <FileText className="w-4 h-4 text-pink-500" />
@@ -622,6 +613,12 @@ const ProcessState = ({ state, status, onClick, validationErrors }) => {
 };
 
 const DocumentStatusCards = ({ cases }) => {
+  const navigate = useNavigate();
+
+  const handleDocumentClick = (caseId) => {
+    navigate(`/individuals/case/${caseId}`);
+  };
+
   const getDocumentStatus = (doc, caseItem) => {
     const hasVerificationResults = caseItem.verificationResults !== undefined;
     const validationErrors = doc.document?.validationResults?.validations?.filter(v => !v.passed) || [];
@@ -689,7 +686,9 @@ const DocumentStatusCards = ({ cases }) => {
                   <FileText className="w-5 h-5 text-slate-600" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900">{caseItem.categoryName}</h2>
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    {caseItem.categoryName}
+                  </h2>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-sm text-slate-500">Case #{caseItem._id.slice(-6)}</span>
                     <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
@@ -706,42 +705,52 @@ const DocumentStatusCards = ({ cases }) => {
               {caseItem.documentTypes.map((doc, index) => {
                 const status = getDocumentStatus(doc, caseItem);
                 return (
-                  <div key={`${caseItem._id}-${index}`} className="bg-white rounded-xl border border-slate-100 p-6 hover:shadow-md hover:border-slate-200 transition-all duration-200 relative">
+                  <div 
+                    key={`${caseItem._id}-${index}`} 
+                    onClick={() => handleDocumentClick(caseItem._id)}
+                    className="group bg-white rounded-xl border border-slate-100 p-6 
+                      hover:border-blue-200 hover:shadow-sm hover:bg-slate-50/50
+                      transition-all duration-200 cursor-pointer"
+                  >
                     <div className="flex items-center gap-4">
-                      <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-200 flex items-center justify-center">
-                        <FileText className="w-5 h-5 text-slate-600" />
+                      {/* Document Icon */}
+                      <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100/50 
+                        border border-slate-200 flex items-center justify-center
+                        group-hover:border-blue-200 transition-colors">
+                        <FileText className="w-5 h-5 text-slate-600 group-hover:text-blue-600 transition-colors" />
                       </div>
+
                       <div className="flex-1">
                         <div className="flex items-center gap-4">
-                          <h3 className="text-base font-medium text-slate-900 w-48">{doc.name}</h3>
+                          {/* Document Name */}
+                          <h3 className="text-base font-medium text-slate-900 w-48 
+                            group-hover:text-blue-600 transition-colors">
+                            {doc.name}
+                          </h3>
+
                           {/* Progress States */}
                           <div className="flex items-center gap-20 flex-1 justify-center">
-                            {status.states.map((state, index, array) => (
-                              <Fragment key={state.name}>
-                                <ProcessState 
-                                  state={state.name}
-                                  status={state.status}
-                                  validationErrors={state.validationErrors}
-                                />
-                              </Fragment>
+                            {status.states.map((state) => (
+                              <ProcessState 
+                                key={state.name}
+                                state={state.name}
+                                status={state.status}
+                                validationErrors={state.validationErrors}
+                              />
                             ))}
                           </div>
+
                           {/* Status Badge */}
                           {status.message && (
-                            <span className={`text-sm font-medium px-3 py-1 rounded-full border shadow-sm backdrop-blur-sm whitespace-nowrap ${status.messageClass}`}>
+                            <span className={`text-sm font-medium px-3 py-1 rounded-full border 
+                              shadow-sm backdrop-blur-sm whitespace-nowrap transition-colors
+                              ${status.messageClass}`}>
                               {status.message}
                             </span>
                           )}
                         </div>
                       </div>
                     </div>
-
-                    {/* Error Messages */}
-                    {doc.errors?.map((error, i) => (
-                      <div key={i} className="mt-3 text-rose-600 text-sm bg-rose-50/50 px-3 py-2 rounded-lg border border-rose-100">
-                        {error}
-                      </div>
-                    ))}
                   </div>
                 );
               })}
@@ -751,21 +760,6 @@ const DocumentStatusCards = ({ cases }) => {
       ))}
     </div>
   );
-};
-
-DocumentStatusCards.propTypes = {
-  cases: PropTypes.arrayOf(
-    PropTypes.shape({
-      _id: PropTypes.string.isRequired,
-      documentTypes: PropTypes.arrayOf(
-        PropTypes.shape({
-          name: PropTypes.string.isRequired,
-          status: PropTypes.string.isRequired,
-          errors: PropTypes.arrayOf(PropTypes.string)
-        })
-      ).isRequired
-    })
-  ).isRequired
 };
 
 const FNDashboard = () => {
@@ -954,6 +948,43 @@ const FNDashboard = () => {
       </div>
     </div>
   );
+};
+
+// Add this after your DocumentStatusCards component
+DocumentStatusCards.propTypes = {
+  cases: PropTypes.arrayOf(
+    PropTypes.shape({
+      _id: PropTypes.string.isRequired,
+      categoryName: PropTypes.string.isRequired,
+      documentTypes: PropTypes.arrayOf(
+        PropTypes.shape({
+          _id: PropTypes.string.isRequired,
+          documentTypeId: PropTypes.string.isRequired,
+          name: PropTypes.string.isRequired,
+          status: PropTypes.string.isRequired,
+          errors: PropTypes.arrayOf(PropTypes.string),
+          document: PropTypes.shape({
+            validationResults: PropTypes.shape({
+              validations: PropTypes.arrayOf(
+                PropTypes.shape({
+                  passed: PropTypes.bool,
+                  message: PropTypes.string
+                })
+              )
+            })
+          })
+        })
+      ).isRequired,
+      verificationResults: PropTypes.shape({
+        mismatchErrors: PropTypes.arrayOf(PropTypes.object),
+        missingErrors: PropTypes.arrayOf(PropTypes.object),
+        summarizationErrors: PropTypes.arrayOf(PropTypes.object),
+        verifiedAt: PropTypes.string
+      }),
+      updatedAt: PropTypes.string.isRequired,
+      categoryStatus: PropTypes.string.isRequired
+    })
+  ).isRequired
 };
 
 export default FNDashboard;
