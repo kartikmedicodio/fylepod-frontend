@@ -615,7 +615,7 @@ const ProcessState = ({ state, status, onClick, validationErrors }) => {
 const DocumentStatusCards = ({ cases }) => {
   const navigate = useNavigate();
 
-  const handleDocumentClick = (caseId) => {
+  const handleCaseClick = (caseId) => {
     navigate(`/individuals/case/${caseId}`);
   };
 
@@ -677,16 +677,25 @@ const DocumentStatusCards = ({ cases }) => {
   return (
     <div className="mt-8 space-y-6">
       {cases.map((caseItem) => (
-        <div key={caseItem._id} className="bg-white rounded-xl border border-slate-100 shadow-sm">
+        <div 
+          key={caseItem._id} 
+          onClick={() => handleCaseClick(caseItem._id)}
+          className="bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow-md 
+            hover:border-blue-200 transition-all duration-200 cursor-pointer group"
+        >
           {/* Case Header */}
-          <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
+          <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white
+            group-hover:from-blue-50/30 group-hover:to-white transition-colors">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-200 flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-slate-600" />
+                <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100/50 
+                  border border-slate-200 flex items-center justify-center
+                  group-hover:border-blue-200 group-hover:from-blue-50 group-hover:to-blue-100/50 
+                  transition-colors">
+                  <FileText className="w-5 h-5 text-slate-600 group-hover:text-blue-600 transition-colors" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900">
+                  <h2 className="text-lg font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
                     {caseItem.categoryName}
                   </h2>
                   <div className="flex items-center gap-2 mt-1">
@@ -706,25 +715,22 @@ const DocumentStatusCards = ({ cases }) => {
                 const status = getDocumentStatus(doc, caseItem);
                 return (
                   <div 
-                    key={`${caseItem._id}-${index}`} 
-                    onClick={() => handleDocumentClick(caseItem._id)}
-                    className="group bg-white rounded-xl border border-slate-100 p-6 
-                      hover:border-blue-200 hover:shadow-sm hover:bg-slate-50/50
-                      transition-all duration-200 cursor-pointer"
+                    key={`${caseItem._id}-${index}`}
+                    className="bg-white rounded-xl border border-slate-100 p-6 
+                      group-hover:border-blue-100 transition-all duration-200"
                   >
                     <div className="flex items-center gap-4">
                       {/* Document Icon */}
                       <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100/50 
                         border border-slate-200 flex items-center justify-center
-                        group-hover:border-blue-200 transition-colors">
-                        <FileText className="w-5 h-5 text-slate-600 group-hover:text-blue-600 transition-colors" />
+                        group-hover:border-blue-100 transition-colors">
+                        <FileText className="w-5 h-5 text-slate-600" />
                       </div>
 
                       <div className="flex-1">
                         <div className="flex items-center gap-4">
                           {/* Document Name */}
-                          <h3 className="text-base font-medium text-slate-900 w-48 
-                            group-hover:text-blue-600 transition-colors">
+                          <h3 className="text-base font-medium text-slate-900 w-48">
                             {doc.name}
                           </h3>
 
