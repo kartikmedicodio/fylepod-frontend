@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import {  
   Loader2,
   Bot,
@@ -181,9 +181,12 @@ DocumentProgressBar.propTypes = {
 const FNCaseDetails = () => {
   const { caseId } = useParams();
   const { setCurrentBreadcrumb } = useBreadcrumb();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const defaultTab = searchParams.get('tab') || 'overview';
+  const highlightedDocumentId = searchParams.get('documentId');
   
-  // Set initial states
-  const [activeTab, setActiveTab] = useState('documents-checklist');
+  const [activeTab, setActiveTab] = useState(defaultTab);
   const [uploadStatus, setUploadStatus] = useState('pending'); // Ensure this is 'pending'
   const [caseData, setCaseData] = useState(null);
   const [profileData, setProfileData] = useState(null);
@@ -239,6 +242,19 @@ const FNCaseDetails = () => {
   useEffect(() => {
     inputRef.current?.focus();
   }, [messages]);
+
+  useEffect(() => {
+    // If there's a documentId in the URL, scroll to that document and highlight it
+    if (highlightedDocumentId && activeTab === 'documents') {
+      const element = document.getElementById(`document-${highlightedDocumentId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Add highlight animation
+        element.classList.add('highlight-document');
+        setTimeout(() => element.classList.remove('highlight-document'), 2000);
+      }
+    }
+  }, [highlightedDocumentId, activeTab]);
 
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
