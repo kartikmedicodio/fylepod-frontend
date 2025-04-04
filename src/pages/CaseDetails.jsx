@@ -1260,15 +1260,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            {/* Overall status badge */}
-            <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-              failedCount > 0 
-                ? 'bg-rose-50 text-rose-600 border border-rose-200' 
-                : 'bg-emerald-50 text-emerald-600 border border-emerald-200'
-            }`}>
-              {failedCount > 0 ? `${failedCount} Issues Found` : 'All Passed'}
-            </span>
+          <div className="flex items-center">
             <button className={`text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
               <ChevronDown className="w-5 h-5" />
             </button>

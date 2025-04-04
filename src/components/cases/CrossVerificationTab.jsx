@@ -125,7 +125,7 @@ const CrossVerificationTab = ({
 
   return (
     <div className="p-4">
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl overflow-hidden">
         {/* Accordion Header */}
         <div 
           className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"

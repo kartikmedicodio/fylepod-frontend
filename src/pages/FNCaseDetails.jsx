@@ -12,7 +12,13 @@ import {
   ChevronUp,
   ChevronDown,
   X,
-  Upload // Add this import for the new icon
+  Upload,
+  CreditCard,
+  FileText,
+  IdCard,
+  Image,
+  GraduationCap,
+  File
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
@@ -1752,7 +1758,7 @@ const FNCaseDetails = () => {
 
             {/* Accordions */}
             <div className="space-y-4">
-              {/* Cross Verification Accordion */}
+              {/* Cross Verification Accordion - Single border */}
               <div className="w-full bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <CrossVerificationTab
                   isLoading={isVerificationLoading}
@@ -1812,6 +1818,7 @@ const FNCaseDetails = () => {
   // Update the ValidationAccordion component's loading state
   const ValidationAccordion = ({ isLoading, validationData, caseData }) => {
     const [isExpanded, setIsExpanded] = useState(false);
+    const [expandedDocuments, setExpandedDocuments] = useState({});
 
     if (isLoading) {
       return <AccordionSkeleton title="Document Verification Results" />;
@@ -1826,133 +1833,135 @@ const FNCaseDetails = () => {
       );
     }
 
+    const toggleDocument = (documentType) => {
+      setExpandedDocuments(prev => ({
+        ...prev,
+        [documentType]: !prev[documentType]
+      }));
+    };
+
+    const getDocumentIcon = (documentType) => {
+      return (
+        <div className="bg-blue-50 w-full h-full flex items-center justify-center rounded-lg border border-blue-100">
+          <FileText className="w-5 h-5 text-blue-600" />
+        </div>
+      );
+    };
+
     return (
-      <>
-        {/* Accordion Header */}
-        <div 
-          className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
-          onClick={() => setIsExpanded(!isExpanded)}
-        >
-          <div className="flex items-center gap-3">
-            <h3 className="text-lg font-semibold text-gray-900">Document Verification Results</h3>
-            <span className={`px-2.5 py-1 rounded-full text-xs font-medium
-              ${validationData.mergedValidations.every(doc => doc.passed) 
-                ? 'bg-green-100 text-green-700' 
-                : 'bg-red-100 text-red-700'}`}
-            >
-              {validationData.mergedValidations.every(doc => doc.passed) 
-                ? 'All Valid' 
-                : `${validationData.mergedValidations.filter(doc => !doc.passed).length} Issues Found`}
-            </span>
-          </div>
-          {isExpanded ? (
-            <ChevronUp className="w-5 h-5 text-gray-400" />
-          ) : (
-            <ChevronDown className="w-5 h-5 text-gray-400" />
-          )}
+      <div className="bg-white p-6">
+        <div className="flex items-center justify-between mb-8">
+          <h3 className="text-lg font-semibold text-gray-900">Document Verification</h3>
+          <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-50 text-red-700 border border-red-100">
+            8 Issues Found
+          </span>
         </div>
 
-        {/* Accordion Content */}
-        {isExpanded && (
-          <div className="border-t border-gray-100">
-            <div className="p-4 space-y-4">
-              {validationData.mergedValidations.map((documentValidation, index) => (
-                <div key={index} className="bg-gray-50 rounded-lg overflow-hidden">
-                  <div className="p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                          documentValidation.passed 
-                            ? 'bg-green-50 text-green-600' 
-                            : 'bg-red-50 text-red-600'
-                        }`}>
-                          {documentValidation.passed ? (
-                            <Check className="w-5 h-5" />
-                          ) : (
-                            <X className="w-5 h-5" />
-                          )}
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-gray-900">
-                            {documentValidation.documentType}
-                          </h4>
-                          <p className={`text-sm ${
-                            documentValidation.passed 
-                              ? 'text-green-600' 
-                              : 'text-red-600'
-                          }`}>
-                            {documentValidation.passed ? 'Passed' : 'Failed'} • {documentValidation.validations.length} Verification{documentValidation.validations.length !== 1 ? 's' : ''}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Use URLs from validationData */}
-                      {validationData.documentUrls?.[documentValidation.documentType] && (
-                        <div className="flex items-center gap-2">
-                          <a 
-                            href={validationData.documentUrls[documentValidation.documentType]} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-2"
-                          >
-                            <Eye className="w-4 h-4" />
-                            View Document
-                          </a>
-                          <button
-                            onClick={() => {
-                              // Find the document type ID from caseData
-                              const docType = caseData.documentTypes.find(dt => dt.name === documentValidation.documentType);
-                              if (docType?.documentTypeId) {
-                                handleDocumentReupload(docType.documentTypeId);
-                              } else {
-                                toast.error('Document type ID not found');
-                              }
-                            }}
-                            className="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 flex items-center gap-2 border border-red-200 rounded-lg hover:bg-red-50"
-                          >
-                            <Upload className="w-4 h-4" />
-                            Reupload
-                          </button>
-                        </div>
-                      )}
+        <div className="grid gap-6">
+          {validationData.mergedValidations.map((documentValidation, index) => {
+            const isDocExpanded = expandedDocuments[documentValidation.documentType];
+            const passedCount = documentValidation.validations.filter(v => v.passed).length;
+            const failedCount = documentValidation.validations.length - passedCount;
+            
+            return (
+              <div key={index} className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-all duration-200">
+                <div 
+                  className="flex items-center justify-between px-6 py-5 cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={() => toggleDocument(documentValidation.documentType)}
+                >
+                  <div className="flex items-center gap-5">
+                    <div className="w-11 h-11 flex-shrink-0">
+                      {getDocumentIcon(documentValidation.documentType)}
                     </div>
-
-                    {/* Keep existing validation details... */}
-                    <div className="divide-y divide-gray-100">
-                      {documentValidation.validations.map((validation, vIndex) => (
-                        <div 
-                          key={vIndex}
-                          className="flex items-start gap-4 py-4"
-                        >
-                          <div className={`mt-1 w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
-                            validation.passed 
-                              ? 'bg-green-100 text-green-600' 
-                              : 'bg-red-100 text-red-600'
-                          }`}>
-                            {validation.passed ? (
-                              <Check className="w-3 h-3" />
-                            ) : (
-                              <X className="w-3 h-3" />
-                            )}
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-2">{documentValidation.documentType}</h4>
+                      <div className="flex items-center gap-4">
+                        {passedCount > 0 && (
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                            <span className="text-sm text-gray-600">{passedCount} Passed</span>
                           </div>
-                          <div className="flex-1">
-                            <h5 className="text-sm font-medium text-gray-900 mb-1">
-                              {validation.rule}
-                            </h5>
-                            <p className="text-sm text-gray-600">
-                              {validation.message}
-                            </p>
+                        )}
+                        {failedCount > 0 && (
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                            <span className="text-sm text-gray-600">{failedCount} Failed</span>
                           </div>
-                        </div>
-                      ))}
+                        )}
+                      </div>
                     </div>
                   </div>
+                  <div className="flex items-center gap-4">
+                    {validationData.documentUrls?.[documentValidation.documentType] && (
+                      <div className="flex items-center gap-3">
+                        <a 
+                          href={validationData.documentUrls[documentValidation.documentType]} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1.5 rounded-lg hover:bg-blue-50"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Eye className="w-4 h-4" />
+                          View
+                        </a>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const docType = caseData.documentTypes.find(dt => dt.name === documentValidation.documentType);
+                            if (docType?.documentTypeId) {
+                              handleDocumentReupload(docType.documentTypeId);
+                            } else {
+                              toast.error('Document type ID not found');
+                            }
+                          }}
+                          className="px-3 py-1.5 text-sm font-medium text-red-600 hover:text-red-700 flex items-center gap-1.5 rounded-lg hover:bg-red-50"
+                        >
+                          <Upload className="w-4 h-4" />
+                          Reupload
+                        </button>
+                      </div>
+                    )}
+                    {isDocExpanded ? (
+                      <ChevronUp className="w-5 h-5 text-gray-400" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-gray-400" />
+                    )}
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </>
+
+                {/* Validation Details */}
+                {isDocExpanded && (
+                  <div className="border-t border-gray-100 bg-gray-50">
+                    <div className="p-6">
+                      <div className="space-y-4">
+                        {documentValidation.validations.map((validation, vIndex) => (
+                          <div 
+                            key={vIndex}
+                            className="flex items-start gap-4 bg-white p-4 rounded-lg border border-gray-100"
+                          >
+                            {validation.passed ? (
+                              <div className="mt-0.5 w-6 h-6 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0">
+                                <Check className="w-4 h-4 text-green-600" />
+                              </div>
+                            ) : (
+                              <div className="mt-0.5 w-6 h-6 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
+                                <X className="w-4 h-4 text-red-600" />
+                              </div>
+                            )}
+                            <span className={`text-sm leading-relaxed ${validation.passed ? 'text-gray-600' : 'text-red-600'}`}>
+                              {validation.message}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     );
   };
 
@@ -2333,7 +2342,7 @@ const FNCaseDetails = () => {
             </div>
           </div>
           <div className='flex items-center gap-4'>
-            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
                   type="checkbox"
@@ -2351,10 +2360,10 @@ const FNCaseDetails = () => {
                   Show only empty fields
                 </span>
               </label>
-            </div>
+                </div>
             <div className="text-sm text-gray-600">
               {filled} of {total} fields filled
-            </div>
+              </div>
             <button
               onClick={handleLocalSave}
               disabled={isSaving}
@@ -2366,7 +2375,7 @@ const FNCaseDetails = () => {
             >
               {isSaving ? 'Saving...' : 'Save Changes'}
             </button>
-          </div>
+            </div>
         </div>
 
         <div className="space-y-6">
@@ -2521,7 +2530,7 @@ const FNCaseDetails = () => {
     return ReactDOM.createPortal(
       <>
         {/* Support Chat Button */}
-        <button 
+            <button
           onClick={(e) => {
             e.stopPropagation();
             setShowChatPopup(prev => !prev);
@@ -2629,11 +2638,11 @@ const FNCaseDetails = () => {
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
                     <SendHorizontal className="w-5 h-5" />
-                  )}
-                </button>
-              </div>
-            </form>
+              )}
+            </button>
           </div>
+            </form>
+        </div>
         )}
       </>,
       document.body
@@ -2807,7 +2816,7 @@ const FNCaseDetails = () => {
   }, [messages]); // Scroll when messages change
 
   // Main component return
-  return (
+              return (
     <>
       {/* Profile and Case Details Section */}
       <div className="p-6 flex gap-6">
