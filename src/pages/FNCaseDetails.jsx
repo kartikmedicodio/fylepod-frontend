@@ -1611,72 +1611,84 @@ const FNCaseDetails = () => {
               </div>
             </div>
 
-            <button 
-              onClick={async () => {
-                setUploadStatus('validation');
-                setIsValidationLoading(true);
-                setIsVerificationLoading(true);
+            <div className="relative group">
+              <button 
+                onClick={async () => {
+                  setUploadStatus('validation');
+                  setIsValidationLoading(true);
+                  setIsVerificationLoading(true);
 
-                try {
-                  // First fetch documents to ensure we have the latest URLs
-                  const documentsResponse = await api.post('/documents/management-docs', {
-                    managementId: caseId,
-                    docTypeIds: caseData.documentTypes
-                      .filter(doc => doc.status === 'uploaded' || doc.status === 'approved')
-                      .map(doc => doc._id)
-                  });
-
-                  // Create URL mapping first
-                  const urlMapping = documentsResponse.data.status === 'success' 
-                    ? documentsResponse.data.data.documents.reduce((acc, doc) => {
-                        acc[doc.type] = doc.fileUrl;
-                        return acc;
-                      }, {})
-                    : {};
-
-                  // Then fetch validation and cross-verification data
-                  const [validationResponse, crossVerifyResponse] = await Promise.all([
-                    api.get(`/documents/management/${caseId}/validations`),
-                    api.get(`/management/${caseId}/cross-verify`)
-                  ]);
-
-                  // Handle cross-verification response
-                  if (crossVerifyResponse.data.status === 'success') {
-                    setVerificationData({
-                      ...crossVerifyResponse.data.data,
-                      documentUrls: urlMapping
+                  try {
+                    // First fetch documents to ensure we have the latest URLs
+                    const documentsResponse = await api.post('/documents/management-docs', {
+                      managementId: caseId,
+                      docTypeIds: caseData.documentTypes
+                        .filter(doc => doc.status === 'uploaded' || doc.status === 'approved')
+                        .map(doc => doc._id)
                     });
-                  }
 
-                  // Handle validation response
-                  if (validationResponse.data.status === 'success') {
-                    setValidationData({
-                      ...validationResponse.data.data,
-                      documentUrls: urlMapping
-                    });
-                  }
+                    // Create URL mapping first
+                    const urlMapping = documentsResponse.data.status === 'success' 
+                      ? documentsResponse.data.data.documents.reduce((acc, doc) => {
+                          acc[doc.type] = doc.fileUrl;
+                          return acc;
+                        }, {})
+                      : {};
 
-                  // Update case data to reflect any status changes
-                  const caseResponse = await api.get(`/management/${caseId}`);
-                  if (caseResponse.data.status === 'success') {
-                    setCaseData(caseResponse.data.data.entry);
+                    // Then fetch validation and cross-verification data
+                    const [validationResponse, crossVerifyResponse] = await Promise.all([
+                      api.get(`/documents/management/${caseId}/validations`),
+                      api.get(`/management/${caseId}/cross-verify`)
+                    ]);
+
+                    // Handle cross-verification response
+                    if (crossVerifyResponse.data.status === 'success') {
+                      setVerificationData({
+                        ...crossVerifyResponse.data.data,
+                        documentUrls: urlMapping
+                      });
+                    }
+
+                    // Handle validation response
+                    if (validationResponse.data.status === 'success') {
+                      setValidationData({
+                        ...validationResponse.data.data,
+                        documentUrls: urlMapping
+                      });
+                    }
+
+                    // Update case data to reflect any status changes
+                    const caseResponse = await api.get(`/management/${caseId}`);
+                    if (caseResponse.data.status === 'success') {
+                      setCaseData(caseResponse.data.data.entry);
+                    }
+                  } catch (error) {
+                    console.error('Error fetching validation data:', error);
+                    toast.error('Failed to load validation data');
+                  } finally {
+                    setIsValidationLoading(false);
+                    setIsVerificationLoading(false);
                   }
-                } catch (error) {
-                  console.error('Error fetching validation data:', error);
-                  toast.error('Failed to load validation data');
-                } finally {
-                  setIsValidationLoading(false);
-                  setIsVerificationLoading(false);
-                }
-              }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                uploadStatus === 'validation'
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              Verification Check
-            </button>
+                }}
+                disabled={uploadedDocuments.length === 0}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  uploadStatus === 'validation'
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : uploadedDocuments.length === 0
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                Verification Check
+              </button>
+              
+              {/* Message shows only on hover when button is disabled */}
+              {uploadedDocuments.length === 0 && (
+                <div className="absolute -top-8 left-0 text-sm text-red-600 bg-red-50 px-3 py-1 rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  Please upload required documents first
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1728,7 +1740,7 @@ const FNCaseDetails = () => {
             </div>
           </div>
         )}
-            </div>
+      </div>
     );
   };
 
@@ -2057,28 +2069,100 @@ const FNCaseDetails = () => {
     const [showOnlyEmpty, setShowOnlyEmpty] = useState(false);
     const [localFormData, setLocalFormData] = useState(formData);
     const [isSaving, setIsSaving] = useState(false);
+    // Add state to track fields that are currently being edited
+    const [editingFields, setEditingFields] = useState({});
 
     useEffect(() => {
       setLocalFormData(formData);
     }, [formData]);
 
-    const shouldShowField = (section, field) => {
+    // Add function to mark a field as being edited
+    const startEditing = (section, field, nestedField = null) => {
+      const fieldKey = nestedField 
+        ? `${section}.${field}.${nestedField}` 
+        : `${section}.${field}`;
+      
+      setEditingFields(prev => ({
+        ...prev,
+        [fieldKey]: true
+      }));
+    };
+
+    // Add function to check if a field is being edited
+    const isEditing = (section, field, nestedField = null) => {
+      const fieldKey = nestedField 
+        ? `${section}.${field}.${nestedField}` 
+        : `${section}.${field}`;
+      
+      return editingFields[fieldKey];
+    };
+
+    const isFieldEmpty = (section, field, nestedField = null) => {
+      const value = localFormData?.[section]?.[field];
+      if (nestedField && field === 'educationalQualification') {
+        return !value?.[nestedField] || (typeof value?.[nestedField] === 'string' && value[nestedField].trim() === '');
+      }
+      if (typeof value === 'object' && value !== null) {
+        return Object.values(value).every(val => !val || (typeof val === 'string' && val.trim() === ''));
+      }
+      return !value || (typeof value === 'string' && value.trim() === '');
+    };
+
+    const shouldShowField = (section, field, nestedField = null) => {
       // If not showing only empty fields, show all fields
       if (!showOnlyEmpty) {
         return true;
       }
       
-      // Get the field name
-      const fieldName = field.fieldName;
+      // If the field is currently being edited, always show it
+      if (isEditing(section, field.fieldName, nestedField)) {
+        return true;
+      }
       
-      // Get value from formData instead of savedFields
-      const value = formData?.[section]?.[fieldName];
+      // Special handling for educationalQualification
+      if (field.fieldName === 'educationalQualification') {
+        // If checking a specific nested field
+        if (nestedField) {
+          // Check if the field was empty in the saved data (not current local data)
+          const savedValue = savedFields?.[section]?.educationalQualification?.[nestedField];
+          // Check if the field is currently empty (after edits)
+          const currentValue = localFormData?.[section]?.educationalQualification?.[nestedField];
+          
+          // Show if either saved value is empty OR current value is empty (user emptied it)
+          return (!savedValue || savedValue.trim() === '') || (!currentValue || currentValue.trim() === '');
+        }
+        // If no nested field specified, show if any nested field is empty in saved data or current data
+        return ['institution', 'courseLevel', 'specialization', 'gpa'].some(nested => {
+          const savedValue = savedFields?.[section]?.educationalQualification?.[nested];
+          const currentValue = localFormData?.[section]?.educationalQualification?.[nested];
+          return (!savedValue || savedValue.trim() === '') || (!currentValue || currentValue.trim() === '');
+        });
+      }
       
-      // Check if empty
-      return !value || (typeof value === 'string' && value.trim() === '');
+      // For other fields - check against saved data or current data if empty
+      const savedValue = savedFields?.[section]?.[field.fieldName];
+      const currentValue = localFormData?.[section]?.[field.fieldName];
+      
+      // Show if either saved value is empty OR current value is empty (user emptied it)
+      return (!savedValue || (typeof savedValue === 'string' && savedValue.trim() === '')) || 
+             (!currentValue || (typeof currentValue === 'string' && currentValue.trim() === ''));
     };
 
     const handleLocalInputChange = (section, field, value) => {
+      // Mark the field as being edited when the user starts typing
+      if (field === 'educationalQualification' && typeof value === 'object') {
+        // For nested fields, determine which nested field changed
+        const changedNestedField = Object.keys(value).find(
+          key => value[key] !== localFormData?.Resume?.educationalQualification?.[key]
+        );
+        if (changedNestedField) {
+          startEditing(section, field, changedNestedField);
+        }
+      } else {
+        startEditing(section, field);
+      }
+      
+      // Update form data as before
       setLocalFormData(prev => {
         const newData = {
           ...prev,
@@ -2089,6 +2173,46 @@ const FNCaseDetails = () => {
         };
         return newData;
       });
+    };
+
+    const getFieldClassName = (section, field, nestedField = null) => {
+      if (field === 'educationalQualification' && nestedField) {
+        // Current value in the input field
+        const value = localFormData?.[section]?.educationalQualification?.[nestedField];
+        // Saved value from the database
+        const savedValue = savedFields?.[section]?.educationalQualification?.[nestedField];
+        
+        // If field is empty, show red
+        if (!value || value.trim() === '') {
+          return 'border-red-300 bg-red-50/50';
+        }
+        
+        // If field value differs from saved value, show blue (edited)
+        if (value !== savedValue) {
+          return 'border-blue-300 bg-blue-50/50';
+        }
+        
+        // Otherwise show gray (saved and filled)
+        return 'border-gray-200 bg-gray-50';
+      }
+      
+      // Current value in the input field
+      const value = localFormData?.[section]?.[field];
+      // Saved value from the database
+      const savedValue = savedFields?.[section]?.[field];
+      
+      // If field is empty, show red
+      if (!value || (typeof value === 'string' && value.trim() === '')) {
+        return 'border-red-300 bg-red-50/50';
+      }
+      
+      // If field value differs from saved value, show blue (edited)
+      if (value !== savedValue) {
+        return 'border-blue-300 bg-blue-50/50';
+      }
+      
+      // Otherwise show gray (saved and filled)
+      return 'border-gray-200 bg-gray-50';
     };
 
     const handleLocalSave = async () => {
@@ -2104,6 +2228,8 @@ const FNCaseDetails = () => {
           setSavedFields(localFormData);
           setQuestionnaireStatus('saved');
           toast.success('Questionnaire saved successfully');
+          // Clear editing state after successful save
+          setEditingFields({});
         }
       } catch (error) {
         console.error('Error saving questionnaire:', error);
@@ -2147,24 +2273,6 @@ const FNCaseDetails = () => {
 
     const isFieldSaved = (section, field) => {
       return savedFields?.[section]?.[field] === localFormData?.[section]?.[field];
-    };
-
-    const isFieldEmpty = (section, field) => {
-      const value = localFormData?.[section]?.[field];
-      if (typeof value === 'object' && value !== null) {
-        return Object.values(value).every(val => !val || (typeof val === 'string' && val.trim() === ''));
-      }
-      return !value || (typeof value === 'string' && value.trim() === '');
-    };
-
-    const getFieldClassName = (section, field, isRequired = true) => {
-      if (isFieldEmpty(section, field)) {
-        return 'border-red-300 bg-red-50/50';
-      }
-      if (isFieldSaved(section, field)) {
-        return 'border-gray-200 bg-gray-50';
-      }
-      return 'border-blue-200 bg-blue-50';
     };
 
     const { total, filled } = getFilledFieldsCount();
@@ -2253,63 +2361,75 @@ const FNCaseDetails = () => {
                 .filter(field => field.sourceDocument === 'Resume')
                 .map(field => {
                   if (field.fieldName === 'educationalQualification') {
-                    return shouldShowField('Resume', field) && (
+                    const hasEmptyFields = ['institution', 'courseLevel', 'specialization', 'gpa'].some(
+                      nestedField => shouldShowField('Resume', field, nestedField)
+                    );
+
+                    return hasEmptyFields ? (
                       <div key={field._id} className="col-span-2">
                         <label className="block text-sm text-gray-600 mb-1 font-semibold">
                           {field.fieldName}
                         </label>
                         <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm text-gray-600 mb-1">Institution</label>
-                            <input
-                              type="text"
-                              value={localFormData?.Resume?.educationalQualification?.institution || ''}
-                              onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', {
-                                ...localFormData?.Resume?.educationalQualification,
-                                institution: e.target.value
-                              })}
-                              className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', 'educationalQualification', field.required)}`}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm text-gray-600 mb-1">Course Level</label>
-                            <input
-                              type="text"
-                              value={localFormData?.Resume?.educationalQualification?.courseLevel || ''}
-                              onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', {
-                                ...localFormData?.Resume?.educationalQualification,
-                                courseLevel: e.target.value
-                              })}
-                              className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', 'educationalQualification', field.required)}`}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm text-gray-600 mb-1">Specialization</label>
-                            <input
-                              type="text"
-                              value={localFormData?.Resume?.educationalQualification?.specialization || ''}
-                              onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', {
-                                ...localFormData?.Resume?.educationalQualification,
-                                specialization: e.target.value
-                              })}
-                              className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', 'educationalQualification', field.required)}`}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm text-gray-600 mb-1">GPA</label>
-                            <input
-                              type="text"
-                              value={localFormData?.Resume?.educationalQualification?.gpa || ''}
-                              onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', {
-                                ...localFormData?.Resume?.educationalQualification,
-                                gpa: e.target.value
-                              })}
-                              className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', 'educationalQualification', field.required)}`}
-                            />
-                          </div>
+                          {shouldShowField('Resume', field, 'institution') && (
+                            <div>
+                              <label className="block text-sm text-gray-600 mb-1">Institution</label>
+                              <input
+                                type="text"
+                                value={localFormData?.Resume?.educationalQualification?.institution || ''}
+                                onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', {
+                                  ...localFormData?.Resume?.educationalQualification,
+                                  institution: e.target.value
+                                })}
+                                className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', 'educationalQualification', 'institution')}`}
+                              />
+                            </div>
+                          )}
+                          {shouldShowField('Resume', field, 'courseLevel') && (
+                            <div>
+                              <label className="block text-sm text-gray-600 mb-1">Course Level</label>
+                              <input
+                                type="text"
+                                value={localFormData?.Resume?.educationalQualification?.courseLevel || ''}
+                                onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', {
+                                  ...localFormData?.Resume?.educationalQualification,
+                                  courseLevel: e.target.value
+                                })}
+                                className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', 'educationalQualification', 'courseLevel')}`}
+                              />
+                            </div>
+                          )}
+                          {shouldShowField('Resume', field, 'specialization') && (
+                            <div>
+                              <label className="block text-sm text-gray-600 mb-1">Specialization</label>
+                              <input
+                                type="text"
+                                value={localFormData?.Resume?.educationalQualification?.specialization || ''}
+                                onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', {
+                                  ...localFormData?.Resume?.educationalQualification,
+                                  specialization: e.target.value
+                                })}
+                                className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', 'educationalQualification', 'specialization')}`}
+                              />
+                            </div>
+                          )}
+                          {shouldShowField('Resume', field, 'gpa') && (
+                            <div>
+                              <label className="block text-sm text-gray-600 mb-1">GPA</label>
+                              <input
+                                type="text"
+                                value={localFormData?.Resume?.educationalQualification?.gpa || ''}
+                                onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', {
+                                  ...localFormData?.Resume?.educationalQualification,
+                                  gpa: e.target.value
+                                })}
+                                className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', 'educationalQualification', 'gpa')}`}
+                              />
+                            </div>
+                          )}
                         </div>
                       </div>
-                    );
+                    ) : null;
                   }
                   return shouldShowField('Resume', field) && (
                     <div key={field._id}>

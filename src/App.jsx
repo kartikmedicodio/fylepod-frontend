@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { DocumentProvider } from './contexts/DocumentContext';
 import Login from './pages/Login';
@@ -27,11 +27,28 @@ import NewCorpAdmin from './pages/NewCorpAdmin';
 import { Toaster } from 'react-hot-toast';
 import Individuals from './pages/Individuals';
 import IndividualDetails from './pages/IndividualDetails';
+import { useEffect } from 'react';
+import { removeStoredToken, removeStoredUser } from './utils/auth';
 
 // Update HomeRedirect component to redirect to dashboard
 const HomeRedirect = () => {
   // All users should land on dashboard after login
   return <Navigate to="/dashboard" replace />;
+};
+
+// Component to handle route changes and clear local storage
+const RouteHandler = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.pathname === '/login') {
+      // Clear all auth-related data from local storage
+      removeStoredToken();
+      removeStoredUser();
+    }
+  }, [location.pathname]);
+
+  return null;
 };
 
 const App = () => {
@@ -51,6 +68,7 @@ const App = () => {
           <AuthProvider>
             <DocumentProvider>
               <PageProvider>
+                <RouteHandler />
                 <Routes>
                   <Route path="/login" element={<Login />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
