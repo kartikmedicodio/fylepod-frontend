@@ -178,6 +178,22 @@ DocumentProgressBar.propTypes = {
   status: PropTypes.string.isRequired
 };
 
+// Helper function to correctly count total fields including educationalQualification subfields
+const getTotalFieldsCount = (questionnaire) => {
+  let totalFields = 0;
+  
+  questionnaire.field_mappings.forEach(field => {
+    if (field.fieldName === 'educationalQualification') {
+      // Count educationalQualification as 4 fields (institution, courseLevel, specialization, gpa)
+      totalFields += 4;
+    } else {
+      totalFields += 1;
+    }
+  });
+  
+  return totalFields;
+};
+
 const FNCaseDetails = () => {
   const { caseId } = useParams();
   const { setCurrentBreadcrumb } = useBreadcrumb();
@@ -531,6 +547,23 @@ const FNCaseDetails = () => {
                 if (validationResponse.data.status === 'success') {
                   const validationData = validationResponse.data.data;
                   const verificationData = crossVerifyResponse.data.data;
+
+                  // Automatically transition to verification check
+                  setVerificationData(verificationData);
+                  setValidationData(validationData);
+                  setUploadStatus('validation');
+                  
+                  // Show success notification
+                  toast.success('All documents uploaded. Moving to verification check.', {
+                    position: 'top-center',
+                    duration: 3000,
+                  });
+
+                  // Set processing step to complete
+                  setProcessingStep(5);
+                  setTimeout(() => {
+                    setIsProcessing(false);
+                  }, 1000);
 
                   // Generate email draft
                   const recipientEmail = profileData?.contact?.email || profileData?.email;
@@ -2053,7 +2086,7 @@ const FNCaseDetails = () => {
                   <h3 className="text-sm font-medium text-gray-900">{questionnaire.questionnaire_name}</h3>
                   <div className="flex items-center">
                     <span className="text-sm text-gray-600">
-                      {questionnaire.field_mappings.length} Fields
+                      {getTotalFieldsCount(questionnaire)} Fields
                     </span>
                   </div>
                 </div>
@@ -2256,10 +2289,16 @@ const FNCaseDetails = () => {
       const resumeFields = questionnaire.field_mappings.filter(field => field.sourceDocument === 'Resume');
       resumeFields.forEach(field => {
         if (field.fieldName === 'educationalQualification') {
-          totalFields += 1;
-          if (localFormData?.Resume?.educationalQualification) {
-            filledFields++;
-          }
+          // Count each subfield of educationalQualification as a separate field
+          const subfields = ['institution', 'courseLevel', 'specialization', 'gpa'];
+          totalFields += subfields.length; // Add 4 to total fields instead of 1
+          
+          // Check each subfield individually
+          subfields.forEach(subfield => {
+            if (localFormData?.Resume?.educationalQualification?.[subfield]) {
+              filledFields++;
+            }
+          });
         } else {
           totalFields += 1;
           if (localFormData?.Resume?.[field.fieldName]) {
