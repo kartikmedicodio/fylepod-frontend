@@ -2604,6 +2604,7 @@ const FNCaseDetails = () => {
                   )}
                 </div>
               ))}
+              <div ref={messagesEndRef} /> {/* Invisible element for scrolling */}
             </div>
 
             {/* Enhanced input area */}
@@ -2796,6 +2797,14 @@ const FNCaseDetails = () => {
       toast.error('Failed to initiate document reupload');
     }
   };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]); // Scroll when messages change
 
   // Main component return
   return (
