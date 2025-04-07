@@ -22,6 +22,7 @@ function Dashboard() {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
+  const [agents, setAgents] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -60,51 +61,72 @@ function Dashboard() {
     fetchDashboardData();
   }, []);
 
+  useEffect(() => {
+    const fetchAgents = async () => {
+      try {
+        const response = await api.get('/agents');
+        if (response.data.success) {
+          const agentObject = response.data.data.reduce((acc, agent) => {
+            acc[agent.agentId] = agent;
+            return acc;
+          }, {});
+          setAgents(agentObject);
+        }
+      } catch (error) {
+        console.error('Error fetching agents:', error);
+      }
+    };
+
+    fetchAgents();
+  }, []);
+
   // First Dashboard Layout Component
   const FirstDashboardLayout = () => (
     <div className="flex gap-6">
-      {/* Left Section - Profile */}
-      <div className="w-1/6">
+      {/* Left Section - Profile - adjusted width and height */}
+      <div className="w-[280px]">
         <div className="bg-[linear-gradient(98deg,rgba(167,247,193,0.60)_12.5%,rgba(51,97,255,0.40)_131.61%)] rounded-2xl p-6">
           <div className="flex flex-col items-center">
-            <div className="bg-white rounded-full p-1 mb-4">
+            <div className="bg-white rounded-full p-1 mb-3">
               <img 
-                src="src\assets\diana-avatar.png" 
-                alt="Diana"
-                className="w-32 h-32 rounded-full"
+                src="/assets/diana-avatar.png" 
+                alt={agents?.["1"]?.name || 'Diana'}
+                className="w-24 h-24 rounded-full"
               />
             </div>
-            <h3 className="text-lg font-medium">Diana</h3>
-            <p className="text-gray-600">Data collector</p>
-            <p className="text-gray-600">Age: 1 month</p>
-            <p className="text-gray-600">ID: 122</p>
+            <h3 className="text-lg font-medium mb-1">{agents?.["1"]?.name || 'Diana'}</h3>
+            <p className="text-gray-600 text-sm mb-1">{agents?.["1"]?.role || 'Data collector'}</p>
+            <p className="text-gray-600 text-sm mb-1">Age: {agents?.["1"]?.age || '1 month'}</p>
+            <p className="text-gray-600 text-sm">ID: {agents?.["1"]?.agentId || '1'}</p>
           </div>
         </div>
       </div>
 
       {/* Middle Section - Main Cards */}
-      <div className="w-2/4 grid grid-cols-2 gap-4">
-        {/* Document Collection Stats */}
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <h3 className="text-gray-800 font-medium mb-2">Document Collected</h3>
-          <div className="text-xl font-bold text-gray-900">
-            {dashboardData ? `${dashboardData.totalDocuments-dashboardData.totalPendingDocuments}/${dashboardData.totalDocuments}` : 'Loading...'}
+      <div className="flex-1 flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-4">
+          {/* Document Collection Stats */}
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <h3 className="text-gray-800 font-medium mb-2">Document Collected</h3>
+            <div className="text-xl font-bold text-gray-900">
+              {dashboardData ? `${dashboardData.totalDocuments-dashboardData.totalPendingDocuments}/${dashboardData.totalDocuments}` : 'Loading...'}
+            </div>
+            <p className="text-sm text-gray-600">Documents collected for cases</p>
           </div>
-          <p className="text-sm text-gray-600">Documents collected for cases</p>
+
+          {/* Follow Ups Reminders */}
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <h3 className="text-gray-800 font-medium mb-2">Follow Ups Reminders</h3>
+            <div className="text-xl font-bold text-gray-900">
+              {dashboardData?.pendingEmailReminderCount ?? 'Loading...'}
+            </div>
+            <p className="text-sm text-gray-600">Cases with document follow-ups</p>
+          </div>
         </div>
 
-        {/* Follow Ups Reminders */}
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <h3 className="text-gray-800 font-medium mb-2">Follow Ups Reminders</h3>
-          <div className="text-xl font-bold text-gray-900">
-            {dashboardData?.pendingEmailReminderCount ?? 'Loading...'}
-          </div>
-          <p className="text-sm text-gray-600">Cases with document follow-ups</p>
-        </div>
-
-        {/* Pending Review - Warning Card */}
+        {/* Pending Review - Warning Card - Full Width */}
         <div 
-          className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all"
+          className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all group relative"
           onClick={() => {
             navigate('/cases', { 
               state: { 
@@ -115,30 +137,35 @@ function Dashboard() {
             });
           }}
         >
-          <h3 className="text-gray-800 font-medium mb-2">Pending Review</h3>
-          <div className="text-xl font-bold text-gray-900">
-            {dashboardData?.pendingReviewCount ?? 'Loading...'}
+          <div>
+            <h3 className="text-gray-800 font-medium mb-2 group-hover:text-blue-600 flex items-center">
+              Pending Review
+              <span className="ml-2 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">
+              </span>
+            </h3>
+            <div className="text-xl font-bold text-gray-900">
+              {dashboardData?.pendingReviewCount ?? 'Loading...'}
+            </div>
+            <div className="bg-amber-50 rounded p-2 mt-1">
+              <p className="text-sm text-gray-700">Cases requires your attention</p>
+            </div>
           </div>
-          <div className="bg-amber-50 rounded p-2 mt-1">
-            <p className="text-sm text-gray-700">Cases requires your attention</p>
+
+          {/* Custom Tooltip */}
+          <div className="absolute invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 text-white text-sm rounded px-2 py-1 left-1/2 -translate-x-1/2 -top-8 whitespace-nowrap">
+            Click to view cases with pending review
           </div>
         </div>
       </div>
 
       {/* Right Section - Statistics */}
-      <div className="w-1/4">
+      <div className="w-[320px]">
         <div className="bg-white rounded-2xl p-6">
-          <div className="mb-16">
+          <div className="mb-8">
             <div className="text-2xl font-bold mb-2">
               {dashboardData?.insights.metrics.documentCompletionRate ?? 0}%
             </div>
-            <p className="text-gray-600">document completion rate</p>
-          </div>
-          <div>
-            <div className="text-2xl font-bold mb-2">
-              {dashboardData?.insights.metrics.reviewRate ?? 0}%
-            </div>
-            <p className="text-gray-600">review rate</p>
+            <p className="text-gray-600">of follow-up requests resulted in document submissions</p>
           </div>
         </div>
       </div>
@@ -147,101 +174,115 @@ function Dashboard() {
 
   // Second Dashboard Layout Component
   const SecondDashboardLayout = () => (
-    <div className="flex gap-6">
-      {/* Left Section - Profile */}
-      <div className="w-1/6 bg-[linear-gradient(96deg,rgba(234,201,246,0.20)_-24.04%,rgba(116,112,255,0.40)_94.87%)] rounded-2xl p-6">
-        <div className="flex flex-col items-center">
-          <div className="bg-white rounded-full p-2 mb-4">
-            <img 
-              src="src\assets\fiona-avatar.png" 
-              alt="Fiona"
-              className="w-32 h-32 rounded-full"
-            />
+    <div className="flex gap-6 mt-6">
+      {/* Left Section - Profile - adjusted width and height */}
+      <div className="w-[280px]">
+        <div className="bg-[linear-gradient(96deg,rgba(234,201,246,0.20)_-24.04%,rgba(116,112,255,0.40)_94.87%)] rounded-2xl p-6">
+          <div className="flex flex-col items-center">
+            <div className="bg-white rounded-full p-1 mb-3">
+              <img 
+                src="/assets/fiona-avatar.png" 
+                alt={agents?.["2"]?.name || 'Fiona'}
+                className="w-24 h-24 rounded-full"
+              />
+            </div>
+            <h3 className="text-lg font-medium mb-1">{agents?.["2"]?.name || 'Fiona'}</h3>
+            <p className="text-gray-600 text-sm mb-1">{agents?.["2"]?.role || 'Case manager'}</p>
+            <p className="text-gray-600 text-sm mb-1">Age: {agents?.["2"]?.age || '1 month'}</p>
+            <p className="text-gray-600 text-sm">ID: {agents?.["2"]?.agentId || '2'}</p>
           </div>
-          <h3 className="text-lg font-medium">Fiona</h3>
-          <p className="text-gray-600">Case manager</p>
-          <p className="text-gray-600">Age: 1 month</p>
-          <p className="text-gray-600">ID: {dashboardData?.caseManagerId?.slice(-4) ?? '...'}</p>
         </div>
       </div>
 
       {/* Middle Section - Case Stats */}
-      <div className="w-2/4 grid grid-cols-2 gap-4">
-        {/* Cases Opened */}
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <h3 className="text-gray-800 font-medium mb-2">Cases Opened</h3>
-          <div className="text-xl font-bold text-gray-900">
-            {dashboardData ? `${dashboardData.managementCount}` : 'Loading...'}
+      <div className="flex-1">
+        <div className="grid grid-cols-2 gap-4">
+          {/* Cases Opened */}
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <h3 className="text-gray-800 font-medium mb-2">Cases Opened</h3>
+            <div className="text-xl font-bold text-gray-900">
+              {dashboardData ? `${dashboardData.managementCount}/100` : 'Loading...'}
+            </div>
+            <p className="text-sm text-gray-600">cases requires your attention</p>
           </div>
-          <p className="text-sm text-gray-600">cases requires your attention</p>
-        </div>
 
-        {/* Data Collection Completed */}
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <h3 className="text-gray-800 font-medium mb-2">Data Collection Completed</h3>
-          <div className="text-xl font-bold text-gray-900">
-            {dashboardData ? `${dashboardData.pendingReviewCount}` : 'Loading...'}
+          {/* Data Collection Completed */}
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <h3 className="text-gray-800 font-medium mb-2">Data Collection Completed</h3>
+            <div className="text-xl font-bold text-gray-900">
+              {dashboardData ? `${dashboardData.pendingReviewCount}/100` : 'Loading...'}
+            </div>
+            <p className="text-sm text-gray-600">cases are fully prepared</p>
           </div>
-          <p className="text-sm text-gray-600">cases are fully prepared</p>
-        </div>
 
-        {/* Pending Review */}
-        <div 
-          className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all"
-          onClick={() => {
-            // Navigate to cases page with state
-            navigate('/cases', { 
-              state: { 
-                applyFilter: true,
-                filterType: 'status',
-                filterValue: 'Reviewed'
-              } 
-            });
-          }}
-        >
-          <h3 className="text-gray-800 font-medium mb-2">Pending Review</h3>
-          <div className="text-xl font-bold text-gray-900">
-            {dashboardData ? `${dashboardData.reviewedCount}` : 'Loading...'}
-          </div>
-          <p className="text-sm text-gray-600">cases have undergone review</p>
-        </div>
+          {/* Pending Review */}
+          <div 
+            className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all group relative"
+            onClick={() => {
+              navigate('/cases', { 
+                state: { 
+                  applyFilter: true,
+                  filterType: 'status',
+                  filterValue: 'Reviewed'
+                } 
+              });
+            }}
+          >
+            <div>
+              <h3 className="text-gray-800 font-medium mb-2 group-hover:text-blue-600 flex items-center">
+                Pending Review
+              </h3>
+              <div className="text-xl font-bold text-gray-900">
+                {dashboardData ? `${dashboardData.reviewedCount}` : 'Loading...'}
+              </div>
+              <p className="text-sm text-gray-600">cases have undergone review</p>
+            </div>
 
-        {/* Preparation for Filing */}
-        <div 
-          className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all"
-          onClick={() => {
-            // Navigate to cases page with state
-            navigate('/cases', { 
-              state: { 
-                applyFilter: true,
-                filterType: 'status',
-                filterValue: 'completed'
-              } 
-            });
-          }}
-        >
-          <h3 className="text-gray-800 font-medium mb-2">Preparation for Filing</h3>
-          <div className="text-xl font-bold text-gray-900">
-            {dashboardData ? `${dashboardData.completedCount}` : 'Loading...'}
+            {/* Custom Tooltip */}
+            <div className="absolute invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 text-white text-sm rounded px-2 py-1 left-1/2 -translate-x-1/2 -top-8 whitespace-nowrap">
+              Click to view cases that have been reviewed
+            </div>
           </div>
-          <p className="text-sm text-gray-600">cases have forms ready for submission</p>
+
+          {/* Preparation for Filing */}
+          <div 
+            className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all group relative"
+            onClick={() => {
+              navigate('/cases', { 
+                state: { 
+                  applyFilter: true,
+                  filterType: 'status',
+                  filterValue: 'completed'
+                } 
+              });
+            }}
+          >
+            <div>
+              <h3 className="text-gray-800 font-medium mb-2 group-hover:text-blue-600 flex items-center">
+                Preparation for Filing
+              </h3>
+              <div className="text-xl font-bold text-gray-900">
+                {dashboardData ? `${dashboardData.completedCount}` : 'Loading...'}
+              </div>
+              <p className="text-sm text-gray-600">cases have forms ready for submission</p>
+            </div>
+
+            {/* Custom Tooltip */}
+            <div className="absolute invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 text-white text-sm rounded px-2 py-1 left-1/2 -translate-x-1/2 -top-8 whitespace-nowrap">
+              Click to view cases ready for filing
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Right Section - Weekly Stats */}
-      <div className="w-1/4">
+      {/* Right Section - Statistics */}
+      <div className="w-[320px]">
         <div className="bg-white rounded-2xl p-6">
           <div className="mb-16">
             <div className="text-2xl font-bold mb-2">
               {dashboardData?.insights.metrics.caseCompletionRate ?? 0}%
             </div>
             <p className="text-gray-600">case completion rate this week</p>
-          </div>
-          <div>
-            <div className="text-2xl font-bold mb-2">
-              {dashboardData?.insights.metrics.pendingEmailRate ?? 0}%
-            </div>
-            <p className="text-gray-600">pending email rate this week</p>
           </div>
         </div>
       </div>
@@ -301,8 +342,8 @@ function Dashboard() {
   const SkeletonProfileCard = ({ gradient }) => (
     <div className={`${gradient} rounded-2xl p-6`}>
       <div className="flex flex-col items-center">
-        <div className="bg-white rounded-full p-1 mb-4">
-          <SkeletonBox width="128px" height="128px" className="rounded-full" />
+        <div className="bg-white rounded-full p-1 mb-3">
+          <SkeletonBox width="96px" height="96px" className="rounded-full" />
         </div>
         <SkeletonBox width="80px" height="20px" className="mb-2" />
         <SkeletonBox width="100px" height="16px" className="mb-1" />
@@ -323,41 +364,45 @@ function Dashboard() {
 
       {/* First Dashboard Layout Skeleton */}
       <div className="flex gap-6 mb-8">
-        {/* Left Profile Section */}
-        <div className="w-1/6">
+        {/* Profile Section */}
+        <div className="w-[280px]">
           <SkeletonProfileCard gradient="bg-[linear-gradient(98deg,rgba(167,247,193,0.60)_12.5%,rgba(51,97,255,0.40)_131.61%)]" />
         </div>
 
         {/* Middle Cards Section */}
-        <div className="w-2/4 grid grid-cols-2 gap-4">
-          <SkeletonDashboardCard />
-          <SkeletonDashboardCard />
+        <div className="flex-1 flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-4">
+            <SkeletonDashboardCard />
+            <SkeletonDashboardCard />
+          </div>
           <SkeletonDashboardCard />
         </div>
 
-        {/* Right Stats Section */}
-        <div className="w-1/4">
+        {/* Stats Section */}
+        <div className="w-[320px]">
           <SkeletonStatsCard />
         </div>
       </div>
 
       {/* Second Dashboard Layout Skeleton */}
       <div className="flex gap-6">
-        {/* Left Profile Section */}
-        <div className="w-1/6">
+        {/* Profile Section */}
+        <div className="w-[280px]">
           <SkeletonProfileCard gradient="bg-[linear-gradient(96deg,rgba(234,201,246,0.20)_-24.04%,rgba(116,112,255,0.40)_94.87%)]" />
         </div>
 
         {/* Middle Cards Section */}
-        <div className="w-2/4 grid grid-cols-2 gap-4">
-          <SkeletonDashboardCard />
-          <SkeletonDashboardCard />
-          <SkeletonDashboardCard />
-          <SkeletonDashboardCard />
+        <div className="flex-1">
+          <div className="grid grid-cols-2 gap-4">
+            <SkeletonDashboardCard />
+            <SkeletonDashboardCard />
+            <SkeletonDashboardCard />
+            <SkeletonDashboardCard />
+          </div>
         </div>
 
-        {/* Right Stats Section */}
-        <div className="w-1/4">
+        {/* Stats Section */}
+        <div className="w-[320px]">
           <SkeletonStatsCard />
         </div>
       </div>

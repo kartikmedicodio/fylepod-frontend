@@ -25,7 +25,8 @@ import {
   Download,
   Bot,
   SendHorizontal,
-  Eye
+  Eye,
+  ChevronDown
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
@@ -68,23 +69,44 @@ const checkAllDocumentsApproved = (documentTypes) => {
   return documentTypes.every(doc => doc.status === DOCUMENT_STATUS.APPROVED);
 };
 
-const ProcessingIndicator = ({ currentStep }) => {
+const ProcessingIndicator = ({ currentStep, isComplete }) => {
   const [localStep, setLocalStep] = useState(currentStep);
 
   useEffect(() => {
+    if (isComplete) return;
+
     const interval = setInterval(() => {
       setLocalStep((prev) => (prev + 1) % processingSteps.length);
     }, 800);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isComplete]);
 
+  if (isComplete) {
   return (
+    <div className="absolute inset-0 bg-black/40 backdrop-blur-[3px] flex items-center justify-center rounded-lg z-50">
+      <div className="bg-white rounded-2xl p-4 shadow-2xl w-72 mx-auto border border-gray-100">
+        <div className="flex justify-center mb-4">
+          <div className="relative">
+              <div className="w-16 h-16 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 flex items-center justify-center shadow-lg">
+                <Check className="w-8 h-8 text-white" />
+            </div>
+            </div>
+          </div>
+          <div className="text-center">
+            <span className="text-sm font-medium text-gray-900">Processing Complete</span>
+        </div>
+      </div>
+    </div>
+  );
+  }
+
+    return (
     <div className="absolute inset-0 bg-black/40 backdrop-blur-[3px] flex items-center justify-center rounded-lg z-50">
       <div className="bg-white rounded-2xl p-4 shadow-2xl w-72 mx-auto border border-gray-100">
         {/* Diana's Avatar Section */}
         <div className="flex justify-center mb-4">
-          <div className="relative">
+                <div className="relative">
             {/* Animated Background Rings */}
             <div className="absolute inset-0 -m-4">
               <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 rounded-full blur-xl"></div>
@@ -195,6 +217,9 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const [extractedDataError, setExtractedDataError] = useState(null);
   const [recipientEmail, setRecipientEmail] = useState('');
 
+  // Add this state at the top with other state declarations
+  const [isProcessingComplete, setIsProcessingComplete] = useState(false);
+
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
     return allowedTypes.includes(file.type);
@@ -248,10 +273,11 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       // Refresh case data
       const response = await api.get(`/management/${caseId}`);
       if (response.data.status === 'success') {
-        setCaseData(response.data.data.entry);
+        const updatedCaseData = response.data.data.entry;
+        setCaseData(updatedCaseData);
         
         // Check if all documents are approved
-        const allApproved = response.data.data.entry.documentTypes.every(
+        const allApproved = updatedCaseData.documentTypes.every(
           doc => doc.status === DOCUMENT_STATUS.APPROVED
         );
 
@@ -290,7 +316,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       // Refresh case data
       const response = await api.get(`/management/${caseId}`);
       if (response.data.status === 'success') {
-        setCaseData(response.data.data.entry);
+        const updatedCaseData = response.data.data.entry;
+        setCaseData(updatedCaseData);
         toast.success('Document sent for reupload');
       }
     } catch (error) {
@@ -441,11 +468,86 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           // Refresh case data first
           const response = await api.get(`/management/${caseId}`);
           if (response.data.status === 'success') {
-            setCaseData(response.data.data.entry);
-          }
+            const updatedCaseData = response.data.data.entry;
+            setCaseData(updatedCaseData);
 
-          // Fetch fresh validation data for newly uploaded documents
-          await fetchValidationData();
+            // Fetch fresh validation data for newly uploaded documents
+            const validationResponse = await api.get(`/documents/management/${caseId}/validations`);
+            if (validationResponse.data.status === 'success') {
+              setValidationData(validationResponse.data.data);
+              // Add these two lines right here
+              setIsProcessingComplete(true);
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              
+              const validationResults = validationResponse.data.data.mergedValidations.flatMap(doc => 
+                doc.validations.map(validation => ({
+                  ...validation,
+                  documentType: doc.documentType
+                }))
+              );
+
+              // Check if all documents are uploaded using the updated case data
+              const allDocsUploaded = updatedCaseData.documentTypes.every(doc => 
+                doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
+              );
+
+              // Only proceed with cross-verification if all documents are uploaded
+              if (allDocsUploaded) {
+                // Fetch cross-verification data
+                const crossVerificationResponse = await api.get(`/management/${caseId}/cross-verify`);
+                const verificationData = crossVerificationResponse.data.data;
+
+                // Generate and send email if there are verification results
+                if (verificationData?.verificationResults) {
+                  const summaryErrors = verificationData.verificationResults.summarizationErrors || [];
+                  const mismatchErrors = verificationData.verificationResults.mismatchErrors || [];
+                  const missingErrors = verificationData.verificationResults.missingErrors || [];
+
+                  if (summaryErrors.length > 0 || mismatchErrors.length > 0 || missingErrors.length > 0) {
+                    // Get recipient info from updated case data
+                    const recipientEmail = updatedCaseData.userId?.email;
+                    const recipientName = updatedCaseData.userId?.name;
+                    const userData = JSON.parse(localStorage.getItem('auth_user') || '{}');
+                    const senderName = userData.name;
+
+                    // Generate email draft with complete data
+                    const draftResponse = await api.post('/mail/draft', {
+                      errorType: 'Complete Verification Report',
+                      errorDetails: {
+                        validationResults,
+                        mismatchErrors,
+                        missingErrors,
+                        summarizationErrors: summaryErrors
+                      },
+                      recipientEmail,
+                      recipientName,
+                      senderName
+                    });
+
+                    if (draftResponse.data.status === 'success') {
+                      try {
+                        // Send the email
+                        await api.post('/mail/send', {
+                          subject: draftResponse.data.data.subject,
+                          body: draftResponse.data.data.body,
+                          recipientEmail,
+                          recipientName,
+                          ccEmail: '' // No CC for automatic emails
+                        });
+                        toast.success('Verification report sent successfully');
+                      } catch (sendError) {
+                        console.error('Error sending email:', sendError);
+                        toast.error('Failed to send verification report');
+                      }
+                    } else {
+                      console.error('Failed to generate email draft:', draftResponse.data);
+                      toast.error('Failed to generate verification report');
+                    }
+                  }
+                }
+              }
+            }
+          }
 
           // Make API calls for each questionnaire
           const questionnaireResponses = await Promise.all(
@@ -1116,7 +1218,91 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     </div>
   );
 
-  // Enhanced document checklist
+  const DocumentVerificationSection = ({ document, validations = [] }) => {
+    const passedCount = validations.filter(v => v.passed).length;
+    const failedCount = validations.filter(v => !v.passed).length;
+    const [isExpanded, setIsExpanded] = useState(false);
+
+    return (
+      <div className="bg-white rounded-lg border border-gray-200">
+        {/* Header */}
+        <div 
+          className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50/50"
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+              failedCount > 0 ? 'bg-rose-50' : 'bg-emerald-50'
+            }`}>
+              {failedCount > 0 ? (
+                <X className="w-5 h-5 text-rose-500" />
+              ) : (
+                <Check className="w-5 h-5 text-emerald-500" />
+              )}
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-gray-900">{document.name}</h3>
+              <div className="flex items-center gap-3 mt-1">
+                {/* Passed count */}
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                  <span className="text-xs text-emerald-600 font-medium">
+                    {passedCount} Passed
+                  </span>
+                </div>
+                {/* Failed count */}
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-rose-500"></div>
+                  <span className="text-xs text-rose-600 font-medium">
+                    {failedCount} Failed
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center">
+            <button className={`text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
+              <ChevronDown className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Validation Details */}
+        {isExpanded && (
+          <div className="border-t border-gray-100">
+            <div className="divide-y divide-gray-100">
+              {validations.map((validation, index) => (
+                <div 
+                  key={index}
+                  className={`p-4 flex items-start gap-3 ${
+                    validation.passed ? 'bg-white' : 'bg-rose-50/5'
+                  }`}
+                >
+                  <div className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    validation.passed ? 'bg-emerald-50' : 'bg-rose-50'
+                  }`}>
+                    {validation.passed ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-500" />
+                    ) : (
+                      <X className="w-3.5 h-3.5 text-rose-500" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-900">{validation.message}</p>
+                    {!validation.passed && validation.details && (
+                      <p className="text-sm text-gray-500 mt-1">{validation.details}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Update the DocumentsChecklistTab component
   const DocumentsChecklistTab = () => {
     const pendingDocuments = caseData.documentTypes.filter(doc => doc.status === DOCUMENT_STATUS.PENDING);
     const uploadedDocuments = caseData.documentTypes.filter(
@@ -1176,102 +1362,121 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       </div>
     );
 
-    const renderSmartUpload = () => (
-      uploadStatus === DOCUMENT_STATUS.PENDING && (
-        <div className="col-span-4 bg-white rounded-lg border border-gray-200 p-6 relative">
-          {isUploading && <ProcessingIndicator currentStep={processingStep} />}
-          
-          <div className="mb-4 pb-4 border-b border-gray-100">
-            <h4 className="font-medium text-sm">Smart Upload Files</h4>
-          </div>
-          
-          <div 
-            className={`flex flex-col items-center justify-center py-8 rounded-lg transition-colors
-              ${isDragging 
-                ? 'bg-blue-50 border-2 border-dashed border-blue-300' 
-                : 'bg-gray-50 border border-gray-200'
-              }`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            <input
-              type="file"
-              multiple
-              className="hidden"
-              id="file-upload"
-              onChange={handleFileSelect}
-            />
+    const renderSmartUpload = () => {
+      // Add this check at the start of renderSmartUpload
+      const allDocsUploaded = caseData.documentTypes.every(doc => 
+        doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
+      );
+
+      return (
+        uploadStatus === DOCUMENT_STATUS.PENDING && (
+          <div className="col-span-4 bg-white rounded-lg border border-gray-200 p-6 relative">
+            {isUploading && <ProcessingIndicator currentStep={processingStep} isComplete={isProcessingComplete} />}
             
-            {files.length > 0 ? (
-              <div className="w-full px-6">
-                <div className="mb-4 text-center">
-                  <span className="text-sm text-gray-500">{files.length} file(s) selected</span>
-                </div>
-                <div className="space-y-2 mb-6 max-h-40 overflow-y-auto">
-                  {files.map((file, index) => (
-                    <div 
-                      key={index} 
-                      className="flex items-center justify-between bg-white border border-gray-200 p-2 rounded-lg"
-                    >
-                      <div className="flex items-center">
-                        <File className="w-4 h-4 text-gray-400 mr-2" />
-                        <span className="text-sm truncate max-w-xs">{file.name}</span>
-                      </div>
-                      <button 
-                        onClick={() => setFiles(files.filter((_, i) => i !== index))}
-                        className="text-gray-400 hover:text-gray-600"
+            <div className="mb-4 pb-4 border-b border-gray-100">
+              <h4 className="font-medium text-sm">Smart Upload Files</h4>
+            </div>
+            
+            <div 
+              className={`flex flex-col items-center justify-center py-8 rounded-lg transition-colors
+                ${isDragging 
+                  ? 'bg-blue-50 border-2 border-dashed border-blue-300' 
+                  : 'bg-gray-50 border border-gray-200'
+                }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                id="file-upload"
+                onChange={handleFileSelect}
+                disabled={allDocsUploaded}
+              />
+              
+              {files.length > 0 ? (
+                <div className="w-full px-6">
+                  <div className="mb-4 text-center">
+                    <span className="text-sm text-gray-500">{files.length} file(s) selected</span>
+                  </div>
+                  <div className="space-y-2 mb-6 max-h-40 overflow-y-auto">
+                    {files.map((file, index) => (
+                      <div 
+                        key={index} 
+                        className="flex items-center justify-between bg-white border border-gray-200 p-2 rounded-lg"
                       >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+                        <div className="flex items-center">
+                          <File className="w-4 h-4 text-gray-400 mr-2" />
+                          <span className="text-sm truncate max-w-xs">{file.name}</span>
+                        </div>
+                        <button 
+                          onClick={() => setFiles(files.filter((_, i) => i !== index))}
+                          className="text-gray-400 hover:text-gray-600"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label 
+                      htmlFor="file-upload"
+                      className={`bg-white border border-gray-200 text-gray-700 py-2.5 px-6 rounded-lg text-sm font-medium text-center
+                        ${allDocsUploaded 
+                          ? 'opacity-50 cursor-not-allowed' 
+                          : 'cursor-pointer hover:bg-gray-50 transition-colors'
+                        }`}
+                    >
+                      Browse More Files
+                    </label>
+                    <button 
+                      onClick={() => handleFileUpload(files)}
+                      disabled={isUploading || allDocsUploaded}
+                      className={`bg-blue-600 text-white py-2.5 px-6 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2
+                        ${(isUploading || allDocsUploaded) ? 'opacity-75 cursor-not-allowed' : ''}`}
+                    >
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        `Upload ${files.length} file${files.length !== 1 ? 's' : ''}`
+                      )}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex flex-col gap-2">
+              ) : (
+                <>
+                  <div className="w-12 h-12 bg-white rounded-full border border-gray-200 flex items-center justify-center mb-3">
+                    <Upload className="w-6 h-6 text-gray-400" />
+                  </div>
+                  <p className="text-sm text-gray-500 mb-2">
+                    {allDocsUploaded 
+                      ? 'All documents have been uploaded' 
+                      : isDragging ? 'Drop files here' : 'Drag and drop files here'
+                    }
+                  </p>
+                  <p className="text-sm text-gray-400 mb-6">or</p>
                   <label 
                     htmlFor="file-upload"
-                    className="bg-white border border-gray-200 text-gray-700 py-2.5 px-6 rounded-lg text-sm font-medium cursor-pointer hover:bg-gray-50 transition-colors text-center"
+                    className={`bg-blue-600 text-white py-2.5 px-6 rounded-lg text-sm font-medium transition-colors
+                      ${allDocsUploaded 
+                        ? 'opacity-50 cursor-not-allowed bg-gray-400' 
+                        : 'cursor-pointer hover:bg-blue-700'
+                      }`}
                   >
-                    Browse More Files
+                    Browse Files
                   </label>
-                  <button 
-                    onClick={() => handleFileUpload(files)}
-                    disabled={isUploading}
-                    className={`bg-blue-600 text-white py-2.5 px-6 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2
-                      ${isUploading ? 'opacity-75 cursor-not-allowed' : ''}`}
-                  >
-                    {isUploading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      `Upload ${files.length} file${files.length !== 1 ? 's' : ''}`
-                    )}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="w-12 h-12 bg-white rounded-full border border-gray-200 flex items-center justify-center mb-3">
-                  <Upload className="w-6 h-6 text-gray-400" />
-                </div>
-                <p className="text-sm text-gray-500 mb-2">
-                  {isDragging ? 'Drop files here' : 'Drag and drop files here'}
-                </p>
-                <p className="text-sm text-gray-400 mb-6">or</p>
-                <label 
-                  htmlFor="file-upload"
-                  className="bg-blue-600 text-white py-2.5 px-6 rounded-lg text-sm font-medium cursor-pointer hover:bg-blue-700 transition-colors"
-                >
-                  Browse Files
-                </label>
-              </>
-            )}
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      )
-    );
+        )
+      );
+    };
 
 
     // Sub-tabs navigation component
@@ -1288,7 +1493,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         <div className="mb-6 flex items-center gap-2">
           {[
             { id: 'all', label: 'Upload Pending' },
-            { id: 'validation', label: 'Validation' },
+            { id: 'validation', label: 'Verification' },
             { 
               id: 'cross-verification', 
               label: 'Cross Verification',
@@ -1414,7 +1619,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                     status: doc.status === 'approved' ? 'Approved' : 'Verification pending',
                     documentTypeId: doc.documentTypeId,
                     updatedAt: doc.updatedAt,
-                    managementId: caseId, // Add the managementId from the caseId
+                    managementId: caseId,
                     states: [
                       {
                         name: 'Document collection',
@@ -1425,7 +1630,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                         status: doc.status !== 'pending' ? 'success' : 'pending'
                       },
                       {
-                        name: 'Validation',
+                        name: 'Verification',
                         status: getValidationStatus()
                       },
                       {
@@ -1458,6 +1663,22 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               onApprove={handleDocumentApprove}
               onRequestReupload={handleRequestReupload}
               processingDocuments={processingDocuments}
+              onDocumentsUpdate={(updatedDocuments) => {
+                // Update the caseData state with the new document statuses
+                setCaseData(prevData => ({
+                  ...prevData,
+                  documentTypes: prevData.documentTypes.map(doc => {
+                    const updatedDoc = updatedDocuments.find(d => d.documentTypeId === doc.documentTypeId);
+                    if (updatedDoc) {
+                      return {
+                        ...doc,
+                        status: updatedDoc.status === 'Approved' ? DOCUMENT_STATUS.APPROVED : doc.status
+                      };
+                    }
+                    return doc;
+                  })
+                }));
+              }}
             />
           );
         default:
@@ -1465,34 +1686,51 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       }
     };
 
+    const renderValidationSection = () => {
+      if (!validationData?.mergedValidations?.length) return null;
+
+      const totalFailedValidations = validationData.mergedValidations.reduce((total, doc) => 
+        total + doc.validations.filter(v => !v.passed).length, 0
+      );
+
+      return (
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Document Verification</h2>
+            {totalFailedValidations > 0 ? (
+              <span className="px-3 py-1 rounded-full text-sm font-medium bg-rose-50 text-rose-600 border border-rose-200">
+                {totalFailedValidations} {totalFailedValidations === 1 ? 'Issue' : 'Issues'} Found
+              </span>
+            ) : (
+              <span className="px-3 py-1 rounded-full text-sm font-medium bg-emerald-50 text-emerald-600 border border-emerald-200">
+                All Verifications Passed
+              </span>
+            )}
+          </div>
+
+          {/* Documents List */}
+          <div className="space-y-4">
+            {validationData.mergedValidations.map((docValidation, index) => (
+              <DocumentVerificationSection
+                key={index}
+                document={{ name: docValidation.documentType }}
+                validations={docValidation.validations}
+              />
+            ))}
+          </div>
+        </div>
+      );
+    };
+
     return (
       <div className="p-6">
-        {/* Search and Filter Section */}
-        {/* <div className="mb-6 flex items-center justify-between">
-          <div className="relative w-64">
-            <input
-              type="text"
-              placeholder="Search..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
-            />
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          </div>
-          <div className="flex items-center gap-2">
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
-              <Filter className="w-4 h-4" />
-              All Filters
-            </button>
-            <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
-              Sort
-            </button>
-          </div>
-        </div> */}
-
-        {/* Sub-tabs Navigation */}
         <SubTabNavigation />
-
-        {/* Sub-tab Content */}
-        {renderSubTabContent()}
+        {selectedSubTab === 'validation' ? (
+          renderValidationSection()
+        ) : (
+          renderSubTabContent()
+        )}
       </div>
     );
   };
@@ -2079,7 +2317,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             // Refresh case data to update UI
             const response = await api.get(`/management/${caseId}`);
             if (response.data.status === 'success') {
-              setCaseData(response.data.data.entry);
+              const updatedCaseData = response.data.data.entry;
+              setCaseData(updatedCaseData);
             }
           } catch (statusError) {
             console.error('Error updating case status:', statusError);
@@ -2593,6 +2832,58 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     // Switch to finalize tab
     setSelectedSubTab('finalize'); // Add this line to set the sub-navigation
     setActiveTab('document-checklist'); // Keep the main tab as document-checklist
+  };
+
+  const handleGenerateDraftMail = async () => {
+    try {
+      // First get the validation data
+      const validationResponse = await api.get(`/documents/management/${caseId}/validations`);
+      const validationData = validationResponse.data;
+
+      // Then get the cross-verification data
+      const crossVerifyResponse = await api.get(`/management/${caseId}/cross-verify`);
+      const crossVerifyData = crossVerifyResponse.data;
+
+      // Get recipient name from profile data or use a default
+      const recipientName = profileData?.name || 'Sir/Madam';
+
+      // Structure the request body correctly
+      const requestBody = {
+        validationData: {
+          status: "success",
+          data: {
+            managementId: caseId,
+            mergedValidations: validationData.data.mergedValidations
+          }
+        },
+        crossVerifyData: {
+          status: "success",
+          data: {
+            managementId: caseId,
+            verificationResults: crossVerifyData.data.verificationResults,
+            lastVerifiedAt: crossVerifyData.data.lastVerifiedAt
+          }
+        },
+        recipientEmail: recipientEmail,
+        recipientName: recipientName
+      };
+
+      // Generate the draft mail
+      const response = await api.post('/mail/draft', requestBody);
+      
+      if (response.data.status === 'success') {
+        // Handle successful response
+        console.log('Draft mail generated successfully:', response.data);
+        // You can add a success notification here
+      } else {
+        // Handle error response
+        console.error('Failed to generate draft mail:', response.data);
+        // You can add an error notification here
+      }
+    } catch (error) {
+      console.error('Error generating draft mail:', error);
+      // Handle error appropriately
+    }
   };
 
   // Update the main container and its children to properly handle height

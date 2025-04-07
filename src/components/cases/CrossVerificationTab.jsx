@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Loader2, ChevronDown, ChevronUp, Eye, Mail, ChevronRight } from 'lucide-react';
 import PropTypes from 'prop-types';
+import { toast } from 'react-hot-toast';
+import api from '../../utils/api';
 
 // Update the date formatting function
 const formatDate = (dateStr) => {
@@ -28,13 +30,75 @@ const formatDate = (dateStr) => {
   }
 };
 
-const CrossVerificationTab = ({ isLoading, verificationData }) => {
+// Add LoadingOverlay component at the top level
+const LoadingOverlay = () => (
+  <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50">
+    <div className="bg-white rounded-xl p-4 shadow-lg flex items-center gap-3">
+      <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+      <span className="text-sm font-medium">Generating email draft...</span>
+    </div>
+  </div>
+);
+
+const CrossVerificationTab = ({ 
+  isLoading, 
+  verificationData, 
+  managementId
+}) => {
+  const [caseData, setCaseData] = useState(null);
+  const [loadingCaseData, setLoadingCaseData] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  if (isLoading) {
+  // Fetch case data when component mounts
+  useEffect(() => {
+    const fetchCaseData = async () => {
+      if (!managementId) return;
+
+      setLoadingCaseData(true);
+      try {
+        const response = await api.get(`/management/${managementId}`);
+        if (response.data.status === 'success') {
+          setCaseData(response.data.data.entry);
+        } else {
+          toast.error('Failed to fetch case details');
+        }
+      } catch (error) {
+        console.error('Error fetching case data:', error);
+        toast.error('Failed to fetch case details');
+      } finally {
+        setLoadingCaseData(false);
+      }
+    };
+
+    fetchCaseData();
+  }, [managementId]);
+
+  if (isLoading || loadingCaseData) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      <div className="w-full bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-7 w-48 bg-gray-200 rounded-lg animate-pulse"></div>
+              <div className="h-6 w-24 bg-gray-200 rounded-full animate-pulse"></div>
+            </div>
+            <div className="h-5 w-5 bg-gray-200 rounded animate-pulse"></div>
+          </div>
+          <div className="mt-6 space-y-4">
+            {[1, 2].map((i) => (
+              <div key={i} className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="h-6 w-28 bg-gray-200 rounded-full animate-pulse"></div>
+                </div>
+                <div className="h-5 w-3/4 bg-gray-200 rounded animate-pulse mb-4"></div>
+                <div className="flex flex-wrap gap-3">
+                  <div className="h-10 w-32 bg-gray-200 rounded-lg animate-pulse"></div>
+                  <div className="h-10 w-40 bg-gray-200 rounded-lg animate-pulse"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -61,7 +125,7 @@ const CrossVerificationTab = ({ isLoading, verificationData }) => {
 
   return (
     <div className="p-4">
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl overflow-hidden">
         {/* Accordion Header */}
         <div 
           className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
@@ -80,7 +144,7 @@ const CrossVerificationTab = ({ isLoading, verificationData }) => {
           ) : (
             <ChevronDown className="w-5 h-5 text-gray-400" />
           )}
-      </div>
+        </div>
 
         {/* Accordion Content */}
         {isExpanded && (
@@ -101,7 +165,7 @@ const CrossVerificationTab = ({ isLoading, verificationData }) => {
                   <div key={index} className="bg-gray-50 rounded-lg overflow-hidden">
                     <div className="p-4">
                       {/* Error Type Badge */}
-                      <div className="flex items-center gap-2 mb-3">
+                      <div className="flex items-center justify-between mb-3">
                         <span className={`px-2.5 py-1 rounded-full text-xs font-medium
                           ${error.errorType === 'Summary Issue' ? 'bg-purple-100 text-purple-700' : 
                             error.errorType === 'Data Mismatch' ? 'bg-amber-100 text-amber-700' :
@@ -109,36 +173,49 @@ const CrossVerificationTab = ({ isLoading, verificationData }) => {
                         >
                           {error.errorType}
                         </span>
-            </div>
+
+                        {/* Add View Document link if URL exists */}
+                        {verificationData?.documentUrls?.[error.documentType] && (
+                          <a 
+                            href={verificationData.documentUrls[error.documentType]} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-2"
+                          >
+                            <Eye className="w-4 h-4" />
+                            View Document
+                          </a>
+                        )}
+                      </div>
 
                       {/* Error Title */}
                       <h4 className="text-sm font-medium text-gray-900 mb-2">{error.type}</h4>
 
                       {/* Error Details */}
                       {error.details && typeof error.details === 'object' ? (
-                    <div className="flex flex-wrap items-center gap-3">
-                      {Object.entries(error.details).map(([document, value], idx) => (
+                        <div className="flex flex-wrap items-center gap-3">
+                          {Object.entries(error.details).map(([document, value], idx) => (
                             <div key={idx} className="inline-flex items-center bg-white px-3 py-2 rounded-lg">
-                          <span className="text-sm font-medium text-gray-500 mr-2">{document}:</span>
+                              <span className="text-sm font-medium text-gray-500 mr-2">{document}:</span>
                               <span className="text-sm text-gray-900">
-                            {error.type.toLowerCase().includes('date of birth') 
-                              ? formatDate(value)
-                              : value}
-                          </span>
+                                {error.type.toLowerCase().includes('date of birth') 
+                                  ? formatDate(value)
+                                  : value}
+                              </span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
                       ) : (
                         <p className="text-sm text-gray-700 bg-white p-3 rounded-lg">
                           {error.details}
                         </p>
                       )}
-            </div>
+                    </div>
                   </div>
                 ))
               )}
             </div>
-        </div>
+          </div>
         )}
       </div>
     </div>
@@ -147,7 +224,8 @@ const CrossVerificationTab = ({ isLoading, verificationData }) => {
 
 CrossVerificationTab.propTypes = {
   isLoading: PropTypes.bool,
-  verificationData: PropTypes.object
+  verificationData: PropTypes.object,
+  managementId: PropTypes.string
 };
 
 export default CrossVerificationTab; 

@@ -6,9 +6,8 @@ import { toast } from 'react-hot-toast';
 import { Check, FileText, Users, ClipboardCheck, Clock, Sun, Moon, Cloud } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
-import DianaAvatar from '../assets/diana-avatar.png';
-import FionaAvatar from '../assets/fiona-avatar.png';
-import { AGENT_INFO } from '../constants/agentInfo';
+// import DianaAvatar from '../assets/diana-avatar.png';
+// import FionaAvatar from '../assets/fiona-avatar.png';
 
 // Loading skeleton component
 const DashboardSkeleton = () => {
@@ -249,55 +248,31 @@ CaseProgressCard.propTypes = {
   onClick: PropTypes.func.isRequired,
 };
 
-const ProfileCard = () => {
-  const agent = AGENT_INFO.diana;
+const ProfileCard = ({ cases, pendingCase, onCaseClick, setCurrentBreadcrumb, navigate }) => {
   const { user } = useAuth();
-  const navigate = useNavigate();
-  const [pendingCase, setPendingCase] = useState(null);
-  const [cases, setCases] = useState([]);
+  const [agents, setAgents] = useState(null);
+
+  const fetchAgents = async () => {
+    try {
+      const response = await api.get('/agents');
+      if (response.data.success) {
+        const agentObject = response.data.data.reduce((acc, agent) => {
+          acc[agent.agentId] = agent;
+          return acc;
+        }, {});
+        setAgents(agentObject);
+      }
+    } catch (error) {
+      console.error('Error fetching agents:', error);
+    }
+  };
 
   useEffect(() => {
-    const fetchPendingDocuments = async () => {
-      try {
-        if (!user?.id) return;
-        
-        const response = await api.get('/management/users', {
-          params: {
-            userIds: user.id
-          }
-        });
+    fetchAgents();
+  }, []);
 
-        if (response.data.status === 'success') {
-          const allCases = response.data.data.entries || [];
-          setCases(allCases);
-          
-          // Sort by updatedAt to get the most recent case
-          const sortedCases = allCases.sort((a, b) => 
-            new Date(b.updatedAt) - new Date(a.updatedAt)
-          );
-
-          // Find the first case that has any pending documents
-          const caseWithPendingDocs = sortedCases.find(caseItem => 
-            caseItem.documentTypes?.some(doc => doc.status === 'pending')
-          );
-
-          if (caseWithPendingDocs) {
-            setPendingCase(caseWithPendingDocs);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching pending documents:', error);
-        toast.error('Failed to fetch pending documents');
-      }
-    };
-
-    fetchPendingDocuments();
-  }, [user?.id]);
-
-  const handleCaseClick = () => {
-    if (pendingCase?._id) {
-      navigate(`/individuals/case/${pendingCase._id}`);
-    }
+  const handleCaseClick = (caseId) => {
+    navigate(`/individuals/case/${caseId}`);
   };
 
   return (
@@ -319,33 +294,30 @@ const ProfileCard = () => {
             {/* Profile Image - Overlapping */}
             <div className="w-40 h-40 rounded-full overflow-hidden bg-white flex-shrink-0 transform hover:scale-105 transition-transform duration-300 relative z-10">
               <img 
-                src={DianaAvatar}
-                alt={`${agent.name} - ${agent.role}`}
+                src="/assets/diana-avatar.png"
+                alt={`${agents?.["1"]?.name || 'Diana'} - ${agents?.["1"]?.role || 'Agent'}`}
                 className="w-full h-full object-cover"
               />
             </div>
             
             {/* Profile Info */}
-            <div className="flex-1 ml-8 text-right">
-              <div className="space-y-2">
+            <div className="flex-1 ml-8 py-4">
+              <div>
                 <h2 className="text-xl font-semibold text-[#000D3B]">
-                  Hello {user?.name || 'there'}, I am {agent.name}
+                  Hello {user?.name || 'there'}, I am {agents?.["1"]?.name || 'Diana'}
                 </h2>
                 <p className="text-[#000D3B] opacity-90 font-medium text-base">
-                  Your Data Collector
+                  {agents?.["1"]?.role || 'Your Data Collector'}
                 </p>
-                <div className="space-y-1 mt-2">
-                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
-                    Active Since 1 month
+                <div >
+                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center gap-2">
+                    <span className="font-medium">Status:</span> {agents?.["1"]?.status || 'Active Since 1 month'}
                   </p>
-                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
-                    Diana@gmail.com
+                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center gap-2">
+                    <span className="font-medium">Age:</span> {agents?.["1"]?.age || '1 month'}
                   </p>
-                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
-                    ID- 122
+                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center gap-2">
+                    <span className="font-medium">ID:</span> {agents?.["1"]?.agentId || '1'}
                   </p>
                 </div>
               </div>
@@ -360,7 +332,7 @@ const ProfileCard = () => {
               <FileText className="w-4 h-4 text-blue-500" />
             </div>
             <p className="text-[#000D3B] font-medium text-md">
-              I&apos;m here to help you organize and manage your case documents efficiently.
+              {agents?.["1"]?.description || "I'm here to help you organize and manage your case documents efficiently."}
             </p>
           </div>
         </div>
@@ -373,9 +345,10 @@ const ProfileCard = () => {
                 What You Need to Do today...
               </h3>
               <span className="px-2.5 py-1 bg-blue-50 text-blue-600 text-xs font-medium rounded-full">
-                {pendingCase?.documentTypes.filter(doc => doc.status === 'pending').length || 0} Pending
+                {pendingCase?.documentTypes?.filter(doc => doc.status === 'pending').length || 0} Pending
               </span>
             </div>
+            
             {pendingCase ? (
               <div className="text-[#000D3B] flex-1 flex flex-col">
                 <div className="bg-blue-50/50 rounded-lg p-3 mb-4">
@@ -383,22 +356,28 @@ const ProfileCard = () => {
                     <span className="font-medium">{pendingCase.categoryName}</span> requires your attention
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  {pendingCase.documentTypes
-                    .filter(doc => doc.status === 'pending')
-                    .map(doc => (
-                      <div key={doc._id} className="flex items-center gap-2 bg-white rounded-lg p-3 border border-gray-100 hover:border-blue-100 transition-colors">
-                        <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-                          <FileText className="w-4 h-4 text-blue-500" />
+                <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent hover:scrollbar-thumb-gray-300" style={{ maxHeight: "250px" }}>
+                  <div className="grid grid-cols-2 gap-3">
+                    {pendingCase.documentTypes
+                      .filter(doc => doc.status === 'pending')
+                      .map(doc => (
+                        <div 
+                          key={doc._id} 
+                          className="flex items-center gap-2 bg-white rounded-lg p-3 border border-gray-100 hover:border-blue-100 transition-colors cursor-pointer hover:bg-blue-50/5"
+                          onClick={() => handleCaseClick(pendingCase._id)}
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                            <FileText className="w-4 h-4 text-blue-500" />
+                          </div>
+                          <span className="text-sm font-medium">{doc.name}</span>
                         </div>
-                        <span className="text-sm font-medium">{doc.name}</span>
-                      </div>
-                    ))
-                  }
+                      ))
+                    }
+                  </div>
                 </div>
                 <div className="mt-auto flex justify-center">
                   <button
-                    onClick={handleCaseClick}
+                    onClick={onCaseClick}
                     className="w-[200px] px-6 py-2.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-full transition-colors duration-200 flex items-center justify-center gap-2 shadow-sm hover:shadow"
                   >
                     Get Started!
@@ -433,33 +412,30 @@ const ProfileCard = () => {
             {/* Profile Image - Overlapping */}
             <div className="w-40 h-40 rounded-full overflow-hidden bg-white flex-shrink-0 transform hover:scale-105 transition-transform duration-300 relative z-10">
               <img 
-                src={FionaAvatar}
-                alt="Fiona - Your Case Manager"
+                src="/assets/fiona-avatar.png"
+                alt={`${agents?.["2"]?.name || 'Fiona'} - ${agents?.["2"]?.role || 'Case Manager'}`}
                 className="w-full h-full object-cover"
               />
             </div>
             
             {/* Profile Info */}
-            <div className="flex-1 ml-8 text-right">
-              <div className="space-y-2">
+            <div className="flex-1 ml-8 py-4">
+              <div >
                 <h2 className="text-xl font-semibold text-[#000D3B]">
-                  Hello {user?.name || 'there'}, I am Fiona
+                  Hello {user?.name || 'there'}, I am {agents?.["2"]?.name || 'Fiona'}
                 </h2>
                 <p className="text-[#000D3B] opacity-90 font-medium text-base">
-                  Your Case Manager
+                  {agents?.["2"]?.role || 'Your Case Manager'}
                 </p>
-                <div className="space-y-1 mt-2">
-                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
-                    Active Since 1 month
+                <div >
+                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center gap-2">
+                    <span className="font-medium">Status:</span> {agents?.["2"]?.status || 'Active Since 1 month'}
                   </p>
-                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
-                    Fiona@gmail.com
+                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center gap-2">
+                    <span className="font-medium">Age:</span> {agents?.["2"]?.age || '1 month'}
                   </p>
-                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center justify-end gap-2">
-                    {/* <span className="w-1 h-1 rounded-full bg-blue-500"></span> */}
-                    ID- 123
+                  <p className="text-[#000D3B] opacity-70 text-sm flex items-center gap-2">
+                    <span className="font-medium">ID:</span> {agents?.["2"]?.agentId || '2'}
                   </p>
                 </div>
               </div>
@@ -486,36 +462,44 @@ const ProfileCard = () => {
               Case Overview
             </h3>
             <span className="px-2.5 py-1 bg-pink-50 text-pink-600 text-xs font-medium rounded-full">
-              {cases.length} Active
+              {cases?.length || 0} Active
             </span>
           </div>
-          <div className="space-y-3">
-            {cases.map((caseItem, index) => (
-              <div 
-                key={caseItem._id} 
-                className="flex items-start gap-3 bg-white rounded-lg p-3 border border-gray-100 hover:border-pink-100 transition-colors"
-              >
-                <div className="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center flex-shrink-0">
-                  <FileText className="w-4 h-4 text-pink-500" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium text-[#000D3B]">{caseItem.categoryName}</span>
-                    <span className="text-xs text-pink-600 bg-pink-50 px-2 py-0.5 rounded-full">
-                      {caseItem.categoryStatus === 'pending' ? 'In Progress' : 'Active'}
-                    </span>
+          <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent hover:scrollbar-thumb-gray-300" style={{ maxHeight: "300px" }}>
+            <div className="space-y-3 pr-2">
+              {cases?.map((caseItem) => (
+                <div 
+                  key={caseItem._id} 
+                  className="flex items-start gap-3 bg-white rounded-lg p-3 border border-gray-100 hover:border-pink-100 transition-colors cursor-pointer hover:bg-pink-50/5"
+                  onClick={() => handleCaseClick(caseItem._id)}
+                >
+                  <div className="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center flex-shrink-0">
+                    <FileText className="w-4 h-4 text-pink-500" />
                   </div>
-                  <div className="text-sm text-[#000D3B] opacity-70">
-                    <span className="font-medium">{caseItem.userName}</span> • Last updated{' '}
-                    {new Date(caseItem.updatedAt).toLocaleDateString('en-US', {
-                      month: 'long',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-medium text-[#000D3B]">{caseItem.categoryName}</span>
+                      <span className="text-xs text-pink-600 bg-pink-50 px-2 py-0.5 rounded-full">
+                        {caseItem.categoryStatus === 'pending' ? 'In Progress' : 'Active'}
+                      </span>
+                    </div>
+                    <div className="text-sm text-[#000D3B] opacity-70">
+                      <span className="font-medium">{caseItem.userName}</span> • Last updated{' '}
+                      {new Date(caseItem.updatedAt).toLocaleDateString('en-US', {
+                        month: 'long',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+              {(!cases || cases.length === 0) && (
+                <div className="text-center py-4 text-gray-500 text-sm">
+                  No active cases at the moment
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -527,10 +511,12 @@ const ProcessState = ({ state, status, onClick, validationErrors }) => {
   const [showErrors, setShowErrors] = useState(false);
   const popupRef = useRef(null);
   const timeoutRef = useRef(null);
+  const containerRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (popupRef.current && !popupRef.current.contains(event.target)) {
+      if (popupRef.current && !popupRef.current.contains(event.target) && 
+          containerRef.current && !containerRef.current.contains(event.target)) {
         setShowErrors(false);
       }
     };
@@ -581,7 +567,7 @@ const ProcessState = ({ state, status, onClick, validationErrors }) => {
   };
 
   return (
-    <div className="relative flex flex-col items-center gap-1.5">
+    <div ref={containerRef} className="relative flex flex-col items-center gap-1.5">
       {/* State Label */}
       <div 
         className={`text-[11px] font-medium whitespace-nowrap transition-colors ${
@@ -609,26 +595,17 @@ const ProcessState = ({ state, status, onClick, validationErrors }) => {
         />
       </div>
 
-      {/* Validation Errors Popup */}
+      {/* Verification Errors Popup */}
       {showErrors && validationErrors?.length > 0 && (
-        <div 
-          ref={popupRef}
-          className="fixed transform -translate-x-1/2 mt-2 w-64 bg-white rounded-lg shadow-lg border border-rose-100 p-3 z-[9999]"
-          style={{
-            left: popupRef.current ? popupRef.current.getBoundingClientRect().left + (popupRef.current.offsetWidth / 2) : '50%',
-            top: popupRef.current ? popupRef.current.getBoundingClientRect().bottom + 8 : 'auto'
-          }}
-        >
-          <div className="text-xs font-medium text-rose-700 mb-2">Validation Errors:</div>
-          <ul className="space-y-1.5">
+        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 p-3 z-10">
+          <div className="text-xs font-medium text-rose-700 mb-2">Verification Errors:</div>
+          <div className="space-y-1.5">
             {validationErrors.map((error, index) => (
-              <li key={index} className="text-xs text-rose-600">
-                • {error.message}
-              </li>
+              <div key={index} className="text-xs text-gray-600">
+                {error.message}
+              </div>
             ))}
-          </ul>
-          {/* Add a triangle pointer */}
-          <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-b-[8px] border-b-rose-100"></div>
+          </div>
         </div>
       )}
     </div>
@@ -636,6 +613,12 @@ const ProcessState = ({ state, status, onClick, validationErrors }) => {
 };
 
 const DocumentStatusCards = ({ cases }) => {
+  const navigate = useNavigate();
+
+  const handleCaseClick = (caseId) => {
+    navigate(`/individuals/case/${caseId}`);
+  };
+
   const getDocumentStatus = (doc, caseItem) => {
     const hasVerificationResults = caseItem.verificationResults !== undefined;
     const validationErrors = doc.document?.validationResults?.validations?.filter(v => !v.passed) || [];
@@ -694,16 +677,27 @@ const DocumentStatusCards = ({ cases }) => {
   return (
     <div className="mt-8 space-y-6">
       {cases.map((caseItem) => (
-        <div key={caseItem._id} className="bg-white rounded-xl border border-slate-100 shadow-sm">
+        <div 
+          key={caseItem._id} 
+          onClick={() => handleCaseClick(caseItem._id)}
+          className="bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow-md 
+            hover:border-blue-200 transition-all duration-200 cursor-pointer group"
+        >
           {/* Case Header */}
-          <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
+          <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white
+            group-hover:from-blue-50/30 group-hover:to-white transition-colors">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-200 flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-slate-600" />
+                <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100/50 
+                  border border-slate-200 flex items-center justify-center
+                  group-hover:border-blue-200 group-hover:from-blue-50 group-hover:to-blue-100/50 
+                  transition-colors">
+                  <FileText className="w-5 h-5 text-slate-600 group-hover:text-blue-600 transition-colors" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-900">{caseItem.categoryName}</h2>
+                  <h2 className="text-lg font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
+                    {caseItem.categoryName}
+                  </h2>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-sm text-slate-500">Case #{caseItem._id.slice(-6)}</span>
                     <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
@@ -720,42 +714,49 @@ const DocumentStatusCards = ({ cases }) => {
               {caseItem.documentTypes.map((doc, index) => {
                 const status = getDocumentStatus(doc, caseItem);
                 return (
-                  <div key={`${caseItem._id}-${index}`} className="bg-white rounded-xl border border-slate-100 p-6 hover:shadow-md hover:border-slate-200 transition-all duration-200 relative">
+                  <div 
+                    key={`${caseItem._id}-${index}`}
+                    className="bg-white rounded-xl border border-slate-100 p-6 
+                      group-hover:border-blue-100 transition-all duration-200"
+                  >
                     <div className="flex items-center gap-4">
-                      <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100/50 border border-slate-200 flex items-center justify-center">
+                      {/* Document Icon */}
+                      <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100/50 
+                        border border-slate-200 flex items-center justify-center
+                        group-hover:border-blue-100 transition-colors">
                         <FileText className="w-5 h-5 text-slate-600" />
                       </div>
+
                       <div className="flex-1">
                         <div className="flex items-center gap-4">
-                          <h3 className="text-base font-medium text-slate-900 w-48">{doc.name}</h3>
+                          {/* Document Name */}
+                          <h3 className="text-base font-medium text-slate-900 w-48">
+                            {doc.name}
+                          </h3>
+
                           {/* Progress States */}
                           <div className="flex items-center gap-20 flex-1 justify-center">
-                            {status.states.map((state, index, array) => (
-                              <Fragment key={state.name}>
-                                <ProcessState 
-                                  state={state.name}
-                                  status={state.status}
-                                  validationErrors={state.validationErrors}
-                                />
-                              </Fragment>
+                            {status.states.map((state) => (
+                              <ProcessState 
+                                key={state.name}
+                                state={state.name}
+                                status={state.status}
+                                validationErrors={state.validationErrors}
+                              />
                             ))}
                           </div>
+
                           {/* Status Badge */}
                           {status.message && (
-                            <span className={`text-sm font-medium px-3 py-1 rounded-full border shadow-sm backdrop-blur-sm whitespace-nowrap ${status.messageClass}`}>
+                            <span className={`text-sm font-medium px-3 py-1 rounded-full border 
+                              shadow-sm backdrop-blur-sm whitespace-nowrap transition-colors
+                              ${status.messageClass}`}>
                               {status.message}
                             </span>
                           )}
                         </div>
                       </div>
                     </div>
-
-                    {/* Error Messages */}
-                    {doc.errors?.map((error, i) => (
-                      <div key={i} className="mt-3 text-rose-600 text-sm bg-rose-50/50 px-3 py-2 rounded-lg border border-rose-100">
-                        {error}
-                      </div>
-                    ))}
                   </div>
                 );
               })}
@@ -767,32 +768,64 @@ const DocumentStatusCards = ({ cases }) => {
   );
 };
 
-DocumentStatusCards.propTypes = {
-  cases: PropTypes.arrayOf(
-    PropTypes.shape({
-      _id: PropTypes.string.isRequired,
-      documentTypes: PropTypes.arrayOf(
-        PropTypes.shape({
-          name: PropTypes.string.isRequired,
-          status: PropTypes.string.isRequired,
-          errors: PropTypes.arrayOf(PropTypes.string)
-        })
-      ).isRequired
-    })
-  ).isRequired
-};
-
 const FNDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { setCurrentBreadcrumb } = useBreadcrumb();
   const [loading, setLoading] = useState(true);
-  const [currentUserCases, setCurrentUserCases] = useState([]);
-  const [otherUserCases, setOtherUserCases] = useState({});
+  const [cases, setCases] = useState([]);
+  const [pendingCase, setPendingCase] = useState(null);
   const [timeOfDay, setTimeOfDay] = useState('');
 
-  console.log('FNDashboard rendering, user:', user);
-  console.log('currentUserCases:', currentUserCases);
+  useEffect(() => {
+    const fetchPendingDocuments = async () => {
+      try {
+        if (!user?.id) return;
+        
+        const response = await api.get('/management/users-with-documents', {
+          params: {
+            userIds: user.id
+          }
+        });
+
+        if (response.data.status === 'success') {
+          const allCases = response.data.data.entries || [];
+          setCases(allCases);
+          
+          // Sort by updatedAt to get the most recent case
+          const sortedCases = allCases.sort((a, b) => 
+            new Date(b.updatedAt) - new Date(a.updatedAt)
+          );
+
+          // Find the first case that has any pending documents
+          const caseWithPendingDocs = sortedCases.find(caseItem => 
+            caseItem.documentTypes?.some(doc => doc.status === 'pending')
+          );
+
+          if (caseWithPendingDocs) {
+            setPendingCase(caseWithPendingDocs);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching pending documents:', error);
+        toast.error('Failed to fetch pending documents');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPendingDocuments();
+  }, [user?.id]);
+
+  const handleCaseClick = () => {
+    if (pendingCase?._id) {
+      setCurrentBreadcrumb([
+        { label: 'All Cases', link: '/individual-cases' },
+        { label: pendingCase.categoryName, link: `/individuals/case/${pendingCase._id}` }
+      ]);
+      navigate(`/individuals/case/${pendingCase._id}`);
+    }
+  };
 
   const getTimeIcon = () => {
     switch (timeOfDay) {
@@ -876,95 +909,6 @@ const FNDashboard = () => {
     };
   };
 
-  // Fetch related users
-  const fetchRelatedUsers = async () => {
-    try {
-      if (!user?.id) return [];
-      
-      const response = await api.get(`/auth/user-relationships/${user.id}`);
-      
-      if (response.data.status === 'success') {
-        const relationships = response.data.data.relationships || [];
-        const relatedUserIds = relationships.map(rel => rel.user_id._id);
-        return [user.id, ...relatedUserIds];
-      }
-      return [user.id];
-    } catch (error) {
-      console.error('Error fetching user relationships:', error);
-      toast.error('Failed to fetch related users');
-      return [user.id];
-    }
-  };
-
-  // Fetch all cases for users
-  const fetchAllUsersCases = async (userIds) => {
-    try {
-      if (!userIds.length) {
-        console.log('No user IDs available');
-        return;
-      }
-
-      const response = await api.get('/management/users-with-documents', {
-        params: {
-          userIds: userIds.join(',')
-        }
-      });
-
-      if (response.data.status === 'success') {
-        const cases = response.data.data.entries || [];
-        processAndSeparateCases(cases);
-      }
-    } catch (error) {
-      console.error('Error fetching cases:', error);
-      toast.error('Failed to fetch cases');
-    }
-  };
-
-  // Process cases and separate current user's cases from others
-  const processAndSeparateCases = (cases) => {
-    console.log('Processing cases:', cases);
-    const currentUserName = user?.name || user?.email || '';
-    const userCases = cases
-      .filter(caseItem => caseItem.userName === currentUserName)
-      .map(caseItem => ({
-        ...caseItem,
-        ...getStepMapping(caseItem)
-      }));
-    
-    console.log('Filtered user cases:', userCases);
-    setCurrentUserCases(userCases);
-    
-    const otherUsersGrouped = cases
-      .filter(caseItem => caseItem.userName !== currentUserName)
-      .reduce((acc, caseItem) => {
-        const userName = caseItem.userName || 'Unknown User';
-        if (!acc[userName]) {
-          acc[userName] = [];
-        }
-        const caseWithSteps = {
-          ...caseItem,
-          ...getStepMapping(caseItem)
-        };
-        acc[userName].push(caseWithSteps);
-        return acc;
-      }, {});
-    
-    setOtherUserCases(otherUsersGrouped);
-    setLoading(false);
-  };
-
-  // Initial load
-  useEffect(() => {
-    if (user?.id) {
-      const loadData = async () => {
-        setLoading(true);
-        const userIds = await fetchRelatedUsers();
-        await fetchAllUsersCases(userIds);
-      };
-      loadData();
-    }
-  }, [user?.id]);
-
   if (loading) {
     return <DashboardSkeleton />;
   }
@@ -995,15 +939,58 @@ const FNDashboard = () => {
             </div>
           </div>
           
-          <ProfileCard />
+          <ProfileCard 
+            cases={cases}
+            pendingCase={pendingCase}
+            onCaseClick={handleCaseClick}
+            setCurrentBreadcrumb={setCurrentBreadcrumb}
+            navigate={navigate}
+          />
           
-          {currentUserCases.length > 0 && (
-            <DocumentStatusCards cases={currentUserCases} />
+          {cases.length > 0 && (
+            <DocumentStatusCards cases={cases} />
           )}
         </div>
       </div>
     </div>
   );
+};
+
+// Add this after your DocumentStatusCards component
+DocumentStatusCards.propTypes = {
+  cases: PropTypes.arrayOf(
+    PropTypes.shape({
+      _id: PropTypes.string.isRequired,
+      categoryName: PropTypes.string.isRequired,
+      documentTypes: PropTypes.arrayOf(
+        PropTypes.shape({
+          _id: PropTypes.string.isRequired,
+          documentTypeId: PropTypes.string.isRequired,
+          name: PropTypes.string.isRequired,
+          status: PropTypes.string.isRequired,
+          errors: PropTypes.arrayOf(PropTypes.string),
+          document: PropTypes.shape({
+            validationResults: PropTypes.shape({
+              validations: PropTypes.arrayOf(
+                PropTypes.shape({
+                  passed: PropTypes.bool,
+                  message: PropTypes.string
+                })
+              )
+            })
+          })
+        })
+      ).isRequired,
+      verificationResults: PropTypes.shape({
+        mismatchErrors: PropTypes.arrayOf(PropTypes.object),
+        missingErrors: PropTypes.arrayOf(PropTypes.object),
+        summarizationErrors: PropTypes.arrayOf(PropTypes.object),
+        verifiedAt: PropTypes.string
+      }),
+      updatedAt: PropTypes.string.isRequired,
+      categoryStatus: PropTypes.string.isRequired
+    })
+  ).isRequired
 };
 
 export default FNDashboard;

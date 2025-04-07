@@ -27,6 +27,12 @@ import { useState, useEffect, useRef } from 'react';
 import api from '../../utils/api';
 // import { getStoredToken } from '../../utils/auth';
 
+/**
+ * Sidebar component for dashboard navigation
+ * @param {Object} props - Component props
+ * @param {boolean} props.collapsed - Whether sidebar is collapsed
+ * @param {Function} props.setCollapsed - Function to toggle sidebar collapse state
+ */
 const Sidebar = ({ collapsed, setCollapsed }) => {
   const location = useLocation();
   const { user, loading, logout } = useAuth();
@@ -43,7 +49,10 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
   // Get token from auth context
   // const token = localStorage.getItem('token'); // We'll keep this temporarily for debugging
 
-  // Fetch user relationships
+  /**
+   * Fetches user relationships from the API
+   * Only for individual or employee roles
+   */
   useEffect(() => {
     const fetchRelationships = async () => {
       if (user && (user.role === 'individual' || user.role === 'employee')) {
@@ -74,7 +83,10 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
     }
   }, [user]);
 
-  // Get navigation based on role
+  /**
+   * Returns navigation items based on user role
+   * Different menus for admin/attorney/manager vs individual/employee
+   */
   const getNavigation = () => {
     if (!user?.role) return [];
 
@@ -141,7 +153,10 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
     }
   };
 
-  // Handle click outside for menus
+  /**
+   * Handles clicks outside of menus to close them
+   * Manages multiple menu states: main menu, new menu, and customer submenu
+   */
   useEffect(() => {
     const handleClickOutside = (event) => {
       // Check if clicked outside all menus
@@ -177,7 +192,10 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Auto-hide menus only after mouse leaves
+  /**
+   * Manages auto-hide behavior for menus
+   * Cleans up timeouts when menus are closed
+   */
   useEffect(() => {
     if (showMenu || showNewMenu || showCustomerSubmenu) {
       // Don't set auto-hide timeout here - we'll only set it on mouse leave
@@ -189,6 +207,9 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
     }
   }, [showMenu, showNewMenu, showCustomerSubmenu]);
 
+  /**
+   * Clears auto-hide timeout when mouse enters menu
+   */
   const handleMenuMouseEnter = () => {
     // Clear any existing timeout when mouse enters the menu
     if (menuTimeoutRef.current) {
@@ -197,6 +218,9 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
     }
   };
 
+  /**
+   * Sets timeout to auto-hide menus when mouse leaves
+   */
   const handleMenuMouseLeave = () => {
     // Only set timeout when mouse leaves
     if (!menuTimeoutRef.current) {
@@ -209,16 +233,43 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
     }
   };
 
+  /**
+   * Checks if a navigation item is currently active
+   * Handles parent-child route relationships
+   */
   const isActive = (href) => {
     // Special case for Knowledge Base - it should be active for all /knowledge routes
     if (href === '/knowledge') {
       return location.pathname.startsWith('/knowledge');
+    }
+
+    // Handle parent-child relationships for main sections
+    if (href === '/cases') {
+      return location.pathname === '/cases' || location.pathname.startsWith('/cases/');
+    }
+
+    if (href === '/corporations') {
+      // Match /corporations and any path that starts with /corporations/
+      return location.pathname === '/corporations' || location.pathname.startsWith('/corporations/');
+    }
+
+    if (href === '/individuals') {
+      // Match /individuals and any path that starts with /individuals/
+      return location.pathname === '/individuals' || location.pathname.startsWith('/individuals/');
+    }
+
+    if (href === '/individual-cases') {
+      // Match /individual-cases and any path that includes /individuals/case/
+      return location.pathname === '/individual-cases' || location.pathname.includes('/individuals/case/');
     }
     
     // For other paths, exact match
     return location.pathname === href;
   };
 
+  /**
+   * Handles user logout
+   */
   const handleLogout = async () => {
     try {
       await logout();
@@ -234,6 +285,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
     <div className={`fixed inset-y-0 left-0 z-50 border-r-2 border-[#c0c4d4] transition-all duration-300 ease-in-out bg-gradient-start/20 backdrop-blur-md
       ${collapsed ? 'w-16' : 'w-56'}`}
     >
+      {/* Main sidebar container */}
       <div className="flex h-full flex-col">
         {/* Logo section */}
         <div className="flex h-16 items-center">
@@ -249,7 +301,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
           )}
         </div>
 
-        {/* New button - only show for admin/attorney/manager */}
+        {/* New button section - only visible for admin/attorney/manager */}
         {showNewButton && (
           <div className="px-4 mt-2 relative" ref={newMenuRef}>
             <button 
@@ -370,7 +422,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
           </div>
         )}
 
-        {/* Navigation */}
+        {/* Main navigation section */}
         <nav className="flex-1 space-y-1 px-3 py-4">
           {getNavigation().map((item, index) => (
             item.section ? (
@@ -500,7 +552,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
           ))}
         </nav>
 
-        {/* User section */}
+        {/* User profile section */}
         <div className="border-t border-[#c0c4d4] p-4">
           <div className="flex items-center space-x-3">
             <Link 

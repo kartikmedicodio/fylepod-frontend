@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { getStoredUser } from '../utils/auth';
 import { ChevronLeft, ChevronRight, Search, CirclePlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '../utils/api';
 import { usePage } from '../contexts/PageContext';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
@@ -213,66 +213,80 @@ const Individuals = () => {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        {/* Table Header */}
-        <div className="grid grid-cols-3 px-6 py-3 border-b border-gray-200 bg-gray-50">
-          <div className="text-sm font-medium text-gray-500">ID</div>
-          <div className="text-sm font-medium text-gray-500">Name</div>
-          <div className="text-sm font-medium text-gray-500">Email</div>
-        </div>
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm"
+      >
+        <table className="w-full">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Individual ID</th>
+              <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Name</th>
+              <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Email</th>
+            </tr>
+          </thead>
+          <tbody>
+            {currentIndividuals.map((individual) => (
+              <motion.tr 
+                key={individual._id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="border-b border-gray-100 hover:bg-blue-50/50 cursor-pointer
+                         transition-colors duration-200"
+                onClick={() => handleRowClick(individual._id)}
+              >
+                <td className="px-6 py-4 text-sm font-medium text-gray-900">{individual._id.slice(-8)}</td>
+                <td className="px-6 py-4 text-sm text-gray-700">{individual.name}</td>
+                <td className="px-6 py-4 text-sm text-gray-700">{individual.email}</td>
+              </motion.tr>
+            ))}
+          </tbody>
+        </table>
 
-        {/* Table Body */}
-        {currentIndividuals.length === 0 ? (
-          <div className="px-6 py-8 text-center">
-            <p className="text-gray-500 text-sm">No individuals found</p>
-          </div>
-        ) : (
-          currentIndividuals.map((individual) => (
-            <div
-              key={individual._id}
-              onClick={() => handleRowClick(individual._id)}
-              className="grid grid-cols-3 px-6 py-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors duration-200"
-            >
-              <div className="text-sm font-medium text-gray-500">{individual._id.slice(-8)}</div>
-              <div className="text-sm font-medium text-gray-900">{individual.name}</div>
-              <div className="text-sm text-gray-500">{individual.email}</div>
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Pagination */}
-      {filteredIndividuals.length > 0 && (
-        <div className="flex items-center justify-between mt-4 px-2">
-          <div className="text-sm text-gray-500">
-            Showing {startIndex + 1} to {Math.min(endIndex, filteredIndividuals.length)} of {filteredIndividuals.length} individuals
-          </div>
-          <div className="flex items-center space-x-2">
+        {/* Enhanced Pagination Section */}
+        <div className="px-6 py-4 border-t border-gray-100 flex justify-between items-center bg-gray-50">
+          <span className="text-sm text-gray-600">
+            Showing {startIndex + 1} - {Math.min(endIndex, filteredIndividuals.length)} of {filteredIndividuals.length}
+          </span>
+          <div className="flex items-center gap-3">
             <button
               onClick={() => handlePageChange(pagination.currentPage - 1)}
               disabled={pagination.currentPage === 1}
-              className={`p-2 rounded-lg border ${
-                pagination.currentPage === 1
-                  ? 'border-gray-200 text-gray-300 cursor-not-allowed'
-                  : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}
+              className={`p-2 rounded-lg border transition-all duration-200 ${pagination.currentPage === 1 ? 'text-gray-300 border-gray-200 cursor-not-allowed' : 'text-gray-600 border-gray-200 hover:bg-gray-100 active:transform active:scale-95'}`}
             >
-              <ChevronLeft size={16} />
+              <ChevronLeft size={18} />
             </button>
+
+            <span className="text-sm font-medium text-gray-700">
+              Page {pagination.currentPage} of {Math.ceil(filteredIndividuals.length / pagination.itemsPerPage)}
+            </span>
+
             <button
               onClick={() => handlePageChange(pagination.currentPage + 1)}
-              disabled={pagination.currentPage === pagination.totalPages}
-              className={`p-2 rounded-lg border ${
-                pagination.currentPage === pagination.totalPages
-                  ? 'border-gray-200 text-gray-300 cursor-not-allowed'
-                  : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}
+              disabled={pagination.currentPage === Math.ceil(filteredIndividuals.length / pagination.itemsPerPage)}
+              className={`p-2 rounded-lg border transition-all duration-200 ${pagination.currentPage === Math.ceil(filteredIndividuals.length / pagination.itemsPerPage) ? 'text-gray-300 border-gray-200 cursor-not-allowed' : 'text-gray-600 border-gray-200 hover:bg-gray-100 active:transform active:scale-95'}`}
             >
-              <ChevronRight size={16} />
+              <ChevronRight size={18} />
             </button>
           </div>
         </div>
-      )}
+      </motion.div>
+
+      {/* Enhanced No Results Message */}
+      <AnimatePresence>
+        {!loading && filteredIndividuals.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl mt-4"
+          >
+            <p className="text-lg">No individuals found {searchQuery && `for "${searchQuery}"`}</p>
+            <p className="text-sm text-gray-400 mt-1">Try adjusting your search</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
