@@ -764,22 +764,51 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   }, [questionnaireData]);
 
   const handleInputChange = (section, field, value) => {
-    // Update formData with the new value
-    setFormData(prev => ({
-      ...prev,
-      [section]: {
-        ...prev[section],
-        [field]: value
-      }
-    }));
+    // Special handling for educational qualification
+    if (field === 'educationalQualification') {
+      // For educational qualification, ensure proper object structure
+      setFormData(prev => {
+        const newData = { ...prev };
+        
+        // Ensure the section exists
+        if (!newData[section]) {
+          newData[section] = {};
+        }
+        
+        // Handle array or object format for educationalQualification
+        if (Array.isArray(value)) {
+          newData[section][field] = value;
+        } else if (typeof value === 'object') {
+          // If it's an object, merge with existing data
+          newData[section][field] = {
+            ...(newData[section][field] || {}),
+            ...value
+          };
+        } else {
+          // If it's a simple value, just assign it
+          newData[section][field] = value;
+        }
+        
+        return newData;
+      });
+    } else {
+      // For regular fields
+      setFormData(prev => ({
+        ...prev,
+        [section]: {
+          ...(prev[section] || {}),
+          [field]: value
+        }
+      }));
+    }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (passedFormData) => {
     try {
       setIsSavingQuestionnaire(true);
       
-      // Store current form data for updating states after save
-      const currentFormData = { ...formData };
+      // Use passed form data if provided, otherwise use current state
+      const currentFormData = passedFormData || { ...formData };
       
       const response = await api.put(`/questionnaire-responses/management/${caseId}`, {
         templateId: selectedQuestionnaire._id,
@@ -792,14 +821,21 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         // Update savedFields to match the current form data
         setSavedFields(currentFormData);
         
-        setIsQuestionnaireCompleted(true);
-        setActiveTab('forms');
+        // After a brief delay to show the success animation,
+        // mark questionnaire as complete and move to forms tab
+        setTimeout(() => {
+          setIsQuestionnaireCompleted(true);
+          setActiveTab('forms');
+        }, 1000); // 1 second delay to show the success animation
       }
     } catch (error) {
       console.error('Error saving questionnaire:', error);
       toast.error('Failed to save changes');
     } finally {
-      setIsSavingQuestionnaire(false);
+      // Keep animation for at least 1 second for better UX
+      setTimeout(() => {
+        setIsSavingQuestionnaire(false);
+      }, 1000);
     }
   };
 
@@ -1794,19 +1830,29 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       setSavedFields(updatedData);
     };
     
+    // Function to handle save success
+    const handleSaveSuccess = () => {
+      // Show success message
+      toast.success('Changes saved successfully');
+      
+      // After a delay, navigate to forms tab
+      setTimeout(() => {
+        setIsQuestionnaireCompleted(true);
+        setActiveTab('forms');
+      }, 1000);
+    };
+    
     return (
       <QuestionnaireForm
         questionnaire={questionnaire}
         onBack={onBack}
         formData={formData}
-        setFormData={handleInputChange}
+        setFormData={setFormData} // Pass the setter directly
         caseId={caseId}
         savedFields={savedFields}
         setSavedFields={formDataUpdate}
-        onComplete={() => {
-          setIsQuestionnaireCompleted(true);
-          setActiveTab('forms');
-        }}
+        onComplete={handleSave} // Pass the handleSave function
+        isSaving={isSavingQuestionnaire} // Pass the isSavingQuestionnaire state for animation
         getTemplateId={() => selectedQuestionnaire._id}
         eduFieldCount={3}
         eduFieldNames={['degree', 'institution', 'years']}

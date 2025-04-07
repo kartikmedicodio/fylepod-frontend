@@ -22,12 +22,17 @@ const QuestionnaireForm = ({
   // Define education field names based on version
   eduFieldNames = ['degree', 'institution', 'years'],
   // Specify template ID access path (selectedQuestionnaire._id vs questionnaire._id)
-  getTemplateId = (questionnaire) => questionnaire._id
+  getTemplateId = (questionnaire) => questionnaire._id,
+  // Optional external isSaving state
+  isSaving: externalIsSaving
 }) => {
   const [showOnlyEmpty, setShowOnlyEmpty] = useState(false);
   const [localFormData, setLocalFormData] = useState(formData);
-  const [isSaving, setIsSaving] = useState(false);
+  const [localIsSaving, setLocalIsSaving] = useState(false);
   const [editingFields, setEditingFields] = useState({});
+
+  // Use external isSaving state if provided, otherwise use local
+  const isSaving = externalIsSaving !== undefined ? externalIsSaving : localIsSaving;
 
   // Update local form data when parent form data changes
   useEffect(() => {
@@ -197,11 +202,19 @@ const QuestionnaireForm = ({
   // Function to handle form save
   const handleLocalSave = async () => {
     try {
-      setIsSaving(true);
+      setLocalIsSaving(true);
       
       // Update parent state
       setFormData(localFormData);
       
+      // If we have an external save handler, use it
+      if (onComplete) {
+        // For CaseDetails.jsx or FNCaseDetails.jsx that handle their own saving
+        onComplete(localFormData);
+        return; // Exit early since external component will handle the save
+      }
+      
+      // Otherwise, perform local save
       const response = await api.put(`/questionnaire-responses/management/${caseId}`, {
         templateId: getTemplateId(questionnaire),
         processedInformation: localFormData
@@ -233,7 +246,7 @@ const QuestionnaireForm = ({
       console.error('Error saving questionnaire:', error);
       toast.error('Failed to save changes');
     } finally {
-      setIsSaving(false);
+      setLocalIsSaving(false);
     }
   };
 

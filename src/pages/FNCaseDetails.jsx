@@ -1177,10 +1177,13 @@ const FNCaseDetails = () => {
     });
   };
 
-  const handleSave = async () => {
+  const handleSave = async (passedFormData) => {
     try {
-      // Store a reference to the current form data
-      const currentFormData = { ...formData };
+      // Set saving state to true to show animation
+      setIsSavingQuestionnaire(true);
+      
+      // Use passed form data if available, otherwise use current state
+      const currentFormData = passedFormData || { ...formData };
       
       const response = await api.put(`/questionnaire-responses/management/${caseId}`, {
         templateId: selectedQuestionnaire._id,
@@ -1202,6 +1205,9 @@ const FNCaseDetails = () => {
     } catch (error) {
       console.error('Error saving questionnaire:', error);
       toast.error('Failed to save changes');
+    } finally {
+      // Set saving state back to false when complete
+      setIsSavingQuestionnaire(false);
     }
   };
 
@@ -2204,7 +2210,7 @@ const FNCaseDetails = () => {
         questionnaire={questionnaire}
         onBack={onBack}
         formData={formData}
-        setFormData={handleInputChange}
+        setFormData={setFormData} // Pass the setter directly to properly update the state
         caseId={caseId}
         savedFields={savedFields}
         questionnaireStatus={questionnaireStatus}
@@ -2213,6 +2219,8 @@ const FNCaseDetails = () => {
         trackEditing={true}
         eduFieldCount={4}
         eduFieldNames={['institution', 'courseLevel', 'specialization', 'gpa']}
+        onComplete={handleSave} // Pass the save handler for save button functionality
+        isSaving={isSavingQuestionnaire} // Pass the saving state for animation
       />
     );
   };
