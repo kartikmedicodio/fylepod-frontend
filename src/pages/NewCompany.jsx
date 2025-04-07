@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Building2, 
   Phone,
-  User
+  User,
+  X
 } from 'lucide-react';
 import api from '../utils/api';
-import { toast } from 'sonner';
+import toast from 'react-hot-toast';
 import PropTypes from 'prop-types';
 import { useAuth } from '../contexts/AuthContext';
 import Select from 'react-select';
@@ -21,6 +22,15 @@ const NewCompany = () => {
   const [attorneys, setAttorneys] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  
+  const [validationErrors, setValidationErrors] = useState({
+    name: '',
+    contactName: '',
+    phoneNumber: '',
+    address: ''
+  });
+
   const [formData, setFormData] = useState({
     name: '',
     contactName: '',
@@ -80,11 +90,93 @@ const NewCompany = () => {
     }
   }, [user]);
 
+  // Validation functions
+  const validateCompanyName = (name) => {
+    if (!name.trim()) return 'Company name is required';
+    if (name.trim().length < 2) return 'Company name must be at least 2 characters';
+    return '';
+  };
+
+  const validateContactName = (name) => {
+    if (!name.trim()) return 'Contact name is required';
+    if (name.trim().length < 2) return 'Contact name must be at least 2 characters';
+    if (!/^[a-zA-Z\s]*$/.test(name)) return 'Contact name should only contain letters and spaces';
+    return '';
+  };
+
+  const validatePhoneNumber = (number) => {
+    if (!number.trim()) return 'Phone number is required';
+    const digitsOnly = number.replace(/\D/g, '');
+    if (digitsOnly.length !== 10) {
+      return 'Phone number must be exactly 10 digits';
+    }
+    if (!/^\d{10}$/.test(digitsOnly)) {
+      return 'Invalid phone number format';
+    }
+    return '';
+  };
+
+  const validateAddress = (address) => {
+    if (!address.trim()) return 'Address is required';
+    if (address.trim().length < 5) return 'Address must be at least 5 characters';
+    return '';
+  };
+
+  // Update isFormValid to use validation functions
+  const isFormValid = () => {
+    const nameError = validateCompanyName(formData.name);
+    const contactError = validateContactName(formData.contactName);
+    const phoneError = validatePhoneNumber(formData.phoneNumber);
+    const addressError = validateAddress(formData.address);
+    
+    return (
+      !nameError &&
+      !contactError &&
+      !phoneError &&
+      !addressError &&
+      formData.assignedAttorney !== ''
+    );
+  };
+
   const handleInputChange = (field, value) => {
+    // For phone numbers, only allow digits and format them
+    if (field === 'phoneNumber') {
+      // Remove any non-digit characters
+      const digitsOnly = value.replace(/\D/g, '');
+      // Limit to 10 digits
+      const truncated = digitsOnly.slice(0, 10);
+      // Format as: XXX-XXX-XXXX
+      const formatted = truncated.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
+      value = truncated.length ? formatted : truncated;
+    }
+
     setFormData(prev => ({
       ...prev,
       [field]: value
     }));
+
+    // Validate and update errors
+    let error = '';
+    switch(field) {
+      case 'name':
+        error = validateCompanyName(value);
+        setValidationErrors(prev => ({ ...prev, name: error }));
+        break;
+      case 'contactName':
+        error = validateContactName(value);
+        setValidationErrors(prev => ({ ...prev, contactName: error }));
+        break;
+      case 'phoneNumber':
+        error = validatePhoneNumber(value);
+        setValidationErrors(prev => ({ ...prev, phoneNumber: error }));
+        break;
+      case 'address':
+        error = validateAddress(value);
+        setValidationErrors(prev => ({ ...prev, address: error }));
+        break;
+      default:
+        break;
+    }
   };
 
   const handleAttorneySelect = (selectedOption) => {
@@ -94,18 +186,64 @@ const NewCompany = () => {
     }));
   };
 
-  const isFormValid = () => {
-    return (
-      formData.name.trim() !== '' &&
-      formData.contactName.trim() !== '' &&
-      formData.phoneNumber.trim() !== '' &&
-      formData.assignedAttorney !== '' &&
-      formData.address.trim() !== ''
-    );
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validate all fields before submission
+    const nameError = validateCompanyName(formData.name);
+    const contactError = validateContactName(formData.contactName);
+    const phoneError = validatePhoneNumber(formData.phoneNumber);
+    const addressError = validateAddress(formData.address);
+
+    // Update all validation errors
+    setValidationErrors({
+      name: nameError,
+      contactName: contactError,
+      phoneNumber: phoneError,
+      address: addressError
+    });
+
+    // Check if there are any validation errors
+    if (nameError || contactError || phoneError || addressError || !formData.assignedAttorney) {
+      toast.custom(
+        (t) => (
+          <div
+            className={`${
+              t.visible ? 'animate-enter' : 'animate-leave'
+            } max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}
+          >
+            <div className="flex-1 w-0 p-4">
+              <div className="flex items-start">
+                <div className="flex-shrink-0 pt-0.5">
+                  <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
+                    <X className="h-6 w-6 text-red-600" />
+                  </div>
+                </div>
+                <div className="ml-3 flex-1">
+                  <p className="text-sm font-medium text-gray-900">
+                    Validation Error
+                  </p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Please fix all validation errors before submitting
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex border-l border-gray-200">
+              <button
+                onClick={() => toast.dismiss(t.id)}
+                className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-red-600 hover:text-red-500 focus:outline-none"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        ),
+        { duration: 4000 }
+      );
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -123,6 +261,16 @@ const NewCompany = () => {
       const response = await api.post('/companies/create', payload);
       
       if (response.data.success) {
+        toast.success('Company created successfully!', {
+          style: {
+            background: '#10B981',
+            color: '#FFFFFF'
+          },
+          iconTheme: {
+            primary: '#FFFFFF',
+            secondary: '#10B981'
+          }
+        });
         setShowSuccess(true);
         setTimeout(() => {
           navigate(`/companies/${response.data.data._id}/admin/new`);
@@ -131,7 +279,43 @@ const NewCompany = () => {
         throw new Error(response.data.message || 'Failed to create company');
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || error.message || 'Failed to create company');
+      const errorMessage = error.response?.data?.message || error.message;
+      toast.custom(
+        (t) => (
+          <div
+            className={`${
+              t.visible ? 'animate-enter' : 'animate-leave'
+            } max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}
+          >
+            <div className="flex-1 w-0 p-4">
+              <div className="flex items-start">
+                <div className="flex-shrink-0 pt-0.5">
+                  <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
+                    <X className="h-6 w-6 text-red-600" />
+                  </div>
+                </div>
+                <div className="ml-3 flex-1">
+                  <p className="text-sm font-medium text-gray-900">
+                    Failed to Create Company
+                  </p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {errorMessage}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex border-l border-gray-200">
+              <button
+                onClick={() => toast.dismiss(t.id)}
+                className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-red-600 hover:text-red-500 focus:outline-none"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        ),
+        { duration: 4000 }
+      );
     } finally {
       setLoading(false);
     }
@@ -160,6 +344,21 @@ const NewCompany = () => {
             </div>
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Company Created!</h2>
             <p className="text-gray-600">{formData.name} has been added successfully</p>
+          </div>
+        </div>
+      )}
+
+      {/* Error Message */}
+      {submitError && (
+        <div className="mb-6 p-4 bg-rose-50 border border-rose-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <svg className="w-5 h-5 text-rose-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <h3 className="text-sm font-medium text-rose-800">Failed to Create Company</h3>
+              <p className="mt-1 text-sm text-rose-700">{submitError}</p>
+            </div>
           </div>
         </div>
       )}
@@ -271,9 +470,12 @@ const NewCompany = () => {
                       placeholder="Enter company name"
                       required
                       className={`block w-full rounded-lg border ${
-                        !formData.name.trim() ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
+                        validationErrors.name ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
                       } py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors`}
                     />
+                    {validationErrors.name && (
+                      <p className="mt-1 text-sm text-rose-500">{validationErrors.name}</p>
+                    )}
                   </div>
 
                   {/* Contact Name */}
@@ -289,9 +491,12 @@ const NewCompany = () => {
                       placeholder="Enter contact name"
                       required
                       className={`block w-full rounded-lg border ${
-                        !formData.contactName.trim() ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
+                        validationErrors.contactName ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
                       } py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors`}
                     />
+                    {validationErrors.contactName && (
+                      <p className="mt-1 text-sm text-rose-500">{validationErrors.contactName}</p>
+                    )}
                   </div>
 
                   {/* Phone Number */}
@@ -307,9 +512,12 @@ const NewCompany = () => {
                       placeholder="Enter phone number"
                       required
                       className={`block w-full rounded-lg border ${
-                        !formData.phoneNumber.trim() ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
+                        validationErrors.phoneNumber ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
                       } py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors`}
                     />
+                    {validationErrors.phoneNumber && (
+                      <p className="mt-1 text-sm text-rose-500">{validationErrors.phoneNumber}</p>
+                    )}
                   </div>
 
                   {/* Company Address */}
@@ -325,9 +533,12 @@ const NewCompany = () => {
                       placeholder="Enter company address"
                       required
                       className={`block w-full rounded-lg border ${
-                        !formData.address.trim() ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
+                        validationErrors.address ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
                       } py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors`}
                     />
+                    {validationErrors.address && (
+                      <p className="mt-1 text-sm text-rose-500">{validationErrors.address}</p>
+                    )}
                   </div>
                 </div>
 
