@@ -1,20 +1,66 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Lock, ArrowRight, CheckCircle, Eye, EyeOff, X } from 'lucide-react';
+import { Lock, ArrowRight, CheckCircle, Eye, EyeOff, X, AlertCircle, AlertTriangle } from 'lucide-react';
 
 const RequirementIndicator = ({ met, text }) => (
-  <div className="flex items-center gap-2">
-    {met ? (
-      <CheckCircle className="w-4 h-4 text-green-500" />
-    ) : (
-      <X className="w-4 h-4 text-gray-400" />
-    )}
-    <span className={`text-sm ${met ? 'text-green-600' : 'text-gray-600'}`}>
-      {text}
-    </span>
+  <div className="flex items-center gap-1.5">
+    <X className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+    <span className="text-xs text-red-600">{text}</span>
   </div>
 );
+
+const PasswordStrengthIndicator = ({ requirements, isVisible }) => {
+  if (!isVisible) return null;
+
+  const getValidationMessage = () => {
+    const messages = [];
+    if (!requirements.minLength) {
+      messages.push("At least 8 characters");
+    }
+    if (!requirements.hasUppercase) {
+      messages.push("One uppercase letter");
+    }
+    if (!requirements.hasLowercase) {
+      messages.push("One lowercase letter");
+    }
+    if (!requirements.hasNumber) {
+      messages.push("One number");
+    }
+    if (!requirements.hasSpecial) {
+      messages.push("One special character (!@#$%^&*)");
+    }
+    
+    if (messages.length === 0) {
+      return (
+        <div className="flex items-center gap-2 text-green-600">
+          <CheckCircle className="w-4 h-4 flex-shrink-0" />
+          <span className="text-sm">Password requirements met</span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center gap-2 text-gray-600">
+        <AlertCircle className="w-4 h-4 flex-shrink-0 text-blue-500" />
+        <span className="text-sm">
+          Should contain {messages.join(", ")}
+        </span>
+      </div>
+    );
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className="mt-2"
+    >
+      {getValidationMessage()}
+    </motion.div>
+  );
+};
 
 const ResetPassword = () => {
   const [password, setPassword] = useState('');
@@ -24,6 +70,7 @@ const ResetPassword = () => {
   const [validToken, setValidToken] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [passwordRequirements, setPasswordRequirements] = useState({
     minLength: false,
     hasUppercase: false,
@@ -258,11 +305,13 @@ const ResetPassword = () => {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className={`block w-full px-4 py-3 rounded-xl border ${
+                    onFocus={() => setIsPasswordFocused(true)}
+                    onBlur={() => setIsPasswordFocused(false)}
+                    className={`block w-full px-4 py-3 rounded-xl border outline-none ${
                       password && !isPasswordValid() 
-                        ? 'border-red-300 focus:ring-red-500' 
-                        : 'border-gray-300 focus:ring-blue-600'
-                    } placeholder-gray-400 focus:ring-2 focus:border-transparent transition-all duration-200`}
+                        ? 'border-red-300 focus:ring-red-500 focus:border-red-300' 
+                        : 'border-gray-300 focus:ring-blue-600 focus:border-blue-600'
+                    } placeholder-gray-400 focus:ring-2 focus:ring-opacity-50 transition-all duration-200`}
                     placeholder="••••••••"
                   />
                   <div className="absolute right-3 top-3.5 flex space-x-1">
@@ -280,32 +329,11 @@ const ResetPassword = () => {
                   </div>
                 </div>
 
-                {/* Password Requirements */}
-                <div className="mt-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <p className="text-sm font-medium text-gray-700 mb-3">Password must contain:</p>
-                  <div className="grid grid-cols-1 gap-2">
-                    <RequirementIndicator 
-                      met={passwordRequirements.minLength}
-                      text="At least 8 characters"
-                    />
-                    <RequirementIndicator 
-                      met={passwordRequirements.hasUppercase}
-                      text="One uppercase letter (A-Z)"
-                    />
-                    <RequirementIndicator 
-                      met={passwordRequirements.hasLowercase}
-                      text="One lowercase letter (a-z)"
-                    />
-                    <RequirementIndicator 
-                      met={passwordRequirements.hasNumber}
-                      text="One number (0-9)"
-                    />
-                    <RequirementIndicator 
-                      met={passwordRequirements.hasSpecial}
-                      text="One special character (!@#$%^&*)"
-                    />
-                  </div>
-                </div>
+                {/* Password Requirements Indicator */}
+                <PasswordStrengthIndicator 
+                  requirements={passwordRequirements}
+                  isVisible={isPasswordFocused || password.length > 0}
+                />
               </div>
 
               <div>
@@ -321,11 +349,11 @@ const ResetPassword = () => {
                     required
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className={`block w-full px-4 py-3 rounded-xl border ${
+                    className={`block w-full px-4 py-3 rounded-xl border outline-none ${
                       confirmPassword && password !== confirmPassword
-                        ? 'border-red-300 focus:ring-red-500'
-                        : 'border-gray-300 focus:ring-blue-600'
-                    } placeholder-gray-400 focus:ring-2 focus:border-transparent transition-all duration-200`}
+                        ? 'border-red-300 focus:ring-red-500 focus:border-red-300'
+                        : 'border-gray-300 focus:ring-blue-600 focus:border-blue-600'
+                    } placeholder-gray-400 focus:ring-2 focus:ring-opacity-50 transition-all duration-200`}
                     placeholder="••••••••"
                   />
                   <div className="absolute right-3 top-3.5 flex space-x-1">
