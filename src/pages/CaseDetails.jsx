@@ -38,6 +38,7 @@ import ValidationTab from '../components/cases/ValidationTab';
 import ExtractedDataTab from '../components/cases/ExtractedDataTab';
 import FinalizeTab from '../components/cases/FinalizeTab';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
+import QuestionnaireForm from '../components/QuestionnaireForm';
 
 
 // Add a new status type to track document states
@@ -175,7 +176,22 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const [formData, setFormData] = useState({
     Passport: {},
     Resume: {
-      educationalQualification: [] // Initialize as empty array
+      educationalQualification: {
+        degree: '',
+        institution: '',
+        years: ''
+      }
+    }
+  });
+  // Add savedFields state to track which fields have been saved
+  const [savedFields, setSavedFields] = useState({
+    Passport: {},
+    Resume: {
+      educationalQualification: {
+        degree: '',
+        institution: '',
+        years: ''
+      }
     }
   });
   const [forms, setForms] = useState([]);
@@ -748,33 +764,78 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   }, [questionnaireData]);
 
   const handleInputChange = (section, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [section]: {
-        ...prev[section],
-        [field]: value
-      }
-    }));
+    // Special handling for educational qualification
+    if (field === 'educationalQualification') {
+      // For educational qualification, ensure proper object structure
+      setFormData(prev => {
+        const newData = { ...prev };
+        
+        // Ensure the section exists
+        if (!newData[section]) {
+          newData[section] = {};
+        }
+        
+        // Handle array or object format for educationalQualification
+        if (Array.isArray(value)) {
+          newData[section][field] = value;
+        } else if (typeof value === 'object') {
+          // If it's an object, merge with existing data
+          newData[section][field] = {
+            ...(newData[section][field] || {}),
+            ...value
+          };
+        } else {
+          // If it's a simple value, just assign it
+          newData[section][field] = value;
+        }
+        
+        return newData;
+      });
+    } else {
+      // For regular fields
+      setFormData(prev => ({
+        ...prev,
+        [section]: {
+          ...(prev[section] || {}),
+          [field]: value
+        }
+      }));
+    }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (passedFormData) => {
     try {
       setIsSavingQuestionnaire(true);
+      
+      // Use passed form data if provided, otherwise use current state
+      const currentFormData = passedFormData || { ...formData };
+      
       const response = await api.put(`/questionnaire-responses/management/${caseId}`, {
         templateId: selectedQuestionnaire._id,
-        processedInformation: formData
+        processedInformation: currentFormData
       });
 
       if (response.data.status === 'success') {
         toast.success('Changes saved successfully');
-        setIsQuestionnaireCompleted(true);
-        setActiveTab('forms');
+        
+        // Update savedFields to match the current form data
+        setSavedFields(currentFormData);
+        
+        // After a brief delay to show the success animation,
+        // mark questionnaire as complete and move to forms tab
+        setTimeout(() => {
+          setIsQuestionnaireCompleted(true);
+          setActiveTab('forms');
+        }, 1000); // 1 second delay to show the success animation
       }
     } catch (error) {
       console.error('Error saving questionnaire:', error);
       toast.error('Failed to save changes');
     } finally {
-      setIsSavingQuestionnaire(false);
+      // Keep animation for at least 1 second for better UX
+      setTimeout(() => {
+        setIsSavingQuestionnaire(false);
+      }, 1000);
     }
   };
 
@@ -1760,381 +1821,43 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
   // Update the QuestionnaireDetailView component
   const QuestionnaireDetailView = ({ questionnaire, onBack }) => {
-    // Add state for empty fields toggle
-    const [showOnlyEmpty, setShowOnlyEmpty] = useState(false);
-    // Add local state for form data
-    const [localFormData, setLocalFormData] = useState(formData);
-
-    // Update local form data when parent form data changes
-    useEffect(() => {
-      setLocalFormData(formData);
-    }, [formData]);
-
-    // Add function to check if a field is empty
-    const isFieldEmpty = (section, field) => {
-      if (field === 'educationalQualification') {
-        const eduData = localFormData?.[section]?.[field] || [];
-        if (!Array.isArray(eduData) || eduData.length === 0) return true;
-        return eduData.some(edu => {
-          if (typeof edu === 'string') return !edu;
-          return !edu.degree || !edu.institution || !edu.years;
-        });
-      }
-      return !localFormData?.[section]?.[field];
+    // Create a function to handle form data updates
+    const formDataUpdate = (updatedData) => {
+      // Update formData with the latest changes
+      setFormData(updatedData);
+      
+      // After saving, update savedFields
+      setSavedFields(updatedData);
     };
-
-    // Update input change handler to use local state
-    const handleLocalInputChange = (section, field, value) => {
-      setLocalFormData(prev => ({
-        ...prev,
-        [section]: {
-          ...(prev[section] || {}),
-          [field]: value
-        }
-      }));
+    
+    // Function to handle save success
+    const handleSaveSuccess = () => {
+      // Show success message
+      toast.success('Changes saved successfully');
+      
+      // After a delay, navigate to forms tab
+      setTimeout(() => {
+        setIsQuestionnaireCompleted(true);
+        setActiveTab('forms');
+      }, 1000);
     };
-
-    // Update save handler to use local state
-    const handleLocalSave = async () => {
-      try {
-        setIsSavingQuestionnaire(true);
-        
-        // Update parent state
-        setFormData(localFormData);
-        
-        const response = await api.put(`/questionnaire-responses/management/${caseId}`, {
-          templateId: selectedQuestionnaire._id,
-          processedInformation: localFormData
-        });
-
-        if (response.data.status === 'success') {
-          toast.success('Changes saved successfully');
-          setIsQuestionnaireCompleted(true);
-          setActiveTab('forms');
-        }
-      } catch (error) {
-        console.error('Error saving questionnaire:', error);
-        toast.error('Failed to save changes');
-      } finally {
-        setIsSavingQuestionnaire(false);
-      }
-    };
-
-    // Add function to count filled fields using local state
-    const getFilledFieldsCount = () => {
-      let totalFields = 0;
-      let filledFields = 0;
-
-      // Count Passport fields
-      const passportFields = questionnaire.field_mappings.filter(field => field.sourceDocument === 'Passport');
-      totalFields += passportFields.length;
-      passportFields.forEach(field => {
-        if (localFormData?.Passport?.[field.fieldName]) {
-          filledFields++;
-        }
-      });
-
-      // Count Resume fields
-      const resumeFields = questionnaire.field_mappings.filter(field => field.sourceDocument === 'Resume');
-      resumeFields.forEach(field => {
-        if (field.fieldName === 'educationalQualification') {
-          totalFields += 1;
-          if (localFormData?.Resume?.educationalQualification?.length > 0) {
-            filledFields++;
-          }
-        } else {
-          totalFields += 1;
-          if (localFormData?.Resume?.[field.fieldName]) {
-            filledFields++;
-          }
-        }
-      });
-
-      return { filledFields, totalFields };
-    };
-
-    const { filledFields, totalFields } = getFilledFieldsCount();
-
-    // Add function to check if field should be visible
-    const shouldShowField = (section, field) => {
-      if (!showOnlyEmpty) return true;
-      return field.required && isFieldEmpty(section, field.fieldName);
-    };
-
+    
     return (
-      <div className="p-6">
-        {/* Header with Back Button */}
-        <div className="mb-6 flex justify-between">
-          <div className="flex items-center gap-8">
-            <button 
-              onClick={onBack}
-              className="text-gray-600 hover:text-gray-800 transition-colors"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <div className="flex items-center gap-8">
-                <h2 className="text-lg font-medium text-gray-900">Questionnaire</h2>
-              </div>
-              <p className="text-sm text-gray-600">{questionnaire.questionnaire_name}</p>
-            </div>
-          </div>
-          <div className='flex items-center gap-4'>
-            {/* Add Empty Fields Toggle Button */}
-            <button
-              onClick={() => setShowOnlyEmpty(!showOnlyEmpty)}
-              className={`px-4 py-2 rounded text-sm font-medium transition-colors flex items-center gap-2
-                ${showOnlyEmpty 
-                  ? 'bg-red-100 text-red-700 hover:bg-red-200' 
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-            >
-              {showOnlyEmpty ? (
-                <>
-                  <Eye className="w-4 h-4" />
-                  Show All Fields
-                </>
-              ) : (
-                <>
-                  <AlertCircle className="w-4 h-4" />
-                  Show Empty Fields
-                </>
-              )}
-            </button>
-
-            <div className="flex items-center gap-2">
-              <div className="text-sm text-gray-600">
-                {filledFields} out of {totalFields} fields completed
-              </div>
-              {/* Progress bar with animated dots */}
-              <div className="relative w-32">
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-green-500 transition-all duration-500"
-                    style={{ width: `${(filledFields / totalFields) * 100}%` }}
-                  />
-                </div>
-                {/* Animated dots for remaining fields */}
-                {filledFields < totalFields && (
-                  <div className="absolute top-0 left-0 w-full h-full flex items-center justify-end pr-2">
-                    <div className="flex gap-1">
-                      <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '0ms' }} />
-                      <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '200ms' }} />
-                      <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '400ms' }} />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <button
-              onClick={handleLocalSave}
-              disabled={isSavingQuestionnaire}
-              className="px-6 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isSavingQuestionnaire ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Saving...</span>
-                </>
-              ) : (
-                'Save'
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Form Content */}
-        <div className="space-y-6">
-          {/* Passport Information Section */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-sm font-medium text-gray-900 mb-4">Passport Information</h3>
-            <div className="grid grid-cols-3 gap-4">
-              {questionnaire.field_mappings
-                .filter(field => field.sourceDocument === 'Passport')
-                .map(field => (
-                  shouldShowField('Passport', field) && (
-                    <div key={field._id}>
-                      <label className="block text-xs text-gray-500 mb-1">
-                        {field.fieldName}
-                        {field.required && <span className="text-red-500 ml-1">*</span>}
-                      </label>
-                      <input
-                        type="text"
-                        value={localFormData?.Passport?.[field.fieldName] || ''}
-                        onChange={(e) => handleLocalInputChange('Passport', field.fieldName, e.target.value)}
-                        className={`w-full px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 
-                          ${field.required && isFieldEmpty('Passport', field.fieldName)
-                            ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                            : 'border-gray-200 focus:border-blue-400'
-                          }`}
-                      />
-                    </div>
-                  )
-                ))}
-            </div>
-          </div>
-
-          {/* Resume Information Section */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-sm font-medium text-gray-900 mb-4">Professional Information</h3>
-            <div className="grid grid-cols-2 gap-4">
-              {questionnaire.field_mappings
-                .filter(field => field.sourceDocument === 'Resume')
-                .map(field => {
-                  if (field.fieldName === 'educationalQualification') {
-                    // Show educational qualification section only if it should be visible
-                    return shouldShowField('Resume', field) && (
-                      <div key={field._id} className="col-span-2">
-                        <label className="block text-xs text-gray-500 mb-1">
-                          {field.fieldName}
-                          {field.required && <span className="text-red-500 ml-1">*</span>}
-                        </label>
-                        <div className="space-y-2">
-                          {Array.isArray(localFormData?.Resume?.educationalQualification)
-                            ? localFormData.Resume.educationalQualification.map((edu, index) => (
-                              <div key={index} className="grid grid-cols-3 gap-2">
-                                <input
-                                  type="text"
-                                  value={typeof edu === 'string' ? edu : edu.degree || ''}
-                                  placeholder="Degree"
-                                  onChange={(e) => {
-                                    const newEdu = [...localFormData.Resume.educationalQualification];
-                                    newEdu[index] = typeof edu === 'string' 
-                                      ? e.target.value
-                                      : { ...newEdu[index], degree: e.target.value };
-                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
-                                  }}
-                                  className={`w-full px-3 py-1.5 border rounded text-sm
-                                    ${field.required && (!edu || (typeof edu !== 'string' && !edu.degree))
-                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                                      : 'border-gray-200 focus:border-blue-400'
-                                    }`}
-                                />
-                                <input
-                                  type="text"
-                                  value={typeof edu === 'string' ? '' : edu.institution || ''}
-                                  placeholder="Institution"
-                                  onChange={(e) => {
-                                    const newEdu = [...localFormData.Resume.educationalQualification];
-                                    newEdu[index] = { 
-                                      ...(typeof edu === 'string' ? { degree: edu } : newEdu[index]), 
-                                      institution: e.target.value 
-                                    };
-                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
-                                  }}
-                                  className={`w-full px-3 py-1.5 border rounded text-sm
-                                    ${field.required && (!edu || (typeof edu !== 'string' && !edu.institution))
-                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                                      : 'border-gray-200 focus:border-blue-400'
-                                    }`}
-                                />
-                                <input
-                                  type="text"
-                                  value={typeof edu === 'string' ? '' : (edu.years || edu.duration || '')}
-                                  placeholder="Years"
-                                  onChange={(e) => {
-                                    const newEdu = [...localFormData.Resume.educationalQualification];
-                                    newEdu[index] = { 
-                                      ...(typeof edu === 'string' ? { degree: edu } : newEdu[index]), 
-                                      years: e.target.value 
-                                    };
-                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
-                                  }}
-                                  className={`w-full px-3 py-1.5 border rounded text-sm
-                                    ${field.required && (!edu || (typeof edu !== 'string' && !edu.years))
-                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                                      : 'border-gray-200 focus:border-blue-400'
-                                    }`}
-                                />
-                              </div>
-                            )) : (
-                              <div className="grid grid-cols-3 gap-2">
-                                <input
-                                  type="text"
-                                  value={localFormData?.Resume?.educationalQualification?.degree || ''}
-                                  placeholder="Degree"
-                                  onChange={(e) => {
-                                    const newEdu = { ...localFormData.Resume.educationalQualification };
-                                    newEdu.degree = e.target.value;
-                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
-                                  }}
-                                  className={`w-full px-3 py-1.5 border rounded text-sm
-                                    ${field.required && (!localFormData?.Resume?.educationalQualification?.degree || !localFormData?.Resume?.educationalQualification?.institution || !localFormData?.Resume?.educationalQualification?.years)
-                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                                      : 'border-gray-200 focus:border-blue-400'
-                                    }`}
-                                />
-                                <input
-                                  type="text"
-                                  value={localFormData?.Resume?.educationalQualification?.institution || ''}
-                                  placeholder="Institution"
-                                  onChange={(e) => {
-                                    const newEdu = { ...localFormData.Resume.educationalQualification };
-                                    newEdu.institution = e.target.value;
-                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
-                                  }}
-                                  className={`w-full px-3 py-1.5 border rounded text-sm
-                                    ${field.required && (!localFormData?.Resume?.educationalQualification?.degree || !localFormData?.Resume?.educationalQualification?.institution || !localFormData?.Resume?.educationalQualification?.years)
-                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                                      : 'border-gray-200 focus:border-blue-400'
-                                    }`}
-                                />
-                                <input
-                                  type="text"
-                                  value={localFormData?.Resume?.educationalQualification?.years || ''}
-                                  placeholder="Years"
-                                  onChange={(e) => {
-                                    const newEdu = { ...localFormData.Resume.educationalQualification };
-                                    newEdu.years = e.target.value;
-                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
-                                  }}
-                                  className={`w-full px-3 py-1.5 border rounded text-sm
-                                    ${field.required && (!localFormData?.Resume?.educationalQualification?.degree || !localFormData?.Resume?.educationalQualification?.institution || !localFormData?.Resume?.educationalQualification?.years)
-                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                                      : 'border-gray-200 focus:border-blue-400'
-                                    }`}
-                                />
-                              </div>
-                            )}
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  return shouldShowField('Resume', field) && (
-                    <div key={field._id}>
-                      <label className="block text-xs text-gray-500 mb-1">
-                        {field.fieldName}
-                        {field.required && <span className="text-red-500 ml-1">*</span>}
-                      </label>
-                      <input
-                        type={field.fieldName.toLowerCase().includes('email') ? 'email' : 'text'}
-                        value={localFormData?.Resume?.[field.fieldName] || ''}
-                        onChange={(e) => handleLocalInputChange('Resume', field.fieldName, e.target.value)}
-                        className={`w-full px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 
-                          ${field.required && isFieldEmpty('Resume', field.fieldName)
-                            ? 'border-red-300 bg-red-50/50 focus:border-red-400'
-                            : 'border-gray-200 focus:border-blue-400'
-                          }`}
-                      />
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-        </div>
-
-        {/* Show message when no empty fields are found */}
-        {showOnlyEmpty && 
-         !questionnaire.field_mappings.some(field => 
-           shouldShowField(field.sourceDocument, field)
-         ) && (
-          <div className="text-center py-8 text-gray-500">
-            No empty required fields found!
-          </div>
-        )}
-      </div>
+      <QuestionnaireForm
+        questionnaire={questionnaire}
+        onBack={onBack}
+        formData={formData}
+        setFormData={setFormData} // Pass the setter directly
+        caseId={caseId}
+        savedFields={savedFields}
+        setSavedFields={formDataUpdate}
+        onComplete={handleSave} // Pass the handleSave function
+        isSaving={isSavingQuestionnaire} // Pass the isSavingQuestionnaire state for animation
+        getTemplateId={() => selectedQuestionnaire._id}
+        eduFieldCount={3}
+        eduFieldNames={['degree', 'institution', 'years']}
+        trackEditing={true}
+      />
     );
   };
 
@@ -2154,7 +1877,11 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         if (response.data.status === 'success') {
           await new Promise(resolve => setTimeout(resolve, 3000));
           setQuestionnaireData(response.data.data);
-          setFormData(response.data.data.responses[0].processedInformation);
+          
+          // Set both formData and savedFields with the same data initially
+          const responseData = response.data.data.responses[0].processedInformation;
+          setFormData(responseData);
+          setSavedFields(responseData);
         }
       } catch (error) {
         console.error('Error fetching questionnaire details:', error);
@@ -2217,7 +1944,19 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 <h3 className="text-sm font-medium text-gray-900">{questionnaire.questionnaire_name}</h3>
                 <div className="flex items-center">
                   <span className="text-sm text-gray-600">
-                    {questionnaire.field_mappings.length} Fields
+                    {(() => {
+                      // Calculate total fields including educationalQualification subfields
+                      let totalFields = 0;
+                      questionnaire.field_mappings.forEach(field => {
+                        if (field.fieldName === 'educationalQualification') {
+                          // Count educationalQualification as 3 fields (degree, institution, years)
+                          totalFields += 3;
+                        } else {
+                          totalFields += 1;
+                        }
+                      });
+                      return totalFields;
+                    })()} Fields
                   </span>
                 </div>
               </div>
