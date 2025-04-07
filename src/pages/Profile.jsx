@@ -4,10 +4,11 @@ import { styled } from '@mui/material/styles';
 import { useEffect, useState, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { format } from 'date-fns';
-import { Edit, Bot, SendHorizontal, Loader2, MapPin, Phone, Mail, Briefcase, GraduationCap, Clock, CreditCard, User, FileText, CheckCircle } from 'lucide-react';
+import { Edit, Bot, SendHorizontal, Loader2, MapPin, Phone, Mail, Briefcase, GraduationCap, Clock, CreditCard, User, FileText, CheckCircle, X } from 'lucide-react';
 import ReactDOM from 'react-dom';
 import api from '../utils/api';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
+import { toast } from 'react-hot-toast';
 
 const ProfileContainer = styled('div')({
   padding: '24px',
@@ -600,6 +601,129 @@ const CaseDetailsCard = styled(Card)({
   }
 });
 
+// Add Modal styled component after other styled components
+const EditModal = styled('div')({
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 9999
+});
+
+const ModalContent = styled('div')({
+  backgroundColor: '#fff',
+  borderRadius: '16px',
+  padding: '32px',
+  width: '90%',
+  maxWidth: '600px',
+  maxHeight: '90vh',
+  overflowY: 'auto',
+  boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+  '& .modal-header': {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '24px',
+    '& h2': {
+      fontSize: '24px',
+      fontWeight: '600',
+      color: '#1e293b'
+    }
+  },
+  '& .form-grid': {
+    display: 'grid',
+    gap: '20px'
+  },
+  '& .form-group': {
+    '& label': {
+      display: 'block',
+      fontSize: '14px',
+      fontWeight: '500',
+      color: '#64748b',
+      marginBottom: '8px'
+    },
+    '& input': {
+      width: '100%',
+      padding: '10px 16px',
+      border: '1px solid #e2e8f0',
+      borderRadius: '8px',
+      fontSize: '14px',
+      color: '#1e293b',
+      transition: 'all 0.2s',
+      '&:focus': {
+        outline: 'none',
+        borderColor: '#6366f1',
+        boxShadow: '0 0 0 3px rgba(99, 102, 241, 0.1)'
+      }
+    }
+  },
+  '& .button-group': {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '12px',
+    marginTop: '32px'
+  }
+});
+
+const Button = styled('button')({
+  padding: '10px 20px',
+  borderRadius: '8px',
+  fontSize: '14px',
+  fontWeight: '500',
+  cursor: 'pointer',
+  transition: 'all 0.2s',
+  '&.primary': {
+    backgroundColor: '#6366f1',
+    color: '#fff',
+    border: 'none',
+    '&:hover': {
+      backgroundColor: '#4f46e5'
+    }
+  },
+  '&.secondary': {
+    backgroundColor: '#fff',
+    color: '#64748b',
+    border: '1px solid #e2e8f0',
+    '&:hover': {
+      backgroundColor: '#f8fafc',
+      borderColor: '#cbd5e1'
+    }
+  }
+});
+
+// Add formatPhoneNumber helper function after other helper functions
+const formatPhoneNumber = (phoneNumber) => {
+  if (!phoneNumber) return '';
+  // Remove all non-digits
+  const cleaned = phoneNumber.replace(/\D/g, '');
+  // Format with hyphens
+  const match = cleaned.match(/^(\d{3})(\d{3})(\d{4})$/);
+  if (match) {
+    return `${match[1]}-${match[2]}-${match[3]}`;
+  }
+  return phoneNumber;
+};
+
+// Add formatPhoneNumberInput helper function after formatPhoneNumber function
+const formatPhoneNumberInput = (value) => {
+  // Remove all non-digits
+  const cleaned = value.replace(/\D/g, '');
+  // Take only first 10 digits
+  const trimmed = cleaned.substring(0, 10);
+  // Format with hyphens while typing
+  const match = trimmed.match(/^(\d{0,3})(\d{0,3})(\d{0,4})$/);
+  if (match) {
+    const parts = [match[1], match[2], match[3]].filter(Boolean);
+    return parts.join('-');
+  }
+  return trimmed;
+};
+
 const Profile = () => {
   const { profileId } = useParams();
   const navigate = useNavigate();
@@ -621,8 +745,12 @@ const Profile = () => {
   const [isSending, setIsSending] = useState(false);
   const [currentChat, setCurrentChat] = useState(null);
   const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
+  const [inputRef, setInputRef] = useState(null);
   const [processedDocs, setProcessedDocs] = useState([]);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedData, setEditedData] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
 
   const handleTabChange = (event, newValue) => {
     setCurrentTab(newValue);
@@ -716,13 +844,13 @@ const Profile = () => {
   useEffect(() => {
     if (showChatPopup) {
       setTimeout(() => {
-        inputRef.current?.focus();
+        inputRef?.current?.focus();
       }, 100);
     }
   }, [showChatPopup]);
 
   useEffect(() => {
-    inputRef.current?.focus();
+    inputRef?.current?.focus();
   }, [messages]);
 
   // Add function to handle chat messages
@@ -753,7 +881,11 @@ const Profile = () => {
           userInfo: {
             name: profileData.name,
             email: profileData.email,
-            contact: profileData.contact || {},
+            contact: {
+              residencePhone: profileData.contact?.residencePhone || '',
+              mobileNumber: profileData.contact?.mobileNumber || '',
+              email: profileData.email || ''
+            },
             address: profileData.address || {}
           }
         };
@@ -852,6 +984,189 @@ const Profile = () => {
 
     fetchProfileData();
   }, [profileId, setCurrentBreadcrumb]);
+
+  // Add useEffect to initialize editedData when profileData changes
+  useEffect(() => {
+    if (profileData) {
+      setEditedData({
+        name: profileData.name || '',
+        email: profileData.email || '',
+        contact: {
+          residencePhone: profileData.contact?.residencePhone || '',
+          mobileNumber: profileData.contact?.mobileNumber || '',
+          email: profileData.email || ''
+        },
+        address: {
+          streetNumber: profileData.address?.streetNumber || '',
+          streetName: profileData.address?.streetName || '',
+          city: profileData.address?.city || '',
+          stateProvince: profileData.address?.stateProvince || ''
+        },
+        currentJob: {
+          companyAddress: profileData.currentJob?.companyAddress || ''
+        }
+      });
+    }
+  }, [profileData]);
+
+  const handleEditClick = () => {
+    setIsEditing(true);
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    // Reset edited data to original profile data
+    if (profileData) {
+      setEditedData({
+        name: profileData.name || '',
+        email: profileData.email || '',
+        contact: {
+          residencePhone: profileData.contact?.residencePhone || '',
+          mobileNumber: profileData.contact?.mobileNumber || '',
+          email: profileData.email || ''
+        },
+        address: {
+          streetNumber: profileData.address?.streetNumber || '',
+          streetName: profileData.address?.streetName || '',
+          city: profileData.address?.city || '',
+          stateProvince: profileData.address?.stateProvince || ''
+        },
+        currentJob: {
+          companyAddress: profileData.currentJob?.companyAddress || ''
+        }
+      });
+    }
+  };
+
+  // Update handleInputChange function to handle phone number formatting
+  const handleInputChange = (field, value) => {
+    setEditedData(prev => {
+      // Handle phone number fields specially
+      if (field === 'contact.residencePhone' || field === 'contact.mobileNumber') {
+        const formattedValue = formatPhoneNumberInput(value);
+        return {
+          ...prev,
+          contact: {
+            ...prev.contact,
+            [field.split('.')[1]]: formattedValue
+          }
+        };
+      }
+
+      // Handle other fields as before
+      if (field.includes('.')) {
+        const [parent, child] = field.split('.');
+        return {
+          ...prev,
+          [parent]: {
+            ...prev[parent],
+            [child]: value
+          }
+        };
+      }
+      return {
+        ...prev,
+        [field]: value
+      };
+    });
+  };
+
+  // Add validation function
+  const validateForm = () => {
+    const errors = {};
+    
+    // Name validation
+    if (!editedData.name || editedData.name.trim().length < 2) {
+      errors.name = "Name must be at least 2 characters long";
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (editedData.email && !emailRegex.test(editedData.email)) {
+      errors.email = "Please provide a valid email address";
+    }
+
+    // Phone number validation
+    const phoneRegex = /^\d{10}$/;
+    if (editedData.contact?.residencePhone) {
+      const strippedResidencePhone = editedData.contact.residencePhone.replace(/\D/g, '');
+      if (strippedResidencePhone && !phoneRegex.test(strippedResidencePhone)) {
+        errors.residencePhone = "Residence phone must be exactly 10 digits";
+      }
+    }
+    
+    if (editedData.contact?.mobileNumber) {
+      const strippedMobileNumber = editedData.contact.mobileNumber.replace(/\D/g, '');
+      if (strippedMobileNumber && !phoneRegex.test(strippedMobileNumber)) {
+        errors.mobileNumber = "Mobile number must be exactly 10 digits";
+      }
+    }
+
+    // Address validation (optional fields but must be strings if provided)
+    if (editedData.address) {
+      const addressFields = ['streetNumber', 'streetName', 'city', 'stateProvince'];
+      addressFields.forEach(field => {
+        if (editedData.address[field] && typeof editedData.address[field] !== 'string') {
+          errors[field] = `${field.charAt(0).toUpperCase() + field.slice(1)} must be text`;
+        }
+      });
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSave = async () => {
+    if (!validateForm()) {
+      toast.error('Please fix the validation errors before saving');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      const response = await api.put('/auth/update-user', {
+        user_id: profileId,
+        ...editedData
+      });
+
+      if (response.data.status === "success") {
+        setProfileData(response.data.data.user);
+        setIsEditing(false);
+        setValidationErrors({});
+        toast.success('Profile updated successfully');
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      if (error.response?.data?.errors) {
+        // Handle backend validation errors
+        const backendErrors = error.response.data.errors;
+        setValidationErrors(prev => ({
+          ...prev,
+          ...backendErrors.reduce((acc, error) => {
+            acc[error.field] = error.message;
+            return acc;
+          }, {})
+        }));
+        toast.error('Please fix the validation errors');
+      } else {
+        toast.error(error.response?.data?.message || 'Error updating profile');
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Update the input fields to show validation errors
+  const renderValidationError = (fieldName) => {
+    if (validationErrors[fieldName]) {
+      return (
+        <div className="text-red-500 text-xs mt-1">
+          {validationErrors[fieldName]}
+        </div>
+      );
+    }
+    return null;
+  };
 
   const handleCaseClick = (caseId) => {
     navigate(`/individuals/case/${caseId}`);
@@ -1216,69 +1531,234 @@ const Profile = () => {
       <TabPanel value={currentTab} index={0}>
         <div className="profile-header">
           <h1>Profile Details</h1>
-          <EditButton>
-            <Edit size={18} />
-            <span>Edit Profile</span>
-          </EditButton>
         </div>
         
         <div className="profile-grid">
           {/* Applicant Details Card */}
           <ProfileCard>
-            <h2 className="section-title">
-              <Briefcase size={24} />
-              Applicant Details
-            </h2>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="section-title">
+                <Briefcase size={24} />
+                Applicant Details
+              </h2>
+              {isEditing ? (
+                <div className="flex gap-2">
+                  <Button className="secondary" onClick={handleCancel} disabled={isSaving}>
+                    Cancel
+                  </Button>
+                  <Button className="primary" onClick={handleSave} disabled={isSaving}>
+                    {isSaving ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </div>
+              ) : (
+                <EditButton onClick={handleEditClick}>
+                  <Edit size={18} />
+                  <span>Edit</span>
+                </EditButton>
+              )}
+            </div>
+            
             <InitialsAvatar>
               {getInitials(profileData.name)}
             </InitialsAvatar>
             
             <div className="field-group">
               <div className="field-label">Full Name</div>
-              <div className="field-value">{profileData.name || 'Not provided'}</div>
+              {isEditing ? (
+                <div>
+                  <input
+                    type="text"
+                    className={`w-full p-2 border ${validationErrors.name ? 'border-red-500' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                    value={editedData.name}
+                    onChange={(e) => handleInputChange('name', e.target.value)}
+                  />
+                  {renderValidationError('name')}
+                </div>
+              ) : (
+                <div className="field-value">{profileData.name || 'Not provided'}</div>
+              )}
             </div>
 
             <div className="field-group">
               <div className="field-label">Contact Information</div>
-              <div className="field-value">
-                <div className="flex items-center gap-2 mb-2">
-                  <Phone size={16} className="text-indigo-500" />
-                  {profileData.contact?.residencePhone || 'No phone number'}
+              <div className="space-y-3">
+                <div>
+                  {isEditing ? (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <Phone size={16} className="text-indigo-500 flex-shrink-0" />
+                        <div className="flex-1">
+                          <label className="block text-sm text-gray-500 mb-1">Residence Phone</label>
+                          <input
+                            type="tel"
+                            className={`w-full p-2 border ${validationErrors.residencePhone ? 'border-red-500' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                            value={editedData.contact.residencePhone}
+                            onChange={(e) => handleInputChange('contact.residencePhone', e.target.value)}
+                            placeholder="XXX-XXX-XXXX"
+                            maxLength={12} // Account for hyphens
+                          />
+                          {renderValidationError('residencePhone')}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Phone size={16} className="text-indigo-500" />
+                      <div>
+                        <div className="text-sm text-gray-500 mb-1">Residence Phone</div>
+                        <div className="font-semibold">{profileData.contact?.residencePhone ? formatPhoneNumber(profileData.contact.residencePhone) : 'No residence phone'}</div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-2 mb-2">
-                  <Phone size={16} className="text-indigo-500" />
-                  {profileData.contact?.mobileNumber || 'No mobile number'}
+                <div>
+                  {isEditing ? (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <Phone size={16} className="text-indigo-500 flex-shrink-0" />
+                        <div className="flex-1">
+                          <label className="block text-sm text-gray-500 mb-1">Mobile Number</label>
+                          <input
+                            type="tel"
+                            className={`w-full p-2 border ${validationErrors.mobileNumber ? 'border-red-500' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                            value={editedData.contact.mobileNumber}
+                            onChange={(e) => handleInputChange('contact.mobileNumber', e.target.value)}
+                            placeholder="XXX-XXX-XXXX"
+                            maxLength={12} // Account for hyphens
+                          />
+                          {renderValidationError('mobileNumber')}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Phone size={16} className="text-indigo-500" />
+                      <div>
+                        <div className="text-sm text-gray-500 mb-1">Mobile Number</div>
+                        <div className="font-semibold">{profileData.contact?.mobileNumber ? formatPhoneNumber(profileData.contact.mobileNumber) : 'No mobile number'}</div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <Mail size={16} className="text-indigo-500" />
-                  {profileData.email || 'No email address'}
+                <div>
+                  {isEditing ? (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <Mail size={16} className="text-indigo-500 flex-shrink-0" />
+                        <div className="flex-1">
+                          <input
+                            type="email"
+                            className={`w-full p-2 border ${validationErrors.email ? 'border-red-500' : 'border-gray-200'} rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                            value={editedData.email}
+                            onChange={(e) => handleInputChange('email', e.target.value)}
+                            placeholder="Email"
+                          />
+                          {renderValidationError('email')}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Mail size={16} className="text-indigo-500" />
+                      <div>
+                        <div className="text-sm text-gray-500 mb-1">Email</div>
+                        <div className="font-semibold">{profileData.email || 'No email address'}</div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
             <div className="field-group">
               <div className="field-label">Current Address</div>
-              <div className="field-value">
-                <div className="flex items-start gap-2">
-                  <MapPin size={16} className="text-indigo-500 mt-1 flex-shrink-0" />
-                  <span>
-                    {profileData.address ? 
-                      `${profileData.address.streetNumber} ${profileData.address.streetName}, ${profileData.address.city}, ${profileData.address.stateProvince}` :
-                      'No address provided'
-                    }
-                  </span>
+              {isEditing ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      className="p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={editedData.address.streetNumber}
+                      onChange={(e) => handleInputChange('address.streetNumber', e.target.value)}
+                      placeholder="Street Number"
+                    />
+                    <input
+                      type="text"
+                      className="p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={editedData.address.streetName}
+                      onChange={(e) => handleInputChange('address.streetName', e.target.value)}
+                      placeholder="Street Name"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      className="p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={editedData.address.city}
+                      onChange={(e) => handleInputChange('address.city', e.target.value)}
+                      placeholder="City"
+                    />
+                    <input
+                      type="text"
+                      className="p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={editedData.address.stateProvince}
+                      onChange={(e) => handleInputChange('address.stateProvince', e.target.value)}
+                      placeholder="State/Province"
+                    />
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="field-value">
+                  <div className="flex items-start gap-2">
+                    <MapPin size={16} className="text-indigo-500 mt-1 flex-shrink-0" />
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-sm text-gray-500">Street Number</div>
+                          <div>{profileData.address?.streetNumber || 'Not provided'}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-500">Street Name</div>
+                          <div>{profileData.address?.streetName || 'Not provided'}</div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-sm text-gray-500">City</div>
+                          <div>{profileData.address?.city || 'Not provided'}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-500">State/Province</div>
+                          <div>{profileData.address?.stateProvince || 'Not provided'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="field-group">
               <div className="field-label">Office Address</div>
-              <div className="field-value">
-                <div className="flex items-start gap-2">
-                  <Briefcase size={16} className="text-indigo-500 mt-1 flex-shrink-0" />
-                  <span>{profileData.currentJob?.companyAddress || 'No office address provided'}</span>
+              {isEditing ? (
+                <div className="flex items-center gap-2">
+                  <Briefcase size={16} className="text-indigo-500 flex-shrink-0" />
+                  <input
+                    type="text"
+                    className="flex-1 p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    value={editedData.currentJob?.companyAddress}
+                    onChange={(e) => handleInputChange('currentJob.companyAddress', e.target.value)}
+                    placeholder="Office Address"
+                  />
                 </div>
-              </div>
+              ) : (
+                <div className="field-value">
+                  <div className="flex items-start gap-2">
+                    <Briefcase size={16} className="text-indigo-500 mt-1 flex-shrink-0" />
+                    <span>{profileData.currentJob?.companyAddress || 'No office address provided'}</span>
+                  </div>
+                </div>
+              )}
             </div>
           </ProfileCard>
 
