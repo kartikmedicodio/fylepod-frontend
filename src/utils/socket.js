@@ -44,8 +44,32 @@ const parseSocketURL = (url) => {
   }
 };
 
-const SOCKET_URL = parseSocketURL(API_URL);
-console.log('Final Socket URL:', SOCKET_URL);
+// Fix malformed URL if necessary
+let fixedApiUrl = API_URL;
+// Check if URL is malformed (containing https:/ but missing the second slash)
+if (fixedApiUrl.startsWith('https:/') && !fixedApiUrl.startsWith('https://')) {
+  console.log('Detected and fixing malformed URL');
+  fixedApiUrl = fixedApiUrl.replace('https:/', 'https://');
+  // If it's still malformed, fix it directly
+  if (fixedApiUrl.includes('-dev.relayzen.com')) {
+    fixedApiUrl = 'https://api-dev.relayzen.com/api';
+  }
+}
+console.log('Corrected API_URL:', fixedApiUrl);
+
+// Determine the socket URL based on environment
+let SOCKET_URL;
+// For production, always use the hardcoded URL to avoid any parsing issues
+if (fixedApiUrl.includes('api-dev.relayzen.com')) {
+  console.log('Using production hardcoded socket URL');
+  // Skip the URL parsing and directly use the production socket URL
+  SOCKET_URL = 'api-dev.relayzen.com';
+  console.log('Final Socket URL (hardcoded for production):', SOCKET_URL);
+} else {
+  // For non-production environments, use the regular parsing logic
+  SOCKET_URL = parseSocketURL(fixedApiUrl);
+  console.log('Final Socket URL:', SOCKET_URL);
+}
 
 // Singleton socket instance
 let socket = null;
@@ -96,10 +120,9 @@ export const initializeSocket = (token) => {
   // Production environment connection
   if (SOCKET_URL === 'api-dev.relayzen.com') {
     console.log('Using production socket configuration');
-    socket = io('https://api-dev.relayzen.com/documents', {
-      ...socketConfig,
-      path: '/socket.io'
-    });
+    // For production, directly use the URL with the namespace
+    socket = io('https://api-dev.relayzen.com/documents', socketConfig);
+    console.log('Created production socket connection to documents namespace');
   } else {
     // Local or other environment connection
     socket = io(`${SOCKET_URL}/documents`, socketConfig);
