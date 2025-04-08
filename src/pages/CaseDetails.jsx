@@ -253,6 +253,20 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   // Modified part - add state for drag over
   const [isDragOver, setDragOver] = useState(false);
 
+  // Add state to track validation and verification completion
+  const [processingStatus, setProcessingStatus] = useState({
+    document: null,
+    validationComplete: false,
+    verificationComplete: false,
+    validationResults: {
+      failedCount: 0,
+      documentType: null
+    },
+    verificationResults: null,
+    processedDocuments: [], // Track all processed documents
+    validationFailuresByDocument: {} // Track validation failures by document
+  });
+
   // Add a function at the top of the component to load data from localStorage
   const loadDataFromLocalStorage = () => {
     console.log('Checking localStorage for saved data...');
@@ -379,7 +393,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         if (data.caseId === caseId) {
           setProcessingDocIds(prev => [...prev, data.documentId]);
           setProcessingStep(1); // Analyzing document
-          toast.success(`Processing started for document: ${data.documentName || data.documentId}`);
+          // Removed toast notification for processing started - we'll show only one at the end
+          console.log(`Processing started for document: ${data.documentName || data.documentId}`);
         }
       });
       
@@ -507,10 +522,16 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               const documentType = data.caseData.documentTypes.find(dt => dt.documentTypeId === data.documentTypeId);
               docTypeName = documentType ? documentType.name : 'document';
             }
-            toast.success(`${docTypeName} processed successfully`);
+            // Store document name in processing status
+            setProcessingStatus(prev => ({
+              ...prev,
+              document: docTypeName,
+              processedDocuments: [...prev.processedDocuments, docTypeName] // Add to processed documents array
+            }));
+            // Removed toast notification here
           } catch (error) {
             console.error('Error determining document type:', error);
-            toast.success(`Document processed successfully`);
+            // Removed toast notification here
           }
           
           // Log the complete webhook response for debugging
@@ -520,6 +541,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           console.log('Updating UI directly from webhook data');
           
           // Update case data if provided
+          console.log('Case data from webhook:', data.caseData);
           if (data.caseData) {
             console.log('Setting case data from webhook');
             // Preserve categoryId from existing caseData if it's not in the webhook data
@@ -527,7 +549,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               console.log('Preserving categoryId from existing case data');
               setCaseData({
                 ...data.caseData,
-                categoryId: caseData.categoryId
+                categoryId: caseData.categoryId._id
               });
             } else {
               setCaseData(data.caseData);
@@ -640,15 +662,27 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               );
             }
             
-            // If the validation tab is not currently selected, show a notification about validation results
-            if (selectedSubTab !== 'validation') {
-              const failedCount = countFailedValidations(data.validationResults);
+            // Calculate validation status
+            const failedCount = countFailedValidations(data.validationResults);
+            
+            // Update processing status with validation results
+            setProcessingStatus(prev => {
+              // Track validation results by document
+              const updatedValidationFailures = { ...prev.validationFailuresByDocument };
               if (failedCount > 0) {
-                toast.error(`${failedCount} validation ${failedCount === 1 ? 'issue' : 'issues'} found in document`);
-              } else {
-                toast.success('All document validations passed');
+                updatedValidationFailures[documentType] = failedCount;
               }
-            }
+              
+              return {
+                ...prev,
+                validationComplete: true,
+                validationResults: {
+                  failedCount: failedCount,
+                  documentType: documentType
+                },
+                validationFailuresByDocument: updatedValidationFailures
+              };
+            });
             
             // Update the selectedSubTab if validation data is available to show validation results
             if (data.validationResults.validations && data.validationResults.validations.length > 0) {
@@ -658,6 +692,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           
           // Update cross-verification data if provided
           if (data.crossVerificationData) {
+            toast.success('Cross-verification data received');
             console.log('Setting cross-verification data from webhook');
             console.log('Cross-verification data structure:', JSON.stringify(data.crossVerificationData, null, 2));
             
@@ -670,14 +705,19 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
               ));
             
-            // If all documents are uploaded, show a notification and update subtab
-            if (allUploaded) {
-              toast.success('All documents uploaded! Cross-verification available.');
-              
-              // If we're on the document tab, switch to cross-verification subtab
-              if (activeTab === 'document-checklist') {
-                setSelectedSubTab('cross-verification');
+            // Update processing status
+            setProcessingStatus(prev => ({
+              ...prev,
+              verificationComplete: true,
+              verificationResults: {
+                allUploaded,
+                data: data.crossVerificationData
               }
+            }));
+            
+            // If we're on the document tab, switch to cross-verification subtab
+            if (allUploaded && activeTab === 'document-checklist') {
+              setSelectedSubTab('cross-verification');
             }
             
             // Store cross-verification data in localStorage for persistence
@@ -688,6 +728,79 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               console.error('Error saving cross-verification data to localStorage:', error);
             }
           }
+          
+          // After all updates, check if we can show the final toast notification
+          const currentProcessingStatus = {
+            ...processingStatus,
+            validationComplete: processingStatus.validationComplete || (data.validationResults !== undefined),
+            verificationComplete: processingStatus.verificationComplete || (data.crossVerificationData !== undefined),
+            document: processingStatus.document || docTypeName,
+            processedDocuments: [
+              ...processingStatus.processedDocuments,
+              // Add current document if it's not already in the array
+              ...(processingStatus.processedDocuments.includes(docTypeName) ? [] : [docTypeName])
+            ],
+            validationFailuresByDocument: processingStatus.validationFailuresByDocument
+          };
+          
+          // If current document has validation failures, update tracking
+          if (data.validationResults) {
+            const failedCount = countFailedValidations(data.validationResults);
+            if (failedCount > 0) {
+              currentProcessingStatus.validationFailuresByDocument[docTypeName] = failedCount;
+            }
+          }
+          
+          // Store the updated processing status
+          setProcessingStatus(currentProcessingStatus);
+          
+          // Only show toast if all documents have been processed AND validation and verification are complete
+          // Check if there are no more documents being processed
+          const newProcessingIds = processingDocIds.filter(id => id !== data.documentId);
+          if (newProcessingIds.length === 0 && currentProcessingStatus.validationComplete && currentProcessingStatus.verificationComplete) {
+            // Get unique document names
+            const uniqueDocuments = [...new Set(currentProcessingStatus.processedDocuments)];
+            const documentSummary = uniqueDocuments.length > 1 
+              ? `${uniqueDocuments.slice(0, -1).join(', ')} and ${uniqueDocuments.slice(-1)}`
+              : uniqueDocuments[0] || 'All documents';
+            
+            // Count total validation failures across all documents
+            const totalFailures = Object.values(currentProcessingStatus.validationFailuresByDocument).reduce((sum, count) => sum + count, 0);
+            
+            // // Check if there are validation issues
+            // if (totalFailures > 0) {
+            //   // If we have failures in multiple documents, show a summary
+            //   if (Object.keys(currentProcessingStatus.validationFailuresByDocument).length > 1) {
+            //     toast.error(`${totalFailures} validation issues found across ${Object.keys(currentProcessingStatus.validationFailuresByDocument).length} documents`);
+            //   } else {
+            //     // If only one document has issues, show which one
+            //     const documentWithFailures = Object.keys(currentProcessingStatus.validationFailuresByDocument)[0];
+            //     const failureCount = currentProcessingStatus.validationFailuresByDocument[documentWithFailures];
+            //     toast.error(`${failureCount} validation ${failureCount === 1 ? 'issue' : 'issues'} found in ${documentWithFailures}`);
+            //   }
+            // } else {
+            //   toast.success(`${documentSummary} processed successfully with all validations passed`);
+            // }
+            
+            // Check cross-verification status
+            if (currentProcessingStatus.verificationResults && currentProcessingStatus.verificationResults.allUploaded) {
+              toast.success('All documents uploaded! Cross-verification available.');
+            }
+            
+            // Reset processing status
+            setProcessingStatus({
+              document: null,
+              validationComplete: false,
+              verificationComplete: false,
+              validationResults: {
+                failedCount: 0,
+                documentType: null
+              },
+              verificationResults: null,
+              processedDocuments: [],
+              validationFailuresByDocument: {}
+            });
+          }
         }
       });
       
@@ -696,7 +809,20 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         if (data.caseId === caseId) {
           setProcessingDocIds(prev => prev.filter(id => id !== data.documentId));
           setIsProcessingComplete(true);
+          // Always show error toast for processing failures
           toast.error(`Processing failed for document ${data.documentName || data.documentId}: ${data.error || 'Unknown error'}`);
+          
+          // Reset processing status for this document
+          setProcessingStatus(prev => {
+            const updatedProcessedDocs = prev.processedDocuments.filter(doc => 
+              doc !== data.documentName && doc !== data.data?.document_type
+            );
+            
+            return {
+              ...prev,
+              processedDocuments: updatedProcessedDocs
+            };
+          });
           
           // Log the complete webhook response for debugging
           console.log('Complete webhook failure response:', JSON.stringify(data, null, 2));
