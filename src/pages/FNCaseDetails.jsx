@@ -12,13 +12,7 @@ import {
   ChevronUp,
   ChevronDown,
   X,
-  Upload,
-  CreditCard,
-  FileText,
-  IdCard,
-  Image,
-  GraduationCap,
-  File
+  Upload // Add this import for the new icon
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
@@ -27,7 +21,6 @@ import PropTypes from 'prop-types';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import ProgressSteps from '../components/ProgressSteps';
 import CrossVerificationTab from '../components/cases/CrossVerificationTab';
-import QuestionnaireForm from '../components/QuestionnaireForm';
 
 const getInitials = (name) => {
   return name
@@ -185,22 +178,6 @@ DocumentProgressBar.propTypes = {
   status: PropTypes.string.isRequired
 };
 
-// Helper function to correctly count total fields including educationalQualification subfields
-const getTotalFieldsCount = (questionnaire) => {
-  let totalFields = 0;
-  
-  questionnaire.field_mappings.forEach(field => {
-    if (field.fieldName === 'educationalQualification') {
-      // Count educationalQualification as 4 fields (institution, courseLevel, specialization, gpa)
-      totalFields += 4;
-    } else {
-      totalFields += 1;
-    }
-  });
-  
-  return totalFields;
-};
-
 const FNCaseDetails = () => {
   const { caseId } = useParams();
   const { setCurrentBreadcrumb } = useBreadcrumb();
@@ -231,14 +208,7 @@ const FNCaseDetails = () => {
   const [questionnaireData, setQuestionnaireData] = useState(null);
   const [formData, setFormData] = useState({
     Passport: {},
-    Resume: {
-      educationalQualification: {
-        institution: '',
-        courseLevel: '',
-        specialization: '',
-        gpa: ''
-      }
-    }
+    Resume: {}
   });
   const [processingStep, setProcessingStep] = useState(0);
   const [isSavingQuestionnaire, setIsSavingQuestionnaire] = useState(false);
@@ -255,7 +225,6 @@ const FNCaseDetails = () => {
   // Add new states for validation data
   const [validationData, setValidationData] = useState(null);
   const [isValidationLoading, setIsValidationLoading] = useState(false);
-  const [editingFields, setEditingFields] = useState({});
 
   // Group all useRef hooks
   const messagesEndRef = useRef(null);
@@ -269,15 +238,6 @@ const FNCaseDetails = () => {
       }, 100);
     }
   }, [showChatPopup]);
-
-  // Add effect to ensure GPA field is always marked as being edited
-  useEffect(() => {
-    // Mark only the GPA field as being edited by default
-    setEditingFields(prev => ({
-      ...prev,
-      'Resume.educationalQualification.gpa': true
-    }));
-  }, []);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -571,23 +531,6 @@ const FNCaseDetails = () => {
                 if (validationResponse.data.status === 'success') {
                   const validationData = validationResponse.data.data;
                   const verificationData = crossVerifyResponse.data.data;
-
-                  // Automatically transition to verification check
-                  setVerificationData(verificationData);
-                  setValidationData(validationData);
-                  setUploadStatus('validation');
-                  
-                  // Show success notification
-                  toast.success('All documents uploaded. Moving to verification check.', {
-                    position: 'top-center',
-                    duration: 3000,
-                  });
-
-                  // Set processing step to complete
-                  setProcessingStep(5);
-                  setTimeout(() => {
-                    setIsProcessing(false);
-                  }, 1000);
 
                   // Generate email draft
                   const recipientEmail = profileData?.contact?.email || profileData?.email;
@@ -1108,106 +1051,36 @@ const FNCaseDetails = () => {
   };
 
   const handleInputChange = (section, field, value) => {
-    // Special handling for the educationalQualification field
-    if (field === 'educationalQualification') {
-      // Only force the GPA field to be visible/editable, rather than all fields
-      setEditingFields(prev => {
-        const newState = { ...prev };
-        // Only force GPA to be marked as editing
-        newState[`${section}.${field}.gpa`] = true;
-        return newState;
-      });
+    setFormData(prevData => {
+      // Create a deep copy of the section if it doesn't exist
+      const updatedSection = {
+        ...(prevData[section] || {})
+      };
       
-      // For educational qualification, manually insert default GPA if missing
-      // This ensures the GPA field always has a value to display
-      if (typeof value === 'object' && !value.gpa) {
-        value.gpa = value.gpa || '';
-      }
+      // Update the specific field
+      updatedSection[field] = value;
       
-      console.log("Educational qualification updated:", value);
-    }
-    
-    // Update the form data
-    setFormData(prev => {
-      const newData = { ...prev };
-      
-      // Ensure the section exists
-      if (!newData[section]) {
-        newData[section] = {};
-      }
-      
-      // Special handling for educational qualification to ensure GPA field
-      if (field === 'educationalQualification' && typeof value === 'object') {
-        newData[section][field] = {
-          ...(newData[section][field] || {}),
-          ...value,
-          // Ensure gpa field exists even if not provided
-          gpa: value.gpa || newData[section][field]?.gpa || ''
-        };
-      } else {
-        // Regular field update
-        newData[section][field] = value;
-      }
-      
-      // Update savedFields with the changed field to keep UI state consistent
-      // This doesn't affect the actual saved state on the server until handleSave is called
-      setSavedFields(prevSaved => {
-        const updatedSaved = { ...prevSaved };
-        
-        // Ensure the section exists
-        if (!updatedSaved[section]) {
-          updatedSaved[section] = {};
-        }
-        
-        // Update with the same value
-        if (field === 'educationalQualification' && typeof value === 'object') {
-          updatedSaved[section][field] = {
-            ...(updatedSaved[section][field] || {}),
-            ...value,
-            gpa: value.gpa || updatedSaved[section][field]?.gpa || ''
-          };
-        } else {
-          updatedSaved[section][field] = value;
-        }
-        
-        return updatedSaved;
-      });
-      
-      return newData;
+      // Return the new state with the updated section
+      return {
+        ...prevData,
+        [section]: updatedSection
+      };
     });
   };
 
-  const handleSave = async (passedFormData) => {
+  const handleSave = async () => {
     try {
-      // Set saving state to true to show animation
-      setIsSavingQuestionnaire(true);
-      
-      // Use passed form data if available, otherwise use current state
-      const currentFormData = passedFormData || { ...formData };
-      
       const response = await api.put(`/questionnaire-responses/management/${caseId}`, {
         templateId: selectedQuestionnaire._id,
-        processedInformation: currentFormData
+        processedInformation: formData
       });
 
       if (response.data.status === 'success') {
         toast.success('Changes saved successfully');
-        
-        // Update savedFields to reflect the current state
-        setSavedFields(currentFormData);
-        
-        // Update questionnaire status
-        setQuestionnaireStatus('saved');
-        
-        // Clear editing state since all fields are now saved
-        setEditingFields({});
       }
     } catch (error) {
       console.error('Error saving questionnaire:', error);
       toast.error('Failed to save changes');
-    } finally {
-      // Set saving state back to false when complete
-      setIsSavingQuestionnaire(false);
     }
   };
 
@@ -1846,7 +1719,7 @@ const FNCaseDetails = () => {
 
             {/* Accordions */}
             <div className="space-y-4">
-              {/* Cross Verification Accordion - Single border */}
+              {/* Cross Verification Accordion */}
               <div className="w-full bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <CrossVerificationTab
                   isLoading={isVerificationLoading}
@@ -1906,7 +1779,6 @@ const FNCaseDetails = () => {
   // Update the ValidationAccordion component's loading state
   const ValidationAccordion = ({ isLoading, validationData, caseData }) => {
     const [isExpanded, setIsExpanded] = useState(false);
-    const [expandedDocuments, setExpandedDocuments] = useState({});
 
     if (isLoading) {
       return <AccordionSkeleton title="Document Verification Results" />;
@@ -1921,135 +1793,133 @@ const FNCaseDetails = () => {
       );
     }
 
-    const toggleDocument = (documentType) => {
-      setExpandedDocuments(prev => ({
-        ...prev,
-        [documentType]: !prev[documentType]
-      }));
-    };
-
-    const getDocumentIcon = (documentType) => {
-      return (
-        <div className="bg-blue-50 w-full h-full flex items-center justify-center rounded-lg border border-blue-100">
-          <FileText className="w-5 h-5 text-blue-600" />
-        </div>
-      );
-    };
-
     return (
-      <div className="bg-white p-6">
-        <div className="flex items-center justify-between mb-8">
-          <h3 className="text-lg font-semibold text-gray-900">Document Verification</h3>
-          <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-50 text-red-700 border border-red-100">
-            8 Issues Found
-          </span>
+      <>
+        {/* Accordion Header */}
+        <div 
+          className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
+          <div className="flex items-center gap-3">
+            <h3 className="text-lg font-semibold text-gray-900">Document Verification Results</h3>
+            <span className={`px-2.5 py-1 rounded-full text-xs font-medium
+              ${validationData.mergedValidations.every(doc => doc.passed) 
+                ? 'bg-green-100 text-green-700' 
+                : 'bg-red-100 text-red-700'}`}
+            >
+              {validationData.mergedValidations.every(doc => doc.passed) 
+                ? 'All Valid' 
+                : `${validationData.mergedValidations.filter(doc => !doc.passed).length} Issues Found`}
+            </span>
+          </div>
+          {isExpanded ? (
+            <ChevronUp className="w-5 h-5 text-gray-400" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-gray-400" />
+          )}
         </div>
 
-        <div className="grid gap-6">
-          {validationData.mergedValidations.map((documentValidation, index) => {
-            const isDocExpanded = expandedDocuments[documentValidation.documentType];
-            const passedCount = documentValidation.validations.filter(v => v.passed).length;
-            const failedCount = documentValidation.validations.length - passedCount;
-            
-            return (
-              <div key={index} className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-all duration-200">
-                <div 
-                  className="flex items-center justify-between px-6 py-5 cursor-pointer hover:bg-gray-50 transition-colors"
-                  onClick={() => toggleDocument(documentValidation.documentType)}
-                >
-                  <div className="flex items-center gap-5">
-                    <div className="w-11 h-11 flex-shrink-0">
-                      {getDocumentIcon(documentValidation.documentType)}
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-gray-900 mb-2">{documentValidation.documentType}</h4>
-                      <div className="flex items-center gap-4">
-                        {passedCount > 0 && (
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                            <span className="text-sm text-gray-600">{passedCount} Passed</span>
-                          </div>
-                        )}
-                        {failedCount > 0 && (
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                            <span className="text-sm text-gray-600">{failedCount} Failed</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    {validationData.documentUrls?.[documentValidation.documentType] && (
+        {/* Accordion Content */}
+        {isExpanded && (
+          <div className="border-t border-gray-100">
+            <div className="p-4 space-y-4">
+              {validationData.mergedValidations.map((documentValidation, index) => (
+                <div key={index} className="bg-gray-50 rounded-lg overflow-hidden">
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">
-                        <a 
-                          href={validationData.documentUrls[documentValidation.documentType]} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1.5 rounded-lg hover:bg-blue-50"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Eye className="w-4 h-4" />
-                          View
-                        </a>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const docType = caseData.documentTypes.find(dt => dt.name === documentValidation.documentType);
-                            if (docType?.documentTypeId) {
-                              handleDocumentReupload(docType.documentTypeId);
-                            } else {
-                              toast.error('Document type ID not found');
-                            }
-                          }}
-                          className="px-3 py-1.5 text-sm font-medium text-red-600 hover:text-red-700 flex items-center gap-1.5 rounded-lg hover:bg-red-50"
-                        >
-                          <Upload className="w-4 h-4" />
-                          Reupload
-                        </button>
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                          documentValidation.passed 
+                            ? 'bg-green-50 text-green-600' 
+                            : 'bg-red-50 text-red-600'
+                        }`}>
+                          {documentValidation.passed ? (
+                            <Check className="w-5 h-5" />
+                          ) : (
+                            <X className="w-5 h-5" />
+                          )}
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900">
+                            {documentValidation.documentType}
+                          </h4>
+                          <p className={`text-sm ${
+                            documentValidation.passed 
+                              ? 'text-green-600' 
+                              : 'text-red-600'
+                          }`}>
+                            {documentValidation.passed ? 'Passed' : 'Failed'} • {documentValidation.validations.length} Verification{documentValidation.validations.length !== 1 ? 's' : ''}
+                          </p>
+                        </div>
                       </div>
-                    )}
-                    {isDocExpanded ? (
-                      <ChevronUp className="w-5 h-5 text-gray-400" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-gray-400" />
-                    )}
+
+                      {/* Use URLs from validationData */}
+                      {validationData.documentUrls?.[documentValidation.documentType] && (
+                        <div className="flex items-center gap-2">
+                          <a 
+                            href={validationData.documentUrls[documentValidation.documentType]} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-2"
+                          >
+                            <Eye className="w-4 h-4" />
+                            View Document
+                          </a>
+                          <button
+                            onClick={() => {
+                              // Find the document type ID from caseData
+                              const docType = caseData.documentTypes.find(dt => dt.name === documentValidation.documentType);
+                              if (docType?.documentTypeId) {
+                                handleDocumentReupload(docType.documentTypeId);
+                              } else {
+                                toast.error('Document type ID not found');
+                              }
+                            }}
+                            className="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 flex items-center gap-2 border border-red-200 rounded-lg hover:bg-red-50"
+                          >
+                            <Upload className="w-4 h-4" />
+                            Reupload
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Keep existing validation details... */}
+                    <div className="divide-y divide-gray-100">
+                      {documentValidation.validations.map((validation, vIndex) => (
+                        <div 
+                          key={vIndex}
+                          className="flex items-start gap-4 py-4"
+                        >
+                          <div className={`mt-1 w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            validation.passed 
+                              ? 'bg-green-100 text-green-600' 
+                              : 'bg-red-100 text-red-600'
+                          }`}>
+                            {validation.passed ? (
+                              <Check className="w-3 h-3" />
+                            ) : (
+                              <X className="w-3 h-3" />
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <h5 className="text-sm font-medium text-gray-900 mb-1">
+                              {validation.rule}
+                            </h5>
+                            <p className="text-sm text-gray-600">
+                              {validation.message}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-
-                {/* Validation Details */}
-                {isDocExpanded && (
-                  <div className="border-t border-gray-100 bg-gray-50">
-                    <div className="p-6">
-                      <div className="space-y-4">
-                        {documentValidation.validations.map((validation, vIndex) => (
-                          <div 
-                            key={vIndex}
-                            className="flex items-start gap-4 bg-white p-4 rounded-lg border border-gray-100"
-                          >
-                            {validation.passed ? (
-                              <div className="mt-0.5 w-6 h-6 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0">
-                                <Check className="w-4 h-4 text-green-600" />
-                              </div>
-                            ) : (
-                              <div className="mt-0.5 w-6 h-6 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
-                                <X className="w-4 h-4 text-red-600" />
-                              </div>
-                            )}
-                            <span className={`text-sm leading-relaxed ${validation.passed ? 'text-gray-600' : 'text-red-600'}`}>
-                              {validation.message}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </>
     );
   };
 
@@ -2183,7 +2053,7 @@ const FNCaseDetails = () => {
                   <h3 className="text-sm font-medium text-gray-900">{questionnaire.questionnaire_name}</h3>
                   <div className="flex items-center">
                     <span className="text-sm text-gray-600">
-                      {getTotalFieldsCount(questionnaire)} Fields
+                      {questionnaire.field_mappings.length} Fields
                     </span>
                   </div>
                 </div>
@@ -2196,32 +2066,399 @@ const FNCaseDetails = () => {
   };
 
   const QuestionnaireDetailView = ({ questionnaire, onBack }) => {
-    // Create a function to handle updates from the QuestionnaireForm
-    const formDataUpdate = (updatedData) => {
-      // Update our form data with the updated data
-      setFormData(updatedData);
+    const [showOnlyEmpty, setShowOnlyEmpty] = useState(false);
+    const [localFormData, setLocalFormData] = useState(formData);
+    const [isSaving, setIsSaving] = useState(false);
+    // Add state to track fields that are currently being edited
+    const [editingFields, setEditingFields] = useState({});
+
+    useEffect(() => {
+      setLocalFormData(formData);
+    }, [formData]);
+
+    // Add function to mark a field as being edited
+    const startEditing = (section, field, nestedField = null) => {
+      const fieldKey = nestedField 
+        ? `${section}.${field}.${nestedField}` 
+        : `${section}.${field}`;
       
-      // If we're saving, also update the savedFields
-      setSavedFields(updatedData);
+      setEditingFields(prev => ({
+        ...prev,
+        [fieldKey]: true
+      }));
     };
-    
+
+    // Add function to check if a field is being edited
+    const isEditing = (section, field, nestedField = null) => {
+      const fieldKey = nestedField 
+        ? `${section}.${field}.${nestedField}` 
+        : `${section}.${field}`;
+      
+      return editingFields[fieldKey];
+    };
+
+    const isFieldEmpty = (section, field, nestedField = null) => {
+      const value = localFormData?.[section]?.[field];
+      if (nestedField && field === 'educationalQualification') {
+        return !value?.[nestedField] || (typeof value?.[nestedField] === 'string' && value[nestedField].trim() === '');
+      }
+      if (typeof value === 'object' && value !== null) {
+        return Object.values(value).every(val => !val || (typeof val === 'string' && val.trim() === ''));
+      }
+      return !value || (typeof value === 'string' && value.trim() === '');
+    };
+
+    const shouldShowField = (section, field, nestedField = null) => {
+      // If not showing only empty fields, show all fields
+      if (!showOnlyEmpty) {
+        return true;
+      }
+      
+      // If the field is currently being edited, always show it
+      if (isEditing(section, field.fieldName, nestedField)) {
+        return true;
+      }
+      
+      // Special handling for educationalQualification
+      if (field.fieldName === 'educationalQualification') {
+        // If checking a specific nested field
+        if (nestedField) {
+          // Check if the field was empty in the saved data (not current local data)
+          const savedValue = savedFields?.[section]?.educationalQualification?.[nestedField];
+          // Check if the field is currently empty (after edits)
+          const currentValue = localFormData?.[section]?.educationalQualification?.[nestedField];
+          
+          // Show if either saved value is empty OR current value is empty (user emptied it)
+          return (!savedValue || savedValue.trim() === '') || (!currentValue || currentValue.trim() === '');
+        }
+        // If no nested field specified, show if any nested field is empty in saved data or current data
+        return ['institution', 'courseLevel', 'specialization', 'gpa'].some(nested => {
+          const savedValue = savedFields?.[section]?.educationalQualification?.[nested];
+          const currentValue = localFormData?.[section]?.educationalQualification?.[nested];
+          return (!savedValue || savedValue.trim() === '') || (!currentValue || currentValue.trim() === '');
+        });
+      }
+      
+      // For other fields - check against saved data or current data if empty
+      const savedValue = savedFields?.[section]?.[field.fieldName];
+      const currentValue = localFormData?.[section]?.[field.fieldName];
+      
+      // Show if either saved value is empty OR current value is empty (user emptied it)
+      return (!savedValue || (typeof savedValue === 'string' && savedValue.trim() === '')) || 
+             (!currentValue || (typeof currentValue === 'string' && currentValue.trim() === ''));
+    };
+
+    const handleLocalInputChange = (section, field, value) => {
+      // Mark the field as being edited when the user starts typing
+      if (field === 'educationalQualification' && typeof value === 'object') {
+        // For nested fields, determine which nested field changed
+        const changedNestedField = Object.keys(value).find(
+          key => value[key] !== localFormData?.Resume?.educationalQualification?.[key]
+        );
+        if (changedNestedField) {
+          startEditing(section, field, changedNestedField);
+        }
+      } else {
+        startEditing(section, field);
+      }
+      
+      // Update form data as before
+      setLocalFormData(prev => {
+        const newData = {
+          ...prev,
+          [section]: {
+            ...(prev[section] || {}),
+            [field]: value
+          }
+        };
+        return newData;
+      });
+    };
+
+    const getFieldClassName = (section, field, nestedField = null) => {
+      if (field === 'educationalQualification' && nestedField) {
+        // Current value in the input field
+        const value = localFormData?.[section]?.educationalQualification?.[nestedField];
+        // Saved value from the database
+        const savedValue = savedFields?.[section]?.educationalQualification?.[nestedField];
+        
+        // If field is empty, show red
+        if (!value || value.trim() === '') {
+          return 'border-red-300 bg-red-50/50';
+        }
+        
+        // If field value differs from saved value, show blue (edited)
+        if (value !== savedValue) {
+          return 'border-blue-300 bg-blue-50/50';
+        }
+        
+        // Otherwise show gray (saved and filled)
+        return 'border-gray-200 bg-gray-50';
+      }
+      
+      // Current value in the input field
+      const value = localFormData?.[section]?.[field];
+      // Saved value from the database
+      const savedValue = savedFields?.[section]?.[field];
+      
+      // If field is empty, show red
+      if (!value || (typeof value === 'string' && value.trim() === '')) {
+        return 'border-red-300 bg-red-50/50';
+      }
+      
+      // If field value differs from saved value, show blue (edited)
+      if (value !== savedValue) {
+        return 'border-blue-300 bg-blue-50/50';
+      }
+      
+      // Otherwise show gray (saved and filled)
+      return 'border-gray-200 bg-gray-50';
+    };
+
+    const handleLocalSave = async () => {
+      try {
+        setIsSaving(true);
+        const response = await api.put(`/questionnaire-responses/management/${caseId}`, {
+          templateId: questionnaire._id,
+          processedInformation: localFormData
+        });
+
+        if (response.data.status === 'success') {
+          setFormData(localFormData);
+          setSavedFields(localFormData);
+          setQuestionnaireStatus('saved');
+          toast.success('Questionnaire saved successfully');
+          // Clear editing state after successful save
+          setEditingFields({});
+        }
+      } catch (error) {
+        console.error('Error saving questionnaire:', error);
+        toast.error('Failed to save questionnaire');
+      } finally {
+        setIsSaving(false);
+      }
+    };
+
+    const getFilledFieldsCount = () => {
+      let totalFields = 0;
+      let filledFields = 0;
+
+      // Count Passport fields
+      const passportFields = questionnaire.field_mappings.filter(field => field.sourceDocument === 'Passport');
+      totalFields += passportFields.length;
+      passportFields.forEach(field => {
+        if (localFormData?.Passport?.[field.fieldName]) {
+          filledFields++;
+        }
+      });
+
+      // Count Resume fields
+      const resumeFields = questionnaire.field_mappings.filter(field => field.sourceDocument === 'Resume');
+      resumeFields.forEach(field => {
+        if (field.fieldName === 'educationalQualification') {
+          totalFields += 1;
+          if (localFormData?.Resume?.educationalQualification) {
+            filledFields++;
+          }
+        } else {
+          totalFields += 1;
+          if (localFormData?.Resume?.[field.fieldName]) {
+            filledFields++;
+          }
+        }
+      });
+
+      return { total: totalFields, filled: filledFields };
+    };
+
+    const isFieldSaved = (section, field) => {
+      return savedFields?.[section]?.[field] === localFormData?.[section]?.[field];
+    };
+
+    const { total, filled } = getFilledFieldsCount();
+    const progress = total > 0 ? Math.round((filled / total) * 100) : 0;
+
     return (
-      <QuestionnaireForm
-        questionnaire={questionnaire}
-        onBack={onBack}
-        formData={formData}
-        setFormData={setFormData} // Pass the setter directly to properly update the state
-        caseId={caseId}
-        savedFields={savedFields}
-        questionnaireStatus={questionnaireStatus}
-        setQuestionnaireStatus={setQuestionnaireStatus}
-        setSavedFields={formDataUpdate}
-        trackEditing={true}
-        eduFieldCount={4}
-        eduFieldNames={['institution', 'courseLevel', 'specialization', 'gpa']}
-        onComplete={handleSave} // Pass the save handler for save button functionality
-        isSaving={isSavingQuestionnaire} // Pass the saving state for animation
-      />
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={onBack}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <ChevronLeft className="w-5 h-5 text-gray-600" />
+            </button>
+            <div>
+              <h2 className="text-lg font-medium text-gray-900">Questionnaire</h2>
+              <p className="text-sm text-gray-600">{questionnaire.questionnaire_name}</p>
+            </div>
+          </div>
+          <div className='flex items-center gap-4'>
+            <div className="flex items-center gap-2">
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showOnlyEmpty}
+                  onChange={(e) => setShowOnlyEmpty(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 rounded-full peer 
+                  peer-checked:after:translate-x-full 
+                  after:content-[''] after:absolute after:top-0.5 after:left-[2px] 
+                  after:bg-white after:border-gray-300 after:border after:rounded-full 
+                  after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600">
+                </div>
+                <span className="ml-3 text-sm font-medium text-gray-700">
+                  Show only empty fields
+                </span>
+              </label>
+            </div>
+            <div className="text-sm text-gray-600">
+              {filled} of {total} fields filled
+            </div>
+            <button
+              onClick={handleLocalSave}
+              disabled={isSaving}
+              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                isSaving
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 className="text-sm font-medium text-gray-900 mb-4">Passport Information</h3>
+            <div className="grid grid-cols-3 gap-4">
+              {questionnaire.field_mappings
+                .filter(field => field.sourceDocument === 'Passport')
+                .map(field => (
+                  shouldShowField('Passport', field) && (
+                    <div key={field._id}>
+                      <label className="block text-sm text-gray-600 mb-1 font-semibold">
+                        {field.fieldName}
+                      </label>
+                      <input
+                        type="text"
+                        value={localFormData?.Passport?.[field.fieldName] || ''}
+                        onChange={(e) => handleLocalInputChange('Passport', field.fieldName, e.target.value)}
+                        className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Passport', field.fieldName, field.required)}`}
+                      />
+                    </div>
+                  )
+                ))}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 className="text-sm font-medium text-gray-900 mb-4">Professional Information</h3>
+            <div className="grid grid-cols-2 gap-4">
+              {questionnaire.field_mappings
+                .filter(field => field.sourceDocument === 'Resume')
+                .map(field => {
+                  if (field.fieldName === 'educationalQualification') {
+                    const hasEmptyFields = ['institution', 'courseLevel', 'specialization', 'gpa'].some(
+                      nestedField => shouldShowField('Resume', field, nestedField)
+                    );
+
+                    return hasEmptyFields ? (
+                      <div key={field._id} className="col-span-2">
+                        <label className="block text-sm text-gray-600 mb-1 font-semibold">
+                          {field.fieldName}
+                        </label>
+                        <div className="grid grid-cols-2 gap-4">
+                          {shouldShowField('Resume', field, 'institution') && (
+                            <div>
+                              <label className="block text-sm text-gray-600 mb-1">Institution</label>
+                              <input
+                                type="text"
+                                value={localFormData?.Resume?.educationalQualification?.institution || ''}
+                                onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', {
+                                  ...localFormData?.Resume?.educationalQualification,
+                                  institution: e.target.value
+                                })}
+                                className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', 'educationalQualification', 'institution')}`}
+                              />
+                            </div>
+                          )}
+                          {shouldShowField('Resume', field, 'courseLevel') && (
+                            <div>
+                              <label className="block text-sm text-gray-600 mb-1">Course Level</label>
+                              <input
+                                type="text"
+                                value={localFormData?.Resume?.educationalQualification?.courseLevel || ''}
+                                onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', {
+                                  ...localFormData?.Resume?.educationalQualification,
+                                  courseLevel: e.target.value
+                                })}
+                                className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', 'educationalQualification', 'courseLevel')}`}
+                              />
+                            </div>
+                          )}
+                          {shouldShowField('Resume', field, 'specialization') && (
+                            <div>
+                              <label className="block text-sm text-gray-600 mb-1">Specialization</label>
+                              <input
+                                type="text"
+                                value={localFormData?.Resume?.educationalQualification?.specialization || ''}
+                                onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', {
+                                  ...localFormData?.Resume?.educationalQualification,
+                                  specialization: e.target.value
+                                })}
+                                className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', 'educationalQualification', 'specialization')}`}
+                              />
+                            </div>
+                          )}
+                          {shouldShowField('Resume', field, 'gpa') && (
+                            <div>
+                              <label className="block text-sm text-gray-600 mb-1">GPA</label>
+                              <input
+                                type="text"
+                                value={localFormData?.Resume?.educationalQualification?.gpa || ''}
+                                onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', {
+                                  ...localFormData?.Resume?.educationalQualification,
+                                  gpa: e.target.value
+                                })}
+                                className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', 'educationalQualification', 'gpa')}`}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : null;
+                  }
+                  return shouldShowField('Resume', field) && (
+                    <div key={field._id}>
+                      <label className="block text-sm text-gray-600 mb-1 font-semibold">
+                        {field.fieldName}
+                      </label>
+                      <input
+                        type="text"
+                        value={localFormData?.Resume?.[field.fieldName] || ''}
+                        onChange={(e) => handleLocalInputChange('Resume', field.fieldName, e.target.value)}
+                        className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', field.fieldName, field.required)}`}
+                      />
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+
+        {/* Show message when no empty fields are found */}
+        {showOnlyEmpty && 
+         !questionnaire.field_mappings.some(field => 
+           shouldShowField(field.sourceDocument, field)
+         ) && (
+           <div className="text-center py-8 text-gray-500">
+             No empty fields found
+           </div>
+         )}
+      </div>
     );
   };
 
@@ -2245,7 +2482,7 @@ const FNCaseDetails = () => {
     return ReactDOM.createPortal(
       <>
         {/* Support Chat Button */}
-            <button
+        <button 
           onClick={(e) => {
             e.stopPropagation();
             setShowChatPopup(prev => !prev);
@@ -2328,7 +2565,6 @@ const FNCaseDetails = () => {
                   )}
                 </div>
               ))}
-              <div ref={messagesEndRef} /> {/* Invisible element for scrolling */}
             </div>
 
             {/* Enhanced input area */}
@@ -2353,11 +2589,11 @@ const FNCaseDetails = () => {
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
                     <SendHorizontal className="w-5 h-5" />
-              )}
-            </button>
-          </div>
+                  )}
+                </button>
+              </div>
             </form>
-        </div>
+          </div>
         )}
       </>,
       document.body
@@ -2522,16 +2758,8 @@ const FNCaseDetails = () => {
     }
   };
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]); // Scroll when messages change
-
   // Main component return
-              return (
+  return (
     <>
       {/* Profile and Case Details Section */}
       <div className="p-6 flex gap-6">

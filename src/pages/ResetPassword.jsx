@@ -1,66 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Lock, ArrowRight, CheckCircle, Eye, EyeOff, X, AlertCircle, AlertTriangle } from 'lucide-react';
-
-const RequirementIndicator = ({ met, text }) => (
-  <div className="flex items-center gap-1.5">
-    <X className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
-    <span className="text-xs text-red-600">{text}</span>
-  </div>
-);
-
-const PasswordStrengthIndicator = ({ requirements, isVisible }) => {
-  if (!isVisible) return null;
-
-  const getValidationMessage = () => {
-    const messages = [];
-    if (!requirements.minLength) {
-      messages.push("At least 8 characters");
-    }
-    if (!requirements.hasUppercase) {
-      messages.push("One uppercase letter");
-    }
-    if (!requirements.hasLowercase) {
-      messages.push("One lowercase letter");
-    }
-    if (!requirements.hasNumber) {
-      messages.push("One number");
-    }
-    if (!requirements.hasSpecial) {
-      messages.push("One special character (!@#$%^&*)");
-    }
-    
-    if (messages.length === 0) {
-      return (
-        <div className="flex items-center gap-2 text-green-600">
-          <CheckCircle className="w-4 h-4 flex-shrink-0" />
-          <span className="text-sm">Password requirements met</span>
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex items-center gap-2 text-gray-600">
-        <AlertCircle className="w-4 h-4 flex-shrink-0 text-blue-500" />
-        <span className="text-sm">
-          Should contain {messages.join(", ")}
-        </span>
-      </div>
-    );
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      className="mt-2"
-    >
-      {getValidationMessage()}
-    </motion.div>
-  );
-};
+import { Lock, ArrowRight, CheckCircle, Eye, EyeOff } from 'lucide-react';
 
 const ResetPassword = () => {
   const [password, setPassword] = useState('');
@@ -70,14 +11,6 @@ const ResetPassword = () => {
   const [validToken, setValidToken] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
-  const [passwordRequirements, setPasswordRequirements] = useState({
-    minLength: false,
-    hasUppercase: false,
-    hasLowercase: false,
-    hasNumber: false,
-    hasSpecial: false
-  });
   const navigate = useNavigate();
   const { token } = useParams();
 
@@ -88,27 +21,9 @@ const ResetPassword = () => {
     }
   }, [token]);
 
-  useEffect(() => {
-    setPasswordRequirements({
-      minLength: password.length >= 8,
-      hasUppercase: /[A-Z]/.test(password),
-      hasLowercase: /[a-z]/.test(password),
-      hasNumber: /[0-9]/.test(password),
-      hasSpecial: /[!@#$%^&*(),.?":{}|<>]/.test(password)
-    });
-  }, [password]);
-
-  const isPasswordValid = () => {
-    return Object.values(passwordRequirements).every(requirement => requirement);
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!isPasswordValid()) {
-      return setError('Please meet all password requirements');
-    }
-
     if (password !== confirmPassword) {
       return setError('Passwords do not match');
     }
@@ -175,14 +90,21 @@ const ResetPassword = () => {
       {/* Left Section (40%) - Background & Content */}
       <div className="w-[40%] bg-gradient-to-br from-blue-50 via-indigo-50 to-white relative overflow-hidden">
         <div className="absolute inset-0">
+          {/* Animated gradient background */}
           <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 via-indigo-500/20 to-purple-500/20 animate-gradient-xy"></div>
+          
+          {/* Grid pattern overlay */}
           <div className="absolute inset-0 bg-grid-slate-900/[0.02] bg-[size:20px_20px]"></div>
+          
+          {/* Floating gradient orbs */}
           <div className="absolute -top-1/2 left-1/4 -translate-x-1/2 blur-3xl opacity-20 animate-pulse">
             <div className="aspect-[1155/678] w-[72.1875rem] bg-gradient-to-tr from-blue-400 to-indigo-500"></div>
           </div>
           <div className="absolute top-1/2 right-1/4 translate-x-1/2 blur-3xl opacity-20 animate-pulse delay-700">
             <div className="aspect-[1155/678] w-[72.1875rem] bg-gradient-to-tr from-indigo-400 to-purple-500"></div>
           </div>
+          
+          {/* Content */}
           <div className="absolute inset-0 flex items-center justify-center p-8">
             <div className="text-center space-y-8 max-w-lg">
               <motion.div
@@ -305,14 +227,9 @@ const ResetPassword = () => {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    onFocus={() => setIsPasswordFocused(true)}
-                    onBlur={() => setIsPasswordFocused(false)}
-                    className={`block w-full px-4 py-3 rounded-xl border outline-none ${
-                      password && !isPasswordValid() 
-                        ? 'border-red-300 focus:ring-red-500 focus:border-red-300' 
-                        : 'border-gray-300 focus:ring-blue-600 focus:border-blue-600'
-                    } placeholder-gray-400 focus:ring-2 focus:ring-opacity-50 transition-all duration-200`}
+                    className="block w-full px-4 py-3 rounded-xl border border-gray-300 placeholder-gray-400 focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all duration-200"
                     placeholder="••••••••"
+                    minLength={8}
                   />
                   <div className="absolute right-3 top-3.5 flex space-x-1">
                     <button
@@ -328,12 +245,6 @@ const ResetPassword = () => {
                     </button>
                   </div>
                 </div>
-
-                {/* Password Requirements Indicator */}
-                <PasswordStrengthIndicator 
-                  requirements={passwordRequirements}
-                  isVisible={isPasswordFocused || password.length > 0}
-                />
               </div>
 
               <div>
@@ -349,12 +260,9 @@ const ResetPassword = () => {
                     required
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className={`block w-full px-4 py-3 rounded-xl border outline-none ${
-                      confirmPassword && password !== confirmPassword
-                        ? 'border-red-300 focus:ring-red-500 focus:border-red-300'
-                        : 'border-gray-300 focus:ring-blue-600 focus:border-blue-600'
-                    } placeholder-gray-400 focus:ring-2 focus:ring-opacity-50 transition-all duration-200`}
+                    className="block w-full px-4 py-3 rounded-xl border border-gray-300 placeholder-gray-400 focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all duration-200"
                     placeholder="••••••••"
+                    minLength={8}
                   />
                   <div className="absolute right-3 top-3.5 flex space-x-1">
                     <button
@@ -370,19 +278,13 @@ const ResetPassword = () => {
                     </button>
                   </div>
                 </div>
-                {confirmPassword && password !== confirmPassword && (
-                  <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
-                    <X className="w-4 h-4" />
-                    Passwords do not match
-                  </p>
-                )}
               </div>
             </div>
 
             <div>
               <button
                 type="submit"
-                disabled={loading || !isPasswordValid() || password !== confirmPassword}
+                disabled={loading}
                 className="relative w-full inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
               >
                 {loading ? (

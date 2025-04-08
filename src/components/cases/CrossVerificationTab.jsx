@@ -49,29 +49,7 @@ const CrossVerificationTab = ({
   const [loadingCaseData, setLoadingCaseData] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Fetch case data when component mounts
-  useEffect(() => {
-    const fetchCaseData = async () => {
-      if (!managementId) return;
 
-      setLoadingCaseData(true);
-      try {
-        const response = await api.get(`/management/${managementId}`);
-        if (response.data.status === 'success') {
-          setCaseData(response.data.data.entry);
-        } else {
-          toast.error('Failed to fetch case details');
-        }
-      } catch (error) {
-        console.error('Error fetching case data:', error);
-        toast.error('Failed to fetch case details');
-      } finally {
-        setLoadingCaseData(false);
-      }
-    };
-
-    fetchCaseData();
-  }, [managementId]);
 
   if (isLoading || loadingCaseData) {
     return (
@@ -107,17 +85,49 @@ const CrossVerificationTab = ({
     return null;
   }
 
+  // Normalize the data structure to handle different formats
+  let normalizedVerificationData = verificationData;
+  
+  // If verificationData has a verificationResults property, use it
+  if (!verificationData.verificationResults) {
+    // Check if verificationData itself might be the verificationResults
+    if (verificationData.summarizationErrors || verificationData.mismatchErrors || verificationData.missingErrors) {
+      normalizedVerificationData = {
+        verificationResults: verificationData
+      };
+    } else {
+      // No recognizable structure, display a message
+      return (
+        <div className="p-4">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="p-4">
+              <div className="text-center py-8">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 mb-4">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium text-gray-900">No Verification Results Available</h3>
+                <p className="mt-2 text-sm text-gray-500">Verification results will appear here after your documents have been processed.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+  }
+
   // Combine all errors into one array with type indicators
   const allErrors = [
-    ...(verificationData.verificationResults.summarizationErrors || []).map(error => ({
+    ...((normalizedVerificationData.verificationResults?.summarizationErrors) || []).map(error => ({
       ...error,
       errorType: 'Summary Issue'
     })),
-    ...(verificationData.verificationResults.mismatchErrors || []).map(error => ({
+    ...((normalizedVerificationData.verificationResults?.mismatchErrors) || []).map(error => ({
       ...error,
       errorType: 'Data Mismatch'
     })),
-    ...(verificationData.verificationResults.missingErrors || []).map(error => ({
+    ...((normalizedVerificationData.verificationResults?.missingErrors) || []).map(error => ({
       ...error,
       errorType: 'Missing Information'
     }))
@@ -125,7 +135,7 @@ const CrossVerificationTab = ({
 
   return (
     <div className="p-4">
-      <div className="bg-white rounded-xl overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {/* Accordion Header */}
         <div 
           className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
@@ -175,9 +185,9 @@ const CrossVerificationTab = ({
                         </span>
 
                         {/* Add View Document link if URL exists */}
-                        {verificationData?.documentUrls?.[error.documentType] && (
+                        {normalizedVerificationData?.documentUrls && normalizedVerificationData.documentUrls[error.documentType] && (
                           <a 
-                            href={verificationData.documentUrls[error.documentType]} 
+                            href={normalizedVerificationData.documentUrls[error.documentType]} 
                             target="_blank" 
                             rel="noopener noreferrer"
                             className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-2"
