@@ -1,8 +1,32 @@
 import { io } from 'socket.io-client';
 
 
-const API_URL = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : 'http://localhost:5001';
-console.log('Socket connecting to:', `${API_URL}/documents`);
+const API_URL = import.meta.env.VITE_API_URL 
+  ? import.meta.env.VITE_API_URL.replace('/api', '')
+  : 'http://localhost:5001';
+
+// Properly parse the URL to ensure WebSocket connections work correctly
+const parseSocketURL = (url) => {
+  try {
+    // Remove protocol and get host
+    let socketUrl = url;
+    
+    // If the URL starts with http:// or https://, extract just the host
+    if (socketUrl.startsWith('http://') || socketUrl.startsWith('https://')) {
+      // Extract the host from the URL (remove protocol)
+      const urlObj = new URL(socketUrl);
+      socketUrl = urlObj.host;
+    }
+    
+    return socketUrl;
+  } catch (error) {
+    console.error('Error parsing socket URL:', error);
+    return 'localhost:5001'; // Fallback to local development
+  }
+};
+
+const SOCKET_URL = parseSocketURL(API_URL);
+console.log('Socket connecting to:', SOCKET_URL);
 
 // Singleton socket instance
 let socket = null;
@@ -39,7 +63,7 @@ export const initializeSocket = (token) => {
 
   // Create new socket connection with correct namespace configuration
   console.log('Creating new socket connection with token');
-  socket = io(`${API_URL}/documents`, {
+  socket = io(`${SOCKET_URL}/documents`, {
     auth: {
       token
     },
