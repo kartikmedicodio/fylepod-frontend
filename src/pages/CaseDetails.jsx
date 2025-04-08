@@ -522,7 +522,16 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           // Update case data if provided
           if (data.caseData) {
             console.log('Setting case data from webhook');
-            setCaseData(data.caseData);
+            // Preserve categoryId from existing caseData if it's not in the webhook data
+            if (caseData && caseData.categoryId && !data.caseData.categoryId) {
+              console.log('Preserving categoryId from existing case data');
+              setCaseData({
+                ...data.caseData,
+                categoryId: caseData.categoryId
+              });
+            } else {
+              setCaseData(data.caseData);
+            }
           } else {
             console.log('Case data not provided in webhook - updating document status manually');
             // Need to update document status manually if caseData wasn't provided
@@ -698,7 +707,16 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           // Update case data if provided
           if (data.caseData) {
             console.log('Setting case data from webhook for failed document');
-            setCaseData(data.caseData);
+            // Preserve categoryId from existing caseData if it's not in the webhook data
+            if (caseData && caseData.categoryId && !data.caseData.categoryId) {
+              console.log('Preserving categoryId from existing case data for failed document');
+              setCaseData({
+                ...data.caseData,
+                categoryId: caseData.categoryId
+              });
+            } else {
+              setCaseData(data.caseData);
+            }
           } else {
             console.log('Case data not provided in webhook - fetching case data after failure');
             // Need to fetch case data since it wasn't provided
