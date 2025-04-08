@@ -38,7 +38,8 @@ import ValidationTab from '../components/cases/ValidationTab';
 import ExtractedDataTab from '../components/cases/ExtractedDataTab';
 import FinalizeTab from '../components/cases/FinalizeTab';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
-import QuestionnaireForm from '../components/QuestionnaireForm';
+import { initializeSocket, joinDocumentRoom, handleReconnect, getSocket } from '../utils/socket';
+import { getStoredToken } from '../utils/auth';
 
 
 // Add a new status type to track document states
@@ -70,81 +71,94 @@ const checkAllDocumentsApproved = (documentTypes) => {
   return documentTypes.every(doc => doc.status === DOCUMENT_STATUS.APPROVED);
 };
 
-const ProcessingIndicator = ({ currentStep, isComplete }) => {
-  const [localStep, setLocalStep] = useState(currentStep);
+// Helper function to count failed validations in validation results
+const countFailedValidations = (validationResults) => {
+  if (!validationResults || !validationResults.validations) return 0;
+  return validationResults.validations.filter(v => !v.passed).length;
+};
 
-  useEffect(() => {
-    if (isComplete) return;
-
-    const interval = setInterval(() => {
-      setLocalStep((prev) => (prev + 1) % processingSteps.length);
-    }, 800);
-
-    return () => clearInterval(interval);
-  }, [isComplete]);
-
-  if (isComplete) {
-  return (
-    <div className="absolute inset-0 bg-black/40 backdrop-blur-[3px] flex items-center justify-center rounded-lg z-50">
-      <div className="bg-white rounded-2xl p-4 shadow-2xl w-72 mx-auto border border-gray-100">
-        <div className="flex justify-center mb-4">
-          <div className="relative">
-              <div className="w-16 h-16 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 flex items-center justify-center shadow-lg">
-                <Check className="w-8 h-8 text-white" />
-            </div>
-            </div>
-          </div>
-          <div className="text-center">
-            <span className="text-sm font-medium text-gray-900">Processing Complete</span>
-        </div>
-      </div>
-    </div>
-  );
+// Helper function to format validation data from webhook to match UI expectations
+const formatValidationData = (validationResults, documentType) => {
+  if (!validationResults) return null;
+  
+  // Log validation results for debugging
+  console.log("Formatting validation results:", validationResults);
+  
+  // Check if validation data is already in the expected format
+  if (validationResults.mergedValidations) {
+    return validationResults;
   }
+  
+  // Create a merged validation format that the UI expects
+  const docType = documentType || "Document";
+  
+  // Create the formatted object with a single document type
+  const formattedData = {
+    mergedValidations: [
+      {
+        documentType: docType,
+        validations: validationResults.validations || []
+      }
+    ]
+  };
+  
+  console.log("Formatted validation data:", formattedData);
+  return formattedData;
+};
 
-    return (
-    <div className="absolute inset-0 bg-black/40 backdrop-blur-[3px] flex items-center justify-center rounded-lg z-50">
-      <div className="bg-white rounded-2xl p-4 shadow-2xl w-72 mx-auto border border-gray-100">
-        {/* Diana's Avatar Section */}
-        <div className="flex justify-center mb-4">
-                <div className="relative">
-            {/* Animated Background Rings */}
-            <div className="absolute inset-0 -m-4">
-              <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 rounded-full blur-xl"></div>
-            </div>
-            {/* Avatar Container */}
-            <div className="w-16 h-16 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg relative">
-              {/* Animated Processing Indicator */}
-              <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl animate-spin" style={{ animationDuration: '3s' }}></div>
-              <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl"></div>
-              <span className="relative text-sm font-semibold text-white">Diana</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 min-w-0">
-          {/* Step Text Animation */}
-          <div className="h-5 relative overflow-hidden text-center">
+const ProcessingIndicator = ({ currentStep, isComplete }) => {
+  return (
+    <div className="absolute inset-0 bg-white bg-opacity-90 flex flex-col items-center justify-center z-10 rounded-lg">
+      <div className="w-full max-w-sm">
+        <div className="flex justify-between items-center mb-6">
             {processingSteps.map((step, index) => (
               <div
                 key={step.id}
-                className={`absolute w-full transition-all duration-300 ${
-                  index === localStep 
-                    ? 'opacity-100 transform-none' 
-                    : 'opacity-0 -translate-y-2'
+              className={`relative flex flex-col items-center ${
+                index < processingSteps.length - 1 ? 'flex-1' : ''
+              }`}
+            >
+              <div 
+                className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  currentStep >= step.id
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-500'
                 }`}
               >
-                <span className="text-xs font-medium bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent inline-block">
-                  {step.text}
-                </span>
+                {currentStep > step.id || isComplete ? (
+                  <Check className="w-5 h-5" />
+                ) : (
+                  <span className="text-xs font-medium">{step.id}</span>
+                )}
+              </div>
+              
+              {index < processingSteps.length - 1 && (
+                <div 
+                  className={`absolute top-4 left-8 right-0 h-0.5 transition-colors ${
+                    currentStep > step.id ? 'bg-blue-600' : 'bg-gray-200'
+                  }`}
+                />
+              )}
+              
+              <span className="text-xs mt-2 text-center max-w-[80px]">{step.text}</span>
               </div>
             ))}
           </div>
-          <div className="mt-2 flex justify-center gap-1">
-            <span className="w-1 h-1 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }}></span>
-            <span className="w-1 h-1 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }}></span>
-            <span className="w-1 h-1 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }}></span>
+        
+        {/* Display webhook notification message */}
+        <div className="text-center mb-3">
+          <div className="text-sm text-gray-600 mb-2">
+            {isComplete 
+              ? "Processing complete!" 
+              : `${processingSteps[Math.min(currentStep - 1, processingSteps.length - 1)]?.text}...`}
           </div>
+          
+          {!isComplete && (
+            <div className="flex items-center justify-center gap-2 text-blue-600">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="text-xs">Waiting for server processing updates...</span>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -176,22 +190,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const [formData, setFormData] = useState({
     Passport: {},
     Resume: {
-      educationalQualification: {
-        degree: '',
-        institution: '',
-        years: ''
-      }
-    }
-  });
-  // Add savedFields state to track which fields have been saved
-  const [savedFields, setSavedFields] = useState({
-    Passport: {},
-    Resume: {
-      educationalQualification: {
-        degree: '',
-        institution: '',
-        years: ''
-      }
+      educationalQualification: [] // Initialize as empty array
     }
   });
   const [forms, setForms] = useState([]);
@@ -223,6 +222,18 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   // Add these to the existing state declarations in CaseDetails component
   const [validationData, setValidationData] = useState(null);
   const [isLoadingValidation, setIsLoadingValidation] = useState(false);
+  
+  // Add a ref to persistently store validation data
+  const validationDataRef = useRef(null);
+  
+  // Add a ref to persistently store cross-verification data
+  const verificationDataRef = useRef(null);
+  
+  // Add a state to track validation data updates
+  const [validationUpdated, setValidationUpdated] = useState(false);
+  
+  // Add a state to track cross-verification data updates
+  const [verificationUpdated, setVerificationUpdated] = useState(false);
 
   // Add inputRef with other refs near the top of the component
   const inputRef = useRef(null);
@@ -236,40 +247,510 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   // Add this state at the top with other state declarations
   const [isProcessingComplete, setIsProcessingComplete] = useState(false);
 
+  // Create a state to track active document processing
+  const [processingDocIds, setProcessingDocIds] = useState([]);
+  
+  // Modified part - add state for drag over
+  const [isDragOver, setDragOver] = useState(false);
+
+  // Add a function at the top of the component to load data from localStorage
+  const loadDataFromLocalStorage = () => {
+    console.log('Checking localStorage for saved data...');
+    try {
+      // Load validation data
+      const savedValidationData = localStorage.getItem(`validation-data-${caseId}`);
+      if (savedValidationData) {
+        const parsedData = JSON.parse(savedValidationData);
+        console.log('Found validation data in localStorage:', parsedData);
+        
+        // Set the validation data in both state and ref
+        setValidationData(parsedData);
+        validationDataRef.current = parsedData;
+      } else {
+        console.log('No validation data found in localStorage');
+      }
+      
+      // Load cross-verification data
+      const savedCrossVerificationData = localStorage.getItem(`cross-verification-data-${caseId}`);
+      if (savedCrossVerificationData) {
+        const parsedData = JSON.parse(savedCrossVerificationData);
+        console.log('Found cross-verification data in localStorage:', parsedData);
+        
+        // Set the cross-verification data in both state and ref
+        setVerificationData(parsedData);
+        verificationDataRef.current = parsedData;
+      } else {
+        console.log('No cross-verification data found in localStorage');
+      }
+      
+      return {
+        validationDataFound: !!savedValidationData,
+        verificationDataFound: !!savedCrossVerificationData
+      };
+    } catch (error) {
+      console.error('Error loading saved data from localStorage:', error);
+      return {
+        validationDataFound: false,
+        verificationDataFound: false
+      };
+    }
+  };
+
+  // Add an effect to handle validation data updates
+  useEffect(() => {
+    if (validationData) {
+      console.log('Validation data updated, refreshing UI');
+      // Update the ref whenever validationData state changes
+      validationDataRef.current = validationData;
+      setValidationUpdated(prev => !prev); // Toggle to force UI refresh
+      
+      // Store in localStorage to ensure persistence even across page reloads
+      try {
+        localStorage.setItem(`validation-data-${caseId}`, JSON.stringify(validationData));
+        console.log('Saved validation data to localStorage');
+      } catch (error) {
+        console.error('Error saving validation data to localStorage:', error);
+      }
+      
+      // If we're on the document tab, show the validation subtab
+      if (activeTab === 'document-checklist' && validationData.mergedValidations?.length > 0) {
+        setSelectedSubTab('validation');
+      }
+    }
+  }, [validationData, activeTab, caseId]);
+  
+  // Add an effect to handle cross-verification data updates
+  useEffect(() => {
+    if (verificationData) {
+      console.log('Cross-verification data updated, refreshing UI');
+      // Update the ref whenever verificationData state changes
+      verificationDataRef.current = verificationData;
+      setVerificationUpdated(prev => !prev); // Toggle to force UI refresh
+      
+      // Store in localStorage to ensure persistence even across page reloads
+      try {
+        localStorage.setItem(`cross-verification-data-${caseId}`, JSON.stringify(verificationData));
+        console.log('Saved cross-verification data to localStorage');
+      } catch (error) {
+        console.error('Error saving cross-verification data to localStorage:', error);
+      }
+      
+      // If we're on the document tab and all documents are uploaded, show the cross-verification subtab
+      if (activeTab === 'document-checklist' && areAllDocumentsUploaded()) {
+        setSelectedSubTab('cross-verification');
+      }
+    }
+  }, [verificationData, activeTab, caseId]);
+
+  useEffect(() => {
+    if (questionnaireData?.responses?.[0]?.processedInformation) {
+      setFormData(questionnaireData.responses[0].processedInformation);
+    }
+  }, [questionnaireData]);
+
+  // Set up document processing socket listeners
+  useEffect(() => {
+    if (!caseId) return;
+    
+    // Initialize socket when component mounts
+    const token = getStoredToken();
+    let socket;
+    
+    try {
+      // Initialize socket connection
+      socket = initializeSocket(token);
+      
+      // Setup reconnection handling
+      handleReconnect();
+      
+      // Check if socket is connected
+      if (socket.connected) {
+        console.log('Socket already connected with ID:', socket.id);
+      } else {
+        console.log('Socket connection in progress...');
+        socket.on('connect', () => {
+          console.log('Socket connected in useEffect with ID:', socket.id);
+        });
+      }
+      
+      // Listen for document processing events
+      socket.on('document-processing-started', (data) => {
+        console.log('Document processing started:', data);
+        if (data.caseId === caseId) {
+          setProcessingDocIds(prev => [...prev, data.documentId]);
+          setProcessingStep(1); // Analyzing document
+          toast.success(`Processing started for document: ${data.documentName || data.documentId}`);
+        }
+      });
+      
+      socket.on('document-processing-progress', (data) => {
+        console.log('Document processing progress:', data);
+        if (data.caseId === caseId) {
+          // Update processing step based on the status message
+          if (data.status.toLowerCase().includes('extract')) {
+            setProcessingStep(2); // Extracting information
+          } else if (data.status.toLowerCase().includes('validat')) {
+            setProcessingStep(3); // Validating content
+          } else if (data.status.toLowerCase().includes('verify')) {
+            setProcessingStep(4); // Verifying document
+          }
+          
+          // Don't show a toast for every progress update to avoid flooding the UI
+          // Instead, just update the processing step silently
+          console.log(`Processing ${data.documentName || data.documentId}: ${data.status}`);
+        }
+      });
+      
+      // Add a helper function to merge validation results
+      const mergeValidationResults = (existingData, newResults, documentType) => {
+        // First check if there is data in the ref that might be more up-to-date than existingData
+        const latestExistingData = validationDataRef.current || existingData;
+        
+        console.log('Merging validation results', { 
+          existingData: latestExistingData, 
+          newResults, 
+          documentType 
+        });
+        
+        // If no existing data, initialize with new results
+        if (!latestExistingData || !latestExistingData.mergedValidations) {
+          return {
+            mergedValidations: [
+              {
+                documentType: documentType || 'Document',
+                validations: newResults.validations || []
+              }
+            ]
+          };
+        }
+        
+        // Make a deep copy of existing data to avoid mutation
+        const mergedData = JSON.parse(JSON.stringify(latestExistingData));
+        
+        // Get all the existing document types
+        const existingDocTypes = new Set(mergedData.mergedValidations.map(item => item.documentType));
+        console.log('Existing document types:', Array.from(existingDocTypes));
+        
+        // If this is a new document type, simply add it to the array
+        if (!existingDocTypes.has(documentType)) {
+          console.log('Adding new document type:', documentType);
+          mergedData.mergedValidations.push({
+            documentType: documentType || 'Document',
+            validations: newResults.validations || []
+          });
+        } else {
+          // If this document type already exists, find it
+          const existingIndex = mergedData.mergedValidations.findIndex(
+            item => item.documentType === documentType
+          );
+          
+          if (existingIndex >= 0) {
+            console.log('Updating existing document type:', documentType);
+            
+            // Keep track of validation rules we've seen to avoid duplicates
+            const existingValidationRules = new Set(
+              mergedData.mergedValidations[existingIndex].validations.map(v => v.rule || v.name || JSON.stringify(v))
+            );
+            
+            // Add new validation rules that don't already exist
+            const newValidations = (newResults.validations || []).filter(validation => {
+              const validationKey = validation.rule || validation.name || JSON.stringify(validation);
+              return !existingValidationRules.has(validationKey);
+            });
+            
+            // Combine existing and new validations
+            mergedData.mergedValidations[existingIndex].validations = [
+              ...mergedData.mergedValidations[existingIndex].validations,
+              ...newValidations
+            ];
+            
+            console.log(`Added ${newValidations.length} new validations for ${documentType}`);
+          }
+        }
+        
+        console.log('Merged validation data:', mergedData);
+        return mergedData;
+      };
+      
+      socket.on('document-processing-completed', (data) => {
+        console.log('Document processing completed:', data);
+        console.log('Current processing document IDs:', processingDocIds);
+        console.log('Current case data document types:', caseData?.documentTypes?.map(dt => ({
+          id: dt._id,
+          name: dt.name,
+          status: dt.status
+        })));
+        
+        if (data.caseId === caseId) {
+          setProcessingDocIds(prev => {
+            const newProcessingIds = prev.filter(id => id !== data.documentId);
+            console.log(`Removed ${data.documentId} from processing IDs. New processing IDs:`, newProcessingIds);
+            return newProcessingIds;
+          });
+          setIsProcessingComplete(true);
+          
+          // Get document type from multiple potential sources
+          const documentType = 
+            data.data?.document_type || 
+            (data.documentTypeId && caseData?.documentTypes?.find(dt => dt.documentTypeId === data.documentTypeId)?.name) || 
+            data.documentName?.split('.')[0] || 
+            'Document';
+          
+          console.log(`Determined document type for completed document: ${documentType}`);
+          
+          // Get document type from the data field if it exists
+          let docTypeName = 'document';
+          try {
+            if (data.data && data.data.document_type) {
+              docTypeName = data.data.document_type;
+            } else if (data.documentTypeId && data.caseData && data.caseData.documentTypes) {
+              const documentType = data.caseData.documentTypes.find(dt => dt.documentTypeId === data.documentTypeId);
+              docTypeName = documentType ? documentType.name : 'document';
+            }
+            toast.success(`${docTypeName} processed successfully`);
+          } catch (error) {
+            console.error('Error determining document type:', error);
+            toast.success(`Document processed successfully`);
+          }
+          
+          // Log the complete webhook response for debugging
+          console.log('Complete webhook response:', JSON.stringify(data, null, 2));
+          
+          // Update UI directly from webhook data without any API calls
+          console.log('Updating UI directly from webhook data');
+          
+          // Update case data if provided
+          if (data.caseData) {
+            console.log('Setting case data from webhook');
+            // Preserve categoryId from existing caseData if it's not in the webhook data
+            if (caseData && caseData.categoryId && !data.caseData.categoryId) {
+              console.log('Preserving categoryId from existing case data');
+              setCaseData({
+                ...data.caseData,
+                categoryId: caseData.categoryId
+              });
+            } else {
+              setCaseData(data.caseData);
+            }
+          } else {
+            console.log('Case data not provided in webhook - updating document status manually');
+            // Need to update document status manually if caseData wasn't provided
+            
+            // Find the document by ID and update its status
+            if (caseData && caseData.documentTypes && data.documentId) {
+              // Create a deep copy of caseData to avoid direct state mutation
+              const updatedCaseData = JSON.parse(JSON.stringify(caseData));
+              
+              // Look for the document that was processed in documentTypes
+              let documentUpdated = false;
+              
+              console.log('Attempting to update document status for processed document...');
+              
+              // Try to find by managementDocumentId first (if available)
+              if (data.managementDocumentId) {
+                console.log(`Looking for document with managementDocumentId ${data.managementDocumentId}`);
+                for (let i = 0; i < updatedCaseData.documentTypes.length; i++) {
+                  console.log(`Checking document #${i}: ${updatedCaseData.documentTypes[i].name}, ID: ${updatedCaseData.documentTypes[i]._id}`);
+                  if (updatedCaseData.documentTypes[i]._id === data.managementDocumentId) {
+                    const oldStatus = updatedCaseData.documentTypes[i].status;
+                    // Update status to UPLOADED
+                    updatedCaseData.documentTypes[i].status = DOCUMENT_STATUS.UPLOADED;
+                    console.log(`Updated document status for ${data.managementDocumentId} from ${oldStatus} to ${DOCUMENT_STATUS.UPLOADED}`);
+                    documentUpdated = true;
+                    break;
+                  }
+                }
+              }
+              
+              // If we couldn't find by managementDocumentId, try by documentType
+              if (!documentUpdated && data.data?.document_type) {
+                console.log(`Looking for document by type: ${data.data.document_type}`);
+                for (let i = 0; i < updatedCaseData.documentTypes.length; i++) {
+                  console.log(`Checking document #${i}: ${updatedCaseData.documentTypes[i].name}, Status: ${updatedCaseData.documentTypes[i].status}`);
+                  // Check if this document is the same type and is currently pending
+                  if (
+                    updatedCaseData.documentTypes[i].name === data.data.document_type && 
+                    updatedCaseData.documentTypes[i].status === DOCUMENT_STATUS.PENDING
+                  ) {
+                    const oldStatus = updatedCaseData.documentTypes[i].status;
+                    // Update status to UPLOADED
+                    updatedCaseData.documentTypes[i].status = DOCUMENT_STATUS.UPLOADED;
+                    console.log(`Updated document status for ${data.data.document_type} from ${oldStatus} to ${DOCUMENT_STATUS.UPLOADED}`);
+                    documentUpdated = true;
+                    break;
+                  }
+                }
+              }
+              
+              // If we found and updated a document, update the case data state
+              if (documentUpdated) {
+                console.log('Document status updated successfully! New case data:', updatedCaseData);
+                setCaseData(updatedCaseData);
+                console.log('Successfully updated document status in case data');
+              } else {
+                console.log('Could not find matching document to update status. Documents available:', updatedCaseData.documentTypes);
+                // Fall back to refreshing case data
+                fetchCaseDetails();
+              }
+            } else {
+              // If we couldn't update manually, fetch the case data
+              console.log('No document details available to update status - fetching case data');
+              fetchCaseDetails();
+            }
+          }
+          
+          // Update validation data if provided
+          if (data.validationResults) {
+            console.log('Setting validation data from webhook');
+            // Log the validation results structure
+            console.log('Validation results structure:', JSON.stringify(data.validationResults, null, 2));
+            
+            // Determine document type from multiple potential sources
+            const documentType = 
+              data.data?.document_type || 
+              (data.documentTypeId && caseData?.documentTypes?.find(dt => dt.documentTypeId === data.documentTypeId)?.name) || 
+              data.documentName?.split('.')[0] || 
+              'Document';
+              
+            console.log(`Determined document type: ${documentType} for validation results`);
+            console.log(`Current validation data:`, validationData);
+            
+            // Merge new validation results with existing data
+            const mergedData = mergeValidationResults(
+              validationDataRef.current || validationData, 
+              data.validationResults, 
+              documentType
+            );
+            
+            // Set the merged validation data
+            setValidationData(mergedData);
+            console.log('Updated validation data with all documents:', JSON.stringify(mergedData, null, 2));
+            
+            // Log document types in merged validation data
+            if (mergedData?.mergedValidations) {
+              console.log('Document types in validation data:', 
+                mergedData.mergedValidations.map(item => item.documentType)
+              );
+              
+              console.log('Total validations per document:',
+                mergedData.mergedValidations.map(item => ({
+                  documentType: item.documentType,
+                  validationCount: item.validations.length
+                }))
+              );
+            }
+            
+            // If the validation tab is not currently selected, show a notification about validation results
+            if (selectedSubTab !== 'validation') {
+              const failedCount = countFailedValidations(data.validationResults);
+              if (failedCount > 0) {
+                toast.error(`${failedCount} validation ${failedCount === 1 ? 'issue' : 'issues'} found in document`);
+              } else {
+                toast.success('All document validations passed');
+              }
+            }
+            
+            // Update the selectedSubTab if validation data is available to show validation results
+            if (data.validationResults.validations && data.validationResults.validations.length > 0) {
+              setSelectedSubTab('validation');
+            }
+          }
+          
+          // Update cross-verification data if provided
+          if (data.crossVerificationData) {
+            console.log('Setting cross-verification data from webhook');
+            console.log('Cross-verification data structure:', JSON.stringify(data.crossVerificationData, null, 2));
+            
+            // Set the cross-verification data
+            setVerificationData(data.crossVerificationData);
+            
+            // Check if all documents are uploaded (either from webhook or by calculating)
+            const allUploaded = data.allDocumentsUploaded || 
+              (caseData && caseData.documentTypes && caseData.documentTypes.every(doc => 
+                doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
+              ));
+            
+            // If all documents are uploaded, show a notification and update subtab
+            if (allUploaded) {
+              toast.success('All documents uploaded! Cross-verification available.');
+              
+              // If we're on the document tab, switch to cross-verification subtab
+              if (activeTab === 'document-checklist') {
+                setSelectedSubTab('cross-verification');
+              }
+            }
+            
+            // Store cross-verification data in localStorage for persistence
+            try {
+              localStorage.setItem(`cross-verification-data-${caseId}`, JSON.stringify(data.crossVerificationData));
+              console.log('Saved cross-verification data to localStorage');
+            } catch (error) {
+              console.error('Error saving cross-verification data to localStorage:', error);
+            }
+          }
+        }
+      });
+      
+      socket.on('document-processing-failed', (data) => {
+        console.log('Document processing failed:', data);
+        if (data.caseId === caseId) {
+          setProcessingDocIds(prev => prev.filter(id => id !== data.documentId));
+          setIsProcessingComplete(true);
+          toast.error(`Processing failed for document ${data.documentName || data.documentId}: ${data.error || 'Unknown error'}`);
+          
+          // Log the complete webhook response for debugging
+          console.log('Complete webhook failure response:', JSON.stringify(data, null, 2));
+          
+          // Update UI directly from webhook data without any API calls
+          console.log('Updating UI directly from webhook data for failed document');
+          
+          // Update case data if provided
+          if (data.caseData) {
+            console.log('Setting case data from webhook for failed document');
+            // Preserve categoryId from existing caseData if it's not in the webhook data
+            if (caseData && caseData.categoryId && !data.caseData.categoryId) {
+              console.log('Preserving categoryId from existing case data for failed document');
+              setCaseData({
+                ...data.caseData,
+                categoryId: caseData.categoryId
+              });
+            } else {
+              setCaseData(data.caseData);
+            }
+          } else {
+            console.log('Case data not provided in webhook - fetching case data after failure');
+            // Need to fetch case data since it wasn't provided
+            fetchCaseDetails();
+          }
+        }
+      });
+      
+      // Add detailed error handling
+      socket.on('connect_error', (error) => {
+        console.error('Socket connection error in CaseDetails:', error);
+        toast.error(`Socket connection error: ${error.message}. Retrying...`);
+      });
+    } catch (error) {
+      console.error('Error initializing socket:', error);
+      toast.error(`Failed to initialize socket: ${error.message}`);
+    }
+    
+    // Cleanup listeners when component unmounts
+    return () => {
+      if (socket) {
+        console.log('Cleaning up socket event listeners but keeping connection alive');
+        socket.off('document-processing-started');
+        socket.off('document-processing-progress');
+        socket.off('document-processing-completed');
+        socket.off('document-processing-failed');
+        socket.off('connect_error');
+      }
+    };
+  }, [caseId]);
+
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
     return allowedTypes.includes(file.type);
-  };
-
-  const checkDocumentProcessing = async (documentId) => {
-    const maxAttempts = 20;
-    const baseInterval = 2000;
-    let attempts = 0;
-
-    while (attempts < maxAttempts) {
-      try {
-        const response = await api.get(`/documents/${documentId}`);
-        const document = response.data.data.document;
-
-        if (document.processingError || document.status === 'failed') {
-          console.log(`Document ${documentId} processing failed`);
-          return null;
-        }
-
-        if (document.extractedData?.document_type) {
-          console.log('Document processed successfully');
-          return document;
-        }
-
-        attempts++;
-        await new Promise(resolve => setTimeout(resolve, baseInterval * Math.min(Math.pow(1.5, attempts), 8)));
-      } catch (err) {
-        console.error('Error checking document status:', err);
-        return null;
-      }
-    }
-
-    return null;
   };
 
   const handleDocumentApprove = async (documentTypeId, managementDocumentId) => {
@@ -365,6 +846,12 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           return null;
         }
 
+        // Check if caseData exists
+        if (!caseData || !caseData.documentTypes) {
+          toast.error('Case data not available. Please refresh the page.');
+          return null;
+        }
+
         // Find a pending document type
         const pendingDoc = caseData.documentTypes.find(dt => dt.status === 'pending');
         if (!pendingDoc) {
@@ -396,6 +883,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           if (response.data?.status === 'success') {
             const uploadedDoc = response.data.data.document;
             uploadedDocIds.push(uploadedDoc._id);
+            successfulUploads++;
             return uploadedDoc;
           }
           return null;
@@ -403,217 +891,82 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           console.error(`Error uploading ${file.name}:`, err);
           console.error('Error response:', err.response?.data);
           toast.error(`Failed to upload ${file.name}`);
+          failedUploads++;
           return null;
         }
       });
 
       const uploadedDocs = (await Promise.all(uploadPromises)).filter(Boolean);
       
-      // Process and verify documents
-      const processResults = await Promise.all(
-        uploadedDocs.map(async (doc) => {
-          try {
-            setProcessingStep(1); // Extracting information
-            const processedDoc = await checkDocumentProcessing(doc._id);
-            if (!processedDoc) {
-              failedUploads++;
-              await api.delete(`/documents/${doc._id}`);
-              return { success: false };
-            }
-
-            setProcessingStep(2); // Validating content
-            if (processedDoc.extractedData?.document_type) {
-              setProcessingStep(3); // Verifying document type
-              const extractedType = processedDoc.extractedData.document_type.toLowerCase().trim();
-              
-              const matchingDocType = caseData.documentTypes.find(type => {
-                return type.name.toLowerCase().trim() === extractedType && 
-                       type.status !== 'uploaded' &&
-                       type.status !== 'approved';
-              });
-
-              if (matchingDocType) {
-                await api.patch(`/documents/${doc._id}`, {
-                  documentTypeId: matchingDocType.documentTypeId,
-                  managementDocumentId: matchingDocType._id
-                });
-
-                await api.patch(`/management/${caseId}/documents/${matchingDocType.documentTypeId}/status`, {
-                  status: 'uploaded'
-                });
-
-                successfulUploads++;
-                return { success: true };
-              }
-            }
-            
-            failedUploads++;
-            await api.delete(`/documents/${doc._id}`);
-            return { success: false };
-            
-          } catch (err) {
-            console.error(`Error processing document ${doc._id}:`, err);
-            failedUploads++;
-            return { success: false };
-          }
-        })
-      );
-
-      // If any documents were uploaded successfully
-      if (successfulUploads > 0) {
+      // Connect to socket for document updates after successful uploads
+      if (uploadedDocIds.length > 0) {
         try {
-          // Create a promise that resolves after showing all loading steps
-          const showLoadingSteps = new Promise((resolve) => {
-            let currentStep = 0;
-            const stepInterval = 2000; // 2 seconds per step
-
-            const interval = setInterval(() => {
-              if (currentStep >= 5) {
-                clearInterval(interval);
-                resolve();
-              } else {
-                currentStep++;
-                setLoadingStep(currentStep);
-              }
-            }, stepInterval);
-          });
-
-          // Wait for loading steps to complete and make API calls
-          await showLoadingSteps;
-
-          // Refresh case data first
-          const response = await api.get(`/management/${caseId}`);
-          if (response.data.status === 'success') {
-            const updatedCaseData = response.data.data.entry;
-            setCaseData(updatedCaseData);
-
-            // Fetch fresh validation data for newly uploaded documents
-            const validationResponse = await api.get(`/documents/management/${caseId}/validations`);
-            if (validationResponse.data.status === 'success') {
-              setValidationData(validationResponse.data.data);
-              // Add these two lines right here
-              setIsProcessingComplete(true);
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              
-              const validationResults = validationResponse.data.data.mergedValidations.flatMap(doc => 
-                doc.validations.map(validation => ({
-                  ...validation,
-                  documentType: doc.documentType
-                }))
-              );
-
-              // Check if all documents are uploaded using the updated case data
-              const allDocsUploaded = updatedCaseData.documentTypes.every(doc => 
-                doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
-              );
-
-              // Only proceed with cross-verification if all documents are uploaded
-              if (allDocsUploaded) {
-                // Fetch cross-verification data
-                const crossVerificationResponse = await api.get(`/management/${caseId}/cross-verify`);
-                const verificationData = crossVerificationResponse.data.data;
-
-                // Generate and send email if there are verification results
-                if (verificationData?.verificationResults) {
-                  const summaryErrors = verificationData.verificationResults.summarizationErrors || [];
-                  const mismatchErrors = verificationData.verificationResults.mismatchErrors || [];
-                  const missingErrors = verificationData.verificationResults.missingErrors || [];
-
-                  if (summaryErrors.length > 0 || mismatchErrors.length > 0 || missingErrors.length > 0) {
-                    // Get recipient info from updated case data
-                    const recipientEmail = updatedCaseData.userId?.email;
-                    const recipientName = updatedCaseData.userId?.name;
-                    const userData = JSON.parse(localStorage.getItem('auth_user') || '{}');
-                    const senderName = userData.name;
-
-                    // Generate email draft with complete data
-                    const draftResponse = await api.post('/mail/draft', {
-                      errorType: 'Complete Verification Report',
-                      errorDetails: {
-                        validationResults,
-                        mismatchErrors,
-                        missingErrors,
-                        summarizationErrors: summaryErrors
-                      },
-                      recipientEmail,
-                      recipientName,
-                      senderName
-                    });
-
-                    if (draftResponse.data.status === 'success') {
-                      try {
-                        // Send the email
-                        await api.post('/mail/send', {
-                          subject: draftResponse.data.data.subject,
-                          body: draftResponse.data.data.body,
-                          recipientEmail,
-                          recipientName,
-                          ccEmail: '' // No CC for automatic emails
-                        });
-                        toast.success('Verification report sent successfully');
-                      } catch (sendError) {
-                        console.error('Error sending email:', sendError);
-                        toast.error('Failed to send verification report');
-                      }
-                    } else {
-                      console.error('Failed to generate email draft:', draftResponse.data);
-                      toast.error('Failed to generate verification report');
-                    }
-                  }
-                }
-              }
-            }
-          }
-
-          // Make API calls for each questionnaire
-          const questionnaireResponses = await Promise.all(
-            questionnaires.map(async (questionnaire) => {
-              try {
-                const response = await api.post(`/documents/management/${caseId}/organized`, {
-                  templateId: questionnaire._id
-                });
-                return {
-                  questionnaire,
-                  data: response.data
-                };
-              } catch (error) {
-                console.error(`Error processing questionnaire ${questionnaire._id}:`, error);
-                return {
-                  questionnaire,
-                  error: true
-                };
-              }
-            })
-          );
-
-          // Check if all API calls were successful
-          const hasErrors = questionnaireResponses.some(response => response.error);
-          if (hasErrors) {
-            toast.error('Some questionnaires could not be processed');
+          console.log('Connecting socket for document updates, ids:', uploadedDocIds);
+          
+          // Initialize socket connection with auth token
+          const token = getStoredToken();
+          const socket = initializeSocket(token);
+          
+          // Check socket connection
+          if (!socket.connected) {
+            console.log('Socket not yet connected, waiting for connection...');
+            socket.on('connect', () => {
+              console.log('Socket connected in handleFileUpload, joining rooms...');
+              // Join document rooms once connected
+              uploadedDocIds.forEach(docId => {
+                joinDocumentRoom(docId);
+              });
+            });
           } else {
-            // Show the final "Almost done..." message for 1 second
-            setLoadingStep(5);
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            toast.success('All questionnaires processed successfully');
-            setSelectedSubTab('validation');
+            console.log('Socket already connected, joining rooms...');
+            // Join document rooms for real-time updates if socket is already connected
+            uploadedDocIds.forEach(docId => {
+              joinDocumentRoom(docId);
+            });
           }
-
-        } catch (err) {
-          console.error('Error refreshing data after upload:', err);
-          toast.error('Some data might not be up to date. Please refresh the page.');
+          
+          console.log(`Requested to join ${uploadedDocIds.length} document rooms`);
+          toast.success(`Uploaded ${successfulUploads} document(s). Processing will begin shortly.`);
+          setProcessingStep(1); // Set to "Analyzing document" step
+          
+          // Log what we expect to receive from webhooks
+          console.log('Waiting for webhook events for documents:', uploadedDocIds);
+          console.log('Documents will be updated when processing webhooks are received');
+        } catch (error) {
+          console.error('Error connecting to socket in handleFileUpload:', error);
+          // Don't block the upload process if socket connection fails
+          // We'll still try to show notifications through the global socket handler
         }
       }
 
-      setFiles([]);
+      // If any documents were uploaded successfully, show a loading indicator
+      if (successfulUploads > 0) {
+        // Show loading indicator
+        setProcessingStep(1); // Set to "Processing" step
+        toast.success(`${successfulUploads} document(s) uploaded successfully. Waiting for processing...`);
+        
+        // Create a promise that resolves after showing initial loading step
+        const showInitialLoading = new Promise((resolve) => {
+          setLoadingStep(1);
+          setTimeout(resolve, 1500);
+        });
 
-    } catch (err) {
-      console.error('Error in file upload process:', err);
-      toast.error('Error processing documents');
+        // Wait for initial loading to complete
+        await showInitialLoading;
+        
+        // Don't refresh case data here - the webhook will handle this
+        console.log('Upload complete. Waiting for webhook to update UI with latest data.');
+      } else if (failedUploads > 0) {
+        toast.error(`Failed to upload ${failedUploads} document(s)`);
+      }
+              } catch (error) {
+      console.error('Error in file upload process:', error);
+      toast.error('An error occurred during the upload process');
     } finally {
+      setFiles([]);
       setIsUploading(false);
       setUploadProgress(0);
-      setProcessingStep(0);
+      setDragOver(false);
     }
   };
 
@@ -626,7 +979,21 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       setIsLoadingValidation(true);
       const response = await api.get(`/documents/management/${caseId}/validations`);
       if (response.data.status === 'success') {
-        setValidationData(response.data.data);
+        const newValidationData = response.data.data;
+        
+        // Update both state and ref
+        setValidationData(newValidationData);
+        validationDataRef.current = newValidationData;
+        
+        // Save to localStorage
+        try {
+          localStorage.setItem(`validation-data-${caseId}`, JSON.stringify(newValidationData));
+          console.log('Saved fetched validation data to localStorage');
+        } catch (storageError) {
+          console.error('Error saving validation data to localStorage:', storageError);
+        }
+        
+        return newValidationData;
       } else {
         throw new Error('Failed to fetch validation data');
       }
@@ -638,14 +1005,30 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     }
   };
 
-  // Add this function after the fetchExtractedData function
+  // Modify this function to ONLY make API calls, without checking localStorage
   const fetchCrossVerificationData = async () => {
-    if (!verificationData && !isLoadingVerification) {
+    // This function should only be responsible for fetching data from the API
+    if (!isLoadingVerification) {
       try {
+        console.log('Making API call to fetch cross-verification data');
         setIsLoadingVerification(true);
-        const response = await api.get(`/management/${caseId}/cross-verify`);
+        const response = await api.get(`/management/${caseId}/check-cross-verify`);
         if (response.data.status === 'success') {
-          setVerificationData(response.data.data);
+          const crossVerificationData = response.data.data;
+          
+          // Update both state and ref
+          setVerificationData(crossVerificationData);
+          verificationDataRef.current = crossVerificationData;
+          
+          // Save to localStorage for persistence
+          try {
+            localStorage.setItem(`cross-verification-data-${caseId}`, JSON.stringify(crossVerificationData));
+            console.log('Saved fetched cross-verification data to localStorage');
+          } catch (storageError) {
+            console.error('Error saving cross-verification data to localStorage:', storageError);
+          }
+          
+          return crossVerificationData;
         }
       } catch (error) {
         console.error('Error fetching verification data:', error);
@@ -654,26 +1037,33 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         setIsLoadingVerification(false);
       }
     }
+    return null;
   };
 
-  // Remove validation fetch from tab change useEffect since we don't want to fetch on tab change
+  // Simplified useEffect for tab changes - we don't make API calls here anymore
   useEffect(() => {
-    const loadInitialData = async () => {
-      // Only fetch cross-verification data when tab changes
-      if (selectedSubTab === 'cross-verification' && areAllDocumentsUploaded()) {
-        await fetchCrossVerificationData();
+    // This is now just a backup to ensure state is in sync with ref
+    // The main data loading logic has been moved to the tab click handler
+    if (selectedSubTab === 'cross-verification' && verificationDataRef.current) {
+      console.log('Cross-verification tab selected via state change, syncing state with ref data');
+      
+      // Make sure state is synced with ref
+      if (!verificationData || JSON.stringify(verificationData) !== JSON.stringify(verificationDataRef.current)) {
+        console.log('Syncing state with ref data');
+        setVerificationData(verificationDataRef.current);
       }
-    };
-
-    if (caseData) {
-      loadInitialData();
     }
-  }, [caseData, selectedSubTab]);
+  }, [selectedSubTab]);
 
   // Update the useEffect for initial data loading
   useEffect(() => {
     const fetchCaseDetails = async () => {
       try {
+        // First, load any data we have in localStorage
+        const { verificationDataFound } = loadDataFromLocalStorage();
+        console.log(`Initial localStorage load complete. Cross-verification data found: ${verificationDataFound}`);
+        
+        // Now fetch the case data from API
         setIsLoading(true);
         const response = await api.get(`/management/${caseId}`);
         if (response.data.status === 'success') {
@@ -689,6 +1079,10 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           // If there are uploaded documents, fetch validation data
           if (hasUploadedDocs) {
             await fetchValidationData();
+            
+            // DO NOT fetch cross-verification data on mount - it will be fetched
+            // only when the user explicitly clicks on the cross-verification tab
+            // (if it's not already in localStorage)
           }
           
           // Set breadcrumb with process name
@@ -764,78 +1158,33 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   }, [questionnaireData]);
 
   const handleInputChange = (section, field, value) => {
-    // Special handling for educational qualification
-    if (field === 'educationalQualification') {
-      // For educational qualification, ensure proper object structure
-      setFormData(prev => {
-        const newData = { ...prev };
-        
-        // Ensure the section exists
-        if (!newData[section]) {
-          newData[section] = {};
-        }
-        
-        // Handle array or object format for educationalQualification
-        if (Array.isArray(value)) {
-          newData[section][field] = value;
-        } else if (typeof value === 'object') {
-          // If it's an object, merge with existing data
-          newData[section][field] = {
-            ...(newData[section][field] || {}),
-            ...value
-          };
-        } else {
-          // If it's a simple value, just assign it
-          newData[section][field] = value;
-        }
-        
-        return newData;
-      });
-    } else {
-      // For regular fields
-      setFormData(prev => ({
-        ...prev,
-        [section]: {
-          ...(prev[section] || {}),
-          [field]: value
-        }
-      }));
-    }
+    setFormData(prev => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [field]: value
+      }
+    }));
   };
 
-  const handleSave = async (passedFormData) => {
+  const handleSave = async () => {
     try {
       setIsSavingQuestionnaire(true);
-      
-      // Use passed form data if provided, otherwise use current state
-      const currentFormData = passedFormData || { ...formData };
-      
       const response = await api.put(`/questionnaire-responses/management/${caseId}`, {
         templateId: selectedQuestionnaire._id,
-        processedInformation: currentFormData
+        processedInformation: formData
       });
 
       if (response.data.status === 'success') {
         toast.success('Changes saved successfully');
-        
-        // Update savedFields to match the current form data
-        setSavedFields(currentFormData);
-        
-        // After a brief delay to show the success animation,
-        // mark questionnaire as complete and move to forms tab
-        setTimeout(() => {
-          setIsQuestionnaireCompleted(true);
-          setActiveTab('forms');
-        }, 1000); // 1 second delay to show the success animation
+        setIsQuestionnaireCompleted(true);
+        setActiveTab('forms');
       }
     } catch (error) {
       console.error('Error saving questionnaire:', error);
       toast.error('Failed to save changes');
     } finally {
-      // Keep animation for at least 1 second for better UX
-      setTimeout(() => {
-        setIsSavingQuestionnaire(false);
-      }, 1000);
+      setIsSavingQuestionnaire(false);
     }
   };
 
@@ -1116,9 +1465,11 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
   // First, add a function to check if all documents are uploaded
   const areAllDocumentsUploaded = () => {
-    if (!caseData?.documentTypes) return false;
-    return caseData.documentTypes.every(doc => 
-      doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
+    if (!caseData || !caseData.documentTypes) return false;
+    
+    // Check if all documents are either uploaded or approved
+    return caseData.documentTypes.every(
+      doc => doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
     );
   };
 
@@ -1321,7 +1672,15 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               </div>
             </div>
           </div>
-          <div className="flex items-center">
+          <div className="flex items-center gap-3">
+            {/* Overall status badge */}
+            <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+              failedCount > 0 
+                ? 'bg-rose-50 text-rose-600 border border-rose-200' 
+                : 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+            }`}>
+              {failedCount > 0 ? `${failedCount} Issues Found` : 'All Passed'}
+            </span>
             <button className={`text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
               <ChevronDown className="w-5 h-5" />
             </button>
@@ -1365,9 +1724,17 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
   // Update the DocumentsChecklistTab component
   const DocumentsChecklistTab = () => {
-    const pendingDocuments = caseData.documentTypes.filter(doc => doc.status === DOCUMENT_STATUS.PENDING);
-    const uploadedDocuments = caseData.documentTypes.filter(
-      doc => doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
+    // Modify how documents are filtered based on their status
+    const pendingDocuments = caseData.documentTypes.filter(doc => 
+      doc.status === DOCUMENT_STATUS.PENDING && !processingDocIds.includes(doc._id)
+    );
+    
+    const processingDocuments = caseData.documentTypes.filter(doc => 
+      processingDocIds.includes(doc._id)
+    );
+    
+    const uploadedDocuments = caseData.documentTypes.filter(doc => 
+      doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
     );
 
     const formatDate = (dateString) => {
@@ -1388,15 +1755,60 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     };
 
     // Update the renderDocumentsList function
-    const renderDocumentsList = () => (
+    const renderDocumentsList = () => {
+      // Filter documents based on the selected tab
+      const documentsToShow = selectedDocumentTab === 'pending' 
+        ? [...processingDocuments, ...pendingDocuments]
+        : uploadedDocuments;
+      
+      // Sort documents: processing first, then pending
+      const sortedDocuments = documentsToShow.sort((a, b) => {
+        const aIsProcessing = processingDocIds.includes(a._id);
+        const bIsProcessing = processingDocIds.includes(b._id);
+        
+        if (aIsProcessing && !bIsProcessing) return -1;
+        if (!aIsProcessing && bIsProcessing) return 1;
+        return 0;
+      });
+      
+      return (
       <div className="col-span-8 bg-white rounded-lg border border-gray-200 p-6">
-        {/* Remove the redundant Upload Pending button/header */}
         <div className="space-y-3">
-          {/* Show only pending documents */}
-          {pendingDocuments.length > 0 ? (
-            pendingDocuments.map((doc) => (
-              <div key={doc._id} className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+          {sortedDocuments.length > 0 ? (
+            sortedDocuments.map((doc) => {
+              const isProcessing = processingDocIds.includes(doc._id);
+              const status = isProcessing ? 'processing' : doc.status;
+              
+              return (
+                <div 
+                  key={doc._id} 
+                  className={`rounded-lg border p-4 ${
+                    status === DOCUMENT_STATUS.APPROVED ? 'bg-green-50 border-green-200' :
+                    status === DOCUMENT_STATUS.UPLOADED ? 'bg-blue-50 border-blue-200' :
+                    status === 'processing' ? 'bg-amber-50 border-amber-200 animate-pulse' :
+                    'bg-gray-50 border-gray-200'
+                  }`}
+                >
                 <div className="flex justify-between items-start group">
+                    <div className="flex items-start space-x-3">
+                      <div 
+                        className={`p-2 rounded-lg ${
+                          status === DOCUMENT_STATUS.APPROVED ? 'bg-green-100 text-green-600' :
+                          status === DOCUMENT_STATUS.UPLOADED ? 'bg-blue-100 text-blue-600' :
+                          status === 'processing' ? 'bg-amber-100 text-amber-600' :
+                          'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        {status === DOCUMENT_STATUS.APPROVED ? (
+                          <Check className="w-5 h-5" />
+                        ) : status === DOCUMENT_STATUS.UPLOADED ? (
+                          <FileText className="w-5 h-5" />
+                        ) : status === 'processing' ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <Upload className="w-5 h-5" />
+                        )}
+                      </div>
                   <div>
                     <h4 className="font-medium text-sm mb-1">
                       {doc.name}
@@ -1405,32 +1817,83 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                       )}
                     </h4>
                     <p className="text-sm text-gray-500 leading-snug">
-                      Please upload your {doc.name.toLowerCase()} document
+                          {status === DOCUMENT_STATUS.APPROVED ? 'Document approved' :
+                           status === DOCUMENT_STATUS.UPLOADED ? 'Uploaded and awaiting approval' :
+                           status === 'processing' ? 'Processing document...' :
+                           `Please upload your ${doc.name.toLowerCase()} document`}
                     </p>
                   </div>
-                  <button className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Upload className="w-4 h-4" />
+                </div>
+                    
+                    {doc.upload_date && (
+                      <span className="text-xs text-gray-500">
+                        {formatDate(doc.upload_date)}
+                      </span>
+                    )}
+              </div>
+                  
+                  {status === DOCUMENT_STATUS.UPLOADED && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        onClick={() => handleDocumentApprove(doc.documentTypeId, doc._id)}
+                        disabled={processingDocuments[doc._id]}
+                        className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700 disabled:bg-green-300"
+                      >
+                        {processingDocuments[doc._id] ? (
+                          <>
+                            <Loader2 className="animate-spin -ml-0.5 mr-2 h-4 w-4" />
+                            Processing...
+                          </>
+                        ) : (
+                          <>Approve</>
+                        )}
+                      </button>
+                      
+                      <button
+                        onClick={() => handleRequestReupload(doc.documentTypeId, doc._id)}
+                        disabled={processingDocuments[doc._id]}
+                        className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
+                      >
+                        {processingDocuments[doc._id] ? (
+                          <>
+                            <Loader2 className="animate-spin -ml-0.5 mr-2 h-4 w-4" />
+                            Processing...
+                          </>
+                        ) : (
+                          <>Request reupload</>
+                        )}
                   </button>
                 </div>
+                  )}
               </div>
-            ))
+              );
+            })
           ) : (
-            <div className="text-gray-500 text-sm text-center py-8 bg-gray-50 rounded-lg border border-gray-200">
-              All documents have been uploaded.
+            <div className="text-center py-8">
+              <p className="text-gray-500">
+                {selectedDocumentTab === 'pending' 
+                  ? 'No pending documents. All documents have been uploaded.' 
+                  : 'No uploaded documents yet.'}
+              </p>
             </div>
           )}
         </div>
       </div>
     );
+    };
 
     const renderSmartUpload = () => {
-      // Add this check at the start of renderSmartUpload
-      const allDocsUploaded = caseData.documentTypes.every(doc => 
-        doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
+      // Disable upload if all documents are already uploaded, approved, or being processed
+      const hasPendingDocuments = caseData.documentTypes.some(doc => 
+        doc.status === DOCUMENT_STATUS.PENDING && !processingDocIds.includes(doc._id)
       );
+      
+      // If in uploaded tab or no pending documents, don't show upload UI
+      if (selectedDocumentTab === 'uploaded' || !hasPendingDocuments) {
+        return null;
+      }
 
       return (
-        uploadStatus === DOCUMENT_STATUS.PENDING && (
           <div className="col-span-4 bg-white rounded-lg border border-gray-200 p-6 relative">
             {isUploading && <ProcessingIndicator currentStep={processingStep} isComplete={isProcessingComplete} />}
             
@@ -1454,88 +1917,87 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 className="hidden"
                 id="file-upload"
                 onChange={handleFileSelect}
-                disabled={allDocsUploaded}
-              />
-              
-              {files.length > 0 ? (
-                <div className="w-full px-6">
-                  <div className="mb-4 text-center">
-                    <span className="text-sm text-gray-500">{files.length} file(s) selected</span>
+              disabled={!hasPendingDocuments || isUploading}
+            />
+            <div className="p-5">
+              <div className="mb-4 flex justify-center">
+                <Upload className="h-8 w-8 text-blue-500" />
+              </div>
+              <div className="text-center mb-4">
+                <h5 className="text-sm font-medium">
+                  {isDragging ? 'Drop files here' : 'Drag files here or click to browse'}
+                </h5>
+                <p className="text-xs text-gray-500 mt-1">
+                  {pendingDocuments.length > 0 
+                    ? `${pendingDocuments.length} documents pending upload` 
+                    : 'No pending documents remaining'}
+                </p>
+              </div>
+              <div className="flex justify-center">
+                <label
+                  htmlFor="file-upload"
+                  className={`px-3 py-2 text-sm rounded-md ${
+                    hasPendingDocuments && !isUploading
+                      ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
+                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  Browse Files
+                </label>
+              </div>
+            </div>
+          </div>
+          
+          {files.length > 0 && (
+            <div className="mt-4">
+              <div className="flex justify-between items-center mb-2">
+                <h5 className="text-sm font-medium">Selected Files ({files.length})</h5>
+                <button
+                  onClick={() => setFiles([])}
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                >
+                  Clear
+                </button>
                   </div>
-                  <div className="space-y-2 mb-6 max-h-40 overflow-y-auto">
+              <div className="space-y-2 max-h-40 overflow-auto">
                     {files.map((file, index) => (
-                      <div 
-                        key={index} 
-                        className="flex items-center justify-between bg-white border border-gray-200 p-2 rounded-lg"
-                      >
-                        <div className="flex items-center">
-                          <File className="w-4 h-4 text-gray-400 mr-2" />
-                          <span className="text-sm truncate max-w-xs">{file.name}</span>
+                  <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded-md">
+                    <div className="flex items-center space-x-2">
+                      <FileText className="w-4 h-4 text-gray-500" />
+                      <span className="text-xs truncate max-w-[150px]">{file.name}</span>
                         </div>
                         <button 
-                          onClick={() => setFiles(files.filter((_, i) => i !== index))}
-                          className="text-gray-400 hover:text-gray-600"
+                      onClick={() => setFiles(prev => prev.filter((_, i) => i !== index))}
+                      className="text-gray-500 hover:text-gray-700"
                         >
                           <X className="w-4 h-4" />
                         </button>
                       </div>
                     ))}
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <label 
-                      htmlFor="file-upload"
-                      className={`bg-white border border-gray-200 text-gray-700 py-2.5 px-6 rounded-lg text-sm font-medium text-center
-                        ${allDocsUploaded 
-                          ? 'opacity-50 cursor-not-allowed' 
-                          : 'cursor-pointer hover:bg-gray-50 transition-colors'
-                        }`}
-                    >
-                      Browse More Files
-                    </label>
+              <div className="mt-3">
                     <button 
                       onClick={() => handleFileUpload(files)}
-                      disabled={isUploading || allDocsUploaded}
-                      className={`bg-blue-600 text-white py-2.5 px-6 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2
-                        ${(isUploading || allDocsUploaded) ? 'opacity-75 cursor-not-allowed' : ''}`}
+                  disabled={files.length === 0 || isUploading}
+                  className={`w-full py-2 text-sm rounded-md ${
+                    files.length > 0 && !isUploading
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gray-200 text-gray-500'
+                  }`}
                     >
                       {isUploading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Processing...
-                        </>
-                      ) : (
-                        `Upload ${files.length} file${files.length !== 1 ? 's' : ''}`
+                    <div className="flex items-center justify-center">
+                      <Loader2 className="animate-spin mr-2 h-4 w-4" />
+                      Uploading...
+                    </div>
+                  ) : (
+                    'Upload Files'
                       )}
                     </button>
                   </div>
                 </div>
-              ) : (
-                <>
-                  <div className="w-12 h-12 bg-white rounded-full border border-gray-200 flex items-center justify-center mb-3">
-                    <Upload className="w-6 h-6 text-gray-400" />
-                  </div>
-                  <p className="text-sm text-gray-500 mb-2">
-                    {allDocsUploaded 
-                      ? 'All documents have been uploaded' 
-                      : isDragging ? 'Drop files here' : 'Drag and drop files here'
-                    }
-                  </p>
-                  <p className="text-sm text-gray-400 mb-6">or</p>
-                  <label 
-                    htmlFor="file-upload"
-                    className={`bg-blue-600 text-white py-2.5 px-6 rounded-lg text-sm font-medium transition-colors
-                      ${allDocsUploaded 
-                        ? 'opacity-50 cursor-not-allowed bg-gray-400' 
-                        : 'cursor-pointer hover:bg-blue-700'
-                      }`}
-                  >
-                    Browse Files
-                  </label>
-                </>
               )}
             </div>
-          </div>
-        )
       );
     };
 
@@ -1573,7 +2035,40 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               onClick={() => {
                 if (!tab.disabled) {
                   setSelectedSubTab(tab.id);
-                  // Remove validation fetch from here since it's handled by useEffect
+                  
+                  // Special handling for cross-verification tab
+                  if (tab.id === 'cross-verification') {
+                    console.log('Cross-verification tab clicked, checking for data');
+                    
+                    // First check if we already have data in memory
+                    if (verificationDataRef.current) {
+                      console.log('Using existing cross-verification data from memory ref');
+                      // Make sure state is synced with ref
+                      if (!verificationData || JSON.stringify(verificationData) !== JSON.stringify(verificationDataRef.current)) {
+                        console.log('Syncing state with ref data');
+                        setVerificationData(verificationDataRef.current);
+                      }
+                      return;
+                    }
+                    
+                    // If not in memory, check localStorage
+                    try {
+                      const savedData = localStorage.getItem(`cross-verification-data-${caseId}`);
+                      if (savedData) {
+                        console.log('Found cross-verification data in localStorage, using it instead of API call');
+                        const parsedData = JSON.parse(savedData);
+                        setVerificationData(parsedData);
+                        verificationDataRef.current = parsedData;
+                        return;
+                      }
+                    } catch (e) {
+                      console.error('Error reading localStorage:', e);
+                    }
+                    
+                    // If we got here, we need to fetch from API as a last resort
+                    console.log('No cross-verification data found in memory or localStorage, fetching from API');
+                    fetchCrossVerificationData();
+                  }
                 }
               }}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -1627,9 +2122,10 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             />
           );
         case 'cross-verification':
+          // Use the ref for the most up-to-date verification data
           return (
             <CrossVerificationTab 
-              verificationData={verificationData}
+              verificationData={verificationDataRef.current || verificationData}
               isLoading={isLoadingVerification}
               managementId={caseId}
               recipientEmail={recipientEmail}
@@ -1642,13 +2138,15 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               documents={caseData.documentTypes
                 .filter(doc => doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED)
                 .map(doc => {
-                  const hasVerificationData = verificationData && Object.keys(verificationData).length > 0;
+                  const hasVerificationData = (verificationDataRef.current || verificationData) && 
+                    Object.keys(verificationDataRef.current || verificationData).length > 0;
                   
                   const getValidationStatus = () => {
-                    if (!validationData?.mergedValidations) return 'pending';
+                    const currentValidationData = validationDataRef.current || validationData;
+                    if (!currentValidationData?.mergedValidations) return 'pending';
                     
                     // Find validation for current document
-                    const docValidation = validationData.mergedValidations.find(
+                    const docValidation = currentValidationData.mergedValidations.find(
                       v => v.documentType === doc.name
                     );
                     
@@ -1697,14 +2195,14 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                       {
                         name: 'Cross Verification',
                         status: !hasVerificationData ? 'pending' :
-                               verificationData?.[doc.name]?.isVerified ? 'success' : 
-                               verificationData?.[doc.name]?.partiallyVerified ? 'partial' : 'error'
+                               (verificationDataRef.current || verificationData)?.[doc.name]?.isVerified ? 'success' : 
+                               (verificationDataRef.current || verificationData)?.[doc.name]?.partiallyVerified ? 'partial' : 'error'
                       }
                     ]
                   };
                 })
               }
-              validationData={validationData}
+              validationData={validationDataRef.current || validationData}
               onStateClick={(state, document) => {
                 // Handle state clicks to navigate to appropriate tabs
                 switch(state) {
@@ -1748,17 +2246,44 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     };
 
     const renderValidationSection = () => {
-      if (!validationData?.mergedValidations?.length) return null;
+      // Get the most up-to-date validation data from the ref or state
+      const currentValidationData = validationDataRef.current || validationData;
+      
+      console.log('Rendering validation section with data:', currentValidationData);
+      console.log('Validation updated state:', validationUpdated);
+      
+      if (!currentValidationData || !currentValidationData.mergedValidations || currentValidationData.mergedValidations.length === 0) {
+        return (
+          <div className="flex flex-col items-center justify-center p-8 text-center">
+            <AlertCircle className="w-12 h-12 text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Validation Data Available</h3>
+            <p className="text-gray-500 max-w-md">
+              Validation data will appear here after your documents have been processed.
+            </p>
+          </div>
+        );
+      }
 
-      const totalFailedValidations = validationData.mergedValidations.reduce((total, doc) => 
+      // Count total failed validations across all documents
+      const totalFailedValidations = currentValidationData.mergedValidations.reduce((total, doc) => 
         total + doc.validations.filter(v => !v.passed).length, 0
       );
+
+      // Count document types with validations
+      const documentCount = currentValidationData.mergedValidations.length;
+      
+      console.log(`Displaying validations for ${documentCount} documents with ${totalFailedValidations} failed validations`);
 
       return (
         <div className="space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">
+            <div>
             <h2 className="text-lg font-semibold text-gray-900">Document Verification</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Validation results for {documentCount} {documentCount === 1 ? 'document' : 'documents'}
+              </p>
+            </div>
             {totalFailedValidations > 0 ? (
               <span className="px-3 py-1 rounded-full text-sm font-medium bg-rose-50 text-rose-600 border border-rose-200">
                 {totalFailedValidations} {totalFailedValidations === 1 ? 'Issue' : 'Issues'} Found
@@ -1772,12 +2297,27 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
           {/* Documents List */}
           <div className="space-y-4">
-            {validationData.mergedValidations.map((docValidation, index) => (
+            {currentValidationData.mergedValidations.map((docValidation, index) => (
+              <div 
+                key={`validation-section-${docValidation.documentType}-${index}-${validationUpdated}`}
+                className="border border-gray-200 rounded-lg overflow-hidden"
+              >
+                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                  <h3 className="font-medium text-gray-900">
+                    {docValidation.documentType}
+                    <span className="ml-2 text-sm text-gray-500">
+                      ({docValidation.validations.length} {docValidation.validations.length === 1 ? 'check' : 'checks'})
+                    </span>
+                  </h3>
+                </div>
+                <div className="p-4">
               <DocumentVerificationSection
-                key={index}
+                    key={`validation-content-${docValidation.documentType}-${index}-${validationUpdated}`}
                 document={{ name: docValidation.documentType }}
                 validations={docValidation.validations}
               />
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -1798,17 +2338,22 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
   const handleDragOver = (e) => {
     e.preventDefault();
+    if (!isDragging) {
     setIsDragging(true);
+    }
+    setDragOver(true);
   };
 
   const handleDragLeave = (e) => {
     e.preventDefault();
     setIsDragging(false);
+    setDragOver(false);
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
+    setDragOver(false);
     
     const droppedFiles = Array.from(e.dataTransfer.files);
     setFiles(prevFiles => [...prevFiles, ...droppedFiles]);
@@ -1821,43 +2366,381 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
   // Update the QuestionnaireDetailView component
   const QuestionnaireDetailView = ({ questionnaire, onBack }) => {
-    // Create a function to handle form data updates
-    const formDataUpdate = (updatedData) => {
-      // Update formData with the latest changes
-      setFormData(updatedData);
-      
-      // After saving, update savedFields
-      setSavedFields(updatedData);
+    // Add state for empty fields toggle
+    const [showOnlyEmpty, setShowOnlyEmpty] = useState(false);
+    // Add local state for form data
+    const [localFormData, setLocalFormData] = useState(formData);
+
+    // Update local form data when parent form data changes
+    useEffect(() => {
+      setLocalFormData(formData);
+    }, [formData]);
+
+    // Add function to check if a field is empty
+    const isFieldEmpty = (section, field) => {
+      if (field === 'educationalQualification') {
+        const eduData = localFormData?.[section]?.[field] || [];
+        if (!Array.isArray(eduData) || eduData.length === 0) return true;
+        return eduData.some(edu => {
+          if (typeof edu === 'string') return !edu;
+          return !edu.degree || !edu.institution || !edu.years;
+        });
+      }
+      return !localFormData?.[section]?.[field];
     };
-    
-    // Function to handle save success
-    const handleSaveSuccess = () => {
-      // Show success message
-      toast.success('Changes saved successfully');
-      
-      // After a delay, navigate to forms tab
-      setTimeout(() => {
-        setIsQuestionnaireCompleted(true);
-        setActiveTab('forms');
-      }, 1000);
+
+    // Update input change handler to use local state
+    const handleLocalInputChange = (section, field, value) => {
+      setLocalFormData(prev => ({
+        ...prev,
+        [section]: {
+          ...(prev[section] || {}),
+          [field]: value
+        }
+      }));
     };
-    
+
+    // Update save handler to use local state
+    const handleLocalSave = async () => {
+      try {
+        setIsSavingQuestionnaire(true);
+        
+        // Update parent state
+        setFormData(localFormData);
+        
+        const response = await api.put(`/questionnaire-responses/management/${caseId}`, {
+          templateId: selectedQuestionnaire._id,
+          processedInformation: localFormData
+        });
+
+        if (response.data.status === 'success') {
+          toast.success('Changes saved successfully');
+          setIsQuestionnaireCompleted(true);
+          setActiveTab('forms');
+        }
+      } catch (error) {
+        console.error('Error saving questionnaire:', error);
+        toast.error('Failed to save changes');
+      } finally {
+        setIsSavingQuestionnaire(false);
+      }
+    };
+
+    // Add function to count filled fields using local state
+    const getFilledFieldsCount = () => {
+      let totalFields = 0;
+      let filledFields = 0;
+
+      // Count Passport fields
+      const passportFields = questionnaire.field_mappings.filter(field => field.sourceDocument === 'Passport');
+      totalFields += passportFields.length;
+      passportFields.forEach(field => {
+        if (localFormData?.Passport?.[field.fieldName]) {
+          filledFields++;
+        }
+      });
+
+      // Count Resume fields
+      const resumeFields = questionnaire.field_mappings.filter(field => field.sourceDocument === 'Resume');
+      resumeFields.forEach(field => {
+        if (field.fieldName === 'educationalQualification') {
+          totalFields += 1;
+          if (localFormData?.Resume?.educationalQualification?.length > 0) {
+            filledFields++;
+          }
+        } else {
+          totalFields += 1;
+          if (localFormData?.Resume?.[field.fieldName]) {
+            filledFields++;
+          }
+        }
+      });
+
+      return { filledFields, totalFields };
+    };
+
+    const { filledFields, totalFields } = getFilledFieldsCount();
+
+    // Add function to check if field should be visible
+    const shouldShowField = (section, field) => {
+      if (!showOnlyEmpty) return true;
+      return field.required && isFieldEmpty(section, field.fieldName);
+    };
+
     return (
-      <QuestionnaireForm
-        questionnaire={questionnaire}
-        onBack={onBack}
-        formData={formData}
-        setFormData={setFormData} // Pass the setter directly
-        caseId={caseId}
-        savedFields={savedFields}
-        setSavedFields={formDataUpdate}
-        onComplete={handleSave} // Pass the handleSave function
-        isSaving={isSavingQuestionnaire} // Pass the isSavingQuestionnaire state for animation
-        getTemplateId={() => selectedQuestionnaire._id}
-        eduFieldCount={3}
-        eduFieldNames={['degree', 'institution', 'years']}
-        trackEditing={true}
-      />
+      <div className="p-6">
+        {/* Header with Back Button */}
+        <div className="mb-6 flex justify-between">
+          <div className="flex items-center gap-8">
+            <button 
+              onClick={onBack}
+              className="text-gray-600 hover:text-gray-800 transition-colors"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <div className="flex items-center gap-8">
+                <h2 className="text-lg font-medium text-gray-900">Questionnaire</h2>
+              </div>
+              <p className="text-sm text-gray-600">{questionnaire.questionnaire_name}</p>
+            </div>
+          </div>
+          <div className='flex items-center gap-4'>
+            {/* Add Empty Fields Toggle Button */}
+            <button
+              onClick={() => setShowOnlyEmpty(!showOnlyEmpty)}
+              className={`px-4 py-2 rounded text-sm font-medium transition-colors flex items-center gap-2
+                ${showOnlyEmpty 
+                  ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+            >
+              {showOnlyEmpty ? (
+                <>
+                  <Eye className="w-4 h-4" />
+                  Show All Fields
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="w-4 h-4" />
+                  Show Empty Fields
+                </>
+              )}
+            </button>
+
+            <div className="flex items-center gap-2">
+              <div className="text-sm text-gray-600">
+                {filledFields} out of {totalFields} fields completed
+              </div>
+              {/* Progress bar with animated dots */}
+              <div className="relative w-32">
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-green-500 transition-all duration-500"
+                    style={{ width: `${(filledFields / totalFields) * 100}%` }}
+                  />
+                </div>
+                {/* Animated dots for remaining fields */}
+                {filledFields < totalFields && (
+                  <div className="absolute top-0 left-0 w-full h-full flex items-center justify-end pr-2">
+                    <div className="flex gap-1">
+                      <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '0ms' }} />
+                      <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '200ms' }} />
+                      <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '400ms' }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <button
+              onClick={handleLocalSave}
+              disabled={isSavingQuestionnaire}
+              className="px-6 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isSavingQuestionnaire ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                'Save'
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Form Content */}
+        <div className="space-y-6">
+          {/* Passport Information Section */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 className="text-sm font-medium text-gray-900 mb-4">Passport Information</h3>
+            <div className="grid grid-cols-3 gap-4">
+              {questionnaire.field_mappings
+                .filter(field => field.sourceDocument === 'Passport')
+                .map(field => (
+                  shouldShowField('Passport', field) && (
+                    <div key={field._id}>
+                      <label className="block text-xs text-gray-500 mb-1">
+                        {field.fieldName}
+                        {field.required && <span className="text-red-500 ml-1">*</span>}
+                      </label>
+                      <input
+                        type="text"
+                        value={localFormData?.Passport?.[field.fieldName] || ''}
+                        onChange={(e) => handleLocalInputChange('Passport', field.fieldName, e.target.value)}
+                        className={`w-full px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 
+                          ${field.required && isFieldEmpty('Passport', field.fieldName)
+                            ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                            : 'border-gray-200 focus:border-blue-400'
+                          }`}
+                      />
+                    </div>
+                  )
+                ))}
+            </div>
+          </div>
+
+          {/* Resume Information Section */}
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 className="text-sm font-medium text-gray-900 mb-4">Professional Information</h3>
+            <div className="grid grid-cols-2 gap-4">
+              {questionnaire.field_mappings
+                .filter(field => field.sourceDocument === 'Resume')
+                .map(field => {
+                  if (field.fieldName === 'educationalQualification') {
+                    // Show educational qualification section only if it should be visible
+                    return shouldShowField('Resume', field) && (
+                      <div key={field._id} className="col-span-2">
+                        <label className="block text-xs text-gray-500 mb-1">
+                          {field.fieldName}
+                          {field.required && <span className="text-red-500 ml-1">*</span>}
+                        </label>
+                        <div className="space-y-2">
+                          {Array.isArray(localFormData?.Resume?.educationalQualification)
+                            ? localFormData.Resume.educationalQualification.map((edu, index) => (
+                              <div key={index} className="grid grid-cols-3 gap-2">
+                                <input
+                                  type="text"
+                                  value={typeof edu === 'string' ? edu : edu.degree || ''}
+                                  placeholder="Degree"
+                                  onChange={(e) => {
+                                    const newEdu = [...localFormData.Resume.educationalQualification];
+                                    newEdu[index] = typeof edu === 'string' 
+                                      ? e.target.value
+                                      : { ...newEdu[index], degree: e.target.value };
+                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                  }}
+                                  className={`w-full px-3 py-1.5 border rounded text-sm
+                                    ${field.required && (!edu || (typeof edu !== 'string' && !edu.degree))
+                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                      : 'border-gray-200 focus:border-blue-400'
+                                    }`}
+                                />
+                                <input
+                                  type="text"
+                                  value={typeof edu === 'string' ? '' : edu.institution || ''}
+                                  placeholder="Institution"
+                                  onChange={(e) => {
+                                    const newEdu = [...localFormData.Resume.educationalQualification];
+                                    newEdu[index] = { 
+                                      ...(typeof edu === 'string' ? { degree: edu } : newEdu[index]), 
+                                      institution: e.target.value 
+                                    };
+                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                  }}
+                                  className={`w-full px-3 py-1.5 border rounded text-sm
+                                    ${field.required && (!edu || (typeof edu !== 'string' && !edu.institution))
+                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                      : 'border-gray-200 focus:border-blue-400'
+                                    }`}
+                                />
+                                <input
+                                  type="text"
+                                  value={typeof edu === 'string' ? '' : (edu.years || edu.duration || '')}
+                                  placeholder="Years"
+                                  onChange={(e) => {
+                                    const newEdu = [...localFormData.Resume.educationalQualification];
+                                    newEdu[index] = { 
+                                      ...(typeof edu === 'string' ? { degree: edu } : newEdu[index]), 
+                                      years: e.target.value 
+                                    };
+                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                  }}
+                                  className={`w-full px-3 py-1.5 border rounded text-sm
+                                    ${field.required && (!edu || (typeof edu !== 'string' && !edu.years))
+                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                      : 'border-gray-200 focus:border-blue-400'
+                                    }`}
+                                />
+                              </div>
+                            )) : (
+                              <div className="grid grid-cols-3 gap-2">
+                                <input
+                                  type="text"
+                                  value={localFormData?.Resume?.educationalQualification?.degree || ''}
+                                  placeholder="Degree"
+                                  onChange={(e) => {
+                                    const newEdu = { ...localFormData.Resume.educationalQualification };
+                                    newEdu.degree = e.target.value;
+                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                  }}
+                                  className={`w-full px-3 py-1.5 border rounded text-sm
+                                    ${field.required && (!localFormData?.Resume?.educationalQualification?.degree || !localFormData?.Resume?.educationalQualification?.institution || !localFormData?.Resume?.educationalQualification?.years)
+                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                      : 'border-gray-200 focus:border-blue-400'
+                                    }`}
+                                />
+                                <input
+                                  type="text"
+                                  value={localFormData?.Resume?.educationalQualification?.institution || ''}
+                                  placeholder="Institution"
+                                  onChange={(e) => {
+                                    const newEdu = { ...localFormData.Resume.educationalQualification };
+                                    newEdu.institution = e.target.value;
+                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                  }}
+                                  className={`w-full px-3 py-1.5 border rounded text-sm
+                                    ${field.required && (!localFormData?.Resume?.educationalQualification?.degree || !localFormData?.Resume?.educationalQualification?.institution || !localFormData?.Resume?.educationalQualification?.years)
+                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                      : 'border-gray-200 focus:border-blue-400'
+                                    }`}
+                                />
+                                <input
+                                  type="text"
+                                  value={localFormData?.Resume?.educationalQualification?.years || ''}
+                                  placeholder="Years"
+                                  onChange={(e) => {
+                                    const newEdu = { ...localFormData.Resume.educationalQualification };
+                                    newEdu.years = e.target.value;
+                                    handleLocalInputChange('Resume', 'educationalQualification', newEdu);
+                                  }}
+                                  className={`w-full px-3 py-1.5 border rounded text-sm
+                                    ${field.required && (!localFormData?.Resume?.educationalQualification?.degree || !localFormData?.Resume?.educationalQualification?.institution || !localFormData?.Resume?.educationalQualification?.years)
+                                      ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                                      : 'border-gray-200 focus:border-blue-400'
+                                    }`}
+                                />
+                              </div>
+                            )}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return shouldShowField('Resume', field) && (
+                    <div key={field._id}>
+                      <label className="block text-xs text-gray-500 mb-1">
+                        {field.fieldName}
+                        {field.required && <span className="text-red-500 ml-1">*</span>}
+                      </label>
+                      <input
+                        type={field.fieldName.toLowerCase().includes('email') ? 'email' : 'text'}
+                        value={localFormData?.Resume?.[field.fieldName] || ''}
+                        onChange={(e) => handleLocalInputChange('Resume', field.fieldName, e.target.value)}
+                        className={`w-full px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 
+                          ${field.required && isFieldEmpty('Resume', field.fieldName)
+                            ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                            : 'border-gray-200 focus:border-blue-400'
+                          }`}
+                      />
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+
+        {/* Show message when no empty fields are found */}
+        {showOnlyEmpty && 
+         !questionnaire.field_mappings.some(field => 
+           shouldShowField(field.sourceDocument, field)
+         ) && (
+          <div className="text-center py-8 text-gray-500">
+            No empty required fields found!
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -1877,11 +2760,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         if (response.data.status === 'success') {
           await new Promise(resolve => setTimeout(resolve, 3000));
           setQuestionnaireData(response.data.data);
-          
-          // Set both formData and savedFields with the same data initially
-          const responseData = response.data.data.responses[0].processedInformation;
-          setFormData(responseData);
-          setSavedFields(responseData);
+          setFormData(response.data.data.responses[0].processedInformation);
         }
       } catch (error) {
         console.error('Error fetching questionnaire details:', error);
@@ -1944,19 +2823,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 <h3 className="text-sm font-medium text-gray-900">{questionnaire.questionnaire_name}</h3>
                 <div className="flex items-center">
                   <span className="text-sm text-gray-600">
-                    {(() => {
-                      // Calculate total fields including educationalQualification subfields
-                      let totalFields = 0;
-                      questionnaire.field_mappings.forEach(field => {
-                        if (field.fieldName === 'educationalQualification') {
-                          // Count educationalQualification as 3 fields (degree, institution, years)
-                          totalFields += 3;
-                        } else {
-                          totalFields += 1;
-                        }
-                      });
-                      return totalFields;
-                    })()} Fields
+                    {questionnaire.field_mappings.length} Fields
                   </span>
                 </div>
               </div>
@@ -2625,14 +3492,37 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     }
   };
 
+  // Add a handler for back button click
+  const handleBackClick = () => {
+    // Get the socket instance
+    const socket = getSocket();
+    
+    // Clean up event listeners but keep the socket connected
+    if (socket) {
+      console.log('Navigating back, cleaning up socket event listeners');
+      socket.off('document-processing-started');
+      socket.off('document-processing-progress');
+      socket.off('document-processing-completed');
+      socket.off('document-processing-failed');
+      socket.off('connect_error');
+      socket.off('reconnect');
+      console.log('Removed event listeners but kept socket connected');
+    }
+    
+    // Call the original onBack function
+    if (onBack) {
+      onBack();
+    }
+  };
+
   // Update the main container and its children to properly handle height
   return (
-    <div className="flex h-full bg-gray-50 rounded-xl"> {/* Changed from h-screen to h-full */}
+    <div className="flex h-full bg-gray-50 rounded-xl">
       {/* Sidebar */}
       <div className="flex flex-col w-80 bg-white border-r border-gray-200 shadow-sm relative rounded-xl">
         {onBack && (
           <button
-            onClick={onBack}
+            onClick={handleBackClick}
             className="p-4 text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all duration-200 group flex items-center gap-2"
           > 
             <ChevronLeft className="w-5 h-5 transition-transform group-hover:-translate-x-0.5" />

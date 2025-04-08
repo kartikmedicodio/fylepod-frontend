@@ -1,5 +1,6 @@
 import api from '../utils/api';
 import { setStoredToken, removeStoredToken, getStoredToken, setStoredUser } from '../utils/auth';
+import { disconnectSocket } from '../utils/socket';
 
 export const login = async (credentials) => {
   try {
@@ -30,8 +31,14 @@ export const register = async (userData) => {
 
 export const logout = async () => {
   try {
+    // Disconnect the socket before logging out to clean up resources
+    console.log('Logging out, disconnecting socket');
+    disconnectSocket();
+    
+    // Call the logout endpoint
     await api.post('/auth/logout');
   } finally {
+    // Always remove the token even if the API call fails
     removeStoredToken();
   }
 };

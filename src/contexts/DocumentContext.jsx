@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState } from 'react';
 
 const DocumentContext = createContext();
+const API_URL = import.meta.env.VITE_API_URL
 
 export const useDocumentContext = () => {
   const context = useContext(DocumentContext);
@@ -28,7 +29,7 @@ export const DocumentProvider = ({ children }) => {
       const documentIds = documents.map(doc => doc.id);
       
       // Make a single API call to fetch all document details
-      const response = await fetch(`https://api-dev.relayzen.com/api/documents/management-docs`, {
+      const response = await fetch(`${API_URL}/documents/management-docs`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

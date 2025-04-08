@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { User, X } from 'lucide-react';
+import { User } from 'lucide-react';
 import api from '../utils/api';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import PropTypes from 'prop-types';
 import { useAuth } from '../contexts/AuthContext';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
@@ -17,14 +17,6 @@ const NewCorpAdmin = () => {
   const [loading, setLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [companyDetails, setCompanyDetails] = useState(null);
-  const [submitError, setSubmitError] = useState('');
-
-  const [validationErrors, setValidationErrors] = useState({
-    name: '',
-    email: '',
-    mobileNumber: '',
-    residencePhone: ''
-  });
 
   const [formData, setFormData] = useState({
     name: '',
@@ -81,59 +73,7 @@ const NewCorpAdmin = () => {
     }
   }, [companyId, navigate]);
 
-  // Validation functions
-  const validateName = (name) => {
-    if (!name.trim()) return 'Name is required';
-    if (name.trim().length < 2) return 'Name must be at least 2 characters';
-    if (!/^[a-zA-Z\s]*$/.test(name)) return 'Name should only contain letters and spaces';
-    return '';
-  };
-
-  const validateEmail = (email) => {
-    if (!email.trim()) return 'Email is required';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Invalid email format';
-    return '';
-  };
-
-  const validatePhoneNumber = (number, isRequired = false) => {
-    if (!number.trim() && isRequired) return 'Phone number is required';
-    if (number.trim()) {
-      // Remove any spaces, dashes or other non-digit characters
-      const digitsOnly = number.replace(/\D/g, '');
-      if (digitsOnly.length !== 10) {
-        return 'Phone number must be exactly 10 digits';
-      }
-      // Check if it follows the format: 10 digits only
-      if (!/^\d{10}$/.test(digitsOnly)) {
-        return 'Invalid phone number format';
-      }
-    }
-    return '';
-  };
-
-  // Update isFormValid to use validation functions
-  const isFormValid = () => {
-    const nameError = validateName(formData.name);
-    const emailError = validateEmail(formData.email);
-    const mobileError = validatePhoneNumber(formData.contact.mobileNumber, true);
-    const residenceError = validatePhoneNumber(formData.contact.residencePhone, false);
-    
-    return !nameError && !emailError && !mobileError && !residenceError;
-  };
-
   const handleInputChange = (field, value) => {
-    // For phone numbers, only allow digits and format them
-    if (field === 'mobile_number' || field === 'residence_phone') {
-      // Remove any non-digit characters
-      const digitsOnly = value.replace(/\D/g, '');
-      // Limit to 10 digits
-      const truncated = digitsOnly.slice(0, 10);
-      // Format as: XXX-XXX-XXXX
-      const formatted = truncated.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
-      value = truncated.length ? formatted : truncated;
-    }
-
-    // Update form data
     setFormData(prev => ({
       ...prev,
       [field]: value,
@@ -144,89 +84,18 @@ const NewCorpAdmin = () => {
         email: field === 'email' ? value : prev.contact.email
       }
     }));
+  };
 
-    // Validate and update errors
-    let error = '';
-    switch(field) {
-      case 'name':
-        error = validateName(value);
-        setValidationErrors(prev => ({ ...prev, name: error }));
-        break;
-      case 'email':
-        error = validateEmail(value);
-        setValidationErrors(prev => ({ ...prev, email: error }));
-        break;
-      case 'mobile_number':
-        error = validatePhoneNumber(value, true);
-        setValidationErrors(prev => ({ ...prev, mobileNumber: error }));
-        break;
-      case 'residence_phone':
-        error = validatePhoneNumber(value, false);
-        setValidationErrors(prev => ({ ...prev, residencePhone: error }));
-        break;
-      default:
-        break;
-    }
+  const isFormValid = () => {
+    return (
+      formData.name.trim() !== '' &&
+      formData.email.trim() !== '' &&
+      formData.contact.mobileNumber.trim() !== ''
+    );
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    // Validate all fields before submission
-    const nameError = validateName(formData.name);
-    const emailError = validateEmail(formData.email);
-    const mobileError = validatePhoneNumber(formData.contact.mobileNumber, true);
-    const residenceError = validatePhoneNumber(formData.contact.residencePhone, false);
-
-    // Update all validation errors
-    setValidationErrors({
-      name: nameError,
-      email: emailError,
-      mobileNumber: mobileError,
-      residencePhone: residenceError
-    });
-
-    // Check if there are any validation errors
-    if (nameError || emailError || mobileError || residenceError) {
-      toast.custom(
-        (t) => (
-          <div
-            className={`${
-              t.visible ? 'animate-enter' : 'animate-leave'
-            } max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}
-          >
-            <div className="flex-1 w-0 p-4">
-              <div className="flex items-start">
-                <div className="flex-shrink-0 pt-0.5">
-                  <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
-                    <X className="h-6 w-6 text-red-600" />
-                  </div>
-                </div>
-                <div className="ml-3 flex-1">
-                  <p className="text-sm font-medium text-gray-900">
-                    Validation Error
-                  </p>
-                  <p className="mt-1 text-sm text-gray-500">
-                    Please fix all validation errors before submitting
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="flex border-l border-gray-200">
-              <button
-                onClick={() => toast.dismiss(t.id)}
-                className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-red-600 hover:text-red-500 focus:outline-none"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        ),
-        { duration: 4000 }
-      );
-      return;
-    }
-
     setLoading(true);
 
     try {
@@ -249,16 +118,6 @@ const NewCorpAdmin = () => {
       const response = await api.post('/auth/users', userData);
       
       if (response.data.status === 'success') {
-        toast.success('Corporate admin created successfully!', {
-          style: {
-            background: '#10B981',
-            color: '#FFFFFF'
-          },
-          iconTheme: {
-            primary: '#FFFFFF',
-            secondary: '#10B981'
-          }
-        });
         setShowSuccess(true);
         setTimeout(() => {
           navigate('/dashboard');
@@ -267,87 +126,7 @@ const NewCorpAdmin = () => {
         throw new Error(response.data.message || 'Failed to create corporate admin');
       }
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message;
-      
-      if (errorMessage.includes('email already exists')) {
-        setValidationErrors(prev => ({
-          ...prev,
-          email: 'This email is already registered'
-        }));
-        toast.custom(
-          (t) => (
-            <div
-              className={`${
-                t.visible ? 'animate-enter' : 'animate-leave'
-              } max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}
-            >
-              <div className="flex-1 w-0 p-4">
-                <div className="flex items-start">
-                  <div className="flex-shrink-0 pt-0.5">
-                    <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
-                      <X className="h-6 w-6 text-red-600" />
-                    </div>
-                  </div>
-                  <div className="ml-3 flex-1">
-                    <p className="text-sm font-medium text-gray-900">
-                      Email Already Exists
-                    </p>
-                    <p className="mt-1 text-sm text-gray-500">
-                      This email address is already registered in the system
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="flex border-l border-gray-200">
-                <button
-                  onClick={() => toast.dismiss(t.id)}
-                  className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-red-600 hover:text-red-500 focus:outline-none"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          ),
-          { duration: 4000 }
-        );
-      } else {
-        toast.custom(
-          (t) => (
-            <div
-              className={`${
-                t.visible ? 'animate-enter' : 'animate-leave'
-              } max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}
-            >
-              <div className="flex-1 w-0 p-4">
-                <div className="flex items-start">
-                  <div className="flex-shrink-0 pt-0.5">
-                    <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
-                      <X className="h-6 w-6 text-red-600" />
-                    </div>
-                  </div>
-                  <div className="ml-3 flex-1">
-                    <p className="text-sm font-medium text-gray-900">
-                      Failed to Create Admin
-                    </p>
-                    <p className="mt-1 text-sm text-gray-500">
-                      {errorMessage}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="flex border-l border-gray-200">
-                <button
-                  onClick={() => toast.dismiss(t.id)}
-                  className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-red-600 hover:text-red-500 focus:outline-none"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          ),
-          { duration: 4000 }
-        );
-      }
+      toast.error(error.response?.data?.message || error.message || 'Failed to create corporate admin');
     } finally {
       setLoading(false);
     }
@@ -376,21 +155,6 @@ const NewCorpAdmin = () => {
             </div>
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Corporate Admin Created!</h2>
             <p className="text-gray-600">{formData.name} has been added successfully</p>
-          </div>
-        </div>
-      )}
-
-      {/* Error Message */}
-      {submitError && (
-        <div className="mb-6 p-4 bg-rose-50 border border-rose-200 rounded-lg">
-          <div className="flex items-start gap-3">
-            <svg className="w-5 h-5 text-rose-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <div>
-              <h3 className="text-sm font-medium text-rose-800">Failed to Create Admin</h3>
-              <p className="mt-1 text-sm text-rose-700">{submitError}</p>
-            </div>
           </div>
         </div>
       )}
@@ -439,7 +203,7 @@ const NewCorpAdmin = () => {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
                       Full Name
-                      <span className="text-rose-500 text-lg leading-none">*</span>
+                      {!formData.name.trim() && <span className="text-rose-500 text-lg leading-none">*</span>}
                     </label>
                     <input
                       type="text"
@@ -448,12 +212,9 @@ const NewCorpAdmin = () => {
                       placeholder="Enter full name"
                       required
                       className={`block w-full rounded-lg border ${
-                        validationErrors.name ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
+                        !formData.name.trim() ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
                       } py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors`}
                     />
-                    {validationErrors.name && (
-                      <p className="mt-1 text-sm text-rose-500">{validationErrors.name}</p>
-                    )}
                   </div>
 
                   {/* Phone Number */}
@@ -466,20 +227,15 @@ const NewCorpAdmin = () => {
                       value={formData.contact.residencePhone}
                       onChange={(e) => handleInputChange('residence_phone', e.target.value)}
                       placeholder="Enter residence phone"
-                      className={`block w-full rounded-lg border ${
-                        validationErrors.residencePhone ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
-                      } py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors`}
+                      className="block w-full rounded-lg border border-gray-300 py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                     />
-                    {validationErrors.residencePhone && (
-                      <p className="mt-1 text-sm text-rose-500">{validationErrors.residencePhone}</p>
-                    )}
                   </div>
 
                   {/* Mobile Number */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
                       Mobile Number
-                      <span className="text-rose-500 text-lg leading-none">*</span>
+                      {!formData.contact.mobileNumber.trim() && <span className="text-rose-500 text-lg leading-none">*</span>}
                     </label>
                     <input
                       type="tel"
@@ -488,12 +244,9 @@ const NewCorpAdmin = () => {
                       placeholder="Enter mobile number"
                       required
                       className={`block w-full rounded-lg border ${
-                        validationErrors.mobileNumber ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
+                        !formData.contact.mobileNumber.trim() ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
                       } py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors`}
                     />
-                    {validationErrors.mobileNumber && (
-                      <p className="mt-1 text-sm text-rose-500">{validationErrors.mobileNumber}</p>
-                    )}
                   </div>
 
                   {/* Sex */}
@@ -516,7 +269,7 @@ const NewCorpAdmin = () => {
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
                       Email Address
-                      <span className="text-rose-500 text-lg leading-none">*</span>
+                      {!formData.email.trim() && <span className="text-rose-500 text-lg leading-none">*</span>}
                     </label>
                     <input
                       type="email"
@@ -525,12 +278,9 @@ const NewCorpAdmin = () => {
                       placeholder="Enter email address"
                       required
                       className={`block w-full rounded-lg border ${
-                        validationErrors.email ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
+                        !formData.email.trim() ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
                       } py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors`}
                     />
-                    {validationErrors.email && (
-                      <p className="mt-1 text-sm text-rose-500">{validationErrors.email}</p>
-                    )}
                   </div>
                 </div>
 
