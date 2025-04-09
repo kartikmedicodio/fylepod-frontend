@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, SlidersHorizontal, Clock, Edit2, CheckCircle, XCircle } from 'lucide-react';
+import { Search, SlidersHorizontal, Clock, Edit2, CheckCircle, XCircle, FileText, Plus } from 'lucide-react';
 import api from '../utils/api';
 import { usePage } from '../contexts/PageContext';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
@@ -10,6 +10,7 @@ import { toast } from 'react-hot-toast';
 const KnowledgeBase = () => {
   const [categories, setCategories] = useState([]);
   const [masterDocuments, setMasterDocuments] = useState([]);
+  const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,15 +22,18 @@ const KnowledgeBase = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    setPageTitle('Knowledge Base');
+    setPageTitle(selectedCategory);
     setCurrentBreadcrumb([
-      { label: 'Home', link: '/' },
-      { label: 'Knowledge Base', link: '/knowledge' }
+      { label: 'Dashboard', link: '/' },
+      { label: 'Knowledge Base', link: '/knowledge' },
+      ...(selectedCategory !== 'Knowledge Base' ? [{ label: selectedCategory, link: '#' }] : [])
     ]);
     if (selectedCategory === 'Process Template') {
       fetchCategories();
     } else if (selectedCategory === 'Master Document List') {
       fetchMasterDocuments();
+    } else if (selectedCategory === 'Master Forms List') {
+      fetchForms();
     }
   }, [setPageTitle, setCurrentBreadcrumb, selectedCategory]);
 
@@ -63,18 +67,39 @@ const KnowledgeBase = () => {
     }
   };
 
+  const fetchForms = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/forms');
+      if (response.data.status === 'success') {
+        setForms(response.data.data.forms);
+      }
+    } catch (err) {
+      setError('Failed to fetch forms');
+      console.error('Error fetching forms:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filteredItems = selectedCategory === 'Process Template' 
     ? categories.filter(category =>
         category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         category.description?.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : masterDocuments.filter(doc =>
+    : selectedCategory === 'Master Document List'
+    ? masterDocuments.filter(doc =>
         doc.name.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : forms.filter(form =>
+        form.form_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        form.description?.toLowerCase().includes(searchQuery.toLowerCase())
       );
 
   const sidebarCategories = [
     { name: 'Process Template', path: '/knowledge/process-templates' },
-    { name: 'Master Document List', path: '/knowledge/master-documents' }
+    { name: 'Master Document List', path: '/knowledge/master-documents' },
+    { name: 'Master Forms List', path: '/knowledge/master-forms' }
   ];
 
   const handleRowClick = (categoryId) => {
@@ -128,8 +153,208 @@ const KnowledgeBase = () => {
     }
   };
 
+  // Render the main content based on selected category
+  const renderMainContent = () => {
+    if (loading) {
+      return (
+        <div className="px-6 py-4 text-center">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+        </div>
+      );
+    }
+    
+    if (error) {
+      return (
+        <div className="px-6 py-4 text-center text-red-500">
+          {error}
+        </div>
+      );
+    }
+    
+    if (filteredItems.length === 0) {
+      return (
+        <div className="px-6 py-4 text-center text-gray-500">
+          No items found
+        </div>
+      );
+    }
+
+    // Render tables for all categories
+    return (
+      <>
+        <div className="bg-white rounded-lg border border-gray-200">
+          <div className="min-w-full divide-y divide-gray-200">
+            <div className="bg-white">
+              <div className={`grid ${
+                selectedCategory === 'Process Template' 
+                  ? 'grid-cols-5' 
+                  : 'grid-cols-4'
+              } px-6 py-3 border-b border-gray-200`}>
+                {selectedCategory === 'Process Template' ? (
+                  <>
+                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Process Name
+                    </div>
+                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Process Description
+                    </div>
+                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </div>
+                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Deadline (days)
+                    </div>
+                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Usage
+                    </div>
+                  </>
+                ) : selectedCategory === 'Master Forms List' ? (
+                  <>
+                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      ID
+                    </div>
+                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Form Name
+                    </div>
+                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Description
+                    </div>
+                    <div className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Created At
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Document Name
+                    </div>
+                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Required
+                    </div>
+                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Validations
+                    </div>
+                    <div className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Created At
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="bg-white divide-y divide-gray-200">
+              {filteredItems.map((item) => (
+                <div 
+                  key={item._id} 
+                  className={`grid ${
+                    selectedCategory === 'Process Template' 
+                      ? 'grid-cols-5' 
+                      : 'grid-cols-4'
+                  } px-6 py-4 hover:bg-gray-50 ${selectedCategory === 'Process Template' ? 'cursor-pointer' : ''}`}
+                  onClick={() => {
+                    if (selectedCategory === 'Process Template') {
+                      handleRowClick(item._id);
+                    }
+                  }}
+                >
+                  {selectedCategory === 'Process Template' ? (
+                    <>
+                      <div className="text-sm text-gray-900">{item.name}</div>
+                      <div className="text-sm text-gray-500">{item.description}</div>
+                      <div>
+                        <span className="px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                          Active
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-500 flex items-center">
+                        {editingDeadline === item._id ? (
+                          <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="number"
+                              min="0"
+                              className="w-16 px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              value={deadlineValue}
+                              onChange={handleDeadlineChange}
+                              onKeyDown={(e) => handleDeadlineKeyDown(e, item._id)}
+                              autoFocus
+                            />
+                            <button 
+                              className="ml-2 p-1 text-green-600 hover:text-green-800"
+                              onClick={() => saveDeadline(item._id)}
+                            >
+                              ✓
+                            </button>
+                            <button 
+                              className="ml-1 p-1 text-red-600 hover:text-red-800"
+                              onClick={() => setEditingDeadline(null)}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <Clock className="w-4 h-4 mr-1" />
+                            {item.deadline || 0} days
+                            <button 
+                              className="ml-2 text-blue-600 hover:text-blue-800"
+                              onClick={(e) => handleDeadlineEdit(e, item)}
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {`${Math.floor(Math.random() * 5) + 1} cases in use`}
+                      </div>
+                    </>
+                  ) : selectedCategory === 'Master Forms List' ? (
+                    <>
+                      <div className="text-sm font-mono text-gray-900">{item._id.substring(0, 8)}</div>
+                      <div className="text-sm text-gray-900">{item.form_name}</div>
+                      <div className="text-sm text-gray-500">{item.description || "No description available"}</div>
+                      <div className="text-sm text-gray-500 text-right">
+                        {new Date(item.createdAt).toLocaleDateString()}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-sm text-gray-900">{item.name}</div>
+                      <div className="text-sm text-gray-500">
+                        {item.required ? (
+                          <span className="flex items-center text-green-600">
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Required
+                          </span>
+                        ) : (
+                          <span className="flex items-center text-gray-500">
+                            <XCircle className="w-4 h-4 mr-1" />
+                            Optional
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        <ul className="list-disc pl-4 space-y-1">
+                          {item.validations && item.validations.map((validation, index) => (
+                            <li key={index} className="whitespace-pre-wrap break-words">{validation}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div className="text-sm text-gray-500 text-right">
+                        {new Date(item.createdAt).toLocaleDateString()}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  };
+
   return (
-    <div className="flex h-full gap-4">
+    <div className="flex h-full gap-4 pt-6">
       {/* Left Sidebar */}
       <div className="w-64 bg-white shadow-sm rounded-lg">
         <div className="p-4">
@@ -171,162 +396,18 @@ const KnowledgeBase = () => {
           </div>
         </div>
 
-        {/* Main Content Table */}
-        <div className="px-4">
-          <div className="bg-white rounded-lg border border-gray-200">
-            <div className="min-w-full divide-y divide-gray-200">
-              <div className="bg-white">
-                <div className={`grid ${selectedCategory === 'Process Template' ? 'grid-cols-5' : 'grid-cols-4'} px-6 py-3 border-b border-gray-200`}>
-                  {selectedCategory === 'Process Template' ? (
-                    <>
-                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Process Name
-                      </div>
-                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Process Description
-                      </div>
-                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </div>
-                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Deadline (days)
-                      </div>
-                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Usage
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Document Name
-                      </div>
-                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Required
-                      </div>
-                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Validations
-                      </div>
-                      <div className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Created At
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className="bg-white divide-y divide-gray-200">
-                {loading ? (
-                  <div className="px-6 py-4 text-center">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
-                  </div>
-                ) : error ? (
-                  <div className="px-6 py-4 text-center text-red-500">
-                    {error}
-                  </div>
-                ) : filteredItems.length === 0 ? (
-                  <div className="px-6 py-4 text-center text-gray-500">
-                    No items found
-                  </div>
-                ) : (
-                  filteredItems.map((item) => (
-                    <div 
-                      key={item._id} 
-                      className={`grid ${selectedCategory === 'Process Template' ? 'grid-cols-5' : 'grid-cols-4'} px-6 py-4 hover:bg-gray-50 cursor-pointer`}
-                      onClick={() => selectedCategory === 'Process Template' && handleRowClick(item._id)}
-                    >
-                      {selectedCategory === 'Process Template' ? (
-                        <>
-                          <div className="text-sm text-gray-900">{item.name}</div>
-                          <div className="text-sm text-gray-500">{item.description}</div>
-                          <div>
-                            <span className="px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                              Active
-                            </span>
-                          </div>
-                          <div className="text-sm text-gray-500 flex items-center">
-                            {editingDeadline === item._id ? (
-                              <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  className="w-16 px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                  value={deadlineValue}
-                                  onChange={handleDeadlineChange}
-                                  onKeyDown={(e) => handleDeadlineKeyDown(e, item._id)}
-                                  autoFocus
-                                />
-                                <button 
-                                  className="ml-2 p-1 text-green-600 hover:text-green-800"
-                                  onClick={() => saveDeadline(item._id)}
-                                >
-                                  ✓
-                                </button>
-                                <button 
-                                  className="ml-1 p-1 text-red-600 hover:text-red-800"
-                                  onClick={() => setEditingDeadline(null)}
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            ) : (
-                              <>
-                                <Clock className="w-4 h-4 mr-1" />
-                                {item.deadline || 0} days
-                                <button 
-                                  className="ml-2 text-blue-600 hover:text-blue-800"
-                                  onClick={(e) => handleDeadlineEdit(e, item)}
-                                >
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {`${Math.floor(Math.random() * 5) + 1} cases in use`}
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="text-sm text-gray-900">{item.name}</div>
-                          <div className="text-sm text-gray-500">
-                            {item.required ? (
-                              <span className="flex items-center text-green-600">
-                                <CheckCircle className="w-4 h-4 mr-1" />
-                                Required
-                              </span>
-                            ) : (
-                              <span className="flex items-center text-gray-500">
-                                <XCircle className="w-4 h-4 mr-1" />
-                                Optional
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            <ul className="list-disc pl-4 space-y-1">
-                              {item.validations.map((validation, index) => (
-                                <li key={index} className="whitespace-pre-wrap break-words">{validation}</li>
-                              ))}
-                            </ul>
-                          </div>
-                          <div className="text-sm text-gray-500 text-right">
-                            {new Date(item.createdAt).toLocaleDateString()}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
+        {/* Main Content */}
+        <div className="px-4 pb-4">
+          {renderMainContent()}
+        </div>
 
-          {/* Pagination */}
-          <div className="flex items-center justify-between py-3 text-sm text-gray-500">
-            <div>
-              Showing 1 - {filteredItems.length} of {filteredItems.length}
-            </div>
-            <div>
-              Page 1 of {Math.ceil(filteredItems.length / 10)}
-            </div>
+        {/* Pagination */}
+        <div className="flex items-center justify-between px-4 py-3 text-sm text-gray-500">
+          <div>
+            Showing 1 - {filteredItems.length} of {filteredItems.length}
+          </div>
+          <div>
+            Page 1 of {Math.ceil(filteredItems.length / 10)}
           </div>
         </div>
       </div>
