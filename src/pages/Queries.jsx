@@ -304,12 +304,12 @@ const Queries = () => {
   }, []);
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-gray-50 to-gray-100 mt-4 rounded-xl">
+    <div className="flex h-[calc(100vh-6.5rem)] bg-gradient-to-br from-gray-50 to-gray-100 mt-4 rounded-xl">
       {/* Sidebar */}
       <div className="w-[400px] flex flex-col border-r border-gray-200 bg-white/80 backdrop-blur-sm shadow-md rounded-l-xl">
-        <div className="p-5 border-b border-gray-200">
+        <div className="h-[66px] p-4 pb-3 border-b border-gray-200 flex items-center">
           {/* Search and filter */}
-          <div className="relative">
+          <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
@@ -330,7 +330,7 @@ const Queries = () => {
                 <div className="absolute right-0 mt-2 w-48 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 py-1 z-10 animate-fadeIn">
                   <div className="px-3 py-2 text-xs font-medium text-gray-500">Filter by Status</div>
                   <div className="border-t border-gray-100">
-                    {['all', 'pending', 'in_progress', 'resolved'].map((status) => (
+                    {['all', 'pending', 'resolved'].map((status) => (
                       <button
                         key={status}
                         onClick={() => {
@@ -375,12 +375,14 @@ const Queries = () => {
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {filteredQueries.map((query) => (
+              {filteredQueries.map((query, index) => (
                 <div 
                   key={query._id}
-                  className={`p-4 cursor-pointer hover:bg-gray-50/80 transition-colors duration-150 ${
-                    selectedQuery?._id === query._id ? 'bg-blue-50/80 hover:bg-blue-50/80' : ''
-                  }`}
+                  className={`p-4 cursor-pointer transition-colors duration-150 border-l-4 ${
+                    selectedQuery?._id === query._id 
+                      ? 'bg-blue-50/80 hover:bg-blue-50/80 border-blue-500' 
+                      : 'hover:bg-blue-50/30 border-blue-200 hover:border-blue-300'
+                  } ${index !== 0 ? 'border-t border-t-gray-100' : ''}`}
                   onClick={() => setSelectedQuery(query)}
                 >
                   <div className="flex justify-between items-start mb-2">
@@ -411,9 +413,16 @@ const Queries = () => {
                       </span>
                     </div>
                   </div>
-                  <div className="text-xs text-gray-500 mt-1 flex items-center">
-                    <User className="h-3 w-3 mr-1" />
-                    Case: {query.managementId?.categoryName || 'Unknown Case'}
+                  <div className="flex justify-between items-center">
+                    <div className="text-xs text-gray-500 flex items-center">
+                      <User className="h-3 w-3 mr-1" />
+                      Case: {query.managementId?.categoryName || 'Unknown Case'} 
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600 font-mono">
+                        {query.managementId?._id?.substring(0, 6) || 'N/A'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -427,22 +436,27 @@ const Queries = () => {
         {selectedQuery ? (
           <>
             {/* Chat header */}
-            <div className="p-5 border-b border-gray-200 bg-white/90 backdrop-blur-sm shadow-sm">
-              <div className="flex justify-between items-start">
+            <div className="h-[66px] p-4 pb-3 border-b border-gray-200 bg-white/90 backdrop-blur-sm shadow-sm flex items-center">
+              <div className="flex justify-between items-center w-full">
                 <div className="flex items-center space-x-3">
-                  <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center shadow-sm">
-                    <span className="text-blue-600 font-medium text-lg">
+                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center shadow-sm">
+                    <span className="text-blue-600 font-medium">
                       {getInitial(selectedQuery.foreignNationalId?.name)}
                     </span>
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
+                    <h2 className="text-base font-semibold text-gray-900">
                       {getUserName(selectedQuery.foreignNationalId)}
                     </h2>
-                    <p className="text-sm text-gray-500 flex items-center">
-                      <User className="h-3 w-3 mr-1" />
-                      Case: {selectedQuery.managementId?.categoryName || 'Unknown Case'}
-                    </p>
+                    <div className="flex justify-between items-center mt-1">
+                      <p className="text-xs text-gray-500 flex items-center">
+                        <User className="h-3 w-3 mr-1" />
+                        Case: {selectedQuery.managementId?.categoryName || 'Unknown Case'}
+                      </p>
+                      <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600 font-mono text-xs ml-2">
+                        {selectedQuery.managementId?._id?.substring(0, 6) || 'N/A'}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center space-x-4">
@@ -471,7 +485,7 @@ const Queries = () => {
             </div>
 
             {/* Chat messages */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-gray-50/50 backdrop-blur-sm scrollbar-hide">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50 backdrop-blur-sm scrollbar-hide">
               {/* Original query */}
               <div className="flex items-start">
                 <div className="flex-shrink-0 mr-3">
@@ -545,7 +559,7 @@ const Queries = () => {
             </div>
 
             {/* Response input */}
-            <div className="p-5 bg-white/90 backdrop-blur-sm border-t border-gray-200 shadow-sm">
+            <div className="p-4 bg-white/90 backdrop-blur-sm border-t border-gray-200 shadow-sm">
               <form onSubmit={handleSendResponse} className="flex items-center space-x-4">
                 <div className="flex-1 relative">
                   <input
