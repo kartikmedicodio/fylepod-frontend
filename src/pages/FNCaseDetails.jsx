@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import {  
   Loader2,
   Bot,
@@ -21,6 +21,8 @@ import PropTypes from 'prop-types';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import ProgressSteps from '../components/ProgressSteps';
 import CrossVerificationTab from '../components/cases/CrossVerificationTab';
+import { initializeSocket, joinDocumentRoom, handleReconnect, getSocket } from '../utils/socket';
+import { getStoredToken } from '../utils/auth';
 
 const getInitials = (name) => {
   return name
@@ -40,6 +42,41 @@ const processingSteps = [
   { id: 4, text: "Verifying document" },
   { id: 5, text: "Document processed" }
 ];
+
+// Helper function to count failed validations in validation results
+const countFailedValidations = (validationResults) => {
+  if (!validationResults || !validationResults.validations) return 0;
+  return validationResults.validations.filter(v => !v.passed).length;
+};
+
+// Helper function to format validation data from webhook to match UI expectations
+const formatValidationData = (validationResults, documentType) => {
+  if (!validationResults) return null;
+  
+  // Log validation results for debugging
+  console.log("Formatting validation results:", validationResults);
+  
+  // Check if validation data is already in the expected format
+  if (validationResults.mergedValidations) {
+    return validationResults;
+  }
+  
+  // Create a merged validation format that the UI expects
+  const docType = documentType || "Document";
+  
+  // Create the formatted object with a single document type
+  const formattedData = {
+    mergedValidations: [
+      {
+        documentType: docType,
+        validations: validationResults.validations || []
+      }
+    ]
+  };
+  
+  console.log("Formatted validation data:", formattedData);
+  return formattedData;
+};
 
 const ProcessingIndicator = ({ currentStep }) => {
   const [localStep, setLocalStep] = useState(currentStep);
@@ -185,6 +222,7 @@ const FNCaseDetails = () => {
   const searchParams = new URLSearchParams(location.search);
   const defaultTab = searchParams.get('tab') || 'overview';
   const highlightedDocumentId = searchParams.get('documentId');
+  const navigate = useNavigate();
   
   const [activeTab, setActiveTab] = useState(defaultTab);
   const [uploadStatus, setUploadStatus] = useState('pending'); // Ensure this is 'pending'
@@ -213,6 +251,8 @@ const FNCaseDetails = () => {
   const [processingStep, setProcessingStep] = useState(0);
   const [isSavingQuestionnaire, setIsSavingQuestionnaire] = useState(false);
   const [isQuestionnaireCompleted, setIsQuestionnaireCompleted] = useState(false);
+  // Add upload progress state
+  const [uploadProgress, setUploadProgress] = useState(0);
   // Add this state to track saved fields
   const [savedFields, setSavedFields] = useState({
     Passport: {},
@@ -225,6 +265,28 @@ const FNCaseDetails = () => {
   // Add new states for validation data
   const [validationData, setValidationData] = useState(null);
   const [isValidationLoading, setIsValidationLoading] = useState(false);
+  
+  // Add refs for validation data
+  const validationDataRef = useRef(null);
+  const verificationDataRef = useRef(null);
+  
+  // Add state to track processing document IDs and processing status
+  const [processingDocIds, setProcessingDocIds] = useState([]);
+  const [isProcessingComplete, setIsProcessingComplete] = useState(false);
+  
+  // Add state to track validation and verification completion
+  const [processingStatus, setProcessingStatus] = useState({
+    document: null,
+    validationComplete: false,
+    verificationComplete: false,
+    validationResults: {
+      failedCount: 0,
+      documentType: null
+    },
+    verificationResults: null,
+    processedDocuments: [], // Track all processed documents
+    validationFailuresByDocument: {} // Track validation failures by document
+  });
 
   // Group all useRef hooks
   const messagesEndRef = useRef(null);
@@ -255,6 +317,351 @@ const FNCaseDetails = () => {
       }
     }
   }, [highlightedDocumentId, activeTab]);
+
+  // Add a function to load data from localStorage
+  const loadDataFromLocalStorage = () => {
+    console.log('Checking localStorage for saved data...');
+    try {
+      // Load validation data
+      const savedValidationData = localStorage.getItem(`validation-data-${caseId}`);
+      if (savedValidationData) {
+        const parsedData = JSON.parse(savedValidationData);
+        console.log('Found validation data in localStorage:', parsedData);
+        
+        // Set the validation data in both state and ref
+        setValidationData(parsedData);
+        validationDataRef.current = parsedData;
+      } else {
+        console.log('No validation data found in localStorage');
+      }
+      
+      // Load cross-verification data
+      const savedCrossVerificationData = localStorage.getItem(`cross-verification-data-${caseId}`);
+      if (savedCrossVerificationData) {
+        const parsedData = JSON.parse(savedCrossVerificationData);
+        console.log('Found cross-verification data in localStorage:', parsedData);
+        
+        // Set the cross-verification data in both state and ref
+        setVerificationData(parsedData);
+        verificationDataRef.current = parsedData;
+      } else {
+        console.log('No cross-verification data found in localStorage');
+      }
+      
+      return {
+        validationDataFound: !!savedValidationData,
+        verificationDataFound: !!savedCrossVerificationData
+      };
+    } catch (error) {
+      console.error('Error loading saved data from localStorage:', error);
+      return {
+        validationDataFound: false,
+        verificationDataFound: false
+      };
+    }
+  };
+  
+  // Effect to handle validation data updates
+  useEffect(() => {
+    if (validationData) {
+      console.log('Validation data updated, refreshing UI');
+      // Update the ref whenever validationData state changes
+      validationDataRef.current = validationData;
+      
+      // Store in localStorage to ensure persistence even across page reloads
+      try {
+        localStorage.setItem(`validation-data-${caseId}`, JSON.stringify(validationData));
+        console.log('Saved validation data to localStorage');
+      } catch (error) {
+        console.error('Error saving validation data to localStorage:', error);
+      }
+    }
+  }, [validationData, caseId]);
+  
+  // Effect to handle cross-verification data updates
+  useEffect(() => {
+    if (verificationData) {
+      console.log('Cross-verification data updated, refreshing UI');
+      // Update the ref whenever verificationData state changes
+      verificationDataRef.current = verificationData;
+      
+      // Store in localStorage to ensure persistence even across page reloads
+      try {
+        localStorage.setItem(`cross-verification-data-${caseId}`, JSON.stringify(verificationData));
+        console.log('Saved cross-verification data to localStorage');
+    } catch (error) {
+        console.error('Error saving cross-verification data to localStorage:', error);
+      }
+    }
+  }, [verificationData, caseId]);
+  
+  // Set up document processing socket listeners
+  useEffect(() => {
+    if (!caseId) return;
+    
+    // Initialize socket when component mounts
+    const token = getStoredToken();
+    let socket;
+    
+    try {
+      // Initialize socket connection
+      socket = initializeSocket(token);
+      
+      // Setup reconnection handling
+      handleReconnect();
+      
+      // Check if socket is connected
+      if (socket.connected) {
+        console.log('Socket already connected with ID:', socket.id);
+      } else {
+        console.log('Socket connection in progress...');
+        socket.on('connect', () => {
+          console.log('Socket connected in useEffect with ID:', socket.id);
+        });
+      }
+      
+      // Listen for document processing events
+      socket.on('document-processing-started', (data) => {
+        console.log('Document processing started:', data);
+        if (data.caseId === caseId) {
+          setProcessingDocIds(prev => [...prev, data.documentId]);
+          setProcessingStep(1); // Analyzing document
+          console.log(`Processing started for document: ${data.documentName || data.documentId}`);
+        }
+      });
+      
+      socket.on('document-processing-progress', (data) => {
+        console.log('Document processing progress:', data);
+        if (data.caseId === caseId) {
+          // Update processing step based on the status message
+          if (data.status.toLowerCase().includes('extract')) {
+            setProcessingStep(2); // Extracting information
+          } else if (data.status.toLowerCase().includes('validat')) {
+            setProcessingStep(3); // Validating content
+          } else if (data.status.toLowerCase().includes('verify')) {
+            setProcessingStep(4); // Verifying document
+          }
+          
+          console.log(`Processing ${data.documentName || data.documentId}: ${data.status}`);
+        }
+      });
+      
+      // Add a helper function to merge validation results
+      const mergeValidationResults = (existingData, newResults, documentType) => {
+        // First check if there is data in the ref that might be more up-to-date than existingData
+        const latestExistingData = validationDataRef.current || existingData;
+        
+        console.log('Merging validation results', { 
+          existingData: latestExistingData, 
+          newResults, 
+          documentType 
+        });
+        
+        // If no existing data, initialize with new results
+        if (!latestExistingData || !latestExistingData.mergedValidations) {
+          return {
+            mergedValidations: [
+              {
+                documentType: documentType || 'Document',
+                validations: newResults.validations || []
+              }
+            ]
+          };
+        }
+        
+        // Make a deep copy of existing data to avoid mutation
+        const mergedData = JSON.parse(JSON.stringify(latestExistingData));
+        
+        // Get all the existing document types
+        const existingDocTypes = new Set(mergedData.mergedValidations.map(item => item.documentType));
+        console.log('Existing document types:', Array.from(existingDocTypes));
+        
+        // If this is a new document type, simply add it to the array
+        if (!existingDocTypes.has(documentType)) {
+          console.log('Adding new document type:', documentType);
+          mergedData.mergedValidations.push({
+            documentType: documentType || 'Document',
+            validations: newResults.validations || []
+          });
+        } else {
+          // If this document type already exists, find it
+          const existingIndex = mergedData.mergedValidations.findIndex(
+            item => item.documentType === documentType
+          );
+          
+          if (existingIndex >= 0) {
+            console.log('Updating existing document type:', documentType);
+            
+            // Keep track of validation rules we've seen to avoid duplicates
+            const existingValidationRules = new Set(
+              mergedData.mergedValidations[existingIndex].validations.map(v => v.rule || v.name || JSON.stringify(v))
+            );
+            
+            // Add new validation rules that don't already exist
+            const newValidations = (newResults.validations || []).filter(validation => {
+              const validationKey = validation.rule || validation.name || JSON.stringify(validation);
+              return !existingValidationRules.has(validationKey);
+            });
+            
+            // Combine existing and new validations
+            mergedData.mergedValidations[existingIndex].validations = [
+              ...mergedData.mergedValidations[existingIndex].validations,
+              ...newValidations
+            ];
+            
+            console.log(`Added ${newValidations.length} new validations for ${documentType}`);
+          }
+        }
+        
+        console.log('Merged validation data:', mergedData);
+        return mergedData;
+      };
+      
+      socket.on('document-processing-completed', (data) => {
+        console.log('Document processing completed:', data);
+        console.log('Current processing document IDs:', processingDocIds);
+        
+        if (data.caseId === caseId) {
+          setProcessingDocIds(prev => {
+            const newProcessingIds = prev.filter(id => id !== data.documentId);
+            console.log(`Removed ${data.documentId} from processing IDs. New processing IDs:`, newProcessingIds);
+            return newProcessingIds;
+          });
+          setIsProcessingComplete(true);
+          setProcessingStep(5); // Document processed
+          
+          // Get document type from multiple potential sources
+          const documentType = 
+            data.data?.document_type || 
+            data.documentName?.split('.')[0] || 
+            'Document';
+          
+          console.log(`Determined document type for completed document: ${documentType}`);
+          
+          // Get document type from the data field if it exists
+          let docTypeName = 'document';
+          try {
+            if (data.data && data.data.document_type) {
+              docTypeName = data.data.document_type;
+            }
+            // Store document name in processing status
+            setProcessingStatus(prev => ({
+              ...prev,
+              document: docTypeName,
+              processedDocuments: [...prev.processedDocuments, docTypeName] // Add to processed documents array
+            }));
+          } catch (error) {
+            console.error('Error determining document type:', error);
+          }
+          
+          // Log the complete webhook response for debugging
+          console.log('Complete webhook response:', JSON.stringify(data, null, 2));
+          
+          // Update UI directly from webhook data without any API calls
+          console.log('Updating UI directly from webhook data');
+          
+          // Update case data if provided
+          console.log('Case data from webhook:', data.caseData);
+          if (data.caseData) {
+            console.log('Setting case data from webhook');
+            setCaseData(data.caseData);
+              } else {
+            // If no case data, refresh case data
+            refreshCaseData();
+          }
+          
+          // Update validation data if provided
+          if (data.validationResults) {
+            console.log('Setting validation data from webhook');
+            // Log the validation results structure
+            console.log('Validation results structure:', JSON.stringify(data.validationResults, null, 2));
+            
+            // Determine document type from multiple potential sources
+            const documentType = 
+              data.data?.document_type || 
+              data.documentName?.split('.')[0] || 
+              'Document';
+              
+            console.log(`Determined document type: ${documentType} for validation results`);
+            console.log(`Current validation data:`, validationData);
+            
+            // Merge new validation results with existing data
+            const mergedData = mergeValidationResults(
+              validationDataRef.current || validationData, 
+              data.validationResults, 
+              documentType
+            );
+            
+            // Set the merged validation data
+            setValidationData(mergedData);
+            console.log('Updated validation data with all documents:', JSON.stringify(mergedData, null, 2));
+            
+            // Calculate validation status
+            const failedCount = countFailedValidations(data.validationResults);
+            
+            // Update processing status with validation results
+            setProcessingStatus(prev => {
+              // Track validation results by document
+              const updatedValidationFailures = { ...prev.validationFailuresByDocument };
+              if (failedCount > 0) {
+                updatedValidationFailures[documentType] = failedCount;
+              }
+              
+              return {
+                ...prev,
+                validationComplete: true,
+                validationResults: {
+                  failedCount: failedCount,
+                  documentType: documentType
+                },
+                validationFailuresByDocument: updatedValidationFailures
+              };
+            });
+          }
+          
+          // Update cross-verification data if provided
+          if (data.crossVerificationData) {
+            toast.success('Cross-verification data received');
+            console.log('Setting cross-verification data from webhook');
+            console.log('Cross-verification data structure:', JSON.stringify(data.crossVerificationData, null, 2));
+            
+            // Set the cross-verification data
+            setVerificationData(data.crossVerificationData);
+            
+            // Update processing status
+            setProcessingStatus(prev => ({
+              ...prev,
+              verificationComplete: true,
+              verificationResults: {
+                data: data.crossVerificationData
+              }
+            }));
+          }
+          
+          // Add a small delay before refreshing to ensure all data is saved
+          setTimeout(() => {
+            // If there are no more documents being processed, refresh data once more
+            if (processingDocIds.filter(id => id !== data.documentId).length === 0) {
+              // Show success toast when all processing is complete
+              toast.success(`Document processing complete!`);
+            }
+          }, 500);
+        }
+      });
+      
+      // Load saved data from localStorage first
+      loadDataFromLocalStorage();
+      
+      // Return cleanup function
+      return () => {
+        socket.off('document-processing-started');
+        socket.off('document-processing-progress');
+        socket.off('document-processing-completed');
+                    };
+                  } catch (error) {
+      console.error('Error setting up socket connection:', error);
+    }
+  }, [caseId, processingDocIds]);
 
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
@@ -291,43 +698,19 @@ const FNCaseDetails = () => {
 
   const refreshCaseData = async () => {
     try {
-      const [caseResponse, documentsResponse] = await Promise.all([
-        api.get(`/management/${caseId}`),
-        api.get('/documents', { params: { managementId: caseId } })
-      ]);
-
+      // First, check if we have received case data through webhooks
+      if (processingStatus.document) {
+        console.log('Using processingStatus data to avoid API call');
+        return;
+      }
+      
+      console.log('Refreshing case data...');
+          const caseResponse = await api.get(`/management/${caseId}`);
+          
       if (caseResponse.data.status === 'success') {
         setCaseData(caseResponse.data.data.entry);
+        console.log('Case data refreshed successfully');
       }
-
-      // Reset chat if documents have changed
-      if (documentsResponse.data.status === 'success') {
-        setCurrentChat(null);
-        setMessages([{
-          role: 'assistant',
-          content: "Hello! I'm Sophia from support. I'm here to assist you with your case and answer any questions you might have. How can I help you today?"
-        }]);
-      }
-
-      // Get valid document types from case
-      const validDocuments = caseResponse.data.data.entry.documentTypes
-        .filter(docType => docType.status === 'uploaded' || docType.status === 'approved')
-        .map(docType => ({
-          id: docType._id,
-          name: docType.name
-        }));
-
-      // Debug log for document mapping
-      console.log('Document mapping:', validDocuments.map(validDoc => {
-        const matchingDoc = documentsResponse.data.data.documents
-          .find(doc => doc.managementDocumentId === validDoc.id && doc.status === 'processed');
-        return {
-          documentName: validDoc.name,
-          managementDocumentId: validDoc.id,
-          matchingDocId: matchingDoc?._id || null
-        };
-      }));
-
     } catch (error) {
       console.error('Error refreshing data:', error);
     }
@@ -337,6 +720,7 @@ const FNCaseDetails = () => {
     try {
       setIsProcessing(true);
       setProcessingStep(1);
+      setUploadProgress(0); // Reset upload progress at the start
 
       if (!files.length) return;
       
@@ -367,455 +751,69 @@ const FNCaseDetails = () => {
         formData.append('mimeType', file.type);
 
         try {
-          setProcessingStep(0); // Start with analyzing
+          // When sending FormData, don't set Content-Type header
+          // Let the browser set it automatically with the correct boundary
           const response = await api.post('/documents', formData, {
             headers: {
-              'Content-Type': 'multipart/form-data'
+              'Content-Type': undefined
             },
+            onUploadProgress: (progressEvent) => {
+              const progress = (progressEvent.loaded / progressEvent.total) * 100;
+              console.log(`Upload progress for ${file.name}: ${Math.round(progress)}%`);
+              // Update the progress state to show it in the UI
+              setUploadProgress(Math.round(progress));
+            }
           });
-
-          if (response.data?.status === 'success') {
-            const uploadedDoc = response.data.data.document;
-            uploadedDocIds.push(uploadedDoc._id);
-            return uploadedDoc;
+          
+          if (response.data.status === 'success') {
+            const documentId = response.data.data.document._id;
+            uploadedDocIds.push(documentId);
+            
+            // Join the document room to receive processing updates via socket
+            console.log('Joining document room for uploaded document:', documentId);
+            joinDocumentRoom(documentId);
+            
+            return {
+              documentId,
+              managementDocumentId: pendingDoc._id,
+              documentTypeId: pendingDoc.documentTypeId
+            };
           }
           return null;
-        } catch (err) {
-          console.error(`Error uploading ${file.name}:`, err);
-          toast.error(`Failed to upload ${file.name}`);
+        } catch (error) {
+          console.error('Error uploading document:', error);
+          toast.error('Error uploading document: ' + (error.response?.data?.message || 'Unknown error'));
           return null;
         }
       });
 
-      const uploadedDocs = (await Promise.all(uploadPromises)).filter(Boolean);
-      if (!uploadedDocs.length) {
-        toast.error('No files were uploaded successfully');
-        return;
-      }
-
-      // Process and verify documents
-      const processResults = await Promise.all(
-        uploadedDocs.map(async (doc) => {
-          try {
-            setProcessingStep(1); // Extracting information
-            const processedDoc = await checkDocumentProcessing(doc._id);
-            if (!processedDoc) {
-              // Delete document if processing failed
-              await api.delete(`/documents/${doc._id}`);
-              throw new Error('Document processing failed');
-            }
-
-            setProcessingStep(2); // Validating content
-
-            // Check if document type matches any pending document type
-            if (processedDoc.extractedData?.document_type) {
-              setProcessingStep(3); // Verifying document type
-              const extractedType = processedDoc.extractedData.document_type.toLowerCase().trim();
-              
-              // Enhanced document type matching logic
-              const matchingDocType = caseData.documentTypes.find(type => {
-                const typeName = type.name.toLowerCase().trim();
-                const isPending = type.status !== 'uploaded' && type.status !== 'approved';
-                
-                // Check for exact match
-                if (typeName === extractedType) return isPending;
-                
-                // Check for partial matches (e.g., "passport" matches "passport copy")
-                if (typeName.includes(extractedType) || extractedType.includes(typeName)) return isPending;
-                
-                // Check for common variations
-                const variations = {
-                  'passport': ['passport copy', 'passport scan', 'passport photo'],
-                  'resume': ['cv', 'curriculum vitae', 'resume copy'],
-                  'photo': ['photograph', 'photo id', 'id photo'],
-                  'id': ['identity document', 'id proof', 'identity proof']
-                };
-                
-                return Object.entries(variations).some(([key, values]) => {
-                  if (key === extractedType) return values.includes(typeName) && isPending;
-                  if (values.includes(extractedType)) return key === typeName && isPending;
-                  return false;
-                });
-              });
-
-              if (matchingDocType) {
-                // Additional validation of extracted data
-                const validationResults = processedDoc.validationResults || {};
-                const hasRequiredFields = Object.entries(validationResults).every(([_, result]) => {
-                  if (!matchingDocType.required) return true;
-                  return result.isValid;
-                });
-
-                if (!hasRequiredFields) {
-                  await api.delete(`/documents/${doc._id}`);
-                  return { 
-                    success: false, 
-                    docId: doc._id, 
-                    error: 'Missing required fields' 
-                  };
-                }
-
-                // Update document with correct management document ID
-                await api.patch(`/documents/${doc._id}`, {
-                  documentTypeId: matchingDocType.documentTypeId,
-                  managementDocumentId: matchingDocType._id
-                });
-
-                // Update document status to 'uploaded'
-                await api.patch(`/management/${caseId}/documents/${matchingDocType.documentTypeId}/status`, {
-                  status: 'uploaded'
-                });
-
-                return { success: true, docId: doc._id };
-              } else {
-                // No matching pending document type found - delete the document
-                await api.delete(`/documents/${doc._id}`);
-                return { 
-                  success: false, 
-                  docId: doc._id, 
-                  error: 'Document type mismatch' 
-                };
-              }
-            } else {
-              // No document type extracted - delete the document
-              await api.delete(`/documents/${doc._id}`);
-              return { 
-                success: false, 
-                docId: doc._id, 
-                error: 'Could not extract document type' 
-              };
-            }
-          } catch (err) {
-            console.error(`Error processing document ${doc._id}:`, err);
-            // Attempt to delete the document on error
-            try {
-              await api.delete(`/documents/${doc._id}`);
-            } catch (deleteErr) {
-              console.error(`Error deleting failed document ${doc._id}:`, deleteErr);
-            }
-            return { 
-              success: false, 
-              docId: doc._id, 
-              error: err.message 
-            };
-          }
-        })
-      );
-
-      // Count successful uploads
-      const successfulUploads = processResults.filter(result => result.success).length;
-      const failedUploads = processResults.filter(result => !result.success).length;
-
-      // If there are successful uploads, perform cross-verification
-      if (successfulUploads > 0) {
-        try {
-          setProcessingStep(4); // Cross-verifying documents
-          
-          // Get case data and check if all documents are uploaded
-          const caseResponse = await api.get(`/management/${caseId}`);
-          if (caseResponse.data.status === 'success') {
-            setCaseData(caseResponse.data.data.entry);
-            
-            // Check if all documents are uploaded
-            const allDocsUploaded = caseResponse.data.data.entry.documentTypes.every(doc => 
-              doc.status === 'uploaded' || doc.status === 'approved'
-            );
-
-            if (allDocsUploaded) {
-              // Perform cross-verification only once
-              const crossVerifyResponse = await api.get(`/management/${caseId}/cross-verify`);
-              
-              if (crossVerifyResponse.data.status === 'success') {
-                // Fetch validation data
-                const validationResponse = await api.get(`/documents/management/${caseId}/validations`);
-                if (validationResponse.data.status === 'success') {
-                  const validationData = validationResponse.data.data;
-                  const verificationData = crossVerifyResponse.data.data;
-
-                  // Generate email draft
-                  const recipientEmail = profileData?.contact?.email || profileData?.email;
-                  const recipientName = profileData?.name || 'Applicant';
-
-                  if (!recipientEmail) {
-                    toast.error('Cannot send email: Missing recipient email');
-                    return;
-                  }
-
-                  const draftResponse = await api.post('/mail/draft', {
-                    errorType: 'document_validation',
-                    errorDetails: {
-                      validationResults: validationData.mergedValidations.flatMap(doc => 
-                        doc.validations.map(v => ({
-                          documentType: doc.documentType,
-                          rule: v.rule,
-                          passed: v.passed,
-                          message: v.message
-                        }))
-                      ),
-                      mismatchErrors: verificationData.verificationResults?.mismatchErrors || [],
-                      missingErrors: verificationData.verificationResults?.missingErrors || [],
-                      summarizationErrors: verificationData.verificationResults?.summarizationErrors || []
-                    },
-                    recipientEmail,
-                    recipientName
-                  });
-
-                  if (draftResponse.data && draftResponse.data.status === 'success' && draftResponse.data.data) {
-                    const { subject, body } = draftResponse.data.data;
-                    
-                    // Send the email
-                    const sendResponse = await api.post('/mail/send', {
-                      subject,
-                      body,
-                      recipientEmail,
-                      recipientName,
-                      ccEmail: [] // Optional CC field
-                    });
-
-                    if (sendResponse.data.status === 'success') {
-                      toast.success('Documents uploaded and email sent successfully');
-                    } else {
-                      toast.error('Failed to send email notification');
-                    }
-                  } else {
-                    toast.error('Failed to generate email notification');
-                  }
-                }
-              }
-            }
-
-            // After cross-verification, organize documents
-            setProcessingStep(5); // Organizing documents
-            try {
-              // Make API calls for each questionnaire
-              const questionnaireResponses = await Promise.all(
-                questionnaires.map(async (questionnaire) => {
-                  try {
-                    const response = await api.post(`/documents/management/${caseId}/organized`, {
-                      templateId: questionnaire._id
-                    });
-                    return {
-                      questionnaire,
-                      data: response.data
-                    };
-                  } catch (error) {
-                    console.error(`Error processing questionnaire ${questionnaire._id}:`, error);
-                    return {
-                      questionnaire,
-                      error: true
-                    };
-                  }
-                })
-              );
-
-              // Check if all API calls were successful
-              const hasErrors = questionnaireResponses.some(response => response.error);
-              if (hasErrors) {
-                toast.error('Some questionnaires could not be processed');
-              } else {
-                // Update case data with organized documents from the first successful response
-                const firstSuccessResponse = questionnaireResponses.find(response => !response.error);
-                if (firstSuccessResponse?.data?.status === 'success') {
-                  setCaseData(prevData => ({
-                    ...prevData,
-                    organizedDocuments: firstSuccessResponse.data.data.rawDocuments,
-                    processedInformation: firstSuccessResponse.data.data.processedInformation
-                  }));
-                }
-              }
-            } catch (error) {
-              console.error('Error organizing documents:', error);
-              toast.error('Failed to organize documents');
-            }
-
-            // Refresh case data
-            await refreshCaseData();
-          }
-        } catch (error) {
-          console.error('Error during cross-verification or questionnaire filling:', error);
-          // Don't show error to user, just log it
-        }
-      }
-
-      setFiles([]);
-
-      // Reset chat after successful upload
-      if (successfulUploads > 0) {
-        // Reset chat states
-        setCurrentChat(null);
-        setMessages([{
-          role: 'assistant',
-          content: "Hello! I'm Sophia from support. I'm here to assist you with your case and answer any questions you might have. How can I help you today?"
-        }]);
+      // Wait for all uploads to complete
+      const uploadResults = await Promise.all(uploadPromises);
+      const uploadedDocs = uploadResults.filter(result => result !== null);
+      
+      // If we have uploaded documents, track them in the processing state
+      if (uploadedDocs.length > 0) {
+        setProcessingDocIds(prev => [...prev, ...uploadedDocs.map(doc => doc.documentId)]);
         
-        // If there are successful uploads, initialize chat automatically
-        try {
-          // Get case details
-          const caseResponse = await api.get(`/management/${caseId}`);
-          
-          if (caseResponse.data?.status === 'success' && caseResponse.data?.data?.entry) {
-            const managementData = caseResponse.data.data.entry;
-            
-            // Prepare management context
-            const managementContext = {
-              caseId: managementData._id,
-              categoryName: managementData.categoryName,
-              categoryStatus: managementData.categoryStatus,
-              deadline: managementData.deadline,
-              documentTypes: managementData.documentTypes.map(doc => ({
-                name: doc.name,
-                status: doc.status,
-                required: doc.required
-              }))
-            };
-            
-            // Get uploaded documents
-            const validDocuments = managementData.documentTypes
-              .filter(docType => docType && (docType.status === 'uploaded' || docType.status === 'approved'))
-              .map(docType => ({
-                id: docType._id,
-                name: docType.name
-              }))
-              .filter(doc => doc.id);
-              
-            if (validDocuments.length > 0) {
-              // Get document IDs
-              const validDocTypeIds = validDocuments.map(doc => doc.id);
-              
-              const documentsResponse = await api.post('/documents/management-docs', {
-                managementId: caseId,
-                docTypeIds: validDocTypeIds
-              });
-              
-              if (documentsResponse.data?.data?.documents) {
-                const validDocs = documentsResponse.data.data.documents
-                  .filter(doc => doc && doc._id);
-                
-                if (validDocs.length > 0) {
-                  // Extract document IDs for chat creation
-                  const docIds = validDocs.map(doc => doc._id);
-                  
-                  // Create new chat with the documents and management data
-                  const chatResponse = await api.post('/chat', {
-                    documentIds: docIds,
-                    managementId: caseId,
-                    managementContext: managementContext
-                  });
-                  
-                  if (chatResponse.data?.status === 'success' && chatResponse.data?.data?.chat) {
-                    setCurrentChat(chatResponse.data.data.chat);
-                    
-                    // Add a message indicating the chat has been updated with new documents
-                    setMessages(prev => [
-                      prev[0], // Keep welcome message
-                      {
-                        role: 'assistant',
-                        content: `I've analyzed your newly uploaded documents. You can now ask me questions about them!`
-                      }
-                    ]);
-                  }
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Error initializing chat after upload:', error);
-          // Don't show error to user, just log it - chat will initialize on first message
-        }
+        console.log(`Added documents to processing: ${uploadedDocs.map(doc => doc.documentId).join(', ')}`);
+        
+        // We don't need to fetch document status immediately as we'll receive updates via socket
       }
+      
+      toast.success(`Uploaded ${uploadedDocs.length} document(s)`);
 
-      // Show success/failure toasts
-      if (successfulUploads > 0) {
-        toast.custom((t) => (
-          <div className={`${
-            t.visible ? 'animate-enter' : 'animate-leave'
-          } max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
-            <div className="flex-1 w-0 p-4">
-              <div className="flex items-start">
-                <div className="flex-shrink-0 pt-0.5">
-                  <div className="relative">
-                    {/* Animated Background Rings */}
-                    <div className="absolute inset-0 -m-2">
-                      <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 rounded-full blur-lg"></div>
-                    </div>
-                    {/* Avatar Container */}
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md relative">
-                      <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-lg animate-spin" style={{ animationDuration: '3s' }}></div>
-                      <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-lg"></div>
-                      <span className="relative text-xs font-semibold text-white">Diana</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="ml-3 flex-1">
-                  <p className="text-sm font-medium text-gray-900">
-                    Diana successfully processed your documents
-                  </p>
-                  <p className="mt-1 text-sm text-gray-500">
-                    {successfulUploads} document{successfulUploads !== 1 ? 's' : ''} verified and uploaded
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="flex border-l border-gray-200">
-              <button
-                onClick={() => toast.dismiss(t.id)}
-                className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-indigo-600 hover:text-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        ), { duration: 5000 });
-      }
-
-      if (failedUploads > 0) {
-        toast.custom((t) => (
-          <div className={`${
-            t.visible ? 'animate-enter' : 'animate-leave'
-          } max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
-            <div className="flex-1 w-0 p-4">
-              <div className="flex items-start">
-                <div className="flex-shrink-0 pt-0.5">
-                  <div className="relative">
-                    {/* Animated Background Rings */}
-                    <div className="absolute inset-0 -m-2">
-                      <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-red-500/20 via-pink-500/20 to-rose-500/20 rounded-full blur-lg"></div>
-                    </div>
-                    {/* Avatar Container */}
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-red-500 via-pink-500 to-rose-500 flex items-center justify-center shadow-md relative">
-                      <div className="absolute -inset-0.5 bg-gradient-to-r from-red-500 via-pink-500 to-rose-500 rounded-lg animate-spin" style={{ animationDuration: '3s' }}></div>
-                      <div className="absolute inset-0 bg-gradient-to-r from-red-500 via-pink-500 to-rose-500 rounded-lg"></div>
-                      <span className="relative text-xs font-semibold text-white">Diana</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="ml-3 flex-1">
-                  <p className="text-sm font-medium text-gray-900">
-                    Diana encountered some issues
-                  </p>
-                  <p className="mt-1 text-sm text-gray-500">
-                    {failedUploads} document{failedUploads !== 1 ? 's' : ''} failed verification. Please try again.
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="flex border-l border-gray-200">
-              <button
-                onClick={() => toast.dismiss(t.id)}
-                className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-red-600 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-500"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        ), { duration: 5000 });
-      }
-    } catch (err) {
-      console.error('Error uploading files:', err);
-      toast.error('Failed to upload files');
+      // Refresh case data after all uploads are complete
+      await refreshCaseData();
+      
+      // Clear file inputs
+      setFiles([]);
+    } catch (error) {
+      console.error('Error in file upload process:', error);
+      toast.error('Error uploading files: ' + error.message);
     } finally {
+      // Note: We don't reset processing state here as socket events will handle it
       setIsProcessing(false);
-      setProcessingStep(0);
+      setUploadProgress(0);
     }
   };
 
@@ -827,6 +825,10 @@ const FNCaseDetails = () => {
 
     const fetchData = async () => {
       try {
+        // First, load any data we have in localStorage
+        const { validationDataFound, verificationDataFound } = loadDataFromLocalStorage();
+        console.log(`Initial localStorage load complete. Validation data found: ${validationDataFound}, Cross-verification data found: ${verificationDataFound}`);
+        
         setIsLoading(true);
         
         // Fetch case details
@@ -841,6 +843,16 @@ const FNCaseDetails = () => {
             { name: 'All Cases', path: '/individual-cases' },
             { name: caseData.categoryName || 'Case Details', path: `/individuals/case/${caseId}` }
           ]);
+
+          // Check if there are any uploaded documents
+          const hasUploadedDocs = caseData.documentTypes.some(doc => 
+            doc.status === 'uploaded' || doc.status === 'approved'
+          );
+
+          // If we have uploaded docs and no validation data yet, fetch it
+          if (hasUploadedDocs && !validationDataFound) {
+            await fetchValidationData();
+          }
 
           // Remove this section to ensure we always start with 'pending'
           /* 
@@ -1572,6 +1584,22 @@ const FNCaseDetails = () => {
                         {isProcessing ? 'Processing...' : 'Upload Files'}
                       </button>
                     </div>
+                    
+                    {/* Upload progress bar */}
+                    {isProcessing && uploadProgress > 0 && (
+                      <div className="mt-4">
+                        <div className="flex justify-between text-xs text-gray-600 mb-1">
+                          <span>Uploading...</span>
+                          <span>{uploadProgress}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                          <div 
+                            className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-out" 
+                            style={{ width: `${uploadProgress}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1638,7 +1666,7 @@ const FNCaseDetails = () => {
                     // Then fetch validation and cross-verification data
                     const [validationResponse, crossVerifyResponse] = await Promise.all([
                       api.get(`/documents/management/${caseId}/validations`),
-                      api.get(`/management/${caseId}/cross-verify`)
+                      api.get(`/management/${caseId}/check-cross-verify`)
                     ]);
 
                     // Handle cross-verification response
@@ -2618,24 +2646,71 @@ const FNCaseDetails = () => {
     }
   }, [caseId]);
 
-  // Add function to handle cross verification
+  // Update cross verification function 
   const handleCrossVerification = async () => {
     try {
       setIsVerificationLoading(true);
+      
+      // First check localStorage for cached cross-verification data
+      const savedVerificationData = localStorage.getItem(`cross-verification-data-${caseId}`);
+      if (savedVerificationData) {
+        try {
+          const parsedData = JSON.parse(savedVerificationData);
+          console.log('Using cross-verification data from localStorage:', parsedData);
+          
+          // Set cross-verification data from localStorage
+          setVerificationData(parsedData);
+          verificationDataRef.current = parsedData;
+          
+          // Return early - no need to make API call
+          setIsVerificationLoading(false);
+          return parsedData;
+        } catch (parseError) {
+          console.error('Error parsing cross-verification data from localStorage:', parseError);
+          // Continue with API call if parsing fails
+        }
+      }
+      
+      // If no data in localStorage or parsing failed, fetch from API
       console.log('Starting cross-verification for case:', caseId);
       
+      // First try check-cross-verify endpoint
+      try {
+        const response = await api.get(`/management/${caseId}/check-cross-verify`);
+        if (response.data.status === 'success') {
+          // Process and store verification data
+          const crossVerificationData = response.data.data;
+          setVerificationData(crossVerificationData);
+          verificationDataRef.current = crossVerificationData;
+          
+          // Save to localStorage
+          localStorage.setItem(`cross-verification-data-${caseId}`, JSON.stringify(crossVerificationData));
+          
+          // Return early
+          return crossVerificationData;
+        }
+      } catch (checkError) {
+        console.log('check-cross-verify endpoint failed, trying cross-verify endpoint');
+        // Fall through to try the other endpoint
+      }
+      
+      // Try the regular cross-verify endpoint as fallback
       const response = await api.get(`/management/${caseId}/cross-verify`);
       
       if (response.data.status === 'success') {
-        console.log('Cross-verification response:', {
-          status: response.data.status,
-          data: response.data.data,
-          verificationResults: response.data.data.verificationResults,
-          mismatchErrors: response.data.data.verificationResults?.mismatchErrors,
-          missingErrors: response.data.data.verificationResults?.missingErrors
-        });
+        console.log('Cross-verification response:', response.data.data);
         
+        // Set in state and ref
         setVerificationData(response.data.data);
+        verificationDataRef.current = response.data.data;
+        
+        // Save to localStorage
+        try {
+          localStorage.setItem(`cross-verification-data-${caseId}`, JSON.stringify(response.data.data));
+          console.log('Saved cross-verification data to localStorage');
+        } catch (storageError) {
+          console.error('Error saving cross-verification data to localStorage:', storageError);
+        }
         
         // Update case data to reflect any status changes
         const caseResponse = await api.get(`/management/${caseId}`);
@@ -2643,6 +2718,8 @@ const FNCaseDetails = () => {
           console.log('Updated case data:', caseResponse.data.data.entry);
           setCaseData(caseResponse.data.data.entry);
         }
+        
+        return response.data.data;
       }
     } catch (error) {
       console.error('Error during cross-verification:', error);
@@ -2650,6 +2727,7 @@ const FNCaseDetails = () => {
     } finally {
       setIsVerificationLoading(false);
     }
+    return null;
   };
 
   // Add function to fetch validation data
@@ -2658,6 +2736,29 @@ const FNCaseDetails = () => {
     
     try {
       setIsValidationLoading(true);
+      
+      // First check localStorage for cached validation data
+      const savedValidationData = localStorage.getItem(`validation-data-${caseId}`);
+      if (savedValidationData) {
+        try {
+          const parsedData = JSON.parse(savedValidationData);
+          console.log('Using validation data from localStorage:', parsedData);
+          
+          // Set validation data from localStorage
+          setValidationData(parsedData);
+          validationDataRef.current = parsedData;
+          
+          // Return early - no need to make API call
+          setIsValidationLoading(false);
+          return parsedData;
+        } catch (parseError) {
+          console.error('Error parsing validation data from localStorage:', parseError);
+          // Continue with API call if parsing fails
+        }
+      }
+      
+      // If no data in localStorage or parsing failed, fetch from API
+      console.log('No valid data in localStorage, fetching validation data from API');
       
       // Fetch both validation data and document URLs in parallel
       const [validationResponse, documentsResponse] = await Promise.all([
@@ -2690,7 +2791,19 @@ const FNCaseDetails = () => {
           documentUrls: urlMapping
         };
 
+        // Store in state and ref
         setValidationData(validationDataWithUrls);
+        validationDataRef.current = validationDataWithUrls;
+        
+        // Save to localStorage
+        try {
+          localStorage.setItem(`validation-data-${caseId}`, JSON.stringify(validationDataWithUrls));
+          console.log('Saved validation data to localStorage');
+        } catch (storageError) {
+          console.error('Error saving validation data to localStorage:', storageError);
+        }
+        
+        return validationDataWithUrls;
       } else {
         throw new Error('Failed to fetch validation data');
       }
@@ -2732,30 +2845,74 @@ const FNCaseDetails = () => {
     }
   };
 
-  // Add this function near the other handler functions
+  // Update this function to properly handle document reupload
   const handleDocumentReupload = async (documentTypeId) => {
     try {
-      const response = await api.patch(`/management/${caseId}/documents/${documentTypeId}/reupload`);
+      // Update document status to pending directly instead of using reupload endpoint
+      const response = await api.patch(`/management/${caseId}/documents/${documentTypeId}/status`, {
+        status: 'pending',
+        documentTypeId: documentTypeId
+      });
+      
       if (response.data.status === 'success') {
         // Switch to documents checklist tab
         handleTabClick('documents-checklist');
         // Show success message
-        toast.success('Document reupload initiated successfully');
-        // Refresh data in background
+        toast.success('Document sent for reupload');
+        
+        // Clear validation data and refresh
         try {
-          await Promise.all([
-            refreshCaseData(),
-            fetchValidationData()
-          ]);
+          // Delete locally stored validation data as it will be out of date
+          localStorage.removeItem(`validation-data-${caseId}`);
+          validationDataRef.current = null;
+          setValidationData(null);
+          
+          // Refresh case data
+          await refreshCaseData();
         } catch (refreshError) {
           console.error('Error refreshing data:', refreshError);
-          // Don't show error to user since this is background refresh
+          // Don't show error to user since reupload was successful
         }
       }
     } catch (error) {
-      console.error('Error reuploading document:', error);
+      console.error('Error requesting document reupload:', error);
       toast.error('Failed to initiate document reupload');
     }
+  };
+
+  // Add function to fetch cross-verification data
+  const fetchCrossVerificationData = async () => {
+    // This function should only be responsible for fetching data from the API
+    if (!isVerificationLoading) {
+      try {
+        console.log('Making API call to fetch cross-verification data');
+        setIsVerificationLoading(true);
+        const response = await api.get(`/management/${caseId}/check-cross-verify`);
+        if (response.data.status === 'success') {
+          const crossVerificationData = response.data.data;
+          
+          // Update both state and ref
+          setVerificationData(crossVerificationData);
+          verificationDataRef.current = crossVerificationData;
+          
+          // Save to localStorage for persistence
+          try {
+            localStorage.setItem(`cross-verification-data-${caseId}`, JSON.stringify(crossVerificationData));
+            console.log('Saved fetched cross-verification data to localStorage');
+          } catch (storageError) {
+            console.error('Error saving cross-verification data to localStorage:', storageError);
+          }
+          
+          return crossVerificationData;
+        }
+      } catch (error) {
+        console.error('Error fetching verification data:', error);
+        toast.error('Failed to load verification data');
+      } finally {
+        setIsVerificationLoading(false);
+      }
+    }
+    return null;
   };
 
   // Main component return
