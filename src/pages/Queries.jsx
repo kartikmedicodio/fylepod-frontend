@@ -18,6 +18,20 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
+// Add CSS to hide scrollbar
+const scrollbarHideStyles = `
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  ::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Hide scrollbar for IE, Edge and Firefox */
+  * {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+`;
+
 const Queries = () => {
   const { user } = useAuth();
   const [queries, setQueries] = useState([]);
@@ -190,15 +204,15 @@ const Queries = () => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-100 text-yellow-800 border border-yellow-200';
       case 'in_progress':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-100 text-blue-800 border border-blue-200';
       case 'resolved':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-100 text-green-800 border border-green-200';
       case 'closed':
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-gray-800 border border-gray-200';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-gray-800 border border-gray-200';
     }
   };
 
@@ -276,6 +290,18 @@ const Queries = () => {
       setResolving(false);
     }
   };
+
+  useEffect(() => {
+    // Add the styles to the document head when component mounts
+    const styleElement = document.createElement('style');
+    styleElement.innerHTML = scrollbarHideStyles;
+    document.head.appendChild(styleElement);
+
+    // Clean up when component unmounts
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+  }, []);
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-gray-50 to-gray-100 mt-4 rounded-xl">
@@ -424,12 +450,13 @@ const Queries = () => {
                     getStatusColor(selectedQuery.status)
                   }`}>
                     {getStatusIcon(selectedQuery.status)}
+                    <span className="ml-1">{selectedQuery.status.replace('_', ' ')}</span>
                   </span>
                   {selectedQuery.status !== 'resolved' && (
                     <button 
                       onClick={handleResolveQuery}
                       disabled={resolving}
-                      className="px-3 py-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:hover:bg-green-500 transition-colors duration-150 flex items-center space-x-1 shadow-sm"
+                      className="px-3 py-1.5 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:hover:from-green-500 disabled:hover:to-green-600 transition-colors duration-150 flex items-center space-x-1 shadow-sm"
                     >
                       {resolving ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -454,11 +481,12 @@ const Queries = () => {
                     </span>
                   </div>
                 </div>
-                <div className="bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-sm max-w-3/4 border border-gray-100">
-                  <div className="text-sm font-medium text-gray-900 mb-1">
+                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-4 shadow-sm max-w-3/4 border-l-4 border-indigo-400">
+                  <div className="text-sm font-medium text-gray-900 mb-1 flex items-center">
                     {getUserName(selectedQuery.foreignNationalId)}
+                    <span className="ml-2 px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-xs font-semibold">Query</span>
                   </div>
-                  <div className="text-gray-800 whitespace-pre-wrap">
+                  <div className="text-gray-800 whitespace-pre-wrap font-medium">
                     {selectedQuery.query}
                   </div>
                   <div className="mt-2 text-xs text-gray-400 flex items-center">
