@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Lock, ArrowRight, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import { Lock, ArrowRight, CheckCircle, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 const ResetPassword = () => {
   const [password, setPassword] = useState('');
@@ -11,8 +11,35 @@ const ResetPassword = () => {
   const [validToken, setValidToken] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordRequirements, setPasswordRequirements] = useState({
+    hasMinLength: false,
+    hasUpperCase: false,
+    hasLowerCase: false,
+    hasNumber: false,
+    hasSpecialChar: false,
+    passwordsMatch: false
+  });
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
+  const [isConfirmPasswordFocused, setIsConfirmPasswordFocused] = useState(false);
   const navigate = useNavigate();
   const { token } = useParams();
+
+  // Validate password requirements
+  useEffect(() => {
+    setPasswordRequirements({
+      hasMinLength: password.length >= 8,
+      hasUpperCase: /[A-Z]/.test(password),
+      hasLowerCase: /[a-z]/.test(password),
+      hasNumber: /[0-9]/.test(password),
+      hasSpecialChar: /[!@#$%^&*(),.?":{}|<>]/.test(password),
+      passwordsMatch: password === confirmPassword && password !== ''
+    });
+  }, [password, confirmPassword]);
+
+  // Check if all password requirements are met
+  const isPasswordValid = () => {
+    return Object.values(passwordRequirements).every(requirement => requirement);
+  };
 
   useEffect(() => {
     if (!token) {
@@ -24,6 +51,10 @@ const ResetPassword = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    if (!isPasswordValid()) {
+      return setError('Please meet all password requirements');
+    }
+
     if (password !== confirmPassword) {
       return setError('Passwords do not match');
     }
@@ -56,6 +87,25 @@ const ResetPassword = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Get unfulfilled requirements as a formatted string
+  const getUnfulfilledRequirements = () => {
+    const requirements = [];
+    if (!passwordRequirements.hasMinLength) requirements.push('at least 8 characters');
+    if (!passwordRequirements.hasUpperCase) requirements.push('an uppercase letter');
+    if (!passwordRequirements.hasLowerCase) requirements.push('a lowercase letter');
+    if (!passwordRequirements.hasNumber) requirements.push('a number');
+    if (!passwordRequirements.hasSpecialChar) requirements.push('a special character');
+    
+    if (requirements.length > 0) {
+      if (requirements.length === 1) {
+        return `Your password needs ${requirements[0]}.`;
+      }
+      const lastRequirement = requirements.pop();
+      return `Your password needs ${requirements.join(', ')} and ${lastRequirement}.`;
+    }
+    return '';
   };
 
   if (!validToken) {
@@ -227,9 +277,14 @@ const ResetPassword = () => {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="block w-full px-4 py-3 rounded-xl border border-gray-300 placeholder-gray-400 focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all duration-200"
+                    onFocus={() => setIsPasswordFocused(true)}
+                    onBlur={() => setIsPasswordFocused(false)}
+                    className={`block w-full px-4 py-3 rounded-xl border ${
+                      password && !isPasswordValid() 
+                        ? 'border-red-300 focus:ring-red-500' 
+                        : 'border-gray-300 focus:ring-blue-600'
+                    } placeholder-gray-400 focus:ring-2 focus:border-transparent transition-all duration-200`}
                     placeholder="••••••••"
-                    minLength={8}
                   />
                   <div className="absolute right-3 top-3.5 flex space-x-1">
                     <button
@@ -245,6 +300,30 @@ const ResetPassword = () => {
                     </button>
                   </div>
                 </div>
+
+                {/* Compact Password Requirements - Only show on focus */}
+                {isPasswordFocused && password && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="mt-2"
+                  >
+                    {getUnfulfilledRequirements().length > 0 ? (
+                      <div className="flex items-start text-sm bg-amber-50 px-3 py-2 rounded-lg">
+                        <AlertCircle className="h-4 w-4 mr-2 text-amber-500 flex-shrink-0 mt-0.5" />
+                        <span className="text-amber-600">
+                          {getUnfulfilledRequirements()}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center text-sm bg-green-50 px-3 py-2 rounded-lg">
+                        <CheckCircle className="h-4 w-4 mr-2 text-green-500 flex-shrink-0" />
+                        <span className="text-green-600">Great! Your password meets all requirements.</span>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
               </div>
 
               <div>
@@ -260,9 +339,14 @@ const ResetPassword = () => {
                     required
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="block w-full px-4 py-3 rounded-xl border border-gray-300 placeholder-gray-400 focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all duration-200"
+                    onFocus={() => setIsConfirmPasswordFocused(true)}
+                    onBlur={() => setIsConfirmPasswordFocused(false)}
+                    className={`block w-full px-4 py-3 rounded-xl border ${
+                      confirmPassword && !passwordRequirements.passwordsMatch
+                        ? 'border-red-300 focus:ring-red-500'
+                        : 'border-gray-300 focus:ring-blue-600'
+                    } placeholder-gray-400 focus:ring-2 focus:border-transparent transition-all duration-200`}
                     placeholder="••••••••"
-                    minLength={8}
                   />
                   <div className="absolute right-3 top-3.5 flex space-x-1">
                     <button
@@ -278,14 +362,39 @@ const ResetPassword = () => {
                     </button>
                   </div>
                 </div>
+                {/* Password Match Indicator - Only show when confirm password is focused or has value */}
+                {(isConfirmPasswordFocused || confirmPassword) && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="mt-2 flex items-center text-sm"
+                  >
+                    {passwordRequirements.passwordsMatch ? (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
+                        <span className="text-green-600">Passwords match</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="h-4 w-4 mr-2 text-amber-500" />
+                        <span className="text-amber-600">Passwords do not match</span>
+                      </>
+                    )}
+                  </motion.div>
+                )}
               </div>
             </div>
 
             <div>
               <button
                 type="submit"
-                disabled={loading}
-                className="relative w-full inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+                disabled={loading || !isPasswordValid() || !password || !confirmPassword}
+                className={`relative w-full inline-flex items-center justify-center rounded-xl ${
+                  loading || !isPasswordValid() || !password || !confirmPassword
+                    ? 'bg-gray-400 cursor-not-allowed opacity-50'
+                    : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:shadow-xl hover:shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98]'
+                } px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-all duration-300`}
               >
                 {loading ? (
                   <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -296,6 +405,12 @@ const ResetPassword = () => {
                   </>
                 )}
               </button>
+              {/* Show helper text when button is disabled */}
+              {(!isPasswordValid() || !password || !confirmPassword) && !loading && (
+                <p className="mt-2 text-sm text-gray-500 text-center">
+                  Please complete all password requirements to enable reset
+                </p>
+              )}
             </div>
           </motion.form>
         </div>

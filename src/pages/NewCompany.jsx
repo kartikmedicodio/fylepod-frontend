@@ -12,6 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Select from 'react-select';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import { usePage } from '../contexts/PageContext';
+import { formatPhoneNumber, validatePhoneNumber } from '../utils/formatPhoneNumber';
 
 const NewCompany = () => {
   const navigate = useNavigate();
@@ -81,10 +82,19 @@ const NewCompany = () => {
   }, [user]);
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    if (field === 'phoneNumber') {
+      // Format the phone number as user types
+      const formattedValue = formatPhoneNumber(value);
+      setFormData(prev => ({
+        ...prev,
+        [field]: formattedValue
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [field]: value
+      }));
+    }
   };
 
   const handleAttorneySelect = (selectedOption) => {
@@ -98,7 +108,7 @@ const NewCompany = () => {
     return (
       formData.name.trim() !== '' &&
       formData.contactName.trim() !== '' &&
-      formData.phoneNumber.trim() !== '' &&
+      validatePhoneNumber(formData.phoneNumber) &&
       formData.assignedAttorney !== '' &&
       formData.address.trim() !== ''
     );
@@ -298,18 +308,22 @@ const NewCompany = () => {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
                       Phone Number
-                      {!formData.phoneNumber.trim() && <span className="text-rose-500 text-lg leading-none">*</span>}
+                      {!validatePhoneNumber(formData.phoneNumber) && <span className="text-rose-500 text-lg leading-none">*</span>}
                     </label>
                     <input
                       type="tel"
                       value={formData.phoneNumber}
                       onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
                       placeholder="Enter phone number"
+                      maxLength={12} // XXX-XXX-XXXX format
                       required
                       className={`block w-full rounded-lg border ${
-                        !formData.phoneNumber.trim() ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
+                        !validatePhoneNumber(formData.phoneNumber) ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
                       } py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors`}
                     />
+                    {!validatePhoneNumber(formData.phoneNumber) && formData.phoneNumber && (
+                      <p className="mt-1 text-sm text-rose-600">Please enter a valid 10-digit phone number</p>
+                    )}
                   </div>
 
                   {/* Company Address */}
