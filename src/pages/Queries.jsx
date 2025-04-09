@@ -378,14 +378,19 @@ const Queries = () => {
               {filteredQueries.map((query, index) => (
                 <div 
                   key={query._id}
-                  className={`p-4 cursor-pointer transition-colors duration-150 border-l-4 ${
+                  className={`p-4 cursor-pointer transition-colors duration-150 relative ${
                     selectedQuery?._id === query._id 
-                      ? 'bg-blue-50/80 hover:bg-blue-50/80 border-blue-500' 
-                      : 'hover:bg-blue-50/30 border-blue-200 hover:border-blue-300'
+                      ? 'bg-blue-50/80 hover:bg-blue-50/80' 
+                      : 'hover:bg-blue-50/30'
                   } ${index !== 0 ? 'border-t border-t-gray-100' : ''}`}
                   onClick={() => setSelectedQuery(query)}
                 >
-                  <div className="flex justify-between items-start mb-2">
+                  {/* Blue left border only for selected chat */}
+                  {selectedQuery?._id === query._id && (
+                    <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
+                  )}
+                  
+                  <div className="pl-2 flex justify-between items-start mb-2">
                     <div className="flex items-center space-x-3">
                       <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center flex-shrink-0 shadow-sm">
                         <span className="text-blue-600 font-medium">
@@ -413,7 +418,7 @@ const Queries = () => {
                       </span>
                     </div>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="pl-2 flex justify-between items-center">
                     <div className="text-xs text-gray-500 flex items-center">
                       <User className="h-3 w-3 mr-1" />
                       Case: {query.managementId?.categoryName || 'Unknown Case'} 
