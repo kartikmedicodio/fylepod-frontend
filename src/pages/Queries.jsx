@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { getQueries, addResponse, updateQueryStatus } from '../services/queryService';
+import { getQueries, addResponse, updateQueryStatus, createQuery } from '../services/queryService';
+import { getUserManagementCases } from '../services/managementService';
 import { format } from 'date-fns';
+import PropTypes from 'prop-types';
 import { 
   Send, 
   Loader2, 
@@ -14,7 +16,8 @@ import {
   ChevronRight,
   MessageSquare,
   Calendar,
-  User
+  User,
+  Plus
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -43,6 +46,7 @@ const Queries = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const [showNewQueryModal, setShowNewQueryModal] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const filterRef = useRef(null);
@@ -94,6 +98,7 @@ const Queries = () => {
   const fetchQueries = async () => {
     try {
       setLoading(true);
+      // Use the getQueries function which already filters by user role on the backend
       const response = await getQueries();
       console.log('Fetched queries response:', response);
       if (response.status === 'success') {
@@ -308,6 +313,16 @@ const Queries = () => {
       {/* Sidebar */}
       <div className="w-[400px] flex flex-col border-r border-gray-200 bg-white/80 backdrop-blur-sm shadow-md rounded-l-xl">
         <div className="p-5 border-b border-gray-200">
+          {/* Search, filter, and new query button */}
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={() => setShowNewQueryModal(true)}
+              className="flex items-center px-4 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-150 shadow-sm"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              New Query
+            </button>
+          </div>
           {/* Search and filter */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -394,7 +409,7 @@ const Queries = () => {
                         <h3 className="font-medium text-gray-900 mb-1">
                           {getUserName(query.foreignNationalId)}
                         </h3>
-                        <p className="text-sm text-gray-500 line-clamp-1">
+                        <p className="text-sm text-gray-500 line-clamp-3 leading-relaxed text-justify">
                           {query.query}
                         </p>
                       </div>
@@ -409,6 +424,14 @@ const Queries = () => {
                         <Calendar className="h-3 w-3 mr-1" />
                         {format(new Date(query.updatedAt), 'MMM d, h:mm a')}
                       </span>
+                      {query.aiChatContext && (
+                        <span className="text-xs text-purple-600 mt-1 flex items-center">
+                          <svg className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                          AI Chat
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="text-xs text-gray-500 mt-1 flex items-center">
@@ -452,7 +475,7 @@ const Queries = () => {
                     {getStatusIcon(selectedQuery.status)}
                     <span className="ml-1">{selectedQuery.status.replace('_', ' ')}</span>
                   </span>
-                  {selectedQuery.status !== 'resolved' && (
+                  {selectedQuery.status !== 'resolved' && (user.role === 'attorney' || user.role === 'admin' || user.role === 'manager') && (
                     <button 
                       onClick={handleResolveQuery}
                       disabled={resolving}
@@ -482,19 +505,45 @@ const Queries = () => {
                   </div>
                 </div>
                 <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-4 shadow-sm max-w-3/4 border-l-4 border-indigo-400">
-                  <div className="text-sm font-medium text-gray-900 mb-1 flex items-center">
-                    {getUserName(selectedQuery.foreignNationalId)}
+                  <div className="text-sm font-medium text-gray-900 mb-2 flex items-center justify-between">
+                    <div className="flex items-center">
+                      <span>{getUserName(selectedQuery.foreignNationalId)}</span>
+                      <span className="mx-2 text-gray-300">•</span>
+                      <span className="text-xs text-gray-500">
+                        {formatDate(selectedQuery.createdAt)}
+                      </span>
+                    </div>
                     <span className="ml-2 px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-xs font-semibold">Query</span>
                   </div>
-                  <div className="text-gray-800 whitespace-pre-wrap font-medium">
-                    {selectedQuery.query}
-                  </div>
-                  <div className="mt-2 text-xs text-gray-400 flex items-center">
-                    <Calendar className="h-3 w-3 mr-1" />
-                    {formatDate(selectedQuery.createdAt)}
+                  <div className="prose prose-sm text-gray-800 max-w-none">
+                    <p className="whitespace-pre-line leading-relaxed text-justify">
+                      {selectedQuery.query}
+                    </p>
                   </div>
                 </div>
               </div>
+
+              {/* AI Chat Context - Only show if available */}
+              {selectedQuery.aiChatContext && (
+                <div className="flex items-start">
+                  <div className="flex-shrink-0 mr-3">
+                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-100 to-purple-200 flex items-center justify-center shadow-sm">
+                      <span className="text-purple-600 font-medium">AI</span>
+                    </div>
+                  </div>
+                  <div className="bg-purple-50/90 backdrop-blur-sm rounded-lg p-4 shadow-sm max-w-3/4 border border-purple-100">
+                    <div className="text-sm font-medium text-purple-900 mb-1 flex items-center">
+                      <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      AI Chat Context
+                    </div>
+                    <div className="text-gray-800 whitespace-pre-wrap text-sm">
+                      {selectedQuery.aiChatContext}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Responses */}
               {selectedQuery.responses && selectedQuery.responses.map((response) => {
@@ -591,8 +640,204 @@ const Queries = () => {
           </div>
         )}
       </div>
+
+      {/* New Query Modal */}
+      <NewQueryModal 
+        isOpen={showNewQueryModal}
+        onClose={() => setShowNewQueryModal(false)}
+      />
     </div>
   );
+};
+
+// Modal component for creating new queries
+const NewQueryModal = ({ isOpen, onClose }) => {
+  const { user } = useAuth();
+  const [selectedCase, setSelectedCase] = useState(null);
+  const [queryContent, setQueryContent] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [cases, setCases] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchCases();
+    }
+  }, [isOpen]);
+
+  const fetchCases = async () => {
+    try {
+      setLoading(true);
+      // Use the getUserManagementCases function to get only the user's cases
+      const userId = user.id || user._id;
+      const response = await getUserManagementCases(userId);
+      
+      if (response.status === 'success') {
+        setCases(response.data.entries || []);
+      } else {
+        toast.error('Failed to load cases');
+      }
+    } catch (error) {
+      console.error('Error fetching cases:', error);
+      toast.error('Failed to load cases');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedCase || !queryContent.trim()) return;
+
+    try {
+      setSubmitting(true);
+      const response = await createQuery({
+        managementId: selectedCase._id,
+        query: queryContent
+      });
+      
+      if (response.status === 'success') {
+        toast.success('Query created successfully');
+        onClose();
+      } else {
+        toast.error('Failed to create query');
+      }
+    } catch (error) {
+      console.error('Error creating query:', error);
+      toast.error('Failed to create query');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 overflow-hidden">
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-xl font-semibold text-gray-900">Create New Query</h2>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Case selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select Case
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search cases by number or foreign national name..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+            
+            <div className="mt-2 border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+              {loading ? (
+                <div className="flex items-center justify-center p-4">
+                  <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                </div>
+              ) : cases.length === 0 ? (
+                <div className="p-4 text-center text-gray-500">
+                  No cases found
+                </div>
+              ) : (
+                cases
+                  .filter(caseItem => 
+                    caseItem.caseNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    caseItem.userName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    caseItem.categoryName?.toLowerCase().includes(searchTerm.toLowerCase())
+                  )
+                  .map(caseItem => (
+                    <button
+                      key={caseItem._id}
+                      type="button"
+                      onClick={() => setSelectedCase(caseItem)}
+                      className={`w-full px-4 py-3 text-left hover:bg-gray-50 focus:outline-none ${
+                        selectedCase?._id === caseItem._id ? 'bg-blue-50' : ''
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center mr-3">
+                            <span className="text-blue-600 font-medium">
+                              {caseItem.userName?.charAt(0) || '?'}
+                            </span>
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900">
+                              {caseItem.categoryName || 'Unnamed Case'}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {caseItem.userName || 'Unknown User'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {caseItem.categoryStatus || 'Pending'}
+                        </div>
+                      </div>
+                    </button>
+                  ))
+              )}
+            </div>
+          </div>
+
+          {/* Query content */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Query Description
+            </label>
+            <textarea
+              value={queryContent}
+              onChange={(e) => setQueryContent(e.target.value)}
+              placeholder="Please provide a detailed description of your legal query. Include relevant background information, specific issues or questions that need addressing, and any time-sensitive matters. Write in clear paragraphs to help the attorney fully understand your situation."
+              rows={8}
+              className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm leading-relaxed resize-none"
+            />
+            <p className="mt-2 text-xs text-gray-500">
+              Write your query as a clear, detailed paragraph explaining the situation and the specific legal assistance needed.
+            </p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-end space-x-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 hover:text-gray-900 focus:outline-none"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!selectedCase || !queryContent.trim() || submitting}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:hover:bg-blue-500 transition-colors duration-150 flex items-center"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Creating...
+                </>
+              ) : (
+                'Create Query'
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+NewQueryModal.propTypes = {
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired
 };
 
 export default Queries; 
