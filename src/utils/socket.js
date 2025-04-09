@@ -1,8 +1,75 @@
 import { io } from 'socket.io-client';
 
 
-const API_URL = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : 'http://localhost:5001';
-console.log('Socket connecting to:', `${API_URL}/documents`);
+const API_URL = import.meta.env.VITE_API_URL 
+  ? import.meta.env.VITE_API_URL.replace('/api', '')
+  : 'http://localhost:5001';
+
+console.log('Original API_URL:', API_URL);
+
+// Properly parse the URL to ensure WebSocket connections work correctly
+const parseSocketURL = (url) => {
+  try {
+    console.log('Parsing URL:', url);
+    
+    // Hardcoded fix for production URL
+    if (url === 'https://api-dev.relayzen.com/api' || 
+        url === 'https://api-dev.relayzen.com' ||
+        url.includes('api-dev.relayzen.com')) {
+      console.log('Using hardcoded production hostname');
+      return 'api-dev.relayzen.com';
+    }
+    
+    // For local development or other environments
+    if (url.includes('localhost')) {
+      console.log('Using localhost hostname');
+      return 'localhost:5001';
+    }
+    
+    // Manual hostname extraction as a fallback
+    let hostname = url.replace('https://', '').replace('http://', '');
+    
+    // Remove any paths
+    const slashIndex = hostname.indexOf('/');
+    if (slashIndex !== -1) {
+      hostname = hostname.substring(0, slashIndex);
+    }
+    
+    console.log('Manually extracted hostname:', hostname);
+    return hostname;
+  } catch (error) {
+    console.error('Error parsing socket URL:', error);
+    // Last resort fallback
+    return 'api-dev.relayzen.com';
+  }
+};
+
+// Fix malformed URL if necessary
+let fixedApiUrl = API_URL;
+// Check if URL is malformed (containing https:/ but missing the second slash)
+if (fixedApiUrl.startsWith('https:/') && !fixedApiUrl.startsWith('https://')) {
+  console.log('Detected and fixing malformed URL');
+  fixedApiUrl = fixedApiUrl.replace('https:/', 'https://');
+  // If it's still malformed, fix it directly
+  if (fixedApiUrl.includes('-dev.relayzen.com')) {
+    fixedApiUrl = 'https://api-dev.relayzen.com/api';
+  }
+}
+console.log('Corrected API_URL:', fixedApiUrl);
+
+// Determine the socket URL based on environment
+let SOCKET_URL;
+// For production, always use the hardcoded URL to avoid any parsing issues
+if (fixedApiUrl.includes('api-dev.relayzen.com')) {
+  console.log('Using production hardcoded socket URL');
+  // Skip the URL parsing and directly use the production socket URL
+  SOCKET_URL = 'api-dev.relayzen.com';
+  console.log('Final Socket URL (hardcoded for production):', SOCKET_URL);
+} else {
+  // For non-production environments, use the regular parsing logic
+  SOCKET_URL = parseSocketURL(fixedApiUrl);
+  console.log('Final Socket URL:', SOCKET_URL);
+}
 
 // Singleton socket instance
 let socket = null;
@@ -38,18 +105,28 @@ export const initializeSocket = (token) => {
   }
 
   // Create new socket connection with correct namespace configuration
-  console.log('Creating new socket connection with token');
-  socket = io(`${API_URL}/documents`, {
-    auth: {
-      token
-    },
+  console.log('Creating new socket connection with token to:', `${SOCKET_URL}/documents`);
+  
+  let socketConfig = {
+    auth: { token },
     transports: ['websocket', 'polling'], // Add polling as fallback
     autoConnect: true,
     path: '/socket.io',
-    reconnectionAttempts: 10,      // Increased from 5
+    reconnectionAttempts: 10,
     reconnectionDelay: 1000,
     timeout: 20000
-  });
+  };
+  
+  // Production environment connection
+  if (SOCKET_URL === 'api-dev.relayzen.com') {
+    console.log('Using production socket configuration');
+    // For production, directly use the URL with the namespace
+    socket = io('https://api-dev.relayzen.com/documents', socketConfig);
+    console.log('Created production socket connection to documents namespace');
+  } else {
+    // Local or other environment connection
+    socket = io(`${SOCKET_URL}/documents`, socketConfig);
+  }
 
   // Setup event listeners
   socket.on('connect', () => {
