@@ -28,7 +28,7 @@ const Layout = ({ children }) => {
         />
         
         {/* Main content */}
-        <div className={`transition-all duration-300 h-[calc(100vh-3rem)] overflow-y-auto ${sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-56'} pt-12`}>
+        <div className={`transition-all duration-300 h-screen overflow-y-auto ${sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-56'} pt-12`}>
           <main className="py-4">
             <div className="px-4 sm:px-6 lg:px-8">
               {children}
