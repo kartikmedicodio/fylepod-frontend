@@ -3,7 +3,6 @@ import {
   LayoutDashboard, 
   Building2, 
   Users, 
-  Settings,
   TableOfContents,
   PlusCircle,
   MailIcon,
@@ -14,8 +13,6 @@ import {
   CircleUserIcon,
   MoreHorizontal,
   User,
-  FolderIcon,
-  User2Icon,
   UserPlus,
   Briefcase,
   Building,
@@ -112,6 +109,12 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
         section: 'Cases',
         items: [
           { name: 'All Cases', href: '/individual-cases', icon: BriefcaseBusiness },
+        ]
+      },
+      {
+        section: 'Communication',
+        items: [
+          { name: 'Queries', href: '/queries', icon: MailIcon },
         ]
       }
     ];

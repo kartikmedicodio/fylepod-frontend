@@ -74,4 +74,21 @@ export const getManagementQueries = async (managementId) => {
     console.error(`Error fetching queries for management ${managementId}:`, error);
     throw error;
   }
+};
+
+/**
+ * Create a new query
+ * @param {Object} queryData - The data for the new query
+ * @param {string} queryData.managementId - The ID of the management case
+ * @param {string} queryData.query - The query content
+ * @returns {Promise} - Promise with the created query data
+ */
+export const createQuery = async (queryData) => {
+  try {
+    const response = await api.post('/queries', queryData);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating query:', error);
+    throw error;
+  }
 }; 
