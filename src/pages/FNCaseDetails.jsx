@@ -12,7 +12,7 @@ import {
   ChevronUp,
   ChevronDown,
   X,
-  Upload // Add this import for the new icon
+  Upload
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
@@ -23,6 +23,8 @@ import ProgressSteps from '../components/ProgressSteps';
 import CrossVerificationTab from '../components/cases/CrossVerificationTab';
 import { initializeSocket, joinDocumentRoom, handleReconnect, getSocket } from '../utils/socket';
 import { getStoredToken } from '../utils/auth';
+import { useAuth } from '../contexts/AuthContext';
+import { createQuery } from '../services/queryService';
 
 const getInitials = (name) => {
   return name
@@ -265,15 +267,12 @@ const FNCaseDetails = () => {
   // Add new states for validation data
   const [validationData, setValidationData] = useState(null);
   const [isValidationLoading, setIsValidationLoading] = useState(false);
-  
   // Add refs for validation data
   const validationDataRef = useRef(null);
   const verificationDataRef = useRef(null);
-  
   // Add state to track processing document IDs and processing status
   const [processingDocIds, setProcessingDocIds] = useState([]);
   const [isProcessingComplete, setIsProcessingComplete] = useState(false);
-  
   // Add state to track validation and verification completion
   const [processingStatus, setProcessingStatus] = useState({
     document: null,
@@ -287,6 +286,11 @@ const FNCaseDetails = () => {
     processedDocuments: [], // Track all processed documents
     validationFailuresByDocument: {} // Track validation failures by document
   });
+  const [showEscalateModal, setShowEscalateModal] = useState(false);
+  const [aiQuerySuggestion, setAiQuerySuggestion] = useState('');
+  const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState(false);
+  const [escalateQuery, setEscalateQuery] = useState('');
+  const [isEscalating, setIsEscalating] = useState(false);
 
   // Group all useRef hooks
   const messagesEndRef = useRef(null);
@@ -2505,6 +2509,67 @@ const FNCaseDetails = () => {
     onBack: PropTypes.func.isRequired
   };
 
+  // Function to handle escalating to attorney
+  const handleEscalateToAttorney = async () => {
+    if (!currentChat || !caseId) return;
+    
+    setIsEscalating(true);
+    try {
+      // Create a query from the chat
+      const response = await api.post('/queries', {
+        managementId: caseId,
+        query: escalateQuery,
+        chatId: currentChat._id
+      });
+      
+      if (response.data.status === 'success') {
+        toast.success('Query escalated to attorney successfully');
+        setShowEscalateModal(false);
+        setEscalateQuery('');
+      } else {
+        throw new Error(response.data.message || 'Failed to escalate query');
+      }
+    } catch (error) {
+      console.error('Error escalating query:', error);
+      toast.error(error.message || 'Failed to escalate query');
+    } finally {
+      setIsEscalating(false);
+    }
+  };
+
+  // Function to generate AI query suggestion
+  const generateQuerySuggestion = async () => {
+    if (!currentChat || !caseId) {
+      toast.error('No active chat found');
+      return;
+    }
+    
+    setIsGeneratingSuggestion(true);
+    try {
+      // Call the OpenAI endpoint to generate a query suggestion
+      const response = await api.post('/ai/generate-query', {
+        chatId: currentChat._id,
+        managementId: caseId
+      });
+      
+      if (response.data.status === 'success') {
+        const suggestion = response.data.data.suggestion;
+        setAiQuerySuggestion(suggestion);
+        setEscalateQuery(suggestion);
+        
+        // Show success message
+        toast.success('Query suggestion generated successfully');
+      } else {
+        throw new Error(response.data.message || 'Failed to generate query suggestion');
+      }
+    } catch (error) {
+      console.error('Error generating query suggestion:', error);
+      toast.error(error.message || 'Failed to generate query suggestion');
+    } finally {
+      setIsGeneratingSuggestion(false);
+    }
+  };
+
   // Create a portal for the chat button and popup
   const renderChatPortal = () => {
     return ReactDOM.createPortal(
@@ -2593,6 +2658,21 @@ const FNCaseDetails = () => {
                   )}
                 </div>
               ))}
+              
+              {/* Escalate to Attorney Button - Only show if AI has answered at least once */}
+              {messages.length > 1 && currentChat && messages.some(msg => msg.role === 'assistant') && (
+                <div className="flex justify-center mt-4">
+                  <button
+                    onClick={() => setShowEscalateModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    <span>Escalate to Attorney</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Enhanced input area */}
@@ -2621,6 +2701,91 @@ const FNCaseDetails = () => {
                 </button>
               </div>
             </form>
+          </div>
+        )}
+        
+        {/* Escalate to Attorney Modal */}
+        {showEscalateModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10000]">
+            <div className="bg-white rounded-2xl shadow-xl w-[500px] max-h-[90vh] overflow-hidden animate-fadeIn">
+              <div className="p-6 border-b border-slate-100">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-slate-800">Escalate to Attorney</h3>
+                  <button 
+                    onClick={() => setShowEscalateModal(false)}
+                    className="p-1 hover:bg-slate-100 rounded-full transition-all"
+                  >
+                    <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              
+              <div className="p-6">
+                <p className="text-sm text-slate-600 mb-4">
+                  This will create a query for your attorney based on your chat with Sophia. You can edit the query before sending.
+                </p>
+                
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Query for Attorney
+                  </label>
+                  <div className="relative">
+                    <textarea
+                      value={escalateQuery}
+                      onChange={(e) => setEscalateQuery(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-100 focus:border-slate-300 transition-all min-h-[120px]"
+                      placeholder="Describe your query for the attorney..."
+                    />
+                    <button
+                      onClick={generateQuerySuggestion}
+                      disabled={isGeneratingSuggestion}
+                      className="absolute top-2 right-2 p-2 text-slate-600 hover:text-slate-800 transition-all"
+                      title="Generate AI suggestion"
+                    >
+                      {isGeneratingSuggestion ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Removed AI suggestion display section */}
+              </div>
+              
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                <button
+                  onClick={() => setShowEscalateModal(false)}
+                  className="px-4 py-2 text-slate-700 hover:text-slate-900 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleEscalateToAttorney}
+                  disabled={isEscalating || !escalateQuery.trim()}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg shadow-sm hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isEscalating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Escalating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      <span>Escalate</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </>,
