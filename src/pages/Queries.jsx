@@ -4,6 +4,8 @@ import { getQueries, addResponse, updateQueryStatus, createQuery } from '../serv
 import { getUserManagementCases } from '../services/managementService';
 import { format } from 'date-fns';
 import PropTypes from 'prop-types';
+import { usePage } from '../contexts/PageContext';
+import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import { 
   Send, 
   Loader2, 
@@ -37,6 +39,8 @@ const scrollbarHideStyles = `
 
 const Queries = () => {
   const { user } = useAuth();
+  const { setPageTitle } = usePage();
+  const { setCurrentBreadcrumb } = useBreadcrumb();
   const [queries, setQueries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedQuery, setSelectedQuery] = useState(null);
@@ -47,9 +51,19 @@ const Queries = () => {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [showNewQueryModal, setShowNewQueryModal] = useState(false);
+  const [showConversationModal, setShowConversationModal] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const filterRef = useRef(null);
+
+  // Set page title and breadcrumb
+  useEffect(() => {
+    setPageTitle('Queries');
+    setCurrentBreadcrumb([
+      { name: 'Home', path: '/dashboard' },
+      { name: 'Queries', path: '/queries' }
+    ]);
+  }, [setPageTitle, setCurrentBreadcrumb]);
 
   // Close filter dropdown when clicking outside
   useEffect(() => {
@@ -507,6 +521,17 @@ const Queries = () => {
                   </div>
                 </div>
                 <div className="flex items-center space-x-4">
+                  {selectedQuery.aiChatContext && (
+                    <button
+                      onClick={() => setShowConversationModal(true)}
+                      className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-colors duration-150 flex items-center space-x-1 shadow-sm"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      <span>View Conversation</span>
+                    </button>
+                  )}
                   <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
                     getStatusColor(selectedQuery.status)
                   }`}>
@@ -560,28 +585,6 @@ const Queries = () => {
                   </div>
                 </div>
               </div>
-
-              {/* AI Chat Context - Only show if available */}
-              {selectedQuery.aiChatContext && (
-                <div className="flex items-start">
-                  <div className="flex-shrink-0 mr-3">
-                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-100 to-purple-200 flex items-center justify-center shadow-sm">
-                      <span className="text-purple-600 font-medium">AI</span>
-                    </div>
-                  </div>
-                  <div className="bg-purple-50/90 backdrop-blur-sm rounded-lg p-4 shadow-sm max-w-3/4 border border-purple-100">
-                    <div className="text-sm font-medium text-purple-900 mb-1 flex items-center">
-                      <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                      AI Chat Context
-                    </div>
-                    <div className="text-gray-800 whitespace-pre-wrap text-sm">
-                      {selectedQuery.aiChatContext}
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Responses */}
               {selectedQuery.responses && selectedQuery.responses.map((response) => {
@@ -683,6 +686,13 @@ const Queries = () => {
       <NewQueryModal 
         isOpen={showNewQueryModal}
         onClose={() => setShowNewQueryModal(false)}
+      />
+
+      {/* View Conversation Modal */}
+      <ViewConversationModal
+        isOpen={showConversationModal}
+        onClose={() => setShowConversationModal(false)}
+        aiContext={selectedQuery?.aiChatContext}
       />
     </div>
   );
@@ -958,6 +968,57 @@ const NewQueryModal = ({ isOpen, onClose }) => {
 NewQueryModal.propTypes = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired
+};
+
+// Add ViewConversationModal component
+const ViewConversationModal = ({ isOpen, onClose, aiContext }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 overflow-hidden">
+        <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+          <div className="flex items-center space-x-2">
+            <svg className="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <h2 className="text-xl font-semibold text-gray-900">AI Conversation</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-500 focus:outline-none"
+          >
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="p-6 max-h-[70vh] overflow-y-auto">
+          <div className="prose prose-sm max-w-none">
+            <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
+              <pre className="whitespace-pre-wrap text-sm text-gray-800 font-sans">
+                {aiContext}
+              </pre>
+            </div>
+          </div>
+        </div>
+        <div className="p-4 bg-gray-50 border-t border-gray-200 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors duration-150"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+ViewConversationModal.propTypes = {
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  aiContext: PropTypes.string
 };
 
 export default Queries; 
