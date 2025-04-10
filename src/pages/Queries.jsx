@@ -325,62 +325,63 @@ const Queries = () => {
     <div className="flex h-[calc(100vh-6.5rem)] bg-gradient-to-br from-gray-50 to-gray-100 mt-4 rounded-xl">
       {/* Sidebar */}
       <div className="w-[400px] flex flex-col border-r border-gray-200 bg-white/80 backdrop-blur-sm shadow-md rounded-l-xl">
-        <div className="p-5 border-b border-gray-200 relative z-50">
-          {/* Search, filter, and new query button */}
-          <div className="flex items-center gap-3 mb-4">
-            <button
-              onClick={() => setShowNewQueryModal(true)}
-              className="flex items-center px-4 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-150 shadow-sm"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New Query
-            </button>
-          </div>
-          {/* Search and filter */}
-          <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search queries..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-12 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-all duration-200 bg-white/70 backdrop-blur-sm"
-            />
-            <div className="absolute right-2 top-1/2 transform -translate-y-1/2" ref={filterRef}>
-              <button
-                onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors duration-150"
-              >
-                <Filter className="h-4 w-4 text-gray-400" />
-              </button>
-              
-              {showFilterDropdown && (
-                <div className="absolute right-0 mt-2 w-48 bg-white/95 rounded-lg shadow-lg border border-gray-200 py-1 z-[1000]" 
-                     style={{
-                       position: 'absolute',
-                       boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
-                     }}>
-                  <div className="px-3 py-2 text-xs font-medium text-gray-500">Filter by Status</div>
-                  <div className="border-t border-gray-100">
-                    {['all', 'pending', 'in_progress', 'resolved'].map((status) => (
-                      <button
-                        key={status}
-                        onClick={() => {
-                          setStatusFilter(status);
-                          setShowFilterDropdown(false);
-                        }}
-                        className={`w-full px-3 py-2 text-sm text-left flex items-center space-x-2 hover:bg-gray-50 ${
-                          statusFilter === status ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
-                        }`}
-                      >
-                        {getStatusIcon(status)}
-                        <span>{status === 'all' ? 'All Status' : status.replace('_', ' ')}</span>
-                      </button>
-                    ))}
+        <div className="p-3 pb-3 border-b border-gray-200 relative z-50">
+          {/* Search and filter with inline New Query button */}
+          <div className="relative w-full flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search queries..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-12 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-all duration-200 bg-white/70 backdrop-blur-sm"
+              />
+              <div className="absolute right-2 top-1/2 transform -translate-y-1/2" ref={filterRef}>
+                <button
+                  onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                  className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors duration-150"
+                >
+                  <Filter className="h-4 w-4 text-gray-400" />
+                </button>
+                
+                {showFilterDropdown && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white/95 rounded-lg shadow-lg border border-gray-200 py-1 z-[1000]" 
+                       style={{
+                         position: 'absolute',
+                         boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
+                       }}>
+                    <div className="px-3 py-2 text-xs font-medium text-gray-500">Filter by Status</div>
+                    <div className="border-t border-gray-100">
+                      {['all', 'pending', 'resolved'].map((status) => (
+                        <button
+                          key={status}
+                          onClick={() => {
+                            setStatusFilter(status);
+                            setShowFilterDropdown(false);
+                          }}
+                          className={`w-full px-3 py-2 text-sm text-left flex items-center space-x-2 hover:bg-gray-50 ${
+                            statusFilter === status ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
+                          }`}
+                        >
+                          {getStatusIcon(status)}
+                          <span>{status === 'all' ? 'All Status' : status.replace('_', ' ')}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
+            {(user.role === 'individual' || user.role === 'employee') && (
+              <button
+                onClick={() => setShowNewQueryModal(true)}
+                className="flex items-center px-2.5 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-150 shadow-sm"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                <span className="text-sm">New</span>
+              </button>
+            )}
           </div>
         </div>
         
@@ -433,8 +434,9 @@ const Queries = () => {
                         <h3 className="font-medium text-gray-900 mb-1">
                           {getUserName(query.foreignNationalId)}
                         </h3>
-                        <p className="text-sm text-gray-500 line-clamp-3 leading-relaxed text-justify">
-                          {query.query}
+                        <p className="text-sm text-gray-500 line-clamp-1 leading-relaxed text-justify">
+                          {query.query?.split(' ').slice(0, 4).join(' ')}
+                          {query.query?.split(' ').length > 4 ? '...' : ''}
                         </p>
                       </div>
                     </div>
@@ -481,7 +483,7 @@ const Queries = () => {
         {selectedQuery ? (
           <>
             {/* Chat header */}
-            <div className="h-[66px] p-4 pb-3 border-b border-gray-200 bg-white/90 backdrop-blur-sm shadow-sm flex items-center">
+            <div className="h-[67px] p-4 pb-3 border-b border-gray-200 bg-white/90 backdrop-blur-sm shadow-sm flex items-center">
               <div className="flex justify-between items-center w-full">
                 <div className="flex items-center space-x-3">
                   <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center shadow-sm">
@@ -695,12 +697,31 @@ const NewQueryModal = ({ isOpen, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef(null);
 
+  // Reset selected case when modal opens
   useEffect(() => {
     if (isOpen) {
       fetchCases();
+      setSelectedCase(null);
+      setQueryContent('');
+      setSearchTerm('');
+      setShowDropdown(false);
     }
   }, [isOpen]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const fetchCases = async () => {
     try {
@@ -722,6 +743,11 @@ const NewQueryModal = ({ isOpen, onClose }) => {
     }
   };
 
+  const handleCaseSelect = (caseItem) => {
+    setSelectedCase(caseItem);
+    setShowDropdown(false);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedCase || !queryContent.trim()) return;
@@ -735,6 +761,9 @@ const NewQueryModal = ({ isOpen, onClose }) => {
       
       if (response.status === 'success') {
         toast.success('Query created successfully');
+        // Reset form state
+        setSelectedCase(null);
+        setQueryContent('');
         onClose();
       } else {
         toast.error('Failed to create query');
@@ -747,7 +776,23 @@ const NewQueryModal = ({ isOpen, onClose }) => {
     }
   };
 
+  // Custom close handler to reset state
+  const handleClose = () => {
+    setSelectedCase(null);
+    setQueryContent('');
+    onClose();
+  };
+
   if (!isOpen) return null;
+
+  // Filter cases based on search term including case ID
+  const filteredCases = cases.filter(caseItem => 
+    !searchTerm || 
+    (caseItem._id && caseItem._id.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (caseItem.caseNumber && caseItem.caseNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (caseItem.userName && caseItem.userName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (caseItem.categoryName && caseItem.categoryName.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
@@ -762,64 +807,103 @@ const NewQueryModal = ({ isOpen, onClose }) => {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Select Case
             </label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search cases by number or foreign national name..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              />
-            </div>
             
-            <div className="mt-2 border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
-              {loading ? (
-                <div className="flex items-center justify-center p-4">
-                  <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
-                </div>
-              ) : cases.length === 0 ? (
-                <div className="p-4 text-center text-gray-500">
-                  No cases found
-                </div>
-              ) : (
-                cases
-                  .filter(caseItem => 
-                    caseItem.caseNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    caseItem.userName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    caseItem.categoryName?.toLowerCase().includes(searchTerm.toLowerCase())
-                  )
-                  .map(caseItem => (
-                    <button
-                      key={caseItem._id}
-                      type="button"
-                      onClick={() => setSelectedCase(caseItem)}
-                      className={`w-full px-4 py-3 text-left hover:bg-gray-50 focus:outline-none ${
-                        selectedCase?._id === caseItem._id ? 'bg-blue-50' : ''
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center mr-3">
-                            <span className="text-blue-600 font-medium">
-                              {caseItem.userName?.charAt(0) || '?'}
-                            </span>
-                          </div>
-                          <div>
-                            <div className="font-medium text-gray-900">
-                              {caseItem.categoryName || 'Unnamed Case'}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {caseItem.userName || 'Unknown User'}
-                            </div>
-                          </div>
+            <div className="relative" ref={dropdownRef}>
+              {/* Select Case Button */}
+              {!showDropdown && (
+                <button
+                  type="button"
+                  onClick={() => setShowDropdown(true)}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 border border-gray-200 rounded-lg text-left hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200 ${
+                    !selectedCase ? 'text-gray-500' : 'text-gray-900'
+                  }`}
+                >
+                  {selectedCase ? (
+                    <div className="flex items-center">
+                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center mr-3">
+                        <span className="text-blue-600 font-medium">
+                          {selectedCase.userName?.charAt(0) || '?'}
+                        </span>
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">
+                          {selectedCase.categoryName || 'Unnamed Case'}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {caseItem.categoryStatus || 'Pending'}
+                          {selectedCase.userName || 'Unknown User'}
                         </div>
                       </div>
-                    </button>
-                  ))
+                    </div>
+                  ) : (
+                    <span>Select a case</span>
+                  )}
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              )}
+              
+              {/* Dropdown */}
+              {showDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
+                  {/* Search field inside dropdown */}
+                  <div className="p-2 border-b border-gray-100">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Search by case ID, name, or category..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Cases list */}
+                  <div className="max-h-48 overflow-y-auto">
+                    {loading ? (
+                      <div className="flex items-center justify-center p-4">
+                        <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                      </div>
+                    ) : filteredCases.length === 0 ? (
+                      <div className="p-4 text-center text-gray-500">
+                        No matching cases found
+                      </div>
+                    ) : (
+                      filteredCases.map(caseItem => (
+                        <button
+                          key={caseItem._id}
+                          type="button"
+                          onClick={() => handleCaseSelect(caseItem)}
+                          className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:outline-none"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center mr-3">
+                                <span className="text-blue-600 font-medium">
+                                  {caseItem.userName?.charAt(0) || '?'}
+                                </span>
+                              </div>
+                              <div>
+                                <div className="font-medium text-gray-900">
+                                  {caseItem.categoryName || 'Unnamed Case'}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  {caseItem.userName || 'Unknown User'}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {caseItem.categoryStatus || 'Pending'}
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -845,7 +929,7 @@ const NewQueryModal = ({ isOpen, onClose }) => {
           <div className="flex items-center justify-end space-x-4">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2 text-gray-700 hover:text-gray-900 focus:outline-none"
             >
               Cancel
