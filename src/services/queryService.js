@@ -1,12 +1,17 @@
 import api from '../utils/api';
 
 /**
- * Get all queries for the current user
+ * Get all queries for the current user (filtered by backend based on user role)
+ * @param {Object} filters - Optional filters
+ * @param {string} filters.status - Filter by status
+ * @param {string} filters.managementId - Filter by management ID
  * @returns {Promise<Object>} Response data containing queries
  */
-export const getQueries = async () => {
+export const getQueries = async (filters = {}) => {
   try {
-    const response = await api.get('/queries');
+    const response = await api.get('/queries', {
+      params: filters
+    });
     return response.data;
   } catch (error) {
     console.error('Error fetching queries:', error);
