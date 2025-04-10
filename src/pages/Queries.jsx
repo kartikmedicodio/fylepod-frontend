@@ -89,17 +89,18 @@ const Queries = () => {
     });
   }, [user]);
 
-  // Fetch queries on component mount
-  useEffect(() => {
-    fetchQueries();
-  }, []);
-
   // Fetch queries from API
   const fetchQueries = async () => {
     try {
       setLoading(true);
-      // Use the getQueries function which already filters by user role on the backend
-      const response = await getQueries();
+      
+      // Only apply status filter if it's not 'all'
+      const filters = {};
+      if (statusFilter !== 'all') {
+        filters.status = statusFilter;
+      }
+      
+      const response = await getQueries(filters);
       console.log('Fetched queries response:', response);
       if (response.status === 'success') {
         setQueries(response.data.queries);
@@ -115,6 +116,18 @@ const Queries = () => {
       setLoading(false);
     }
   };
+
+  // Fetch queries when component mounts or status filter changes
+  useEffect(() => {
+    fetchQueries();
+  }, [statusFilter]);
+
+  // Add dependency on user to refetch when user changes
+  useEffect(() => {
+    if (user) {
+      fetchQueries();
+    }
+  }, [user]);
 
   // Check if a message is from the current user
   const isCurrentUser = (authorId) => {
