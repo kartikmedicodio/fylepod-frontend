@@ -2537,6 +2537,18 @@ const FNCaseDetails = () => {
     }
   };
 
+  // Function to handle opening Calendly
+  const handleScheduleMeeting = () => {
+    try {
+      Calendly.initPopupWidget({
+        url: 'https://calendly.com/vaibhavmujumdar1'
+      });
+    } catch (error) {
+      console.error('Error opening Calendly:', error);
+      toast.error('Unable to open scheduling widget. Please try again.');
+    }
+  };
+
   // Function to generate AI query suggestion
   const generateQuerySuggestion = async () => {
     if (!currentChat || !caseId) {
@@ -2661,7 +2673,7 @@ const FNCaseDetails = () => {
               
               {/* Escalate to Attorney Button - Only show if AI has answered at least once */}
               {messages.length > 1 && currentChat && messages.some(msg => msg.role === 'assistant') && (
-                <div className="flex justify-center mt-4">
+                <div className="flex justify-center gap-3 mt-4">
                   <button
                     onClick={() => setShowEscalateModal(true)}
                     className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5"
@@ -2670,6 +2682,15 @@ const FNCaseDetails = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                     <span>Escalate to Attorney</span>
+                  </button>
+                  <button
+                    onClick={handleScheduleMeeting}
+                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span>Schedule Meeting</span>
                   </button>
                 </div>
               )}
@@ -2764,6 +2785,15 @@ const FNCaseDetails = () => {
                   className="px-4 py-2 text-slate-700 hover:text-slate-900 transition-colors"
                 >
                   Cancel
+                </button>
+                <button
+                  onClick={handleScheduleMeeting}
+                  className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg shadow-sm hover:shadow-md transition-all flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Schedule Meeting
                 </button>
                 <button
                   onClick={handleEscalateToAttorney}
