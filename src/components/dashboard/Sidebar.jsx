@@ -114,7 +114,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       {
         section: 'Communication',
         items: [
-          { name: 'Queries', href: '/queries', icon: MailIcon },
+          { name: 'Messages', href: '/queries', icon: MailIcon },
         ]
       }
     ];
@@ -133,7 +133,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
         section: 'Cases',
         items: [
           { name: 'Cases', href: '/cases', icon: BriefcaseBusiness },
-          { name: 'Queries', href: '/queries', icon: MailIcon },
+          { name: 'Messages', href: '/queries', icon: MailIcon },
         ]
       },
       {
