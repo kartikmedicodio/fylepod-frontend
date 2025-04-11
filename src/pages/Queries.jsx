@@ -4,6 +4,8 @@ import { getQueries, addResponse, updateQueryStatus, createQuery } from '../serv
 import { getUserManagementCases } from '../services/managementService';
 import { format } from 'date-fns';
 import PropTypes from 'prop-types';
+import { usePage } from '../contexts/PageContext';
+import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import { 
   Send, 
   Loader2, 
@@ -37,6 +39,8 @@ const scrollbarHideStyles = `
 
 const Queries = () => {
   const { user } = useAuth();
+  const { setPageTitle } = usePage();
+  const { setCurrentBreadcrumb } = useBreadcrumb();
   const [queries, setQueries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedQuery, setSelectedQuery] = useState(null);
@@ -47,9 +51,19 @@ const Queries = () => {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [showNewQueryModal, setShowNewQueryModal] = useState(false);
+  const [showConversationModal, setShowConversationModal] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const filterRef = useRef(null);
+
+  // Set page title and breadcrumb
+  useEffect(() => {
+    setPageTitle('Queries');
+    setCurrentBreadcrumb([
+      { name: 'Home', path: '/dashboard' },
+      { name: 'Queries', path: '/queries' }
+    ]);
+  }, [setPageTitle, setCurrentBreadcrumb]);
 
   // Close filter dropdown when clicking outside
   useEffect(() => {
@@ -89,17 +103,18 @@ const Queries = () => {
     });
   }, [user]);
 
-  // Fetch queries on component mount
-  useEffect(() => {
-    fetchQueries();
-  }, []);
-
   // Fetch queries from API
   const fetchQueries = async () => {
     try {
       setLoading(true);
+      // Only apply status filter if it's not 'all'
+      const filters = {};
+      if (statusFilter !== 'all') {
+        filters.status = statusFilter;
+      }
+      
       // Use the getQueries function which already filters by user role on the backend
-      const response = await getQueries();
+      const response = await getQueries(filters);
       console.log('Fetched queries response:', response);
       if (response.status === 'success') {
         setQueries(response.data.queries);
@@ -115,6 +130,18 @@ const Queries = () => {
       setLoading(false);
     }
   };
+
+  // Fetch queries when component mounts or status filter changes
+  useEffect(() => {
+    fetchQueries();
+  }, [statusFilter]);
+
+  // Add dependency on user to refetch when user changes
+  useEffect(() => {
+    if (user) {
+      fetchQueries();
+    }
+  }, [user]);
 
   // Check if a message is from the current user
   const isCurrentUser = (authorId) => {
@@ -309,65 +336,70 @@ const Queries = () => {
   }, []);
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-gray-50 to-gray-100 mt-4 rounded-xl">
+    <div className="flex h-[calc(100vh-6.5rem)] bg-gradient-to-br from-gray-50 to-gray-100 mt-4 rounded-xl">
       {/* Sidebar */}
       <div className="w-[400px] flex flex-col border-r border-gray-200 bg-white/80 backdrop-blur-sm shadow-md rounded-l-xl">
-        <div className="p-5 border-b border-gray-200">
-          {/* Search, filter, and new query button */}
-          <div className="flex items-center gap-3 mb-4">
-            <button
-              onClick={() => setShowNewQueryModal(true)}
-              className="flex items-center px-4 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-150 shadow-sm"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New Query
-            </button>
-          </div>
-          {/* Search and filter */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search queries..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-12 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-all duration-200 bg-white/70 backdrop-blur-sm"
-            />
-            <div className="absolute right-2 top-1/2 transform -translate-y-1/2" ref={filterRef}>
-              <button
-                onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors duration-150"
-              >
-                <Filter className="h-4 w-4 text-gray-400" />
-              </button>
-              
-              {showFilterDropdown && (
-                <div className="absolute right-0 mt-2 w-48 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200 py-1 z-10 animate-fadeIn">
-                  <div className="px-3 py-2 text-xs font-medium text-gray-500">Filter by Status</div>
-                  <div className="border-t border-gray-100">
-                    {['all', 'pending', 'in_progress', 'resolved'].map((status) => (
-                      <button
-                        key={status}
-                        onClick={() => {
-                          setStatusFilter(status);
-                          setShowFilterDropdown(false);
-                        }}
-                        className={`w-full px-3 py-2 text-sm text-left flex items-center space-x-2 hover:bg-gray-50 ${
-                          statusFilter === status ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
-                        }`}
-                      >
-                        {getStatusIcon(status)}
-                        <span>{status === 'all' ? 'All Status' : status.replace('_', ' ')}</span>
-                      </button>
-                    ))}
+        <div className="p-3 pb-3 border-b border-gray-200 relative z-50">
+          {/* Search and filter with inline New Query button */}
+          <div className="relative w-full flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search queries..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-12 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-all duration-200 bg-white/70 backdrop-blur-sm"
+              />
+              <div className="absolute right-2 top-1/2 transform -translate-y-1/2" ref={filterRef}>
+                <button
+                  onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                  className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors duration-150"
+                >
+                  <Filter className="h-4 w-4 text-gray-400" />
+                </button>
+                
+                {showFilterDropdown && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white/95 rounded-lg shadow-lg border border-gray-200 py-1 z-[1000]" 
+                       style={{
+                         position: 'absolute',
+                         boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
+                       }}>
+                    <div className="px-3 py-2 text-xs font-medium text-gray-500">Filter by Status</div>
+                    <div className="border-t border-gray-100">
+                      {['all', 'pending', 'resolved'].map((status) => (
+                        <button
+                          key={status}
+                          onClick={() => {
+                            setStatusFilter(status);
+                            setShowFilterDropdown(false);
+                          }}
+                          className={`w-full px-3 py-2 text-sm text-left flex items-center space-x-2 hover:bg-gray-50 ${
+                            statusFilter === status ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
+                          }`}
+                        >
+                          {getStatusIcon(status)}
+                          <span>{status === 'all' ? 'All Status' : status.replace('_', ' ')}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
+            {(user.role === 'individual' || user.role === 'employee') && (
+              <button
+                onClick={() => setShowNewQueryModal(true)}
+                className="flex items-center px-2.5 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-150 shadow-sm"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                <span className="text-sm">New</span>
+              </button>
+            )}
           </div>
         </div>
         
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto relative z-10">
           {loading ? (
             <div className="flex justify-center items-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
@@ -390,15 +422,22 @@ const Queries = () => {
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {filteredQueries.map((query) => (
+              {filteredQueries.map((query, index) => (
                 <div 
                   key={query._id}
-                  className={`p-4 cursor-pointer hover:bg-gray-50/80 transition-colors duration-150 ${
-                    selectedQuery?._id === query._id ? 'bg-blue-50/80 hover:bg-blue-50/80' : ''
-                  }`}
+                  className={`p-4 cursor-pointer transition-colors duration-150 relative ${
+                    selectedQuery?._id === query._id 
+                      ? 'bg-blue-50/80 hover:bg-blue-50/80' 
+                      : 'hover:bg-blue-50/30'
+                  } ${index !== 0 ? 'border-t border-t-gray-100' : ''}`}
                   onClick={() => setSelectedQuery(query)}
                 >
-                  <div className="flex justify-between items-start mb-2">
+                  {/* Blue left border only for selected chat */}
+                  {selectedQuery?._id === query._id && (
+                    <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
+                  )}
+                  
+                  <div className="pl-2 flex justify-between items-start mb-2">
                     <div className="flex items-center space-x-3">
                       <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center flex-shrink-0 shadow-sm">
                         <span className="text-blue-600 font-medium">
@@ -409,8 +448,9 @@ const Queries = () => {
                         <h3 className="font-medium text-gray-900 mb-1">
                           {getUserName(query.foreignNationalId)}
                         </h3>
-                        <p className="text-sm text-gray-500 line-clamp-3 leading-relaxed text-justify">
-                          {query.query}
+                        <p className="text-sm text-gray-500 line-clamp-1 leading-relaxed text-justify">
+                          {query.query?.split(' ').slice(0, 4).join(' ')}
+                          {query.query?.split(' ').length > 4 ? '...' : ''}
                         </p>
                       </div>
                     </div>
@@ -434,9 +474,16 @@ const Queries = () => {
                       )}
                     </div>
                   </div>
-                  <div className="text-xs text-gray-500 mt-1 flex items-center">
-                    <User className="h-3 w-3 mr-1" />
-                    Case: {query.managementId?.categoryName || 'Unknown Case'}
+                  <div className="pl-2 flex justify-between items-center">
+                    <div className="text-xs text-gray-500 flex items-center">
+                      <User className="h-3 w-3 mr-1" />
+                      Case: {query.managementId?.categoryName || 'Unknown Case'} 
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600 font-mono">
+                        {query.managementId?._id?.substring(0, 6) || 'N/A'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -450,25 +497,41 @@ const Queries = () => {
         {selectedQuery ? (
           <>
             {/* Chat header */}
-            <div className="p-5 border-b border-gray-200 bg-white/90 backdrop-blur-sm shadow-sm">
-              <div className="flex justify-between items-start">
+            <div className="h-[67px] p-4 pb-3 border-b border-gray-200 bg-white/90 backdrop-blur-sm shadow-sm flex items-center">
+              <div className="flex justify-between items-center w-full">
                 <div className="flex items-center space-x-3">
-                  <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center shadow-sm">
-                    <span className="text-blue-600 font-medium text-lg">
+                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center shadow-sm">
+                    <span className="text-blue-600 font-medium">
                       {getInitial(selectedQuery.foreignNationalId?.name)}
                     </span>
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
+                    <h2 className="text-base font-semibold text-gray-900">
                       {getUserName(selectedQuery.foreignNationalId)}
                     </h2>
-                    <p className="text-sm text-gray-500 flex items-center">
-                      <User className="h-3 w-3 mr-1" />
-                      Case: {selectedQuery.managementId?.categoryName || 'Unknown Case'}
-                    </p>
+                    <div className="flex justify-between items-center mt-1">
+                      <p className="text-xs text-gray-500 flex items-center">
+                        <User className="h-3 w-3 mr-1" />
+                        Case: {selectedQuery.managementId?.categoryName || 'Unknown Case'}
+                      </p>
+                      <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600 font-mono text-xs ml-2">
+                        {selectedQuery.managementId?._id?.substring(0, 6) || 'N/A'}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center space-x-4">
+                  {selectedQuery.aiChatContext && (
+                    <button
+                      onClick={() => setShowConversationModal(true)}
+                      className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-colors duration-150 flex items-center space-x-1 shadow-sm"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      <span>View Conversation</span>
+                    </button>
+                  )}
                   <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
                     getStatusColor(selectedQuery.status)
                   }`}>
@@ -494,7 +557,7 @@ const Queries = () => {
             </div>
 
             {/* Chat messages */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-gray-50/50 backdrop-blur-sm scrollbar-hide">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50 backdrop-blur-sm scrollbar-hide">
               {/* Original query */}
               <div className="flex items-start">
                 <div className="flex-shrink-0 mr-3">
@@ -522,28 +585,6 @@ const Queries = () => {
                   </div>
                 </div>
               </div>
-
-              {/* AI Chat Context - Only show if available */}
-              {selectedQuery.aiChatContext && (
-                <div className="flex items-start">
-                  <div className="flex-shrink-0 mr-3">
-                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-100 to-purple-200 flex items-center justify-center shadow-sm">
-                      <span className="text-purple-600 font-medium">AI</span>
-                    </div>
-                  </div>
-                  <div className="bg-purple-50/90 backdrop-blur-sm rounded-lg p-4 shadow-sm max-w-3/4 border border-purple-100">
-                    <div className="text-sm font-medium text-purple-900 mb-1 flex items-center">
-                      <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
-                      AI Chat Context
-                    </div>
-                    <div className="text-gray-800 whitespace-pre-wrap text-sm">
-                      {selectedQuery.aiChatContext}
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Responses */}
               {selectedQuery.responses && selectedQuery.responses.map((response) => {
@@ -594,7 +635,7 @@ const Queries = () => {
             </div>
 
             {/* Response input */}
-            <div className="p-5 bg-white/90 backdrop-blur-sm border-t border-gray-200 shadow-sm">
+            <div className="p-4 bg-white/90 backdrop-blur-sm border-t border-gray-200 shadow-sm">
               <form onSubmit={handleSendResponse} className="flex items-center space-x-4">
                 <div className="flex-1 relative">
                   <input
@@ -646,6 +687,13 @@ const Queries = () => {
         isOpen={showNewQueryModal}
         onClose={() => setShowNewQueryModal(false)}
       />
+
+      {/* View Conversation Modal */}
+      <ViewConversationModal
+        isOpen={showConversationModal}
+        onClose={() => setShowConversationModal(false)}
+        aiContext={selectedQuery?.aiChatContext}
+      />
     </div>
   );
 };
@@ -659,12 +707,31 @@ const NewQueryModal = ({ isOpen, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef(null);
 
+  // Reset selected case when modal opens
   useEffect(() => {
     if (isOpen) {
       fetchCases();
+      setSelectedCase(null);
+      setQueryContent('');
+      setSearchTerm('');
+      setShowDropdown(false);
     }
   }, [isOpen]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const fetchCases = async () => {
     try {
@@ -686,6 +753,11 @@ const NewQueryModal = ({ isOpen, onClose }) => {
     }
   };
 
+  const handleCaseSelect = (caseItem) => {
+    setSelectedCase(caseItem);
+    setShowDropdown(false);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedCase || !queryContent.trim()) return;
@@ -699,6 +771,9 @@ const NewQueryModal = ({ isOpen, onClose }) => {
       
       if (response.status === 'success') {
         toast.success('Query created successfully');
+        // Reset form state
+        setSelectedCase(null);
+        setQueryContent('');
         onClose();
       } else {
         toast.error('Failed to create query');
@@ -711,7 +786,23 @@ const NewQueryModal = ({ isOpen, onClose }) => {
     }
   };
 
+  // Custom close handler to reset state
+  const handleClose = () => {
+    setSelectedCase(null);
+    setQueryContent('');
+    onClose();
+  };
+
   if (!isOpen) return null;
+
+  // Filter cases based on search term including case ID
+  const filteredCases = cases.filter(caseItem => 
+    !searchTerm || 
+    (caseItem._id && caseItem._id.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (caseItem.caseNumber && caseItem.caseNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (caseItem.userName && caseItem.userName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (caseItem.categoryName && caseItem.categoryName.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
@@ -726,64 +817,103 @@ const NewQueryModal = ({ isOpen, onClose }) => {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Select Case
             </label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search cases by number or foreign national name..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              />
-            </div>
             
-            <div className="mt-2 border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
-              {loading ? (
-                <div className="flex items-center justify-center p-4">
-                  <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
-                </div>
-              ) : cases.length === 0 ? (
-                <div className="p-4 text-center text-gray-500">
-                  No cases found
-                </div>
-              ) : (
-                cases
-                  .filter(caseItem => 
-                    caseItem.caseNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    caseItem.userName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    caseItem.categoryName?.toLowerCase().includes(searchTerm.toLowerCase())
-                  )
-                  .map(caseItem => (
-                    <button
-                      key={caseItem._id}
-                      type="button"
-                      onClick={() => setSelectedCase(caseItem)}
-                      className={`w-full px-4 py-3 text-left hover:bg-gray-50 focus:outline-none ${
-                        selectedCase?._id === caseItem._id ? 'bg-blue-50' : ''
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center mr-3">
-                            <span className="text-blue-600 font-medium">
-                              {caseItem.userName?.charAt(0) || '?'}
-                            </span>
-                          </div>
-                          <div>
-                            <div className="font-medium text-gray-900">
-                              {caseItem.categoryName || 'Unnamed Case'}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {caseItem.userName || 'Unknown User'}
-                            </div>
-                          </div>
+            <div className="relative" ref={dropdownRef}>
+              {/* Select Case Button */}
+              {!showDropdown && (
+                <button
+                  type="button"
+                  onClick={() => setShowDropdown(true)}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 border border-gray-200 rounded-lg text-left hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200 ${
+                    !selectedCase ? 'text-gray-500' : 'text-gray-900'
+                  }`}
+                >
+                  {selectedCase ? (
+                    <div className="flex items-center">
+                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center mr-3">
+                        <span className="text-blue-600 font-medium">
+                          {selectedCase.userName?.charAt(0) || '?'}
+                        </span>
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">
+                          {selectedCase.categoryName || 'Unnamed Case'}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {caseItem.categoryStatus || 'Pending'}
+                          {selectedCase.userName || 'Unknown User'}
                         </div>
                       </div>
-                    </button>
-                  ))
+                    </div>
+                  ) : (
+                    <span>Select a case</span>
+                  )}
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              )}
+              
+              {/* Dropdown */}
+              {showDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
+                  {/* Search field inside dropdown */}
+                  <div className="p-2 border-b border-gray-100">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Search by case ID, name, or category..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Cases list */}
+                  <div className="max-h-48 overflow-y-auto">
+                    {loading ? (
+                      <div className="flex items-center justify-center p-4">
+                        <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                      </div>
+                    ) : filteredCases.length === 0 ? (
+                      <div className="p-4 text-center text-gray-500">
+                        No matching cases found
+                      </div>
+                    ) : (
+                      filteredCases.map(caseItem => (
+                        <button
+                          key={caseItem._id}
+                          type="button"
+                          onClick={() => handleCaseSelect(caseItem)}
+                          className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:outline-none"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center mr-3">
+                                <span className="text-blue-600 font-medium">
+                                  {caseItem.userName?.charAt(0) || '?'}
+                                </span>
+                              </div>
+                              <div>
+                                <div className="font-medium text-gray-900">
+                                  {caseItem.categoryName || 'Unnamed Case'}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  {caseItem.userName || 'Unknown User'}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {caseItem.categoryStatus || 'Pending'}
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -809,7 +939,7 @@ const NewQueryModal = ({ isOpen, onClose }) => {
           <div className="flex items-center justify-end space-x-4">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="px-4 py-2 text-gray-700 hover:text-gray-900 focus:outline-none"
             >
               Cancel
@@ -838,6 +968,57 @@ const NewQueryModal = ({ isOpen, onClose }) => {
 NewQueryModal.propTypes = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired
+};
+
+// Add ViewConversationModal component
+const ViewConversationModal = ({ isOpen, onClose, aiContext }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 overflow-hidden">
+        <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+          <div className="flex items-center space-x-2">
+            <svg className="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <h2 className="text-xl font-semibold text-gray-900">AI Conversation</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-500 focus:outline-none"
+          >
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="p-6 max-h-[70vh] overflow-y-auto">
+          <div className="prose prose-sm max-w-none">
+            <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
+              <pre className="whitespace-pre-wrap text-sm text-gray-800 font-sans">
+                {aiContext}
+              </pre>
+            </div>
+          </div>
+        </div>
+        <div className="p-4 bg-gray-50 border-t border-gray-200 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors duration-150"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+ViewConversationModal.propTypes = {
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  aiContext: PropTypes.string
 };
 
 export default Queries; 
