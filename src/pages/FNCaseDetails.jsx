@@ -2659,17 +2659,28 @@ const FNCaseDetails = () => {
                 </div>
               ))}
               
-              {/* Escalate to Attorney Button - Only show if AI has answered at least once */}
-              {messages.length > 1 && currentChat && messages.some(msg => msg.role === 'assistant') && (
+              {/* Escalate to Attorney Button - Only show if the last message is from the assistant */}
+              {messages.length > 0 && currentChat && messages[messages.length - 1]?.role === 'assistant' && (
                 <div className="flex justify-center mt-4">
                   <button
-                    onClick={() => setShowEscalateModal(true)}
+                    onClick={() => {
+                      setShowEscalateModal(true);
+                      // Automatically trigger query suggestion when button is clicked
+                      if (currentChat) {
+                        generateQuerySuggestion();
+                      }
+                    }}
                     className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5"
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 6V2H8"/>
+                      <path d="m8 18-4 4V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2Z"/>
+                      <path d="M2 12h2"/>
+                      <path d="M9 11v2"/>
+                      <path d="M15 11v2"/>
+                      <path d="M20 12h2"/>
                     </svg>
-                    <span>Escalate to Attorney</span>
+                    <span>Escalate</span>
                   </button>
                 </div>
               )}
@@ -2724,7 +2735,7 @@ const FNCaseDetails = () => {
               
               <div className="p-6">
                 <p className="text-sm text-slate-600 mb-4">
-                  This will create a query for your attorney based on your chat with Sophia. You can edit the query before sending.
+                  This will create a query for your attorney based on your chat with Sophia. You can edit the query before sending.You can view the progress of this query in the message section.
                 </p>
                 
                 <div className="mb-4">
@@ -2738,20 +2749,12 @@ const FNCaseDetails = () => {
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-100 focus:border-slate-300 transition-all min-h-[120px]"
                       placeholder="Describe your query for the attorney..."
                     />
-                    <button
-                      onClick={generateQuerySuggestion}
-                      disabled={isGeneratingSuggestion}
-                      className="absolute top-2 right-2 p-2 text-slate-600 hover:text-slate-800 transition-all"
-                      title="Generate AI suggestion"
-                    >
-                      {isGeneratingSuggestion ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                      ) : (
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                      )}
-                    </button>
+                    {isGeneratingSuggestion && (
+                      <div className="absolute top-2 right-2 p-2">
+                        <Loader2 className="w-5 h-5 animate-spin text-slate-500" />
+                      </div>
+                    )}
+                    
                   </div>
                 </div>
                 
@@ -2777,8 +2780,15 @@ const FNCaseDetails = () => {
                     </>
                   ) : (
                     <>
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      
+
+                      <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 6V2H8"/>
+                        <path d="m8 18-4 4V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2Z"/>
+                        <path d="M2 12h2"/>
+                        <path d="M9 11v2"/>
+                        <path d="M15 11v2"/>
+                        <path d="M20 12h2"/>
                       </svg>
                       <span>Escalate</span>
                     </>
