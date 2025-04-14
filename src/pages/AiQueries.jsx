@@ -43,7 +43,7 @@ const AiQueries = () => {
     setPageTitle('AI Conversations');
     setCurrentBreadcrumb([
       { name: 'Home', path: '/dashboard' },
-      { name: 'AI Conversations', path: '/ai-queries' }
+      { name: 'AI Queries', path: '/ai-queries' }
     ]);
   }, [setPageTitle, setCurrentBreadcrumb]);
 
@@ -323,9 +323,11 @@ const AiQueries = () => {
               selectedChat.messages.map((message, index) => (
                 <div 
                   key={index}
-                  className={`flex gap-3 max-w-[85%] ${
-                    message.role === 'user' ? 'ml-auto' : ''
-                  }`}
+                  className={`flex ${
+                    message.role === 'user' 
+                      ? 'ml-auto justify-end' 
+                      : 'mr-auto'
+                  } max-w-[85%] gap-3`}
                 >
                   {message.role !== 'user' && (
                     <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
@@ -333,15 +335,15 @@ const AiQueries = () => {
                     </div>
                   )}
                   <div
-                    className={`rounded-lg p-3 ${
+                    className={`rounded-2xl px-4 py-2.5 ${
                       message.role === 'user'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100 text-gray-900'
+                        ? 'bg-blue-500 text-white rounded-br-none'
+                        : 'bg-gray-100 text-gray-900 rounded-bl-none'
                     }`}
                   >
-                    <div className="text-sm">{message.content}</div>
+                    <div className="text-sm whitespace-pre-wrap break-words">{message.content}</div>
                     <div 
-                      className={`text-xs mt-1 ${
+                      className={`text-[11px] mt-1 ${
                         message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
                       }`}
                     >
@@ -371,32 +373,7 @@ const AiQueries = () => {
         </div>
         
         {/* Message Input */}
-        <div className="p-4 border-t border-gray-200">
-          <div className="flex gap-3">
-            <input
-              ref={inputRef}
-              type="text"
-              placeholder={selectedCase ? "Type your message..." : "Select a case to start chatting"}
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              disabled={!selectedCase || loading.sending}
-              className="flex-grow px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed"
-            />
-            <button
-              onClick={sendMessage}
-              disabled={!newMessage.trim() || !selectedCase || loading.sending}
-              className="px-6 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {loading.sending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-              Send
-            </button>
-          </div>
-        </div>
+       
       </div>
     </div>
   );
