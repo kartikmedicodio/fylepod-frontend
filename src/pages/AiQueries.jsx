@@ -43,7 +43,7 @@ const AiQueries = () => {
     setPageTitle('AI Conversations');
     setCurrentBreadcrumb([
       { name: 'Home', path: '/dashboard' },
-      { name: 'AI Conversations', path: '/ai-queries' }
+      { name: 'AI Queries', path: '/ai-queries' }
     ]);
   }, [setPageTitle, setCurrentBreadcrumb]);
 
@@ -121,10 +121,14 @@ const AiQueries = () => {
     setLoading(prev => ({ ...prev, chats: true }));
     try {
       const response = await api.get(`/chat/management/${managementId}`);
-      setChats(response.data.data.chats || []);
+      // Sort chats by date, oldest first
+      const sortedChats = (response.data.data.chats || []).sort((a, b) => 
+        new Date(a.createdAt) - new Date(b.createdAt)
+      );
+      setChats(sortedChats);
       // Select the most recent chat by default
-      if (response.data.data.chats?.length > 0) {
-        setSelectedChat(response.data.data.chats[0]);
+      if (sortedChats.length > 0) {
+        setSelectedChat(sortedChats[sortedChats.length - 1]);
       }
     } catch (error) {
       console.error('Error fetching chats:', error);
@@ -291,27 +295,6 @@ const AiQueries = () => {
           )}
         </div>
         
-        {/* Chat Selection Tabs */}
-        {selectedCase && chats.length > 0 && (
-          <div className="border-b border-gray-200 px-4">
-            <div className="flex gap-4 -mb-px">
-              {chats.map((chat) => (
-                <button
-                  key={chat._id}
-                  onClick={() => setSelectedChat(chat)}
-                  className={`py-3 text-sm font-medium border-b-2 transition-colors ${
-                    selectedChat?._id === chat._id
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  {format(new Date(chat.createdAt), 'MMM dd, HH:mm')}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-        
         {/* Chat Messages */}
         <div className="flex-grow overflow-auto p-4 space-y-4 scrollbar-hide">
           {loading.chats ? (
@@ -319,48 +302,64 @@ const AiQueries = () => {
               <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
             </div>
           ) : selectedCase ? (
-            selectedChat?.messages?.length > 0 ? (
-              selectedChat.messages.map((message, index) => (
-                <div 
-                  key={index}
-                  className={`flex gap-3 max-w-[85%] ${
-                    message.role === 'user' ? 'ml-auto' : ''
-                  }`}
-                >
-                  {message.role !== 'user' && (
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                      <Bot className="w-4 h-4 text-blue-600" />
+            <>
+              {chats.map((chat) => {
+                // Sort messages by timestamp for each chat
+                const sortedMessages = [...(chat.messages || [])].sort(
+                  (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+                );
+                
+                return (
+                  <div key={chat._id} className="space-y-4">
+                    {/* Date Separator */}
+                    <div className="flex items-center justify-center">
+                      <div className="bg-gray-100 text-gray-500 text-xs px-3 py-1 rounded-full">
+                        {format(new Date(chat.createdAt), 'MMMM d, yyyy')}
+                      </div>
                     </div>
-                  )}
-                  <div
-                    className={`rounded-lg p-3 ${
-                      message.role === 'user'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100 text-gray-900'
-                    }`}
-                  >
-                    <div className="text-sm">{message.content}</div>
-                    <div 
-                      className={`text-xs mt-1 ${
-                        message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
-                      }`}
-                    >
-                      {format(new Date(message.timestamp), 'HH:mm')}
-                    </div>
+                    
+                    {/* Messages for this date */}
+                    {sortedMessages.map((message, index) => (
+                      <div 
+                        key={index}
+                        className={`flex ${
+                          message.role === 'user' 
+                            ? 'ml-auto justify-end' 
+                            : 'mr-auto'
+                        } max-w-[85%] gap-3`}
+                      >
+                        {message.role !== 'user' && (
+                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                            <Bot className="w-4 h-4 text-blue-600" />
+                          </div>
+                        )}
+                        <div
+                          className={`rounded-2xl px-4 py-2.5 ${
+                            message.role === 'user'
+                              ? 'bg-blue-500 text-white rounded-br-none'
+                              : 'bg-gray-100 text-gray-900 rounded-bl-none'
+                          }`}
+                        >
+                          <div className="text-sm whitespace-pre-wrap break-words">{message.content}</div>
+                          <div 
+                            className={`text-[11px] mt-1 ${
+                              message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
+                            }`}
+                          >
+                            {format(new Date(message.timestamp), 'HH:mm')}
+                          </div>
+                        </div>
+                        {message.role === 'user' && (
+                          <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                            <User className="w-4 h-4 text-white" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                  {message.role === 'user' && (
-                    <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
-                      <User className="w-4 h-4 text-white" />
-                    </div>
-                  )}
-                </div>
-              ))
-            ) : (
-              <div className="text-center text-gray-500 py-8">
-                <MessageSquare className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                <p>No messages yet. Start a conversation!</p>
-              </div>
-            )
+                );
+              })}
+            </>
           ) : (
             <div className="text-center text-gray-500 py-8">
               <MessageSquare className="w-12 h-12 mx-auto mb-3 text-gray-400" />
@@ -371,32 +370,7 @@ const AiQueries = () => {
         </div>
         
         {/* Message Input */}
-        <div className="p-4 border-t border-gray-200">
-          <div className="flex gap-3">
-            <input
-              ref={inputRef}
-              type="text"
-              placeholder={selectedCase ? "Type your message..." : "Select a case to start chatting"}
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              disabled={!selectedCase || loading.sending}
-              className="flex-grow px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:cursor-not-allowed"
-            />
-            <button
-              onClick={sendMessage}
-              disabled={!newMessage.trim() || !selectedCase || loading.sending}
-              className="px-6 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {loading.sending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-              Send
-            </button>
-          </div>
-        </div>
+       
       </div>
     </div>
   );
