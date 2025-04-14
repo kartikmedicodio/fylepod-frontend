@@ -17,11 +17,16 @@ const ForgotPassword = () => {
       setLoading(true);
       const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/forgot-password`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        credentials: 'include',
         body: JSON.stringify({ email }),
       });
 
       const data = await response.json();
+      console.log('Response:', data);
 
       if (!response.ok) {
         throw new Error(data.message || 'Failed to send reset email');
@@ -29,6 +34,7 @@ const ForgotPassword = () => {
       
       setSuccess(true);
     } catch (err) {
+      console.error('Error details:', err);
       setError(err.message || 'Failed to send reset email. Please try again.');
     } finally {
       setLoading(false);
