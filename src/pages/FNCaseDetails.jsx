@@ -2512,16 +2512,41 @@ const FNCaseDetails = () => {
 
   // Function to handle escalating to attorney
   const handleEscalateToAttorney = async () => {
-    if (!currentChat || !caseId) return;
+    if (!currentChat || !caseId || !caseData || !profileData) {
+      console.error('Missing required data:', { currentChat, caseId, caseData, profileData });
+      toast.error('Missing required data for escalation');
+      return;
+    }
     
     setIsEscalating(true);
     try {
-      // Create a query from the chat
-      const response = await api.post('/queries', {
-        managementId: caseId,
+      // Get attorney's first name
+      const attorneyFirstName = caseData.caseManagerId?.name?.split(' ')[0] || 'Attorney';
+      
+      // Generate chat history link
+      const chatHistoryLink = `${window.location.origin}/cases/${caseId}?tab=overview&chatId=${currentChat._id}`;
+      
+      // Log the request data
+      console.log('Sending escalation request with data:', {
+        attorneyEmail: caseData.caseManagerId?.email,
+        attorneyFirstName,
+        fnName: profileData.name,
+        caseType: caseData.categoryName,
         query: escalateQuery,
-        chatId: currentChat._id
+        chatHistoryLink
       });
+      
+      // Send escalation email
+      const response = await api.post('/mail/escalate', {
+        attorneyEmail: caseData.caseManagerId?.email,
+        attorneyFirstName,
+        fnName: profileData.name,
+        caseType: caseData.categoryName,
+        query: escalateQuery,
+        chatHistoryLink
+      });
+      
+      console.log('Escalation response:', response.data);
       
       if (response.data.status === 'success') {
         toast.success('Query escalated to attorney successfully');
@@ -2531,8 +2556,8 @@ const FNCaseDetails = () => {
         throw new Error(response.data.message || 'Failed to escalate query');
       }
     } catch (error) {
-      console.error('Error escalating query:', error);
-      toast.error(error.message || 'Failed to escalate query');
+      console.error('Error escalating query:', error.response?.data || error);
+      toast.error(error.response?.data?.message || error.message || 'Failed to escalate query');
     } finally {
       setIsEscalating(false);
     }
