@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Select from 'react-select';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import { usePage } from '../contexts/PageContext';
+import { formatPhoneNumber, validatePhoneNumber } from '../utils/formatPhoneNumber';
 
 const NewIndividual = () => {
   const navigate = useNavigate();
@@ -41,7 +42,7 @@ const NewIndividual = () => {
       formData.name.trim() !== '' &&
       formData.email.trim() !== '' &&
       formData.attorney_id !== '' &&
-      formData.contact.mobileNumber.trim() !== '' &&
+      validatePhoneNumber(formData.contact.mobileNumber) &&
       formData.sex !== ''
     );
   };
@@ -91,16 +92,28 @@ const NewIndividual = () => {
   }, [user?.lawfirm_id]);
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value,
-      contact: {
-        ...prev.contact,
-        residencePhone: field === 'residence_phone' ? value : prev.contact.residencePhone,
-        mobileNumber: field === 'mobile_number' ? value : prev.contact.mobileNumber,
-        email: field === 'email' ? value : prev.contact.email
-      }
-    }));
+    if (field === 'residence_phone' || field === 'mobile_number') {
+      // Format the phone number as user types
+      const formattedValue = formatPhoneNumber(value);
+      setFormData(prev => ({
+        ...prev,
+        contact: {
+          ...prev.contact,
+          [field === 'residence_phone' ? 'residencePhone' : 'mobileNumber']: formattedValue
+        }
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [field]: value,
+        contact: {
+          ...prev.contact,
+          residencePhone: field === 'residence_phone' ? value : prev.contact.residencePhone,
+          mobileNumber: field === 'mobile_number' ? value : prev.contact.mobileNumber,
+          email: field === 'email' ? value : prev.contact.email
+        }
+      }));
+    }
   };
 
   const handleAttorneySelect = (selectedOption) => {
@@ -309,6 +322,7 @@ const NewIndividual = () => {
                       value={formData.contact.residencePhone}
                       onChange={(e) => handleInputChange('residence_phone', e.target.value)}
                       placeholder="Enter residence phone"
+                      maxLength={12} // XXX-XXX-XXXX format
                       className="block w-full rounded-lg border border-gray-300 py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                     />
                   </div>
@@ -317,18 +331,22 @@ const NewIndividual = () => {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
                       Mobile Number
-                      {!formData.contact.mobileNumber.trim() && <span className="text-rose-500 text-lg leading-none">*</span>}
+                      {!validatePhoneNumber(formData.contact.mobileNumber) && <span className="text-rose-500 text-lg leading-none">*</span>}
                     </label>
                     <input
                       type="tel"
                       value={formData.contact.mobileNumber}
                       onChange={(e) => handleInputChange('mobile_number', e.target.value)}
                       placeholder="Enter mobile number"
+                      maxLength={12} // XXX-XXX-XXXX format
                       required
                       className={`block w-full rounded-lg border ${
-                        !formData.contact.mobileNumber.trim() ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
+                        !validatePhoneNumber(formData.contact.mobileNumber) ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
                       } py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors`}
                     />
+                    {!validatePhoneNumber(formData.contact.mobileNumber) && formData.contact.mobileNumber && (
+                      <p className="mt-1 text-sm text-rose-600">Please enter a valid 10-digit phone number</p>
+                    )}
                   </div>
 
                   {/* Sex */}

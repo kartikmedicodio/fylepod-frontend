@@ -559,102 +559,87 @@ const NewCase = () => {
   }
 
   return (
-    <div className="flex-1 p-8">
-      <div className="space-y-6">
+    <div className="h-full w-full flex items-center justify-center p-8">
+      <div className="w-full max-w-4xl bg-white rounded-2xl shadow-lg border border-gray-100">
+        {/* Header */}
+        <div className="px-10 pt-10 pb-8">
+          <h1 className="text-2xl font-semibold text-gray-900">Create New Case</h1>
+          <p className="mt-2 text-sm text-gray-500">Fill in the details below to create a new case</p>
+        </div>
+
         {/* Form Section */}
-        <div className="space-y-6">
-          {/* Template Selection with Edit Button */}
+        <div className="px-10 pb-10 space-y-8">
+          {/* Template Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-2">
+            <label className="block text-sm font-medium text-blue-600 mb-2">
               Select Template
             </label>
-            <div className="flex items-center space-x-2">
-              <div className="relative" ref={dropdownRefs.template}>
-                <button
-                  type="button"
-                  onClick={() => handleDropdownOpen('template', isTemplateDropdownOpen, setIsTemplateDropdownOpen)}
-                  className="w-[500px] h-[52px] bg-white border border-gray-200 rounded-lg px-4 text-sm text-gray-500 text-left flex items-center justify-between hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <span>{selectedTemplate?.name || 'Search template name...'}</span>
-                  <ChevronDown className="h-4 w-4 text-gray-400" />
-                </button>
+            <div className="relative" ref={dropdownRefs.template}>
+              <button
+                type="button"
+                onClick={() => handleDropdownOpen('template', isTemplateDropdownOpen, setIsTemplateDropdownOpen)}
+                className="w-full h-[42px] bg-white border border-gray-200 rounded-lg px-4 text-sm text-gray-600 text-left flex items-center justify-between hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all duration-200"
+              >
+                <span className="truncate">{selectedTemplate?.name || 'Search template name...'}</span>
+                <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
+              </button>
 
-                {isTemplateDropdownOpen && categories.length > 0 && (
-                  <div 
-                    className="absolute z-10 w-[500px] mt-1 bg-white border border-gray-200 rounded-lg shadow-lg"
-                    onMouseEnter={() => clearDropdownTimeout('template')}
-                    onMouseLeave={() => startDropdownTimeout('template', setIsTemplateDropdownOpen)}
-                  >
-                    <div className="p-2">
-                      <input
-                        type="text"
-                        value={templateSearch}
-                        onChange={(e) => {
-                          setTemplateSearch(e.target.value);
-                          clearDropdownTimeout('template'); // Clear timeout when typing
+              {isTemplateDropdownOpen && categories.length > 0 && (
+                <div 
+                  className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg"
+                  onMouseEnter={() => clearDropdownTimeout('template')}
+                  onMouseLeave={() => startDropdownTimeout('template', setIsTemplateDropdownOpen)}
+                >
+                  <div className="p-2">
+                    <input
+                      type="text"
+                      value={templateSearch}
+                      onChange={(e) => {
+                        setTemplateSearch(e.target.value);
+                        clearDropdownTimeout('template');
+                      }}
+                      onFocus={() => clearDropdownTimeout('template')}
+                      placeholder="Search templates..."
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all duration-200"
+                    />
+                  </div>
+                  <ul className="py-1 max-h-[240px] overflow-auto">
+                    {getFilteredCategories().map((category) => (
+                      <li
+                        key={category._id}
+                        onClick={() => {
+                          setSelectedTemplate(category);
+                          setSelectedDocuments(category.documentTypes);
+                          handleDropdownOpen('template', isTemplateDropdownOpen, setIsTemplateDropdownOpen);
                         }}
-                        onFocus={() => clearDropdownTimeout('template')} // Clear timeout when focused
-                        placeholder="Search templates..."
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <ul className="py-1 max-h-[240px] overflow-auto">
-                      {getFilteredCategories().map((category) => (
-                        <li
-                          key={category._id}
-                          onClick={() => {
-                            setSelectedTemplate(category);
-                            setSelectedDocuments(category.documentTypes);
-                            handleDropdownOpen('template', isTemplateDropdownOpen, setIsTemplateDropdownOpen);
-                          }}
-                          className="px-4 py-3 hover:bg-gray-100 cursor-pointer text-sm border-b border-gray-100 last:border-b-0"
-                        >
-                          {category.name}
-                        </li>
-                      ))}
-                      {getFilteredCategories().length === 0 && (
-                        <li className="px-4 py-2 text-sm text-gray-500">
-                          No templates found
-                        </li>
-                      )}
-                    </ul>
-                  </div>
-                )}
-
-                {isTemplateDropdownOpen && categories.length === 0 && (
-                  <div className="absolute z-10 w-[500px] mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
-                    <div className="px-4 py-2 text-sm text-gray-500">
-                      No templates available
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* {selectedTemplate && (
-                <button
-                  type="button"
-                  onClick={handleEditTemplate}
-                  className="h-[52px] px-4 text-gray-500 hover:text-blue-600 focus:outline-none focus:text-blue-600 transition-colors duration-200"
-                  title="Edit Template"
-                >
-                  <Pencil className="h-5 w-5" />
-                </button>
-              )} */}
+                        className="px-4 py-2.5 hover:bg-gray-50 cursor-pointer text-sm text-gray-700 border-b border-gray-50 last:border-b-0 transition-colors duration-150"
+                      >
+                        {category.name}
+                      </li>
+                    ))}
+                    {getFilteredCategories().length === 0 && (
+                      <li className="px-4 py-3 text-sm text-gray-500">
+                        No templates found
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Customer Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-2">
+            <label className="block text-sm font-medium text-blue-600 mb-2">
               Select Customer
             </label>
             <div className="relative" ref={dropdownRefs.customer}>
               <button
                 type="button"
                 onClick={() => handleDropdownOpen('customer', isCustomerDropdownOpen, setIsCustomerDropdownOpen)}
-                className="w-[500px] h-[52px] bg-white border border-gray-200 rounded-lg px-4 text-sm text-gray-500 text-left flex items-center justify-between hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-[42px] bg-white border border-gray-200 rounded-lg px-4 text-sm text-gray-600 text-left flex items-center justify-between hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all duration-200"
               >
-                <span>
+                <span className="truncate">
                   {selectedCustomer ? (
                     <div className="flex items-center space-x-2">
                       <span>{selectedCustomer.name}</span>
@@ -663,12 +648,12 @@ const NewCase = () => {
                     'Search customer name...'
                   )}
                 </span>
-                <ChevronDown className="h-4 w-4 text-gray-400" />
+                <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
               </button>
 
               {isCustomerDropdownOpen && users.length > 0 && (
                 <div 
-                  className="absolute z-10 w-[500px] mt-1 bg-white border border-gray-200 rounded-lg shadow-lg"
+                  className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg"
                   onMouseEnter={() => clearDropdownTimeout('customer')}
                   onMouseLeave={() => startDropdownTimeout('customer', setIsCustomerDropdownOpen)}
                 >
@@ -682,7 +667,7 @@ const NewCase = () => {
                       }}
                       onFocus={() => clearDropdownTimeout('customer')}
                       placeholder="Search customers..."
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all duration-200"
                     />
                   </div>
                   <ul className="py-1 max-h-[240px] overflow-auto">
@@ -693,16 +678,16 @@ const NewCase = () => {
                           setSelectedCustomer(user);
                           handleDropdownOpen('customer', isCustomerDropdownOpen, setIsCustomerDropdownOpen);
                         }}
-                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm flex items-center justify-between border-b border-gray-100 last:border-b-0"
+                        className="px-4 py-2.5 hover:bg-gray-50 cursor-pointer text-sm flex items-center justify-between border-b border-gray-50 last:border-b-0 transition-colors duration-150"
                       >
                         <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                            <span className="text-gray-600 text-xs">
+                          <div className="w-8 h-8 bg-gradient-to-br from-blue-100 to-blue-50 rounded-full flex items-center justify-center">
+                            <span className="text-blue-600 text-xs font-medium">
                               {user.name.charAt(0).toUpperCase()}
                             </span>
                           </div>
                           <div className="flex flex-col">
-                            <span className="font-medium font-semibold">{user.name}</span>
+                            <span className="font-medium text-gray-700">{user.name}</span>
                             {user.company_name && (
                               <span className="text-xs text-gray-500">
                                 {user.company_name}
@@ -710,42 +695,29 @@ const NewCase = () => {
                             )}
                           </div>
                         </div>
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                        <span className="text-xs bg-gray-50 text-gray-600 px-2.5 py-1 rounded-full">
                           {user.company_name ? 'Corporation' : 'Individual'}
                         </span>
                       </li>
                     ))}
-                    {getFilteredUsers().length === 0 && (
-                      <li className="px-4 py-2 text-sm text-gray-500">
-                        No customers found
-                      </li>
-                    )}
                   </ul>
-                </div>
-              )}
-
-              {isCustomerDropdownOpen && users.length === 0 && (
-                <div className="absolute z-10 w-[500px] mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
-                  <div className="px-4 py-2 text-sm text-gray-500">
-                    No customers available
-                  </div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Attorney Selection */}
+          {/* Attorney/Case Manager Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-2">
+            <label className="block text-sm font-medium text-blue-600 mb-2">
               Select Case Manager
             </label>
             <div className="relative" ref={dropdownRefs.attorney}>
               <button
                 type="button"
                 onClick={() => handleDropdownOpen('attorney', isAttorneyDropdownOpen, setIsAttorneyDropdownOpen)}
-                className="w-[500px] h-[52px] bg-white border border-gray-200 rounded-lg px-4 text-sm text-gray-500 text-left flex items-center justify-between hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full h-[42px] bg-white border border-gray-200 rounded-lg px-4 text-sm text-gray-600 text-left flex items-center justify-between hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all duration-200"
               >
-                <span>
+                <span className="truncate">
                   {selectedAttorney ? (
                     <div className="flex items-center space-x-2">
                       <span>{selectedAttorney.name}</span>
@@ -754,12 +726,12 @@ const NewCase = () => {
                     'Select case manager...'
                   )}
                 </span>
-                <ChevronDown className="h-4 w-4 text-gray-400" />
+                <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
               </button>
 
               {isAttorneyDropdownOpen && attorneys.length > 0 && (
                 <div 
-                  className="absolute z-10 w-[500px] mt-1 bg-white border border-gray-200 rounded-lg shadow-lg"
+                  className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg"
                   onMouseEnter={() => clearDropdownTimeout('attorney')}
                   onMouseLeave={() => startDropdownTimeout('attorney', setIsAttorneyDropdownOpen)}
                 >
@@ -772,8 +744,8 @@ const NewCase = () => {
                         clearDropdownTimeout('attorney');
                       }}
                       onFocus={() => clearDropdownTimeout('attorney')}
-                      placeholder="Search attorneys..."
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Search case managers..."
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all duration-200"
                     />
                   </div>
                   <ul className="py-1 max-h-[240px] overflow-auto">
@@ -783,15 +755,15 @@ const NewCase = () => {
                         <li
                           key={attorney._id}
                           onClick={() => handleAttorneySelect(attorney)}
-                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm flex items-center justify-between border-b border-gray-100 last:border-b-0"
+                          className="px-4 py-2.5 hover:bg-gray-50 cursor-pointer text-sm flex items-center justify-between border-b border-gray-50 last:border-b-0 transition-colors duration-150"
                         >
                           <div className="flex items-center space-x-3">
-                            <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                              <span className="text-gray-600 text-xs">
+                            <div className="w-8 h-8 bg-gradient-to-br from-blue-100 to-blue-50 rounded-full flex items-center justify-center">
+                              <span className="text-blue-600 text-xs font-medium">
                                 {attorney.name.charAt(0).toUpperCase()}
                               </span>
                             </div>
-                            <span className="font-medium font-semibold">{attorney.name}</span>
+                            <span className="font-medium text-gray-700">{attorney.name}</span>
                           </div>
                           {isSelected && (
                             <svg className="w-5 h-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
@@ -801,11 +773,6 @@ const NewCase = () => {
                         </li>
                       );
                     })}
-                    {getFilteredAttorneys().length === 0 && (
-                      <li className="px-4 py-2 text-sm text-gray-500">
-                        No attorneys found
-                      </li>
-                    )}
                   </ul>
                 </div>
               )}
@@ -813,23 +780,23 @@ const NewCase = () => {
           </div>
 
           {/* Create Case Button */}
-          <div className="pt-4 ml-[380px]">
+          <div className="pt-6 flex justify-end">
             <button
               type="button"
               onClick={handleCreateCase}
               disabled={!selectedTemplate || !selectedCustomer || !selectedAttorney || isCreatingCase}
-              className={`w-[240px] h-[44px] rounded-lg px-4 text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed flex items-center justify-center gap-2 relative overflow-hidden
+              className={`w-[180px] h-[42px] rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:cursor-not-allowed flex items-center justify-center gap-2 relative overflow-hidden
                 ${isCreatingCase 
-                  ? 'bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 bg-[length:200%_100%] animate-gradient disabled:animate-gradient disabled:opacity-90' 
-                  : 'bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400'
+                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600 bg-[length:200%_100%] animate-gradient disabled:animate-gradient disabled:opacity-90' 
+                  : 'bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400'
                 }`}
             >
-              <div className={`absolute inset-0 ${isCreatingCase ? 'bg-blue-600/10 animate-pulse' : ''}`} />
+              <div className={`absolute inset-0 ${isCreatingCase ? 'bg-indigo-600/10 animate-pulse' : ''}`} />
               <div className="relative flex items-center justify-center gap-2 text-white">
                 {isCreatingCase ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="animate-fadeIn font-semibold">{getLoadingMessage()}</span>
+                    <span className="animate-fadeIn">{getLoadingMessage()}</span>
                   </>
                 ) : (
                   'Create Case'
@@ -842,18 +809,18 @@ const NewCase = () => {
 
       {/* Edit Template Modal */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg w-[500px] max-h-[80vh] overflow-hidden">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl w-[500px] max-h-[80vh] overflow-hidden shadow-xl transform transition-all">
             <div className="p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-lg font-semibold text-gray-800">
                   Edit document checklist
                 </h2>
                 <button
                   onClick={handleModalClose}
-                  className="text-gray-500 hover:text-gray-700"
+                  className="p-1 hover:bg-gray-100 rounded-full transition-colors duration-150"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-5 w-5 text-gray-500" />
                 </button>
               </div>
 
@@ -864,32 +831,32 @@ const NewCase = () => {
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search"
-                    className="w-full px-4 py-2 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Search documents..."
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-gray-300 transition-all duration-200"
                   />
                 </div>
               </div>
 
               <div className="mb-4">
-                <h3 className="text-sm text-gray-600 font-medium">Files in progress</h3>
+                <h3 className="text-sm font-medium text-gray-600">Files in progress</h3>
               </div>
 
               {/* Document List */}
-              <div className="space-y-2 mb-6">
+              <div className="space-y-1 mb-6 max-h-[320px] overflow-y-auto pr-2">
                 {getFilteredDocuments().map((doc) => {
                   const isSelected = tempSelectedDocuments.some(d => d.name === doc.name);
                   return (
                     <div
                       key={doc._id}
                       onClick={() => handleDocumentToggle(doc.name)}
-                      className="flex items-center py-2 cursor-pointer hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                      className="flex items-center py-2.5 px-3 cursor-pointer hover:bg-gray-50 rounded-lg transition-colors duration-150"
                     >
                       <div className="flex items-center space-x-3 w-full">
                         <button
-                          className={`w-5 h-5 rounded-full border flex items-center justify-center
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200
                             ${isSelected 
                               ? 'border-blue-500 bg-blue-500 text-white' 
-                              : 'border-gray-300'
+                              : 'border-gray-300 hover:border-blue-400'
                             }`}
                         >
                           {isSelected && (
@@ -904,7 +871,7 @@ const NewCase = () => {
                             </svg>
                           )}
                         </button>
-                        <span className="text-sm font-semibold">{doc.name}</span>
+                        <span className="text-sm font-medium text-gray-700">{doc.name}</span>
                       </div>
                     </div>
                   );
@@ -912,8 +879,10 @@ const NewCase = () => {
                 
                 {/* No results message */}
                 {getFilteredDocuments().length === 0 && (
-                  <div className="text-sm text-gray-500 text-center py-4">
-                    No documents found matching &ldquo;{searchQuery}&rdquo;
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <span className="text-sm text-gray-500">
+                      No documents found matching &ldquo;{searchQuery}&rdquo;
+                    </span>
                   </div>
                 )}
               </div>
@@ -921,7 +890,7 @@ const NewCase = () => {
               {/* Done Button */}
               <button
                 onClick={handleDoneClick}
-                className="w-full py-3 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors duration-200"
+                className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg text-sm font-medium hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
                 Done
               </button>
