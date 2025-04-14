@@ -207,32 +207,42 @@ const EmployeeCaseList = ({ cases = [] }) => {
             </tr>
           </thead>
           <tbody>
-            {currentCases.map((caseItem, index) => (
-              <tr 
-                key={caseItem._id} 
-                className={`border-b border-gray-100 hover:bg-gray-50 cursor-pointer
-                  ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
-                onClick={() => handleCaseClick(caseItem._id)}
-              >
-                <td className="px-6 py-3 text-sm text-gray-600">{caseItem._id?.substring(0, 8)}</td>
-                <td className="px-6 py-3 text-sm text-gray-800">{caseItem.userId?.name || 'N/A'}</td>
-                <td className="px-6 py-3 text-sm text-gray-600">{caseItem.categoryId?.name || 'N/A'}</td>
-                <td className="px-6 py-3 text-sm text-gray-600">
-                  {formatDate(caseItem.createdAt)}
-                </td>
-                <td className="px-6 py-3 text-sm text-gray-600">
-                  {getDocumentUploadStatus(caseItem.documentTypes)}
-                </td>
-                <td className="px-6 py-3 text-sm text-gray-600">
-                  {caseItem.documentTypes?.length || 0}
-                </td>
-                <td className={`px-6 py-3 text-sm ${
-                  caseItem.categoryStatus === 'pending' ? 'text-gray-600' : 'text-green-600'
-                }`}>
-                  {caseItem.categoryStatus?.charAt(0).toUpperCase() + caseItem.categoryStatus?.slice(1) || 'Pending'}
+            {currentCases.length > 0 ? (
+              currentCases.map((caseItem, index) => (
+                <tr 
+                  key={caseItem._id} 
+                  className={`border-b border-gray-100 hover:bg-gray-50 cursor-pointer
+                    ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
+                  onClick={() => handleCaseClick(caseItem._id)}
+                >
+                  <td className="px-6 py-3 text-sm text-gray-600">{caseItem._id?.substring(0, 8)}</td>
+                  <td className="px-6 py-3 text-sm text-gray-800">{caseItem.userId?.name || 'N/A'}</td>
+                  <td className="px-6 py-3 text-sm text-gray-600">{caseItem.categoryId?.name || 'N/A'}</td>
+                  <td className="px-6 py-3 text-sm text-gray-600">
+                    {formatDate(caseItem.createdAt)}
+                  </td>
+                  <td className="px-6 py-3 text-sm text-gray-600">
+                    {getDocumentUploadStatus(caseItem.documentTypes)}
+                  </td>
+                  <td className="px-6 py-3 text-sm text-gray-600">
+                    {caseItem.documentTypes?.length || 0}
+                  </td>
+                  <td className={`px-6 py-3 text-sm ${
+                    caseItem.categoryStatus === 'pending' ? 'text-gray-600' : 'text-green-600'
+                  }`}>
+                    {caseItem.categoryStatus?.charAt(0).toUpperCase() + caseItem.categoryStatus?.slice(1) || 'Pending'}
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="7" className="px-6 py-8 text-center">
+                  <div className="flex flex-col items-center justify-center">
+                    <p className="text-gray-500 text-sm font-medium">No cases found</p>
+                  </div>
                 </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
 

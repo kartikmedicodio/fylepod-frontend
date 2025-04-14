@@ -17,6 +17,8 @@ const DocumentChecklist = () => {
   const [selectedCategory, setSelectedCategory] = useState('Process Template');
   const { setCurrentBreadcrumb } = useBreadcrumb();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
 
   useEffect(() => {
     if (selectedCategory === 'Process Template') {
@@ -106,7 +108,7 @@ const DocumentChecklist = () => {
   };
 
   const renderSidebar = () => (
-    <div className="w-64 bg-white shadow-sm rounded-lg">
+    <div className="w-64 bg-white shadow-sm rounded-lg h-fit">
       <div className="p-4">
         {sidebarCategories.map((category) => (
           <Link
@@ -171,11 +173,14 @@ const DocumentChecklist = () => {
   }
 
   return (
-    <div className="flex h-full gap-4">
-      {renderSidebar()}
+    <div className="flex gap-4 mt-10">
+      {/* Left Sidebar */}
+      <div className="w-64 bg-white shadow-sm rounded-lg h-fit">
+        {renderSidebar()}
+      </div>
 
       {/* Main Content */}
-      <div className="flex-1 bg-[#f8fafc] rounded-lg shadow-sm">
+      <div className="flex-1 bg-[#f8fafc] rounded-lg shadow-sm h-fit">
         {selectedCategory === 'Master Document List' ? (
           // Master Documents List View
           <div className="px-6 pt-6">
@@ -195,22 +200,34 @@ const DocumentChecklist = () => {
                   </div>
                 </div>
                 <div className="bg-white divide-y divide-gray-200">
-                  {masterDocuments.map((doc) => (
-                    <div key={doc._id} className="grid grid-cols-3 px-6 py-4 hover:bg-gray-50">
-                      <div className="text-sm text-gray-900">{doc.name}</div>
-                      <div className="text-sm text-gray-500">
-                        <ul className="list-disc pl-4 space-y-1">
-                          {doc.validations.map((validation, index) => (
-                            <li key={index} className="whitespace-pre-wrap break-words">{validation}</li>
-                          ))}
-                        </ul>
+                  {masterDocuments
+                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                    .map((doc) => (
+                      <div key={doc._id} className="grid grid-cols-3 px-6 py-4 hover:bg-gray-50">
+                        <div className="text-sm text-gray-900">{doc.name}</div>
+                        <div className="text-sm text-gray-500">
+                          <ul className="list-disc pl-4 space-y-1">
+                            {doc.validations.map((validation, index) => (
+                              <li key={index} className="whitespace-pre-wrap break-words">{validation}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div className="text-sm text-gray-500 text-right">
+                          {new Date(doc.createdAt).toLocaleDateString()}
+                        </div>
                       </div>
-                      <div className="text-sm text-gray-500 text-right">
-                        {new Date(doc.createdAt).toLocaleDateString()}
-                      </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
+              </div>
+            </div>
+            
+            {/* Pagination */}
+            <div className="flex items-center justify-between px-4 py-3 text-sm text-gray-500">
+              <div>
+                Showing {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, masterDocuments.length)} of {masterDocuments.length}
+              </div>
+              <div>
+                Page {currentPage} of {Math.ceil(masterDocuments.length / itemsPerPage)}
               </div>
             </div>
           </div>
@@ -262,7 +279,7 @@ const DocumentChecklist = () => {
             </div>
 
             {/* Document List */}
-            <div className="px-6 pt-6 pb-6">
+            <div className="px-6 pt-6 pb-6 h-fit">
               <div className="space-y-4">
                 {category?.documentTypes.map((doc) => (
                   <div key={doc._id} className="bg-white rounded-lg border border-gray-200 p-4">
@@ -302,17 +319,6 @@ const DocumentChecklist = () => {
                     </div>
                   </div>
                 ))}
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex justify-end gap-3 mt-6">
-                <button
-                  onClick={() => setIsEditModalOpen(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  <Edit className="h-4 w-4" />
-                  Edit Checklist
-                </button>
               </div>
             </div>
           </>

@@ -611,6 +611,10 @@ const Profile = () => {
   const [loadingCases, setLoadingCases] = useState(false);
   const { setCurrentBreadcrumb } = useBreadcrumb();
   
+  // Add new state for editing
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedProfile, setEditedProfile] = useState(null);
+  
   // Add new chat-related state
   const [showChatPopup, setShowChatPopup] = useState(false);
   const [messages, setMessages] = useState([{
@@ -972,6 +976,112 @@ const Profile = () => {
     );
   };
 
+  // Add handler for edit button
+  const handleEditClick = () => {
+    setIsEditing(true);
+    setEditedProfile({...profileData});
+  };
+
+  // Add handler for cancel edit
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditedProfile(null);
+  };
+
+  // Add handler for save changes
+  const handleSaveChanges = async () => {
+    try {
+      // Log the data being sent
+      console.log('Saving profile data:', editedProfile);
+      
+      // Validate required fields
+      if (!editedProfile.name || editedProfile.name.trim().length < 2) {
+        setError('Name must be at least 2 characters long');
+        return;
+      }
+
+      // Format phone numbers to remove non-digits
+      const formatPhoneNumber = (phone) => {
+        return phone ? phone.replace(/\D/g, '') : null;
+      };
+
+      // Format the data before sending
+      const formattedData = {
+        user_id: profileId,
+        name: editedProfile.name.trim(),
+        email: editedProfile.email?.trim(),
+        contact: {
+          residencePhone: formatPhoneNumber(editedProfile.contact?.residencePhone),
+          mobileNumber: formatPhoneNumber(editedProfile.contact?.mobileNumber),
+          email: editedProfile.email?.trim()
+        },
+        address: editedProfile.address ? {
+          streetNumber: String(editedProfile.address.streetNumber || ''),
+          streetName: String(editedProfile.address.streetName || ''),
+          city: String(editedProfile.address.city || ''),
+          stateProvince: String(editedProfile.address.stateProvince || '')
+        } : {},
+        passport: editedProfile.passport || {},
+        currentJob: editedProfile.currentJob || {}
+      };
+
+      // Remove empty fields
+      Object.keys(formattedData).forEach(key => {
+        if (formattedData[key] === null || formattedData[key] === undefined || 
+            (typeof formattedData[key] === 'object' && Object.keys(formattedData[key]).length === 0)) {
+          delete formattedData[key];
+        }
+      });
+
+      const response = await api.put(`/auth/update-user`, formattedData);
+      
+      // Log the response
+      console.log('Update response:', response);
+
+      if (response.data?.status === "success") {
+        setProfileData(formattedData);
+        setIsEditing(false);
+        setEditedProfile(null);
+        setError(null); // Clear any previous errors
+      } else {
+        throw new Error(response.data?.message || 'Failed to update profile');
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      // Log the full error response if available
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+        // If there are validation errors, show them
+        if (error.response.data?.errors) {
+          setError(error.response.data.errors.join(', '));
+        } else {
+          setError(error.response.data?.message || 'Failed to update profile. Please try again.');
+        }
+      } else {
+        setError(error.message || 'Failed to update profile. Please try again.');
+      }
+    }
+  };
+
+  // Add handler for field changes
+  const handleFieldChange = (field, value) => {
+    setEditedProfile(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Add handler for nested field changes
+  const handleNestedFieldChange = (parent, field, value) => {
+    setEditedProfile(prev => ({
+      ...prev,
+      [parent]: {
+        ...prev[parent],
+        [field]: value
+      }
+    }));
+  };
+
   if (loading) {
     return (
       <LoadingContainer>
@@ -1216,10 +1326,22 @@ const Profile = () => {
       <TabPanel value={currentTab} index={0}>
         <div className="profile-header">
           <h1>Profile Details</h1>
-          <EditButton>
-            <Edit size={18} />
-            <span>Edit Profile</span>
-          </EditButton>
+          {!isEditing ? (
+            <EditButton onClick={handleEditClick}>
+              <Edit size={18} />
+              <span>Edit Profile</span>
+            </EditButton>
+          ) : (
+            <div className="flex gap-2">
+              <EditButton onClick={handleSaveChanges} style={{ backgroundColor: '#6366f1', color: 'white' }}>
+                <CheckCircle size={18} />
+                <span>Save Changes</span>
+              </EditButton>
+              <EditButton onClick={handleCancelEdit} style={{ backgroundColor: '#f1f5f9', color: '#64748b' }}>
+                <span>Cancel</span>
+              </EditButton>
+            </div>
+          )}
         </div>
         
         <div className="profile-grid">
@@ -1235,7 +1357,16 @@ const Profile = () => {
             
             <div className="field-group">
               <div className="field-label">Full Name</div>
-              <div className="field-value">{profileData.name || 'Not provided'}</div>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={editedProfile.name}
+                  onChange={(e) => handleFieldChange('name', e.target.value)}
+                  className="field-value w-full p-2 border rounded"
+                />
+              ) : (
+                <div className="field-value">{profileData.name || 'Not provided'}</div>
+              )}
             </div>
 
             <div className="field-group">
@@ -1243,15 +1374,45 @@ const Profile = () => {
               <div className="field-value">
                 <div className="flex items-center gap-2 mb-2">
                   <Phone size={16} className="text-indigo-500" />
-                  {profileData.contact?.residencePhone || 'No phone number'}
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editedProfile.contact?.residencePhone || ''}
+                      onChange={(e) => handleNestedFieldChange('contact', 'residencePhone', e.target.value)}
+                      className="w-full p-2 border rounded"
+                      placeholder="Residence Phone"
+                    />
+                  ) : (
+                    profileData.contact?.residencePhone || 'No phone number'
+                  )}
                 </div>
                 <div className="flex items-center gap-2 mb-2">
                   <Phone size={16} className="text-indigo-500" />
-                  {profileData.contact?.mobileNumber || 'No mobile number'}
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editedProfile.contact?.mobileNumber || ''}
+                      onChange={(e) => handleNestedFieldChange('contact', 'mobileNumber', e.target.value)}
+                      className="w-full p-2 border rounded"
+                      placeholder="Mobile Number"
+                    />
+                  ) : (
+                    profileData.contact?.mobileNumber || 'No mobile number'
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <Mail size={16} className="text-indigo-500" />
-                  {profileData.email || 'No email address'}
+                  {isEditing ? (
+                    <input
+                      type="email"
+                      value={editedProfile.email || ''}
+                      onChange={(e) => handleFieldChange('email', e.target.value)}
+                      className="w-full p-2 border rounded"
+                      placeholder="Email"
+                    />
+                  ) : (
+                    profileData.email || 'No email address'
+                  )}
                 </div>
               </div>
             </div>
@@ -1261,12 +1422,45 @@ const Profile = () => {
               <div className="field-value">
                 <div className="flex items-start gap-2">
                   <MapPin size={16} className="text-indigo-500 mt-1 flex-shrink-0" />
-                  <span>
-                    {profileData.address ? 
-                      `${profileData.address.streetNumber} ${profileData.address.streetName}, ${profileData.address.city}, ${profileData.address.stateProvince}` :
-                      'No address provided'
-                    }
-                  </span>
+                  {isEditing ? (
+                    <div className="flex flex-col gap-2 w-full">
+                      <input
+                        type="text"
+                        value={editedProfile.address?.streetNumber || ''}
+                        onChange={(e) => handleNestedFieldChange('address', 'streetNumber', e.target.value)}
+                        className="w-full p-2 border rounded"
+                        placeholder="Street Number"
+                      />
+                      <input
+                        type="text"
+                        value={editedProfile.address?.streetName || ''}
+                        onChange={(e) => handleNestedFieldChange('address', 'streetName', e.target.value)}
+                        className="w-full p-2 border rounded"
+                        placeholder="Street Name"
+                      />
+                      <input
+                        type="text"
+                        value={editedProfile.address?.city || ''}
+                        onChange={(e) => handleNestedFieldChange('address', 'city', e.target.value)}
+                        className="w-full p-2 border rounded"
+                        placeholder="City"
+                      />
+                      <input
+                        type="text"
+                        value={editedProfile.address?.stateProvince || ''}
+                        onChange={(e) => handleNestedFieldChange('address', 'stateProvince', e.target.value)}
+                        className="w-full p-2 border rounded"
+                        placeholder="State/Province"
+                      />
+                    </div>
+                  ) : (
+                    <span>
+                      {profileData.address ? 
+                        `${profileData.address.streetNumber} ${profileData.address.streetName}, ${profileData.address.city}, ${profileData.address.stateProvince}` :
+                        'No address provided'
+                      }
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -1276,7 +1470,17 @@ const Profile = () => {
               <div className="field-value">
                 <div className="flex items-start gap-2">
                   <Briefcase size={16} className="text-indigo-500 mt-1 flex-shrink-0" />
-                  <span>{profileData.currentJob?.companyAddress || 'No office address provided'}</span>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editedProfile.currentJob?.companyAddress || ''}
+                      onChange={(e) => handleNestedFieldChange('currentJob', 'companyAddress', e.target.value)}
+                      className="w-full p-2 border rounded"
+                      placeholder="Office Address"
+                    />
+                  ) : (
+                    <span>{profileData.currentJob?.companyAddress || 'No office address provided'}</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -1290,7 +1494,17 @@ const Profile = () => {
             
             <div className="field-group">
               <div className="field-label">Passport Number</div>
-              <div className="field-value">{profileData.passport?.number || 'Not provided'}</div>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={editedProfile.passport?.number || ''}
+                  onChange={(e) => handleNestedFieldChange('passport', 'number', e.target.value)}
+                  className="field-value w-full p-2 border rounded"
+                  placeholder="Passport Number"
+                />
+              ) : (
+                <div className="field-value">{profileData.passport?.number || 'Not provided'}</div>
+              )}
             </div>
 
             <div className="field-group">
@@ -1299,11 +1513,29 @@ const Profile = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="text-sm text-gray-500 mb-1">Issue Date</div>
-                    <div>{formatDate(profileData.passport?.dateOfIssue) || 'Not provided'}</div>
+                    {isEditing ? (
+                      <input
+                        type="date"
+                        value={editedProfile.passport?.dateOfIssue || ''}
+                        onChange={(e) => handleNestedFieldChange('passport', 'dateOfIssue', e.target.value)}
+                        className="w-full p-2 border rounded"
+                      />
+                    ) : (
+                      <div>{formatDate(profileData.passport?.dateOfIssue) || 'Not provided'}</div>
+                    )}
                   </div>
                   <div>
                     <div className="text-sm text-gray-500 mb-1">Expiry Date</div>
-                    <div>{formatDate(profileData.passport?.dateOfExpiry) || 'Not provided'}</div>
+                    {isEditing ? (
+                      <input
+                        type="date"
+                        value={editedProfile.passport?.dateOfExpiry || ''}
+                        onChange={(e) => handleNestedFieldChange('passport', 'dateOfExpiry', e.target.value)}
+                        className="w-full p-2 border rounded"
+                      />
+                    ) : (
+                      <div>{formatDate(profileData.passport?.dateOfExpiry) || 'Not provided'}</div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1311,12 +1543,32 @@ const Profile = () => {
 
             <div className="field-group">
               <div className="field-label">Place of Issue</div>
-              <div className="field-value">{profileData.passport?.placeOfIssue || 'Not provided'}</div>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={editedProfile.passport?.placeOfIssue || ''}
+                  onChange={(e) => handleNestedFieldChange('passport', 'placeOfIssue', e.target.value)}
+                  className="field-value w-full p-2 border rounded"
+                  placeholder="Place of Issue"
+                />
+              ) : (
+                <div className="field-value">{profileData.passport?.placeOfIssue || 'Not provided'}</div>
+              )}
             </div>
 
             <div className="field-group">
               <div className="field-label">Issuing Country</div>
-              <div className="field-value">{profileData.passport?.issuedBy || 'Not provided'}</div>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={editedProfile.passport?.issuedBy || ''}
+                  onChange={(e) => handleNestedFieldChange('passport', 'issuedBy', e.target.value)}
+                  className="field-value w-full p-2 border rounded"
+                  placeholder="Issuing Country"
+                />
+              ) : (
+                <div className="field-value">{profileData.passport?.issuedBy || 'Not provided'}</div>
+              )}
             </div>
           </ProfileCard>
 
