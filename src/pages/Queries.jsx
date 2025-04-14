@@ -269,7 +269,9 @@ const Queries = () => {
     const matchesStatus = statusFilter === 'all' || query.status === statusFilter;
     
     return matchesSearch && matchesStatus;
-  });
+  })
+  // Sort queries by updatedAt in descending order (newest first)
+  .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 
   // Get status icon
   const getStatusIcon = (status) => {
@@ -538,7 +540,7 @@ const Queries = () => {
                     {getStatusIcon(selectedQuery.status)}
                     <span className="ml-1">{selectedQuery.status.replace('_', ' ')}</span>
                   </span>
-                  {selectedQuery.status !== 'resolved' && (user.role === 'attorney' || user.role === 'admin' || user.role === 'manager') && (
+                  {selectedQuery.status !== 'resolved' && (user.role === 'attorney' || user.role === 'admin' || user.role === 'manager' || user.role === 'individual' || user.role === 'employee') && (
                     <button 
                       onClick={handleResolveQuery}
                       disabled={resolving}
@@ -693,6 +695,7 @@ const Queries = () => {
         isOpen={showConversationModal}
         onClose={() => setShowConversationModal(false)}
         aiContext={selectedQuery?.aiChatContext}
+        selectedQuery={selectedQuery}
       />
     </div>
   );
@@ -971,8 +974,21 @@ NewQueryModal.propTypes = {
 };
 
 // Add ViewConversationModal component
-const ViewConversationModal = ({ isOpen, onClose, aiContext }) => {
+const ViewConversationModal = ({ isOpen, onClose, aiContext, selectedQuery }) => {
   if (!isOpen) return null;
+
+  // Format the conversation to replace 'user' with username and 'assistant' with 'Sophia'
+  const formatConversation = (conversationText) => {
+    if (!conversationText || !selectedQuery) return conversationText;
+    
+    const userName = selectedQuery.foreignNationalId?.name || 'Client';
+    
+    // Replace "user:" with the actual username
+    // Replace "assistant:" with "Sophia:"
+    return conversationText
+      .replace(/user:/gi, `${userName}:`)
+      .replace(/assistant:/gi, 'Sophia:');
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
@@ -997,7 +1013,7 @@ const ViewConversationModal = ({ isOpen, onClose, aiContext }) => {
           <div className="prose prose-sm max-w-none">
             <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
               <pre className="whitespace-pre-wrap text-sm text-gray-800 font-sans">
-                {aiContext}
+                {formatConversation(aiContext)}
               </pre>
             </div>
           </div>
@@ -1018,7 +1034,8 @@ const ViewConversationModal = ({ isOpen, onClose, aiContext }) => {
 ViewConversationModal.propTypes = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
-  aiContext: PropTypes.string
+  aiContext: PropTypes.string,
+  selectedQuery: PropTypes.object
 };
 
 export default Queries; 

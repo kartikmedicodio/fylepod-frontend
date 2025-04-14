@@ -28,6 +28,7 @@ import { Toaster } from 'react-hot-toast';
 import Individuals from './pages/Individuals';
 import IndividualDetails from './pages/IndividualDetails';
 import Queries from './pages/Queries';
+import AiQueries from './pages/AiQueries';
 import { useEffect } from 'react';
 import { removeStoredToken, removeStoredUser } from './utils/auth';
 
@@ -92,6 +93,7 @@ const App = () => {
                           <Route path="/cases/new" element={<NewCase />} />
                           <Route path="/cases/:caseId" element={<CaseDetails />} />
                           <Route path="/queries" element={<Queries />} />
+                          <Route path="/ai-queries" element={<AiQueries />} />
                           
                           <Route path="/individual-cases" element={<FNCases />} />
                           <Route path="/individuals/case/:caseId" element={<FNCaseDetails />} />

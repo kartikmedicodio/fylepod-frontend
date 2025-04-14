@@ -2960,120 +2960,122 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     );
   };
 
-  // Update the FormsTab component to accept selectedQuestionnaire as a prop
+  // Add FormPreviewModal component before FormsTab
+  const FormPreviewModal = ({ isOpen, onClose, pdfBytes, formName }) => {
+    const [pdfUrl, setPdfUrl] = useState(null);
+
+    useEffect(() => {
+      if (pdfBytes) {
+        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        setPdfUrl(url);
+        
+        return () => {
+          window.URL.revokeObjectURL(url);
+        };
+      }
+    }, [pdfBytes]);
+
+    if (!isOpen) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 max-w-4xl w-full h-[90vh] flex flex-col">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold">{formName} - Preview</h2>
+            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          <div className="flex-1 bg-gray-100 rounded-lg overflow-hidden">
+            {pdfUrl && (
+              <iframe
+                src={`${pdfUrl}#toolbar=1&zoom=page-fit`}
+                className="w-full h-full"
+                title="PDF Preview"
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const FormsTab = () => {
     const [loadingFormId, setLoadingFormId] = useState(null);
     const [error, setError] = useState(null);
+    const [previewPdfBytes, setPreviewPdfBytes] = useState(null);
+    const [selectedForm, setSelectedForm] = useState(null);
+    const [showPreview, setShowPreview] = useState(false);
 
-    // Function to load the template PDF and fill it with data
-    const fillPDFTemplate = async (formId, data) => {
-      try {
-        const templateUrl = `/templates/testing.pdf`;
-        const templateBytes = await fetch(templateUrl).then(res => res.arrayBuffer());
-        
-        const pdfDoc = await PDFDocument.load(templateBytes);
-        const form = pdfDoc.getForm();
+    // Function to generate filled PDF
+    const generateFilledPDF = async (formId, data) => {
+      const templateUrl = `/templates/testing.pdf`;
+      const templateBytes = await fetch(templateUrl).then(res => res.arrayBuffer());
+      
+      const pdfDoc = await PDFDocument.load(templateBytes);
+      const form = pdfDoc.getForm();
 
-        try {
-          const processedInfo = data?.responses?.processedInformation;
+      const processedInfo = data?.responses?.processedInformation;
 
-          // Fill the form fields with exact field names from the PDF
-          form.getTextField('Name of the Applicant').setText(
-            processedInfo?.Passport?.firstName || 'N/A'
-          );
+      // Fill the form fields with exact field names from the PDF
+      form.getTextField('Name of the Applicant').setText(
+        processedInfo?.Passport?.firstName || 'N/A'
+      );
+      
+      // Details of Applicant section
+      form.getTextField('Passport No').setText(processedInfo?.Passport?.passportNumber || 'N/A');
+      form.getTextField('Place of Issue').setText(processedInfo?.Passport?.placeOfIssue || 'N/A');
+      form.getTextField('Date of Issue').setText(processedInfo?.Passport?.dateOfIssue || 'N/A');
+      form.getTextField('Date of Expiry').setText(processedInfo?.Passport?.dateOfExpiry || 'N/A');
+      form.getTextField('Mobile Phone').setText(processedInfo?.Resume?.cellNumber || 'N/A');
+      form.getTextField('EMail Address').setText(processedInfo?.Resume?.emailId || 'N/A');
+      
+      // Employment and Education section
+      form.getTextField('Name of the Current Employer').setText(
+        processedInfo?.Resume?.currentCompanyName || 'N/A'
+      );
+      form.getTextField('Applicants current Designation role  position').setText(
+        processedInfo?.Resume?.currentPosition || 'N/A'
+      );
+
+      form.getTextField('Educational Qualification').setText(
+        (() => {
+          const eduQual = processedInfo?.Resume?.educationalQualification;
+          if (!eduQual) return 'N/A';
           
-          // Details of Applicant section
-          form.getTextField('Passport No').setText(processedInfo?.Passport?.passportNumber || 'N/A');
-          form.getTextField('Place of Issue').setText(processedInfo?.Passport?.placeOfIssue || 'N/A');
-          form.getTextField('Date of Issue').setText(processedInfo?.Passport?.dateOfIssue || 'N/A');
-          form.getTextField('Date of Expiry').setText(processedInfo?.Passport?.dateOfExpiry || 'N/A');
-          form.getTextField('Mobile Phone').setText(processedInfo?.Resume?.cellNumber || 'N/A');
-          form.getTextField('EMail Address').setText(processedInfo?.Resume?.emailId || 'N/A');
-          
-          // Employment and Education section
-          form.getTextField('Name of the Current Employer').setText(
-            processedInfo?.Resume?.currentCompanyName || 'N/A'
-          );
-          form.getTextField('Applicants current Designation role  position').setText(
-            processedInfo?.Resume?.currentPosition || 'N/A'
-          );
-
-          form.getTextField('Educational Qualification').setText(
-            (() => {
-              const eduQual = processedInfo?.Resume?.educationalQualification;
-              if (!eduQual) return 'N/A';
-              
-              if (Array.isArray(eduQual)) {
-                return eduQual.map(edu => 
-                  typeof edu === 'string' 
-                    ? edu 
-                    : `${edu.degree || ''} - ${edu.institution || ''}`
-                ).join('; ');
-              }
-              
-              // Handle single object case
-              if (typeof eduQual === 'object') {
-                return `${eduQual.degree || ''} - ${eduQual.institution || ''}`;
-              }
-              
-              // Handle string case
-              return eduQual;
-            })() || 'N/A'
-          );
-
-          form.getTextField('Specific details of Skills Experience').setText(
-            `${processedInfo?.Resume?.currentPosition || 'N/A'}, ${processedInfo?.resume?.previousPosition || 'N/A'}`
-          );
-
-          // Save and download the filled PDF
-          const pdfBytes = await pdfDoc.save();
-          const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-          const url = window.URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.setAttribute('download', `form-${formId}.pdf`);
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
-          window.URL.revokeObjectURL(url);
-
-          // After successful download, update case status to completed
-          try {
-            await api.patch(`/management/${caseId}/status`, {
-              status: 'completed'
-            });
-            
-            // Show success message
-            toast.success('Form downloaded and case marked as completed');
-            
-            // Refresh case data to update UI
-            const response = await api.get(`/management/${caseId}`);
-            if (response.data.status === 'success') {
-              const updatedCaseData = response.data.data.entry;
-              setCaseData(updatedCaseData);
-            }
-          } catch (statusError) {
-            console.error('Error updating case status:', statusError);
-            toast.error('Form downloaded but failed to update case status');
+          if (Array.isArray(eduQual)) {
+            return eduQual.map(edu => 
+              typeof edu === 'string' 
+                ? edu 
+                : `${edu.degree || ''} - ${edu.institution || ''}`
+            ).join('; ');
           }
+          
+          // Handle single object case
+          if (typeof eduQual === 'object') {
+            return `${eduQual.degree || ''} - ${eduQual.institution || ''}`;
+          }
+          
+          // Handle string case
+          return eduQual;
+        })() || 'N/A'
+      );
 
-        } catch (fieldError) {
-          console.error('Error filling specific field:', fieldError);
-          toast.error('Error filling some fields in the form');
-          throw fieldError;
-        }
+      form.getTextField('Specific details of Skills Experience').setText(
+        `${processedInfo?.Resume?.currentPosition || 'N/A'}, ${processedInfo?.resume?.previousPosition || 'N/A'}`
+      );
 
-      } catch (err) {
-        console.error('Error filling PDF:', err);
-        toast.error('Failed to generate PDF');
-        throw err;
-      }
+      // Return the filled PDF bytes
+      return await pdfDoc.save();
     };
 
     const handleFormClick = async (form) => {
       try {
         setLoadingFormId(form._id);
         setError(null);
+        setSelectedForm(form);
 
         // Fetch organized documents data with questionnaire ID
         const response = await api.get(`/questionnaire-responses/management/${caseId}`, {
@@ -3091,14 +3093,42 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           responses: response.data.data.responses[0]
         };
 
-        // Fill and download the PDF
-        await fillPDFTemplate(form._id, documentData);
+        // Generate preview PDF
+        const pdfBytes = await generateFilledPDF(form._id, documentData);
+        setPreviewPdfBytes(pdfBytes);
+        setShowPreview(true);
+
       } catch (err) {
         console.error('Error processing form:', err);
         setError(err.message);
         toast.error('Failed to process form');
       } finally {
         setLoadingFormId(null);
+      }
+    };
+
+    const handleDownloadComplete = async () => {
+      try {
+        // Update case status to completed
+        await api.patch(`/management/${caseId}/status`, {
+          status: 'completed'
+        });
+        
+        // Show success message
+        toast.success('Form downloaded and case marked as completed');
+        
+        // Refresh case data to update UI
+        const response = await api.get(`/management/${caseId}`);
+        if (response.data.status === 'success') {
+          const updatedCaseData = response.data.data.entry;
+          setCaseData(updatedCaseData);
+        }
+
+        // Close the preview modal
+        setShowPreview(false);
+      } catch (error) {
+        console.error('Error updating case status:', error);
+        toast.error('Form downloaded but failed to update case status');
       }
     };
 
@@ -3166,6 +3196,13 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             </div>
           ))}
         </div>
+
+        <FormPreviewModal
+          isOpen={showPreview}
+          onClose={() => setShowPreview(false)}
+          pdfBytes={previewPdfBytes}
+          formName={selectedForm?.form_name}
+        />
       </div>
     );
   };

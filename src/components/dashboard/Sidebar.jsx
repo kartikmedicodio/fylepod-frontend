@@ -17,6 +17,7 @@ import {
   Briefcase,
   Building,
   ChevronRight as ChevronRightIcon,
+  MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import PropTypes from 'prop-types';
@@ -108,15 +109,15 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       { 
         section: 'Cases',
         items: [
-          { name: 'All Cases', href: '/individual-cases', icon: BriefcaseBusiness },
+          { name: 'All Cases', href: '/individual-cases', icon: BriefcaseBusiness }
         ]
       },
-      {
-        section: 'Communication',
-        items: [
-          { name: 'Queries', href: '/queries', icon: MailIcon },
-        ]
-      }
+      // {
+      //   section: 'Communication',
+      //   items: [
+      //     // { name: 'Messages', href: '/queries', icon: MailIcon },
+      //   ]
+      // }
     ];
 
     // Admin/Attorney/Manager navigation
@@ -133,7 +134,8 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
         section: 'Cases',
         items: [
           { name: 'Cases', href: '/cases', icon: BriefcaseBusiness },
-          { name: 'Queries', href: '/queries', icon: MailIcon },
+          { name: 'AI Queries', href: '/ai-queries', icon: MessageSquare },
+          // { name: 'Messages', href: '/queries', icon: MailIcon },
         ]
       },
       {
