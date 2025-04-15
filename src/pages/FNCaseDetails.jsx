@@ -25,6 +25,7 @@ import { initializeSocket, joinDocumentRoom, handleReconnect, getSocket } from '
 import { getStoredToken } from '../utils/auth';
 import { useAuth } from '../contexts/AuthContext';
 import { createQuery } from '../services/queryService';
+import { getCalApi } from "@calcom/embed-react";
 
 const getInitials = (name) => {
   return name
@@ -2511,16 +2512,41 @@ const FNCaseDetails = () => {
 
   // Function to handle escalating to attorney
   const handleEscalateToAttorney = async () => {
-    if (!currentChat || !caseId) return;
+    if (!currentChat || !caseId || !caseData || !profileData) {
+      console.error('Missing required data:', { currentChat, caseId, caseData, profileData });
+      toast.error('Missing required data for escalation');
+      return;
+    }
     
     setIsEscalating(true);
     try {
-      // Create a query from the chat
-      const response = await api.post('/queries', {
-        managementId: caseId,
+      // Get attorney's first name
+      const attorneyFirstName = caseData.caseManagerId?.name?.split(' ')[0] || 'Attorney';
+      
+      // Generate chat history link
+      const chatHistoryLink = `${window.location.origin}/cases/${caseId}?tab=overview&chatId=${currentChat._id}`;
+      
+      // Log the request data
+      console.log('Sending escalation request with data:', {
+        attorneyEmail: caseData.caseManagerId?.email,
+        attorneyFirstName,
+        fnName: profileData.name,
+        caseType: caseData.categoryName,
         query: escalateQuery,
-        chatId: currentChat._id
+        chatHistoryLink
       });
+      
+      // Send escalation email
+      const response = await api.post('/mail/escalate', {
+        attorneyEmail: caseData.caseManagerId?.email,
+        attorneyFirstName,
+        fnName: profileData.name,
+        caseType: caseData.categoryName,
+        query: escalateQuery,
+        chatHistoryLink
+      });
+      
+      console.log('Escalation response:', response.data);
       
       if (response.data.status === 'success') {
         toast.success('Query escalated to attorney successfully');
@@ -2530,21 +2556,65 @@ const FNCaseDetails = () => {
         throw new Error(response.data.message || 'Failed to escalate query');
       }
     } catch (error) {
-      console.error('Error escalating query:', error);
-      toast.error(error.message || 'Failed to escalate query');
+      console.error('Error escalating query:', error.response?.data || error);
+      toast.error(error.response?.data?.message || error.message || 'Failed to escalate query');
     } finally {
       setIsEscalating(false);
     }
   };
 
-  // Function to handle opening Calendly
-  const handleScheduleMeeting = () => {
+  // Function to handle closing the calendar
+  const handleCloseCalendar = () => {
+    const placeholder = document.getElementById('cal-booking-placeholder');
+    if (placeholder) {
+      placeholder.style.display = 'none';
+      placeholder.classList.add('hidden');
+    }
+    // Also reset any Cal.com state
+    const cal = window.Cal;
+    if (cal) {
+      cal('reset');
+    }
+  };
+
+  // Function to handle opening Cal.com scheduling
+  const handleScheduleMeeting = async () => {
     try {
-      Calendly.initPopupWidget({
-        url: 'https://calendly.com/vaibhavmujumdar1'
+      if (!caseData?.caseManagerId?.calendarLink) {
+        toast.error('No calendar link available for the assigned attorney');
+        return;
+      }
+
+      // Initialize Cal.com
+      const cal = await getCalApi();
+      if (!cal) {
+        toast.error('Calendar API not initialized');
+        return;
+      }
+
+      // Extract the calendar username and event type from the link
+      let calLink = caseData.caseManagerId.calendarLink;
+      // Remove any http/https prefix and domain if present
+      calLink = calLink.replace(/^(https?:\/\/)?(app\.)?cal\.com\//, '');
+      
+      // Open Cal.com modal
+      cal('ui', {
+        styles: { branding: { brandColor: '#000000' } },
+        hideEventTypeDetails: false,
+        layout: 'month_view'
       });
+
+      cal('modal', {
+        calLink: calLink,
+        config: {
+          name: profileData?.name || '',
+          email: profileData?.email || '',
+          notes: `Case ID: ${caseId}`,
+        }
+      });
+
     } catch (error) {
-      console.error('Error opening Calendly:', error);
+      console.error('Error opening Cal.com:', error);
       toast.error('Unable to open scheduling widget. Please try again.');
     }
   };
@@ -2638,7 +2708,22 @@ const FNCaseDetails = () => {
               </button>
             </div>
 
-            {/* Add smooth transition for new messages */}
+            {/* Cal.com embed placeholder */}
+            <div id="cal-booking-placeholder" className="hidden fixed inset-0 z-[10000] bg-white">
+              <button 
+                onClick={() => {
+                  const placeholder = document.getElementById('cal-booking-placeholder');
+                  if (placeholder) placeholder.classList.add('hidden');
+                }}
+                className="absolute top-4 right-4 p-2 hover:bg-slate-100/50 rounded-full transition-all"
+              >
+                <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Chat messages area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[400px] bg-gradient-to-br from-slate-50/50 via-slate-50/30 to-zinc-50/50">
               {messages.map((message, index) => (
                 <div 
@@ -3120,6 +3205,17 @@ const FNCaseDetails = () => {
     return null;
   };
 
+  // Initialize Cal.com
+  useEffect(() => {
+    (async function initCal() {
+      try {
+        await getCalApi();
+      } catch (error) {
+        console.error('Error initializing Cal.com:', error);
+      }
+    })();
+  }, []); // Empty dependency array means this runs once on mount
+
   // Main component return
   return (
     <>
@@ -3312,6 +3408,42 @@ const FNCaseDetails = () => {
 
       {/* Render chat portal to document.body */}
       {renderChatPortal()}
+      
+      {/* Cal.com embed placeholder - Updated styling */}
+      <div 
+        id="cal-booking-placeholder" 
+        className="hidden fixed inset-0 z-[10000] bg-white/95 backdrop-blur-sm"
+        style={{
+          height: '100vh',
+          width: '100vw',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          display: 'none'
+        }}
+      >
+        <div className="absolute inset-0 flex items-center justify-center p-4">
+          <div className="relative w-full max-w-4xl bg-white rounded-xl shadow-2xl">
+            <button 
+              onClick={handleCloseCalendar}
+              className="absolute -top-2 -right-2 p-2 bg-white hover:bg-gray-100 rounded-full transition-all z-50 shadow-lg"
+              aria-label="Close calendar"
+            >
+              <X className="w-6 h-6 text-gray-500" />
+            </button>
+            <div 
+              id="cal-inline-container" 
+              className="w-full rounded-xl"
+              style={{
+                height: '600px',
+                minHeight: '600px'
+              }}
+            >
+              {/* Cal.com will inject its content here */}
+            </div>
+          </div>
+        </div>
+      </div>
     </>
   );
 };

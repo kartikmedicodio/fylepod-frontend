@@ -6,6 +6,7 @@ import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import EmployeeList from '../components/employees/EmployeeList';
 import PropTypes from 'prop-types';
 import { motion, AnimatePresence } from 'framer-motion';
+import toast from 'react-hot-toast';
 
 const CorporationDetailsSkeleton = () => (
   <div className="p-4">
@@ -165,12 +166,16 @@ const CorporationDetails = () => {
       if (response.success) {
         setCorporation(response.data);
         setIsEditing(false);
+        toast.success('Corporation details saved successfully');
       } else {
         setError('Failed to update corporation');
+        toast.error('Failed to update corporation');
       }
     } catch (error) {
       console.error('Error updating corporation:', error);
-      setError(error.response?.data?.message || 'Failed to update corporation');
+      const errorMessage = error.response?.data?.message || 'Failed to update corporation';
+      setError(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
@@ -342,7 +347,7 @@ const CorporationDetails = () => {
                     ) : (
                       <div className="text-sm font-medium p-2.5 border border-gray-200 rounded-lg 
                                     bg-gray-50/50 transition-colors hover:bg-gray-50">
-                        {corporation?.company_name}
+                        {corporation?.company_name || '-'}
                       </div>
                     )}
                   </div>
@@ -359,7 +364,7 @@ const CorporationDetails = () => {
                     ) : (
                       <div className="text-sm font-medium p-2.5 border border-gray-200 rounded-lg 
                                     bg-gray-50/50 transition-colors hover:bg-gray-50">
-                        {corporation?.contact_name}
+                        {corporation?.contact_name || '-'}
                       </div>
                     )}
                   </div>
@@ -381,7 +386,7 @@ const CorporationDetails = () => {
                   ) : (
                     <div className="text-sm font-medium p-2.5 border border-gray-200 rounded-lg 
                                   bg-gray-50/50 transition-colors hover:bg-gray-50">
-                      {corporation?.phone_number}
+                      {corporation?.phone_number || '-'}
                     </div>
                   )}
                 </div>
@@ -398,7 +403,7 @@ const CorporationDetails = () => {
                   ) : (
                     <div className="text-sm font-medium p-2.5 border border-gray-200 rounded-lg 
                                   bg-gray-50/50 transition-colors hover:bg-gray-50">
-                      {corporation?.title}
+                      {corporation?.title || '-'}
                     </div>
                   )}
                 </div>
@@ -419,7 +424,7 @@ const CorporationDetails = () => {
                   ) : (
                     <div className="text-sm font-medium p-2.5 border border-gray-200 rounded-lg 
                                   bg-gray-50/50 transition-colors hover:bg-gray-50">
-                      {corporation?.company_address}
+                      {corporation?.company_address || '-'}
                     </div>
                   )}
                 </div>
@@ -436,7 +441,7 @@ const CorporationDetails = () => {
                   ) : (
                     <div className="text-sm font-medium p-2.5 border border-gray-200 rounded-lg 
                                   bg-gray-50/50 transition-colors hover:bg-gray-50">
-                      {corporation?.attorney_name}
+                      {corporation?.attorney_name || '-'}
                     </div>
                   )}
                 </div>
@@ -456,7 +461,7 @@ const CorporationDetails = () => {
                 ) : (
                   <div className="text-sm font-medium p-2.5 border border-gray-200 rounded-lg 
                                 bg-gray-50/50 transition-colors hover:bg-gray-50">
-                    {corporation?.tax_registration_number}
+                    {corporation?.tax_registration_number || '-'}
                   </div>
                 )}
               </div>
