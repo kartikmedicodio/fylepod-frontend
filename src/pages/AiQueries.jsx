@@ -15,10 +15,12 @@ import { format } from 'date-fns';
 import { toast } from 'react-hot-toast';
 import { usePage } from '../contexts/PageContext';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const AiQueries = () => {
   const { setPageTitle } = usePage();
   const { setCurrentBreadcrumb } = useBreadcrumb();
+  const { user } = useAuth();
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -94,8 +96,41 @@ const AiQueries = () => {
   const fetchClients = async () => {
     setLoading(prev => ({ ...prev, clients: true }));
     try {
-      const response = await api.get('/chat/users');
-      setClients(response.data.data.users);
+      if (user?.role === 'individual' || user?.role === 'employee') {
+        // For FN portal users, first get their cases
+        const casesResponse = await api.get(`/chat/user/${user.id}/cases`);
+        if (casesResponse.data.data.entries) {
+          // Then get chat history for each case
+          const casesWithChats = [];
+          for (const caseItem of casesResponse.data.data.entries) {
+            try {
+              const chatResponse = await api.get(`/chat/management/${caseItem._id}`);
+              // Only add cases that have chats with actual messages
+              if (chatResponse.data.data.chats && 
+                  chatResponse.data.data.chats.some(chat => chat.messages && chat.messages.length > 0)) {
+                casesWithChats.push({
+                  ...caseItem,
+                  chats: chatResponse.data.data.chats
+                });
+              }
+            } catch (error) {
+              console.error(`Error fetching chats for case ${caseItem._id}:`, error);
+            }
+          }
+          setCases(casesWithChats);
+          setClients([]);  // Clear clients list as we don't need to show it
+          
+          // If there are cases with chats, select the first one
+          if (casesWithChats.length > 0) {
+            setSelectedCase(casesWithChats[0]);
+            setSelectedChat(casesWithChats[0].chats[casesWithChats[0].chats.length - 1]);
+          }
+        }
+      } else {
+        // For attorneys, fetch all clients as before
+        const response = await api.get('/chat/users');
+        setClients(response.data.data.users);
+      }
     } catch (error) {
       console.error('Error fetching clients:', error);
       toast.error('Failed to load clients');
@@ -210,7 +245,41 @@ const AiQueries = () => {
             <div className="flex justify-center p-8">
               <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
             </div>
+          ) : user?.role === 'individual' || user?.role === 'employee' ? (
+            // For FN portal users, show cases directly
+            <div className="divide-y divide-gray-200">
+              {cases.map((caseItem) => (
+                <button
+                  key={caseItem._id}
+                  onClick={() => handleCaseClick(caseItem)}
+                  className={`w-full px-6 py-3 flex items-start gap-3 hover:bg-gray-100 transition-colors ${
+                    selectedCase?._id === caseItem._id ? 'bg-blue-50' : ''
+                  }`}
+                >
+                  <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                    <Folder className="w-4 h-4 text-indigo-600" />
+                  </div>
+                  <div className="flex-grow text-left">
+                    <div className="font-medium text-gray-900 text-sm">
+                      {caseItem.categoryName}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(caseItem.categoryStatus)}`}>
+                        {caseItem.categoryStatus}
+                      </span>
+                      {caseItem.deadline && (
+                        <div className="flex items-center text-xs text-gray-500">
+                          <Clock className="w-3 h-3 mr-1" />
+                          {format(new Date(caseItem.deadline), 'MMM dd')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
           ) : (
+            // For attorneys, show existing clients view
             <div className="divide-y divide-gray-200">
               {clients.map((client) => (
                 <div key={client._id}>
