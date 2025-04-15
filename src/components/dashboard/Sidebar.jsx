@@ -251,6 +251,10 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
 
     // Handle parent-child relationships for main sections
     if (href === '/cases') {
+      // Don't highlight cases when on new case page
+      if (location.pathname === '/cases/new') {
+        return false;
+      }
       return location.pathname === '/cases' || location.pathname.startsWith('/cases/');
     }
 
