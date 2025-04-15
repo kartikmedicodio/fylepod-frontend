@@ -292,6 +292,8 @@ const FNCaseDetails = () => {
   const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState(false);
   const [escalateQuery, setEscalateQuery] = useState('');
   const [isEscalating, setIsEscalating] = useState(false);
+  // Add this new state near other state declarations
+  const [showAttorneyOptions, setShowAttorneyOptions] = useState(false);
 
   // Group all useRef hooks
   const messagesEndRef = useRef(null);
@@ -931,6 +933,8 @@ const FNCaseDetails = () => {
     setMessages(prev => [...prev, userMessage]);
     setChatInput('');
     setIsSending(true);
+    // Reset attorney options visibility when sending a new message
+    setShowAttorneyOptions(false);
 
     try {
       // Initialize chat if it doesn't exist
@@ -2764,42 +2768,88 @@ const FNCaseDetails = () => {
                   )}
                 </div>
               ))}
-              
-              {/* Escalate to Attorney Button - Only show if the last message is from the assistant */}
-              {messages.length > 0 && currentChat && messages[messages.length - 1]?.role === 'assistant' && (
-                <div className="flex justify-center gap-4 mt-6 mb-2">
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Attorney options section - Above the input form */}
+            {messages.length > 0 && currentChat && messages[messages.length - 1]?.role === 'assistant' && (
+              <div className="border-t border-slate-100 bg-white">
+                <div className="flex flex-col items-center py-3">
+                  <div className={`overflow-hidden transition-all duration-300 ease-in-out ${showAttorneyOptions ? 'max-h-24 opacity-100' : 'max-h-0 opacity-0'}`}>
+                    <div className="flex justify-center gap-4 px-6 py-4">
+                      <button
+                        onClick={() => {
+                          setShowEscalateModal(true);
+                          if (currentChat) {
+                            generateQuerySuggestion();
+                          }
+                          setShowAttorneyOptions(false);
+                        }}
+                        className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5"
+                      >
+                        <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 6V2H8"/>
+                          <path d="m8 18-4 4V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2Z"/>
+                          <path d="M2 12h2"/>
+                          <path d="M9 11v2"/>
+                          <path d="M15 11v2"/>
+                          <path d="M20 12h2"/>
+                        </svg>
+                        <span>Escalate Query</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleScheduleMeeting();
+                          setShowAttorneyOptions(false);
+                        }}
+                        className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span>Schedule Meeting</span>
+                      </button>
+                    </div>
+                  </div>
                   <button
-                    onClick={() => {
-                      setShowEscalateModal(true);
-                      // Automatically trigger query suggestion when button is clicked
-                      if (currentChat) {
-                        generateQuerySuggestion();
-                      }
-                    }}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5"
+                    onClick={() => setShowAttorneyOptions(!showAttorneyOptions)}
+                    className="group px-4 py-2 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900 font-medium transition-all duration-200 flex items-center gap-2 border border-slate-200 hover:border-slate-300 hover:shadow-sm"
                   >
-                    <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 6V2H8"/>
-                      <path d="m8 18-4 4V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2Z"/>
-                      <path d="M2 12h2"/>
-                      <path d="M9 11v2"/>
-                      <path d="M15 11v2"/>
-                      <path d="M20 12h2"/>
+                    {!showAttorneyOptions && (
+                      <svg 
+                        className="w-4 h-4 text-slate-500 group-hover:text-slate-700 transition-colors" 
+                        fill="none" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                      >
+                        <path 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round" 
+                          strokeWidth={2} 
+                          d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"
+                        />
+                      </svg>
+                    )}
+                    <span className="min-w-[120px] text-center">
+                      {showAttorneyOptions ? "Continue chat with Sophia" : "Speak to attorney"}
+                    </span>
+                    <svg 
+                      className={`w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-all duration-300 transform ${showAttorneyOptions ? 'rotate-180' : ''}`}
+                      fill="none" 
+                      viewBox="0 0 24 24" 
+                      stroke="currentColor"
+                    >
+                      <path 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        strokeWidth={2} 
+                        d="M19 9l-7 7-7-7"
+                      />
                     </svg>
-                    <span>Escalate</span>
-                  </button>
-                  <button
-                    onClick={handleScheduleMeeting}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <span>Schedule Meeting</span>
                   </button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Enhanced input area */}
             <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-slate-100">
@@ -3224,6 +3274,13 @@ const FNCaseDetails = () => {
       }
     })();
   }, []); // Empty dependency array means this runs once on mount
+
+  // Add this effect to hide attorney options when chat popup is closed
+  useEffect(() => {
+    if (!showChatPopup) {
+      setShowAttorneyOptions(false);
+    }
+  }, [showChatPopup]);
 
   // Main component return
   return (
