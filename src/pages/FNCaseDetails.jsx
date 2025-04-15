@@ -22,7 +22,7 @@ import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import ProgressSteps from '../components/ProgressSteps';
 import CrossVerificationTab from '../components/cases/CrossVerificationTab';
 import { initializeSocket, joinDocumentRoom, handleReconnect, getSocket } from '../utils/socket';
-import { getStoredToken } from '../utils/auth';
+import { getStoredToken, getStoredUser } from '../utils/auth';
 import { useAuth } from '../contexts/AuthContext';
 import { createQuery } from '../services/queryService';
 import { getCalApi } from "@calcom/embed-react";
@@ -2520,30 +2520,39 @@ const FNCaseDetails = () => {
     
     setIsEscalating(true);
     try {
-      // Get attorney's first name
-      const attorneyFirstName = caseData.caseManagerId?.name?.split(' ')[0] || 'Attorney';
+      // Get attorney data from local storage
+      const storedUser = getStoredUser();
+      const attorneyEmail = storedUser?.attorney_id?.email;
+      const attorneyName = storedUser?.attorney_name;
+      const attorneyFirstName = attorneyName?.split(' ')[0] || 'Attorney';
+      
+      if (!attorneyEmail) {
+        throw new Error('Attorney email not found in local storage');
+      }
       
       // Generate chat history link
       const chatHistoryLink = `${window.location.origin}/cases/${caseId}?tab=overview&chatId=${currentChat._id}`;
       
       // Log the request data
       console.log('Sending escalation request with data:', {
-        attorneyEmail: caseData.caseManagerId?.email,
+        attorneyEmail,
         attorneyFirstName,
         fnName: profileData.name,
         caseType: caseData.categoryName,
         query: escalateQuery,
-        chatHistoryLink
+        chatHistoryLink,
+        ccEmails: [profileData.email, attorneyEmail].filter(Boolean)
       });
       
       // Send escalation email
       const response = await api.post('/mail/escalate', {
-        attorneyEmail: caseData.caseManagerId?.email,
+        attorneyEmail,
         attorneyFirstName,
         fnName: profileData.name,
         caseType: caseData.categoryName,
         query: escalateQuery,
-        chatHistoryLink
+        chatHistoryLink,
+        ccEmails: [profileData.email, caseData.caseManagerId?.email].filter(Boolean)
       });
       
       console.log('Escalation response:', response.data);
