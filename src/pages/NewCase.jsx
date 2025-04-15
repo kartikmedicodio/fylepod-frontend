@@ -514,7 +514,7 @@ const NewCase = () => {
       return [];
     }
     
-    if (!attorneySearch.trim()) {
+    if (!attorneySearch.trim()) { 
       return attorneys;
     }
     
@@ -785,19 +785,19 @@ const NewCase = () => {
               type="button"
               onClick={handleCreateCase}
               disabled={!selectedTemplate || !selectedCustomer || !selectedAttorney || isCreatingCase}
-              className={`w-[180px] h-[42px] rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:cursor-not-allowed flex items-center justify-center gap-2 relative overflow-hidden
+              className={`min-w-[220px] h-[42px] rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:cursor-not-allowed flex items-center justify-center gap-2 relative overflow-hidden px-6
                 ${isCreatingCase 
                   ? 'bg-gradient-to-r from-indigo-600 to-purple-600 bg-[length:200%_100%] animate-gradient disabled:animate-gradient disabled:opacity-90' 
                   : 'bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400'
                 }`}
             >
               <div className={`absolute inset-0 ${isCreatingCase ? 'bg-indigo-600/10 animate-pulse' : ''}`} />
-              <div className="relative flex items-center justify-center gap-2 text-white">
+              <div className="relative flex items-center justify-center gap-3 text-white">
                 {isCreatingCase ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="animate-fadeIn">{getLoadingMessage()}</span>
-                  </>
+                  <div className="flex items-center gap-3 justify-center">
+                    <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
+                    <span className="animate-fadeIn whitespace-nowrap text-center">{getLoadingMessage()}</span>
+                  </div>
                 ) : (
                   'Create Case'
                 )}
