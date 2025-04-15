@@ -19,6 +19,8 @@ const NewEmployee = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [companies, setCompanies] = useState([]);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
+  const [attorneys, setAttorneys] = useState([]);
+  const [isLoadingAttorneys, setIsLoadingAttorneys] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -27,6 +29,8 @@ const NewEmployee = () => {
     sex: 'Male',
     company_id: '',
     company_name: '',
+    attorney_id: '',
+    attorney_name: '',
     lawfirm_id: user?.lawfirm_id?._id || null,
     lawfirm_name: user?.lawfirm_name || null,
     contact: {
@@ -42,6 +46,7 @@ const NewEmployee = () => {
       formData.name.trim() !== '' &&
       formData.email.trim() !== '' &&
       formData.company_id !== '' &&
+      formData.attorney_id !== '' &&
       validatePhoneNumber(formData.contact.mobileNumber)
     );
   };
@@ -55,6 +60,17 @@ const NewEmployee = () => {
     .map(company => ({
       value: company._id,
       label: company.company_name
+    }));
+
+  // Format attorneys for react-select
+  const attorneyOptions = attorneys
+    .filter(attorney => {
+      const userLawfirmId = user?.lawfirm_id?._id;
+      return !userLawfirmId || String(attorney.lawfirm_id?._id) === String(userLawfirmId);
+    })
+    .map(attorney => ({
+      value: attorney._id,
+      label: `${attorney.name} (${attorney.lawfirm_id?.name || attorney.lawfirm_name || 'No Law Firm'})`
     }));
 
   // Set breadcrumb and page title on mount
@@ -88,6 +104,26 @@ const NewEmployee = () => {
     };
 
     fetchCompanies();
+  }, [user?.lawfirm_id]);
+
+  // Fetch attorneys for dropdown
+  useEffect(() => {
+    const fetchAttorneys = async () => {
+      setIsLoadingAttorneys(true);
+      try {
+        const response = await api.get('/auth/attorneys');
+        if (response.data.status === 'success') {
+          const attorneysData = response.data.data.attorneys;
+          setAttorneys(attorneysData);
+        }
+      } catch (error) {
+        toast.error('Failed to load attorneys');
+      } finally {
+        setIsLoadingAttorneys(false);
+      }
+    };
+
+    fetchAttorneys();
   }, [user?.lawfirm_id]);
 
   const handleInputChange = (field, value) => {
@@ -134,6 +170,27 @@ const NewEmployee = () => {
     }
   };
 
+  const handleAttorneySelect = (selectedOption) => {
+    if (selectedOption) {
+      const selectedAttorney = attorneys.find(a => a._id === selectedOption.value);
+      if (selectedAttorney) {
+        setFormData(prev => ({
+          ...prev,
+          attorney_id: selectedAttorney._id,
+          attorney_name: selectedAttorney.name,
+          lawfirm_id: selectedAttorney.lawfirm_id?._id || null,
+          lawfirm_name: selectedAttorney.lawfirm_id?.name || selectedAttorney.lawfirm_name || null
+        }));
+      }
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        attorney_id: '',
+        attorney_name: '',
+      }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -146,6 +203,8 @@ const NewEmployee = () => {
         sex: formData.sex,
         company_id: formData.company_id,
         company_name: formData.company_name,
+        attorney_id: formData.attorney_id,
+        attorney_name: formData.attorney_name,
         lawfirm_id: formData.lawfirm_id,
         lawfirm_name: formData.lawfirm_name,
         contact: {
@@ -268,6 +327,75 @@ const NewEmployee = () => {
                 <span className="text-amber-600 text-sm font-medium">No Corporations Available</span>
                 <p className="text-sm text-amber-700 mt-0.5">
                   There are no corporations available for your law firm. Please contact your administrator to add corporations.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Attorney Selection Card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="p-3 bg-indigo-50 rounded-lg">
+            <User className="w-6 h-6 text-indigo-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-medium text-gray-900">Attorney Details</h2>
+            <p className="text-sm text-gray-500">Select the attorney for this employee</p>
+          </div>
+        </div>
+
+        <div className="relative">
+          <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+            Select Attorney
+            {!formData.attorney_id && <span className="text-rose-500 text-lg leading-none">*</span>}
+          </label>
+          <Select
+            value={formData.attorney_id ? { value: formData.attorney_id, label: formData.attorney_name } : null}
+            onChange={handleAttorneySelect}
+            options={attorneyOptions}
+            isLoading={isLoadingAttorneys}
+            isClearable
+            isSearchable
+            placeholder="Search and select attorney..."
+            noOptionsMessage={() => "No attorneys found"}
+            className={`react-select-container ${!formData.attorney_id ? 'select-error' : ''}`}
+            classNamePrefix="react-select"
+            styles={{
+              control: (base, state) => ({
+                ...base,
+                minHeight: '42px',
+                borderColor: !formData.attorney_id ? '#FCA5A5' : state.isFocused ? '#6366F1' : '#E5E7EB',
+                boxShadow: state.isFocused ? '0 0 0 2px rgba(99, 102, 241, 0.2)' : 'none',
+                '&:hover': {
+                  borderColor: state.isFocused ? '#6366F1' : !formData.attorney_id ? '#EF4444' : '#CBD5E1'
+                }
+              }),
+              placeholder: (base) => ({
+                ...base,
+                color: !formData.attorney_id ? '#EF4444' : '#94A3B8'
+              }),
+              option: (base, state) => ({
+                ...base,
+                backgroundColor: state.isSelected ? '#4F46E5' : state.isFocused ? '#EEF2FF' : base.backgroundColor,
+                ':active': {
+                  backgroundColor: '#4F46E5'
+                }
+              }),
+              menu: (base) => ({
+                ...base,
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                borderRadius: '8px'
+              })
+            }}
+          />
+          {attorneyOptions.length === 0 && !isLoadingAttorneys && (
+            <div className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <span className="text-amber-600 text-sm font-medium">No Attorneys Available</span>
+                <p className="text-sm text-amber-700 mt-0.5">
+                  There are no attorneys available. Please contact your administrator to add attorneys.
                 </p>
               </div>
             </div>
