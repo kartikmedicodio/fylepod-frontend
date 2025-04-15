@@ -43,7 +43,7 @@ const AiQueries = () => {
     setPageTitle('AI Conversations');
     setCurrentBreadcrumb([
       { name: 'Home', path: '/dashboard' },
-      { name: 'AI Queries', path: '/ai-queries' }
+      { name: 'Sophia', path: '/ai-queries' }
     ]);
   }, [setPageTitle, setCurrentBreadcrumb]);
 
