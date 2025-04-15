@@ -134,7 +134,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
         section: 'Cases',
         items: [
           { name: 'Cases', href: '/cases', icon: BriefcaseBusiness },
-          { name: 'Sophia', href: '/ai-queries', icon: MessageSquare },
+          { name: 'Sophia Chat History', href: '/ai-queries', icon: MessageSquare },
           // { name: 'Messages', href: '/queries', icon: MailIcon },
         ]
       },
