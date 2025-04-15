@@ -77,8 +77,20 @@ const IndividualDetails = () => {
   const [activeTabWidth, setActiveTabWidth] = useState(0);
   const [cases, setCases] = useState([]);
   const [casesLoading, setCasesLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
   const tabRefs = useRef([]);
   const { setCurrentBreadcrumb } = useBreadcrumb();
+
+  // Add pagination calculations
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentCases = cases.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(cases.length / itemsPerPage);
+
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
 
   // Define tabs
   const tabs = [
@@ -591,54 +603,83 @@ const IndividualDetails = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.2 }}
-            className="bg-white rounded-xl border border-gray-200 shadow-sm"
           >
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-semibold text-gray-900">Cases</h2>
-                <button
-                  onClick={() => navigate(`/cases/new?individualId=${individualId}`)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium
-                           hover:bg-blue-700 transition-colors duration-200"
-                >
-                  New Case
-                </button>
-              </div>
-            </div>
-
-            {casesLoading ? (
-              <div className="p-8 flex justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              </div>
-            ) : cases.length === 0 ? (
-              <div className="text-gray-500 text-center py-8">
-                No cases found for this individual
-              </div>
-            ) : (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="min-w-full">
-                  <thead className="bg-gray-50">
-                    <tr className="border-b border-gray-200">
-                      {[
-                        'Case Id', 'Individual Name', 'Case Manager', 'Process Name',
-                        'Deadline', 'Status', 'Documents Pending'
-                      ].map((header) => (
-                        <th key={header} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          {header}
-                        </th>
-                      ))}
+                  <thead className="bg-white">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-sm font-medium text-gray-900">Case Id</th>
+                      <th className="px-6 py-4 text-left text-sm font-medium text-gray-900">Individual Name</th>
+                      <th className="px-6 py-4 text-left text-sm font-medium text-gray-900">Case Manager</th>
+                      <th className="px-6 py-4 text-left text-sm font-medium text-gray-900">Process Name</th>
+                      <th className="px-6 py-4 text-left text-sm font-medium text-gray-900">Deadline</th>
+                      <th className="px-6 py-4 text-left text-sm font-medium text-gray-900">Status</th>
+                      <th className="px-6 py-4 text-left text-sm font-medium text-gray-900">Documents Pending</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100 bg-white">
-                    <AnimatePresence>
-                      {cases.map((caseItem) => (
-                        <CaseRow key={caseItem._id} caseItem={caseItem} />
-                      ))}
-                    </AnimatePresence>
+                  <tbody className="divide-y divide-gray-100">
+                    {casesLoading ? (
+                      <tr>
+                        <td colSpan="7" className="px-6 py-4 text-center">
+                          <div className="flex justify-center">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : cases.length === 0 ? (
+                      <tr>
+                        <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
+                          No cases found
+                        </td>
+                      </tr>
+                    ) : (
+                      <AnimatePresence>
+                        {currentCases.map((caseItem) => (
+                          <CaseRow key={caseItem._id} caseItem={caseItem} />
+                        ))}
+                      </AnimatePresence>
+                    )}
                   </tbody>
                 </table>
               </div>
-            )}
+
+              {/* Pagination */}
+              {cases.length > 0 && (
+                <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
+                  <div className="text-sm text-gray-700">
+                    Showing {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, cases.length)} of {cases.length}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {totalPages > 1 && (
+                      <button
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                    )}
+                    <span className="text-sm text-gray-700">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    {totalPages > 1 && (
+                      <button
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </motion.div>
         ) : null}
       </AnimatePresence>

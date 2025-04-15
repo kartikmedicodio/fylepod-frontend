@@ -41,7 +41,11 @@ const EmployeeCaseList = ({ cases = [] }) => {
 
   const filteredCases = cases.filter(caseItem => {
     // Search filter
-    const matchesSearch = caseItem.categoryId?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = caseItem._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      caseItem.userId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      caseItem.caseManagerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      caseItem.categoryId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      caseItem.categoryStatus?.toLowerCase().includes(searchQuery.toLowerCase());
     
     // Status filter
     const matchesStatus = !filters.status || caseItem.categoryStatus === filters.status;
@@ -96,9 +100,13 @@ const EmployeeCaseList = ({ cases = [] }) => {
               type="text"
               placeholder="Search cases..."
               className="w-[400px] pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm
-                       focus:outline-none focus:border-blue-500"
+                       focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100
+                       transition-all duration-200"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1); // Reset to first page when searching
+              }}
             />
           </div>
 
@@ -237,8 +245,9 @@ const EmployeeCaseList = ({ cases = [] }) => {
             ) : (
               <tr>
                 <td colSpan="7" className="px-6 py-8 text-center">
-                  <div className="flex flex-col items-center justify-center">
+                  <div className="flex flex-col items-center justify-center space-y-2">
                     <p className="text-gray-500 text-sm font-medium">No cases found</p>
+                    <p className="text-gray-400 text-sm">Try adjusting your search criteria</p>
                   </div>
                 </td>
               </tr>
@@ -246,39 +255,48 @@ const EmployeeCaseList = ({ cases = [] }) => {
           </tbody>
         </table>
 
-        {/* Updated Pagination */}
-        <div className="flex items-center justify-between px-6 py-3 border-t border-gray-100">
-          <div className="text-sm text-gray-600">
-            Showing {indexOfFirstCase + 1} - {Math.min(indexOfLastCase, filteredCases.length)} of {filteredCases.length}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className={`p-2 border border-gray-200 rounded-lg flex items-center justify-center ${
-                currentPage === 1 
-                  ? 'text-gray-400 cursor-not-allowed' 
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <div className="text-sm text-gray-600">
-              Page {currentPage} of {totalPages}
+        {/* Enhanced Pagination */}
+        {filteredCases.length > 0 && (
+          <div className="px-6 py-3 border-t border-gray-100 flex justify-between items-center bg-gray-50/80 backdrop-blur-sm">
+            <span className="text-sm text-gray-600">
+              Showing <span className="font-medium text-gray-900">{indexOfFirstCase + 1}</span>
+              {' '}-{' '}
+              <span className="font-medium text-gray-900">{Math.min(indexOfLastCase, filteredCases.length)}</span>
+              {' '}of{' '}
+              <span className="font-medium text-gray-900">{filteredCases.length}</span>
+            </span>
+            
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className={`p-2 rounded-lg border transition-all duration-200 
+                  ${currentPage === 1
+                    ? 'text-gray-300 border-gray-200 cursor-not-allowed'
+                    : 'text-gray-600 border-gray-200 hover:bg-white hover:border-gray-300 hover:shadow-sm active:transform active:scale-95'
+                  }`}
+              >
+                <ChevronLeft size={18} />
+              </button>
+
+              <span className="text-sm font-medium text-gray-900">
+                Page {currentPage} of {totalPages}
+              </span>
+
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className={`p-2 rounded-lg border transition-all duration-200 
+                  ${currentPage === totalPages
+                    ? 'text-gray-300 border-gray-200 cursor-not-allowed'
+                    : 'text-gray-600 border-gray-200 hover:bg-white hover:border-gray-300 hover:shadow-sm active:transform active:scale-95'
+                  }`}
+              >
+                <ChevronRight size={18} />
+              </button>
             </div>
-            <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className={`p-2 border border-gray-200 rounded-lg flex items-center justify-center ${
-                currentPage === totalPages 
-                  ? 'text-gray-400 cursor-not-allowed' 
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <ChevronRight size={16} />
-            </button>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

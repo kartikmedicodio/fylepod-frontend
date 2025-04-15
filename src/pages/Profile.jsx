@@ -8,6 +8,7 @@ import { Edit, Bot, SendHorizontal, Loader2, MapPin, Phone, Mail, Briefcase, Gra
 import ReactDOM from 'react-dom';
 import api from '../utils/api';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
+import { toast } from 'react-hot-toast';
 
 const ProfileContainer = styled('div')({
   padding: '24px',
@@ -605,7 +606,6 @@ const Profile = () => {
   const navigate = useNavigate();
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [currentTab, setCurrentTab] = useState(0);
   const [cases, setCases] = useState([]);
   const [loadingCases, setLoadingCases] = useState(false);
@@ -825,7 +825,6 @@ const Profile = () => {
         }
 
         setProfileData(userData);
-        setError(null);
         
         // Update breadcrumb with user data
         setCurrentBreadcrumb([
@@ -840,13 +839,13 @@ const Profile = () => {
         
         // Handle specific error cases
         if (error.response?.status === 500) {
-          setError('Server error occurred. Please try again later.');
+          toast.error('Server error occurred. Please try again later.');
         } else if (error.response?.status === 401) {
-          setError('Please login to view this profile');
+          toast.error('Please login to view this profile');
         } else if (error.response?.status === 404) {
-          setError('Profile not found');
+          toast.error('Profile not found');
         } else {
-          setError(error.message || 'Failed to fetch profile data');
+          toast.error(error.message || 'Failed to fetch profile data');
         }
         setProfileData(null);
       } finally {
@@ -996,7 +995,7 @@ const Profile = () => {
       
       // Validate required fields
       if (!editedProfile.name || editedProfile.name.trim().length < 2) {
-        setError('Name must be at least 2 characters long');
+        toast.error('Name must be at least 2 characters long');
         return;
       }
 
@@ -1042,7 +1041,7 @@ const Profile = () => {
         setProfileData(formattedData);
         setIsEditing(false);
         setEditedProfile(null);
-        setError(null); // Clear any previous errors
+        toast.success('Profile updated successfully');
       } else {
         throw new Error(response.data?.message || 'Failed to update profile');
       }
@@ -1053,12 +1052,12 @@ const Profile = () => {
         console.error('Error response:', error.response.data);
         // If there are validation errors, show them
         if (error.response.data?.errors) {
-          setError(error.response.data.errors.join(', '));
+          toast.error(error.response.data.errors.join(', '));
         } else {
-          setError(error.response.data?.message || 'Failed to update profile. Please try again.');
+          toast.error(error.response.data?.message || 'Failed to update profile. Please try again.');
         }
       } else {
-        setError(error.message || 'Failed to update profile. Please try again.');
+        toast.error(error.message || 'Failed to update profile. Please try again.');
       }
     }
   };
@@ -1087,22 +1086,6 @@ const Profile = () => {
       <LoadingContainer>
         <CircularProgress size={40} thickness={4} sx={{ color: '#6366f1' }} />
       </LoadingContainer>
-    );
-  }
-
-  if (error) {
-    return (
-      <Alert 
-        severity="error" 
-        sx={{ 
-          margin: '32px',
-          borderRadius: '12px',
-          backgroundColor: '#fef2f2',
-          color: '#991b1b'
-        }}
-      >
-        {error}
-      </Alert>
     );
   }
 
@@ -1268,7 +1251,18 @@ const Profile = () => {
                   </div>
                   <div className="detail-item">
                     <MapPin size={16} />
-                    {profileData.address?.streetName || 'No address'}, {profileData.address?.city || ''}, {profileData.address?.stateProvince || ''}
+                    {profileData.address && 
+                     Object.values(profileData.address).some(value => value && value.trim() !== '') ? 
+                      [
+                        profileData.address.streetNumber,
+                        profileData.address.streetName,
+                        profileData.address.city,
+                        profileData.address.stateProvince
+                      ]
+                        .filter(value => value && value.trim() !== '')
+                        .join(', ') 
+                      : 'No address'
+                    }
                   </div>
                 </div>
               </div>
@@ -1455,9 +1449,17 @@ const Profile = () => {
                     </div>
                   ) : (
                     <span>
-                      {profileData.address ? 
-                        `${profileData.address.streetNumber} ${profileData.address.streetName}, ${profileData.address.city}, ${profileData.address.stateProvince}` :
-                        'No address provided'
+                      {profileData.address && 
+                       Object.values(profileData.address).some(value => value && value.trim() !== '') ? 
+                        [
+                          profileData.address.streetNumber,
+                          profileData.address.streetName,
+                          profileData.address.city,
+                          profileData.address.stateProvince
+                        ]
+                          .filter(value => value && value.trim() !== '')
+                          .join(', ') 
+                        : 'No address provided'
                       }
                     </span>
                   )}
