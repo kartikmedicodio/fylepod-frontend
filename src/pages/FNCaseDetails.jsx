@@ -1821,7 +1821,13 @@ const FNCaseDetails = () => {
       return <AccordionSkeleton title="Document Verification Results" />;
     }
 
-    if (!validationData?.mergedValidations?.length) {
+    // Filter out validations for documents that are in pending status
+    const filteredValidations = validationData?.mergedValidations?.filter(validation => {
+      const docType = caseData.documentTypes.find(dt => dt.name === validation.documentType);
+      return docType && docType.status !== 'pending';
+    }) || [];
+
+    if (!filteredValidations.length) {
       return (
         <div className="flex flex-col items-center justify-center h-32">
           <AlertCircle className="w-8 h-8 text-gray-400 mb-2" />
@@ -1840,13 +1846,13 @@ const FNCaseDetails = () => {
           <div className="flex items-center gap-3">
             <h3 className="text-lg font-semibold text-gray-900">Document Verification Results</h3>
             <span className={`px-2.5 py-1 rounded-full text-xs font-medium
-              ${validationData.mergedValidations.every(doc => doc.passed) 
+              ${filteredValidations.every(doc => doc.passed) 
                 ? 'bg-green-100 text-green-700' 
                 : 'bg-red-100 text-red-700'}`}
             >
-              {validationData.mergedValidations.every(doc => doc.passed) 
+              {filteredValidations.every(doc => doc.passed) 
                 ? 'All Valid' 
-                : `${validationData.mergedValidations.filter(doc => !doc.passed).length} Issues Found`}
+                : `${filteredValidations.filter(doc => !doc.passed).length} Issues Found`}
             </span>
           </div>
           {isExpanded ? (
@@ -1860,99 +1866,105 @@ const FNCaseDetails = () => {
         {isExpanded && (
           <div className="border-t border-gray-100">
             <div className="p-4 space-y-4">
-              {validationData.mergedValidations.map((documentValidation, index) => (
-                <div key={index} className="bg-gray-50 rounded-lg overflow-hidden">
-                  <div className="p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                          documentValidation.passed 
-                            ? 'bg-green-50 text-green-600' 
-                            : 'bg-red-50 text-red-600'
-                        }`}>
-                          {documentValidation.passed ? (
-                            <Check className="w-5 h-5" />
-                          ) : (
-                            <X className="w-5 h-5" />
-                          )}
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-gray-900">
-                            {documentValidation.documentType}
-                          </h4>
-                          <p className={`text-sm ${
+              {filteredValidations.map((documentValidation, index) => {
+                // Get document status from caseData
+                const docType = caseData.documentTypes.find(dt => dt.name === documentValidation.documentType);
+                
+                // Skip if document is pending
+                if (docType?.status === 'pending') return null;
+
+                return (
+                  <div key={index} className="bg-gray-50 rounded-lg overflow-hidden">
+                    <div className="p-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                             documentValidation.passed 
-                              ? 'text-green-600' 
-                              : 'text-red-600'
+                              ? 'bg-green-50 text-green-600' 
+                              : 'bg-red-50 text-red-600'
                           }`}>
-                            {documentValidation.passed ? 'Passed' : 'Failed'} • {documentValidation.validations.length} Verification{documentValidation.validations.length !== 1 ? 's' : ''}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Use URLs from validationData */}
-                      {validationData.documentUrls?.[documentValidation.documentType] && (
-                        <div className="flex items-center gap-2">
-                          <a 
-                            href={validationData.documentUrls[documentValidation.documentType]} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-2"
-                          >
-                            <Eye className="w-4 h-4" />
-                            View Document
-                          </a>
-                          <button
-                            onClick={() => {
-                              // Find the document type ID from caseData
-                              const docType = caseData.documentTypes.find(dt => dt.name === documentValidation.documentType);
-                              if (docType?.documentTypeId) {
-                                handleDocumentReupload(docType.documentTypeId);
-                              } else {
-                                toast.error('Document type ID not found');
-                              }
-                            }}
-                            className="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 flex items-center gap-2 border border-red-200 rounded-lg hover:bg-red-50"
-                          >
-                            <Upload className="w-4 h-4" />
-                            Reupload
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Keep existing validation details... */}
-                    <div className="divide-y divide-gray-100">
-                      {documentValidation.validations.map((validation, vIndex) => (
-                        <div 
-                          key={vIndex}
-                          className="flex items-start gap-4 py-4"
-                        >
-                          <div className={`mt-1 w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
-                            validation.passed 
-                              ? 'bg-green-100 text-green-600' 
-                              : 'bg-red-100 text-red-600'
-                          }`}>
-                            {validation.passed ? (
-                              <Check className="w-3 h-3" />
+                            {documentValidation.passed ? (
+                              <Check className="w-5 h-5" />
                             ) : (
-                              <X className="w-3 h-3" />
+                              <X className="w-5 h-5" />
                             )}
                           </div>
-                          <div className="flex-1">
-                            <h5 className="text-sm font-medium text-gray-900 mb-1">
-                              {validation.rule}
-                            </h5>
-                            <p className="text-sm text-gray-600">
-                              {validation.message}
+                          <div>
+                            <h4 className="font-medium text-gray-900">
+                              {documentValidation.documentType}
+                            </h4>
+                            <p className={`text-sm ${
+                              documentValidation.passed 
+                                ? 'text-green-600' 
+                                : 'text-red-600'
+                            }`}>
+                              {documentValidation.passed ? 'Passed' : 'Failed'} • {documentValidation.validations.length} Verification{documentValidation.validations.length !== 1 ? 's' : ''}
                             </p>
                           </div>
                         </div>
-                      ))}
+
+                        {/* Use URLs from validationData */}
+                        {validationData.documentUrls?.[documentValidation.documentType] && (
+                          <div className="flex items-center gap-2">
+                            <a 
+                              href={validationData.documentUrls[documentValidation.documentType]} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-2"
+                            >
+                              <Eye className="w-4 h-4" />
+                              View Document
+                            </a>
+                            <button
+                              onClick={() => {
+                                if (docType?.documentTypeId) {
+                                  handleDocumentReupload(docType.documentTypeId);
+                                } else {
+                                  toast.error('Document type ID not found');
+                                }
+                              }}
+                              className="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-700 flex items-center gap-2 border border-red-200 rounded-lg hover:bg-red-50"
+                            >
+                              <Upload className="w-4 h-4" />
+                              Reupload
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Validation details */}
+                      <div className="divide-y divide-gray-100">
+                        {documentValidation.validations.map((validation, vIndex) => (
+                          <div 
+                            key={vIndex}
+                            className="flex items-start gap-4 py-4"
+                          >
+                            <div className={`mt-1 w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
+                              validation.passed 
+                                ? 'bg-green-100 text-green-600' 
+                                : 'bg-red-100 text-red-600'
+                            }`}>
+                              {validation.passed ? (
+                                <Check className="w-3 h-3" />
+                              ) : (
+                                <X className="w-3 h-3" />
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <h5 className="text-sm font-medium text-gray-900 mb-1">
+                                {validation.rule}
+                              </h5>
+                              <p className="text-sm text-gray-600">
+                                {validation.message}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -3197,30 +3209,79 @@ const FNCaseDetails = () => {
   // Update this function to properly handle document reupload
   const handleDocumentReupload = async (documentTypeId) => {
     try {
-      // Update document status to pending directly instead of using reupload endpoint
-      const response = await api.patch(`/management/${caseId}/documents/${documentTypeId}/status`, {
-        status: 'pending',
-        documentTypeId: documentTypeId
-      });
+      // Use the dedicated reupload endpoint
+      const response = await api.patch(`/management/${caseId}/documents/${documentTypeId}/reupload`);
       
       if (response.data.status === 'success') {
         // Switch to documents checklist tab
         handleTabClick('documents-checklist');
-        // Show success message
-        toast.success('Document sent for reupload');
         
-        // Clear validation data and refresh
-        try {
-          // Delete locally stored validation data as it will be out of date
-          localStorage.removeItem(`validation-data-${caseId}`);
-          validationDataRef.current = null;
-          setValidationData(null);
-          
-          // Refresh case data
-          await refreshCaseData();
-        } catch (refreshError) {
-          console.error('Error refreshing data:', refreshError);
-          // Don't show error to user since reupload was successful
+        // Clear data based on clearLocalStorage flag
+        if (response.data.data.clearLocalStorage) {
+          try {
+            // Clear cross-verification data since it depends on all documents
+            localStorage.removeItem(`cross-verification-data-${caseId}`);
+            
+            // Get and update validation data
+            const validationDataKey = `validation-data-${caseId}`;
+            const storedValidationData = localStorage.getItem(validationDataKey);
+            
+            if (storedValidationData) {
+              const parsedData = JSON.parse(storedValidationData);
+              
+              // Find the document type name from caseData
+              const docType = caseData.documentTypes.find(dt => dt.documentTypeId === documentTypeId);
+              
+              if (docType && parsedData.mergedValidations) {
+                // Remove validation data for this specific document type using name
+                parsedData.mergedValidations = parsedData.mergedValidations.filter(
+                  validation => validation.documentType !== docType.name
+                );
+                
+                // Also remove from documentUrls if present
+                if (parsedData.documentUrls) {
+                  delete parsedData.documentUrls[docType.name];
+                }
+                
+                if (parsedData.mergedValidations.length > 0) {
+                  // Save filtered validation data back if there are other documents
+                  localStorage.setItem(validationDataKey, JSON.stringify(parsedData));
+                  // Update the validation data ref and state with filtered data
+                  validationDataRef.current = parsedData;
+                  setValidationData(parsedData);
+                } else {
+                  // If no validations left, remove the entire validation data
+                  localStorage.removeItem(validationDataKey);
+                  validationDataRef.current = null;
+                  setValidationData(null);
+                }
+              }
+            }
+            
+            // Clear verification data
+            verificationDataRef.current = null;
+            setVerificationData(null);
+            
+            // Reset processing status for this document
+            setProcessingStatus(prevStatus => ({
+              ...prevStatus,
+              validationFailuresByDocument: {
+                ...prevStatus.validationFailuresByDocument,
+                [documentTypeId]: null
+              },
+              processedDocuments: prevStatus.processedDocuments.filter(id => id !== documentTypeId)
+            }));
+            
+            // Show success message after clearing data
+            toast.success('Document sent for reupload');
+            
+            // Refresh case data to get latest state from server
+            await refreshCaseData();
+          } catch (clearError) {
+            console.error('Error clearing document data:', clearError);
+            // Still show success since reupload worked
+            toast.success('Document sent for reupload');
+          }
         }
       }
     } catch (error) {
