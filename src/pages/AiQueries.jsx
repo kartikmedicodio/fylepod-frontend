@@ -262,36 +262,9 @@ const AiQueries = () => {
       setLoading(prev => ({ ...prev, cases: true }));
       
       try {
-        // Get all chats with messages for this client's cases in a single call
-        const response = await api.get(`/chat/chats-with-messages/${client._id}`);
+        // Cases are already sorted by latest message timestamp from the backend
         const clientCases = allUsersCases[client._id] || [];
-        
-        // Group chats by case and find latest message timestamp
-        const casesWithTimestamps = clientCases.map(caseItem => {
-          const caseChats = response.data.data.chats.filter(
-            chat => chat.managementId?._id === caseItem._id
-          );
-          
-          const latestMessageTimestamp = caseChats.reduce((latest, chat) => {
-            const chatLatest = chat.messages?.reduce((msgLatest, msg) => {
-              const msgTime = new Date(msg.timestamp || msg.createdAt).getTime();
-              return msgTime > msgLatest ? msgTime : msgLatest;
-            }, 0);
-            return chatLatest > latest ? chatLatest : latest;
-          }, 0);
-
-          return {
-            ...caseItem,
-            latestMessageTimestamp: latestMessageTimestamp || new Date(caseItem.updatedAt).getTime()
-          };
-        });
-
-        // Sort cases by latest message timestamp
-        const sortedCases = casesWithTimestamps.sort((a, b) => 
-          b.latestMessageTimestamp - a.latestMessageTimestamp
-        );
-        
-        setCases(sortedCases);
+        setCases(clientCases); // Use cases as is since they're already sorted
       } catch (error) {
         console.error('Error setting cases:', error);
         toast.error('Failed to load cases');
