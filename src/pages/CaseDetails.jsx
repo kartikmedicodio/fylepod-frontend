@@ -327,9 +327,9 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       }
       
       // If we're on the document tab, show the validation subtab
-      if (activeTab === 'document-checklist' && validationData.mergedValidations?.length > 0) {
-        setSelectedSubTab('validation');
-      }
+      // if (activeTab === 'document-checklist' && validationData.mergedValidations?.length > 0) {
+      //   setSelectedSubTab('validation');
+      // }
     }
   }, [validationData, activeTab, caseId]);
   
@@ -507,6 +507,23 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           setProcessingDocIds(prev => {
             const newProcessingIds = prev.filter(id => id !== data.documentId);
             console.log(`Removed ${data.documentId} from processing IDs. New processing IDs:`, newProcessingIds);
+            
+            // Only proceed with tab switching if this was the last document being processed
+            if (newProcessingIds.length === 0) {
+              // Check if we have validation results but no cross-verification
+              const hasValidations = data.validationResults && 
+                data.validationResults.validations && 
+                data.validationResults.validations.length > 0;
+              
+              const hasCrossVerification = data.crossVerificationData && 
+                Object.keys(data.crossVerificationData).length > 0;
+              
+              // Switch to validation tab only if we have validations but no cross-verification
+              if (hasValidations && !hasCrossVerification) {
+                setSelectedSubTab('validation');
+              }
+            }
+            
             return newProcessingIds;
           });
           setIsProcessingComplete(true);
@@ -692,9 +709,9 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             });
             
             // Update the selectedSubTab if validation data is available to show validation results
-            if (data.validationResults.validations && data.validationResults.validations.length > 0) {
-              setSelectedSubTab('validation');
-            }
+            // if (data.validationResults.validations && data.validationResults.validations.length > 0) {
+            //   setSelectedSubTab('validation');
+            // }
           }
           
           // Update cross-verification data if provided
@@ -1017,6 +1034,10 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             const uploadedDoc = response.data.data.document;
             uploadedDocIds.push(uploadedDoc._id);
             successfulUploads++;
+            
+            // Add the document ID to processing state immediately after successful upload
+            setProcessingDocIds(prev => [...prev, uploadedDoc._id]);
+            
             return uploadedDoc;
           }
           return null;
@@ -1067,36 +1088,16 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           console.log('Documents will be updated when processing webhooks are received');
         } catch (error) {
           console.error('Error connecting to socket in handleFileUpload:', error);
-          // Don't block the upload process if socket connection fails
-          // We'll still try to show notifications through the global socket handler
         }
       }
 
-      // If any documents were uploaded successfully, show a loading indicator
-      if (successfulUploads > 0) {
-        // Show loading indicator
-        setProcessingStep(1); // Set to "Processing" step
-        toast.success(`${successfulUploads} document(s) uploaded successfully. Waiting for processing...`);
-        
-        // Create a promise that resolves after showing initial loading step
-        const showInitialLoading = new Promise((resolve) => {
-          setLoadingStep(1);
-          setTimeout(resolve, 1500);
-        });
+      // Clear the files array after successful upload
+      setFiles([]);
 
-        // Wait for initial loading to complete
-        await showInitialLoading;
-        
-        // Don't refresh case data here - the webhook will handle this
-        console.log('Upload complete. Waiting for webhook to update UI with latest data.');
-      } else if (failedUploads > 0) {
-        toast.error(`Failed to upload ${failedUploads} document(s)`);
-      }
-              } catch (error) {
+    } catch (error) {
       console.error('Error in file upload process:', error);
       toast.error('An error occurred during the upload process');
     } finally {
-      setFiles([]);
       setIsUploading(false);
       setUploadProgress(0);
       setDragOver(false);
@@ -1948,8 +1949,27 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       });
       
       return (
-      <div className="col-span-8 bg-white rounded-lg border border-gray-200 p-6">
-        <div className="space-y-3">
+      <div className="col-span-8 bg-white rounded-lg border border-gray-200">
+        {/* Processing Notification Band - Only show in pending tab when documents are processing */}
+        {selectedDocumentTab === 'pending' && processingDocIds.length > 0 && (
+          <div className="bg-amber-50 border-b border-amber-200 px-6 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0">
+                <Loader2 className="h-5 w-5 text-amber-500 animate-spin" />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-amber-800">
+                  Processing {processingDocIds.length} {processingDocIds.length === 1 ? 'Document' : 'Documents'}
+                </h3>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Please wait while we analyze and validate your documents
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        <div className="p-6 space-y-3">
           {sortedDocuments.length > 0 ? (
             sortedDocuments.map((doc) => {
               const isProcessing = processingDocIds.includes(doc._id);
@@ -2064,15 +2084,16 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         doc.status === DOCUMENT_STATUS.PENDING && !processingDocIds.includes(doc._id)
       );
       
+      const isProcessingAnyDocument = processingDocIds.length > 0;
+      
       // If in uploaded tab or no pending documents, don't show upload UI
       if (selectedDocumentTab === 'uploaded' || !hasPendingDocuments) {
         return null;
       }
 
       return (
-          <div className="col-span-4 bg-white rounded-lg border border-gray-200 p-6 relative">
-            {isUploading && <ProcessingIndicator currentStep={processingStep} isComplete={isProcessingComplete} />}
-            
+        <div className="col-span-4 bg-white rounded-lg border border-gray-200 p-6 relative">
+          <div className={`transition-opacity duration-200 ${isProcessingAnyDocument ? 'opacity-50' : 'opacity-100'}`}>
             <div className="mb-4 pb-4 border-b border-gray-100">
               <h4 className="font-medium text-sm">Smart Upload Files</h4>
             </div>
@@ -2083,9 +2104,9 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                   ? 'bg-blue-50 border-2 border-dashed border-blue-300' 
                   : 'bg-gray-50 border border-gray-200'
                 }`}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
+              onDragOver={isProcessingAnyDocument ? undefined : handleDragOver}
+              onDragLeave={isProcessingAnyDocument ? undefined : handleDragLeave}
+              onDrop={isProcessingAnyDocument ? undefined : handleDrop}
             >
               <input
                 type="file"
@@ -2093,38 +2114,40 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 className="hidden"
                 id="file-upload"
                 onChange={handleFileSelect}
-              disabled={!hasPendingDocuments || isUploading}
-            />
-            <div className="p-5">
-              <div className="mb-4 flex justify-center">
-                <Upload className="h-8 w-8 text-blue-500" />
-              </div>
-              <div className="text-center mb-4">
-                <h5 className="text-sm font-medium">
-                  {isDragging ? 'Drop files here' : 'Drag files here or click to browse'}
-                </h5>
-                <p className="text-xs text-gray-500 mt-1">
-                  {pendingDocuments.length > 0 
-                    ? `${pendingDocuments.length} documents pending upload` 
-                    : 'No pending documents remaining'}
-                </p>
-              </div>
-              <div className="flex justify-center">
-                <label
-                  htmlFor="file-upload"
-                  className={`px-3 py-2 text-sm rounded-md ${
-                    hasPendingDocuments && !isUploading
-                      ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
-                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                  }`}
-                >
-                  Browse Files
-                </label>
+                disabled={!hasPendingDocuments || isUploading || isProcessingAnyDocument}
+              />
+              <div className="p-5">
+                <div className="mb-4 flex justify-center">
+                  <Upload className={`h-8 w-8 ${isProcessingAnyDocument ? 'text-gray-300' : 'text-blue-500'}`} />
+                </div>
+                <div className="text-center mb-4">
+                  <h5 className={`text-sm font-medium ${isProcessingAnyDocument ? 'text-gray-400' : ''}`}>
+                    {isDragging ? 'Drop files here' : 'Drag files here or click to browse'}
+                  </h5>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {isProcessingAnyDocument 
+                      ? 'Please wait while current documents are being processed'
+                      : `${pendingDocuments.length} documents pending upload`}
+                  </p>
+                </div>
+                <div className="flex justify-center">
+                  <label
+                    htmlFor="file-upload"
+                    className={`px-3 py-2 text-sm rounded-md ${
+                      hasPendingDocuments && !isUploading && !isProcessingAnyDocument
+                        ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
+                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    Browse Files
+                  </label>
+                </div>
               </div>
             </div>
           </div>
           
-          {files.length > 0 && (
+          {/* Only show selected files when not processing */}
+          {files.length > 0 && !isProcessingAnyDocument && (
             <div className="mt-4">
               <div className="flex justify-between items-center mb-2">
                 <h5 className="text-sm font-medium">Selected Files ({files.length})</h5>
@@ -2134,46 +2157,46 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 >
                   Clear
                 </button>
-                  </div>
+              </div>
               <div className="space-y-2 max-h-40 overflow-auto">
-                    {files.map((file, index) => (
+                {files.map((file, index) => (
                   <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded-md">
                     <div className="flex items-center space-x-2">
                       <FileText className="w-4 h-4 text-gray-500" />
                       <span className="text-xs truncate max-w-[150px]">{file.name}</span>
-                        </div>
-                        <button 
+                    </div>
+                    <button 
                       onClick={() => setFiles(prev => prev.filter((_, i) => i !== index))}
                       className="text-gray-500 hover:text-gray-700"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-              <div className="mt-3">
-                    <button 
-                      onClick={() => handleFileUpload(files)}
-                  disabled={files.length === 0 || isUploading}
-                  className={`w-full py-2 text-sm rounded-md ${
-                    files.length > 0 && !isUploading
-                      ? 'bg-blue-600 text-white hover:bg-blue-700'
-                      : 'bg-gray-200 text-gray-500'
-                  }`}
                     >
-                      {isUploading ? (
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3">
+                <button 
+                  onClick={() => handleFileUpload(files)}
+                  disabled={files.length === 0 || isUploading || isProcessingAnyDocument}
+                  className={`w-full py-2 text-sm rounded-md ${
+                    files.length > 0 && !isUploading && !isProcessingAnyDocument
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gray-200 text-gray-400'
+                  }`}
+                >
+                  {isUploading ? (
                     <div className="flex items-center justify-center">
                       <Loader2 className="animate-spin mr-2 h-4 w-4" />
                       Uploading...
                     </div>
                   ) : (
                     'Upload Files'
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
+                  )}
+                </button>
+              </div>
             </div>
+          )}
+        </div>
       );
     };
 
@@ -2266,20 +2289,180 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     // Render content based on selected sub-tab
     const renderSubTabContent = () => {
-      const hasUploadedDocuments = caseData.documentTypes.some(doc => 
-        doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
-      );
-      
-      const allDocsUploaded = caseData.documentTypes.every(doc => 
-        doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
-      );
-
       switch (selectedSubTab) {
         case 'all':
+          // Filter documents based on the selected tab
+          const documentsToShow = selectedDocumentTab === 'pending' 
+            ? [...processingDocuments, ...pendingDocuments]
+            : uploadedDocuments;
+          
+          // Sort documents: processing first, then pending
+          const sortedDocuments = documentsToShow.sort((a, b) => {
+            const aIsProcessing = processingDocIds.includes(a._id);
+            const bIsProcessing = processingDocIds.includes(b._id);
+            
+            if (aIsProcessing && !bIsProcessing) return -1;
+            if (!aIsProcessing && bIsProcessing) return 1;
+            return 0;
+          });
+
           return (
             <div className="grid grid-cols-12 gap-6">
-              {renderDocumentsList()}
-              {renderSmartUpload()}
+              <div className="col-span-8">
+                <div className="bg-white rounded-lg border border-gray-200">
+                  {/* Processing Notification Band - Only at the top of documents section */}
+                  {processingDocIds.length > 0 && (
+                    <div className="p-4 bg-gradient-to-r from-amber-50/90 to-amber-50/70 border-b border-amber-100/50">
+                      <div className="flex items-center gap-4">
+                        <div className="relative">
+                          {/* Avatar container with gradient background */}
+                          <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center relative overflow-hidden">
+                            {/* Gradient background */}
+                            <div className="absolute inset-0 bg-gradient-to-br from-violet-500 to-fuchsia-500 opacity-90"></div>
+                            {/* Text */}
+                            <span className="relative text-sm font-semibold text-white tracking-wide">Diana</span>
+                            {/* Subtle glow effect */}
+                            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 blur-xl -z-10"></div>
+                          </div>
+                          {/* Processing indicator */}
+                          <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white p-0.5">
+                            <div className="w-full h-full rounded-full bg-amber-500 animate-pulse"></div>
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-medium text-amber-900">
+                            Document Processing in Progress
+                          </h3>
+                          <p className="text-sm text-amber-700/90 mt-0.5 line-clamp-2">
+                            You may close the screen and continue with your work. I will update you once the processing is completed.
+                            Watch out for my detailed analysis in your email.
+                          </p>
+                        </div>
+                        {/* Processing indicator dots */}
+                        <div className="flex-shrink-0 flex items-center gap-1">
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-500/70 animate-pulse" style={{ animationDelay: '0ms' }}></div>
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-500/70 animate-pulse" style={{ animationDelay: '300ms' }}></div>
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-500/70 animate-pulse" style={{ animationDelay: '600ms' }}></div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="p-6 space-y-3">
+                    {/* Rest of the document list content remains the same */}
+                    {sortedDocuments.length > 0 ? (
+                      sortedDocuments.map((doc) => {
+                        const isProcessing = processingDocIds.includes(doc._id);
+                        const status = isProcessing ? 'processing' : doc.status;
+                        
+                        return (
+                          <div 
+                            key={doc._id} 
+                            className={`rounded-lg border p-4 ${
+                              status === DOCUMENT_STATUS.APPROVED ? 'bg-green-50 border-green-200' :
+                              status === DOCUMENT_STATUS.UPLOADED ? 'bg-blue-50 border-blue-200' :
+                              status === 'processing' ? 'bg-amber-50 border-amber-200' :
+                              'bg-gray-50 border-gray-200'
+                            }`}
+                          >
+                            {/* Rest of the document card content remains the same */}
+                            <div className="flex justify-between items-start group">
+                              <div className="flex items-start space-x-3">
+                                <div 
+                                  className={`p-2 rounded-lg ${
+                                    status === DOCUMENT_STATUS.APPROVED ? 'bg-green-100 text-green-600' :
+                                    status === DOCUMENT_STATUS.UPLOADED ? 'bg-blue-100 text-blue-600' :
+                                    status === 'processing' ? 'bg-amber-100 text-amber-600' :
+                                    'bg-gray-100 text-gray-600'
+                                  }`}
+                                >
+                                  {status === DOCUMENT_STATUS.APPROVED ? (
+                                    <Check className="w-5 h-5" />
+                                  ) : status === DOCUMENT_STATUS.UPLOADED ? (
+                                    <FileText className="w-5 h-5" />
+                                  ) : status === 'processing' ? (
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                  ) : (
+                                    <Upload className="w-5 h-5" />
+                                  )}
+                                </div>
+                                <div>
+                                  <h4 className="font-medium text-sm mb-1">
+                                    {doc.name}
+                                    {doc.required && (
+                                      <span className="ml-2 text-xs text-red-500">*Required</span>
+                                    )}
+                                  </h4>
+                                  <p className="text-sm text-gray-500 leading-snug">
+                                    {status === DOCUMENT_STATUS.APPROVED ? 'Document approved' :
+                                     status === DOCUMENT_STATUS.UPLOADED ? 'Uploaded and awaiting approval' :
+                                     status === 'processing' ? 'Processing document...' :
+                                     `Please upload your ${doc.name.toLowerCase()} document`}
+                                  </p>
+                                </div>
+                              </div>
+                              
+                              {doc.upload_date && (
+                                <span className="text-xs text-gray-500">
+                                  {formatDate(doc.upload_date)}
+                                </span>
+                              )}
+                            </div>
+                            
+                            {status === DOCUMENT_STATUS.UPLOADED && (
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <button
+                                  onClick={() => handleDocumentApprove(doc.documentTypeId, doc._id)}
+                                  disabled={processingDocuments[doc._id]}
+                                  className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700 disabled:bg-green-300"
+                                >
+                                  {processingDocuments[doc._id] ? (
+                                    <>
+                                      <Loader2 className="animate-spin -ml-0.5 mr-2 h-4 w-4" />
+                                      Processing...
+                                    </>
+                                  ) : (
+                                    <>Approve</>
+                                  )}
+                                </button>
+                                
+                                <button
+                                  onClick={() => handleRequestReupload(doc.documentTypeId, doc._id)}
+                                  disabled={processingDocuments[doc._id]}
+                                  className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
+                                >
+                                  {processingDocuments[doc._id] ? (
+                                    <>
+                                      <Loader2 className="animate-spin -ml-0.5 mr-2 h-4 w-4" />
+                                      Processing...
+                                    </>
+                                  ) : (
+                                    <>Request reupload</>
+                                  )}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-center py-8">
+                        <p className="text-gray-500">
+                          {selectedDocumentTab === 'pending' 
+                            ? 'No pending documents. All documents have been uploaded.' 
+                            : 'No uploaded documents yet.'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="col-span-4">
+                <div className="bg-white rounded-lg border border-gray-200">
+                  {renderSmartUpload()}
+                </div>
+              </div>
             </div>
           );
         case 'extracted-data':
