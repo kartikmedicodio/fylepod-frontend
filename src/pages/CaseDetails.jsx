@@ -2737,22 +2737,24 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       setLocalFormData(formData);
     }, [formData]);
 
-    // Add function to check if a field is empty
-    const isFieldEmpty = (field) => {
-      return localFormData?.[field] === undefined || 
-             localFormData?.[field] === null || 
-             localFormData?.[field] === '';
+    // Updated function to check if a field is empty - works with new response format
+    const isFieldEmpty = (fieldKey) => {
+      const field = localFormData?.[fieldKey];
+      return !field || field.value === undefined || field.value === null || field.value === '';
     };
 
-    // Update input change handler to preserve original field names
-    const handleLocalInputChange = (field, value) => {
+    // Updated input change handler to work with the new format
+    const handleLocalInputChange = (fieldKey, value) => {
       setLocalFormData(prev => ({
         ...prev,
-          [field]: value
+        [fieldKey]: {
+          ...prev[fieldKey],
+          value: value
+        }
       }));
     };
 
-    // Update save handler to use local state
+    // Updated save handler to maintain the correct structure
     const handleLocalSave = async () => {
       try {
         setIsSaving(true);
@@ -2760,7 +2762,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         // Update parent state
         setFormData(localFormData);
         
-        // Create request payload
+        // Create request payload - keep the same structure as received
         const payload = {
           templateId: selectedQuestionnaire?._id,
           processedInformation: localFormData
@@ -2785,23 +2787,23 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       }
     };
 
-    // Add function to count filled fields
+    // Updated function to count filled fields
     const getFilledFieldsCount = () => {
       const allFields = Object.keys(localFormData || {});
       const totalFields = allFields.length;
-      const filledFields = allFields.filter(field => !isFieldEmpty(field)).length;
+      const filledFields = allFields.filter(fieldKey => !isFieldEmpty(fieldKey)).length;
       return { filledFields, totalFields };
     };
 
-    // Add function to check if field should be visible
-    const shouldShowField = (field) => {
+    // Update function to check if field should be visible
+    const shouldShowField = (fieldKey) => {
       if (!showOnlyEmpty) return true;
-      return isFieldEmpty(field);
+      return isFieldEmpty(fieldKey);
     };
 
     const { filledFields, totalFields } = getFilledFieldsCount();
 
-    // Instead of hardcoded fields, dynamically get all fields from the data
+    // Updated function to get fields from the new data structure
     const getFields = () => {
       // If we have form data, get fields from it
       if (localFormData && Object.keys(localFormData).length > 0) {
@@ -2818,10 +2820,10 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     const sortedFields = useMemo(() => {
       // Define a custom order for important fields to show first
       const priorityFields = [
-        'firstName', 'dateOfBirth', 'cityOfBirth', 'countryOfBirth', 'gender', 
-        'nationality', 'passportNumber', 'dateOfIssue', 'dateOfExpiry', 'placeOfIssue',
-        'cellNumber', 'emailId', 'educationalQualification',
-        'currentCompanyName', 'currentPosition'
+        'First Name', 'Date of Birth', 'City of Birth', 'Country of Birth', 'Gender', 
+        'Nationality', 'Passport Number', 'Date of Issue', 'Date of Expiry', 'Place of Issue',
+        'Cell Number', 'Email ID', 'Educational Qualification',
+        'Current Company Name', 'Current Position'
       ];
       
       // Sort the fields by priority first, then alphabetically
@@ -2841,46 +2843,57 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         if (bIndex !== -1) return 1;
         
         // Special case: Put all company_* fields after other fields
-        if (a.startsWith('company_') && !b.startsWith('company_')) return 1;
-        if (!a.startsWith('company_') && b.startsWith('company_')) return -1;
+        if (a.toLowerCase().includes('company') && !b.toLowerCase().includes('company')) return 1;
+        if (!a.toLowerCase().includes('company') && b.toLowerCase().includes('company')) return -1;
         
         // Otherwise sort alphabetically
         return a.localeCompare(b);
       });
     }, [allFields]);
 
-    const renderField = (field) => {
-      // Format field label for display
-      const formatFieldLabel = (field) => {
-        // Handle special cases
-        if (field.startsWith('company_directors_india_')) {
-          const parts = field.split('_');
-          const directorNum = parts[3];
-          const fieldType = parts[4];
-          return `Director ${directorNum} ${fieldType.charAt(0).toUpperCase() + fieldType.slice(1)}`;
-        }
+    const renderField = (fieldKey) => {
+      // Get the field object
+      const field = localFormData[fieldKey];
+      
+      // Use the fieldLabel from the response
+      const fieldLabel = fieldKey;
+      
+      // Get the fieldName for reference
+      const fieldName = field?.fieldName || '';
+      
+      // Determine if it's a textarea field based on fieldName or label
+      const isTextareaField = 
+        fieldName.includes('note') || 
+        fieldName.includes('brief') || 
+        fieldName.includes('details') || 
+        fieldName.includes('plan') ||
+        fieldKey.toLowerCase().includes('note') || 
+        fieldKey.toLowerCase().includes('brief') || 
+        fieldKey.toLowerCase().includes('details') || 
+        fieldKey.toLowerCase().includes('plan');
+
+      // Determine field type based on fieldName or label
+      const getFieldType = () => {
+        const lowerFieldName = fieldName.toLowerCase();
+        const lowerFieldLabel = fieldKey.toLowerCase();
         
-        // Use the exact field name from the API
-        return field;
-      };
-
-      // Determine if it's a textarea field
-      const isTextareaField = field.includes('note') || 
-                             field.includes('brief') || 
-                             field.includes('details') || 
-                             field.includes('plan');
-
-      // Determine field type
-      const getFieldType = (field) => {
-        if (field.toLowerCase().includes('date')) return 'date';
-        if (field.toLowerCase().includes('email')) return 'email';
-        if (field.toLowerCase().includes('count') || field.toLowerCase().includes('percent')) return 'number';
+        if (lowerFieldName.includes('date') || lowerFieldLabel.includes('date')) return 'date';
+        if (lowerFieldName.includes('email') || lowerFieldLabel.includes('email')) return 'email';
+        if (
+          lowerFieldName.includes('count') || 
+          lowerFieldName.includes('percent') || 
+          lowerFieldLabel.includes('count') || 
+          lowerFieldLabel.includes('percent')
+        ) return 'number';
+        
         return 'text';
       };
 
+      const fieldType = getFieldType();
+
       // Format date value for input field
       const formatDateValue = (value) => {
-        if (!value || getFieldType(field) !== 'date') return value || '';
+        if (!value || fieldType !== 'date') return value || '';
         
         // Try to parse the date string
         try {
@@ -2916,29 +2929,29 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       };
 
       return (
-        <div key={field} className="mb-4">
+        <div key={fieldKey} className="mb-4">
           <label className="block text-xs text-gray-500 mb-1">
-            {formatFieldLabel(field)}
+            {fieldLabel}
           </label>
           {isTextareaField ? (
             <textarea
-              value={localFormData?.[field] || ''}
-              onChange={(e) => handleLocalInputChange(field, e.target.value)}
+              value={field?.value || ''}
+              onChange={(e) => handleLocalInputChange(fieldKey, e.target.value)}
               className={`w-full px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 min-h-[80px]
-                ${isFieldEmpty(field)
+                ${isFieldEmpty(fieldKey)
                   ? 'border-red-300 bg-red-50/50 focus:border-red-400'
                   : 'border-gray-200 focus:border-blue-400'
                 }`}
             />
           ) : (
             <input
-              type={getFieldType(field)}
-              value={getFieldType(field) === 'date' 
-                ? formatDateValue(localFormData?.[field]) 
-                : (localFormData?.[field] || '')}
-              onChange={(e) => handleLocalInputChange(field, e.target.value)}
+              type={fieldType}
+              value={fieldType === 'date' 
+                ? formatDateValue(field?.value) 
+                : (field?.value || '')}
+              onChange={(e) => handleLocalInputChange(fieldKey, e.target.value)}
               className={`w-full px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 
-                ${isFieldEmpty(field)
+                ${isFieldEmpty(fieldKey)
                   ? 'border-red-300 bg-red-50/50 focus:border-red-400'
                   : 'border-gray-200 focus:border-blue-400'
                 }`}
@@ -3081,6 +3094,9 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             if (processedInfo) {
               // Use the processedInformation exactly as it comes from the API
               console.log('Loaded questionnaire data:', processedInfo);
+              
+              // The new response format has fieldName, fieldLabel, and value properties
+              // Save the full response structure to ensure we have all necessary data
               setFormData(processedInfo);
               setIsQuestionnaireCompleted(true);
             } else {
@@ -3224,8 +3240,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     // Function to generate filled PDF
     const generateFilledPDF = async (formId, data) => {
-    console.log("formId",formId);
-     console.log("Processing form with ID:", formId);
+      console.log("formId", formId);
+      console.log("Processing form with ID:", formId);
 
       // Identify which form to use based on formId
       const paticular_form = forms.find(f => f._id === formId);
@@ -3242,114 +3258,135 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       const pdfDoc = await PDFDocument.load(templateBytes);
       const form = pdfDoc.getForm();
 
+      // Get processedInformation from response which has the new structure
       const processedInfo = data?.responses?.processedInformation;
+      console.log("Processing info for PDF:", processedInfo);
+
+      // Helper function to get a field value from the new structure
+      const getFieldValue = (fieldName) => {
+        // If processedInfo is in the old format (directly keyed by fieldName)
+        if (processedInfo && processedInfo[fieldName] !== undefined && 
+            typeof processedInfo[fieldName] !== 'object') {
+          return processedInfo[fieldName];
+        }
+
+        // Try to find the field by fieldName in the new structure
+        for (const key in processedInfo) {
+          if (processedInfo[key]?.fieldName === fieldName) {
+            return processedInfo[key]?.value || '';
+          }
+        }
+
+        // If we don't find by fieldName, try to find by matching the key directly
+        return processedInfo?.[fieldName]?.value || '';
+      };
 
       if(formId === "67af13fc2ae22aed13702b01"){
-      // Fill the form fields with exact field names from the PDF
-      form.getTextField('Name of the Applicant').setText(
-        processedInfo?.firstName || 'N/A'
-      );
-      
-      // Details of Applicant section
-      form.getTextField('Passport No').setText(processedInfo?.passportNumber || 'N/A');
-      form.getTextField('Place of Issue').setText(processedInfo?.placeOfIssue || 'N/A');
-      form.getTextField('Date of Issue').setText(processedInfo?.dateOfIssue || 'N/A');
-      form.getTextField('Date of Expiry').setText(processedInfo?.dateOfExpiry || 'N/A');
-      form.getTextField('Mobile Phone').setText(processedInfo?.cellNumber || 'N/A');
-      form.getTextField('EMail Address').setText(processedInfo?.emailId || 'N/A');
-      
-      // Employment and Education section
-      form.getTextField('Name of the Current Employer').setText(
-        processedInfo?.currentCompanyName || 'N/A'
-      );
-      form.getTextField('Applicants current Designation role  position').setText(
-        processedInfo?.currentPosition || 'N/A'
-      );
+        // Fill the form fields with exact field names from the PDF
+        form.getTextField('Name of the Applicant').setText(
+          getFieldValue('firstName') || 'N/A'
+        );
+        
+        // Details of Applicant section
+        form.getTextField('Passport No').setText(getFieldValue('passportNumber') || 'N/A');
+        form.getTextField('Place of Issue').setText(getFieldValue('placeOfIssue') || 'N/A');
+        form.getTextField('Date of Issue').setText(getFieldValue('dateOfIssue') || 'N/A');
+        form.getTextField('Date of Expiry').setText(getFieldValue('dateOfExpiry') || 'N/A');
+        form.getTextField('Mobile Phone').setText(getFieldValue('cellNumber') || 'N/A');
+        form.getTextField('EMail Address').setText(getFieldValue('emailId') || 'N/A');
+        
+        // Employment and Education section
+        form.getTextField('Name of the Current Employer').setText(
+          getFieldValue('currentCompanyName') || 'N/A'
+        );
+        form.getTextField('Applicants current Designation role  position').setText(
+          getFieldValue('currentPosition') || 'N/A'
+        );
 
-      form.getTextField('Educational Qualification').setText(
-        (() => {
-          const eduQual = processedInfo?.educationalQualification;
-          if (!eduQual) return 'N/A';
-          
-          if (Array.isArray(eduQual)) {
-            return eduQual.map(edu => 
-              typeof edu === 'string' 
-                ? edu 
-                : `${edu.degree || ''} - ${edu.institution || ''}`
-            ).join('; ');
-          }
-          
-          // Handle single object case
-          if (typeof eduQual === 'object') {
-            return `${eduQual.degree || ''} - ${eduQual.institution || ''}`;
-          }
-          
-          // Handle string case
-          return eduQual;
-        })() || 'N/A'
-      );
+        form.getTextField('Educational Qualification').setText(
+          (() => {
+            const eduQual = getFieldValue('educationalQualification');
+            if (!eduQual) return 'N/A';
+            
+            if (Array.isArray(eduQual)) {
+              return eduQual.map(edu => 
+                typeof edu === 'string' 
+                  ? edu 
+                  : `${edu.degree || ''} - ${edu.institution || ''}`
+              ).join('; ');
+            }
+            
+            // Handle single object case
+            if (typeof eduQual === 'object') {
+              return `${eduQual.degree || ''} - ${eduQual.institution || ''}`;
+            }
+            
+            // Handle string case
+            return eduQual;
+          })() || 'N/A'
+        );
 
-      form.getTextField('Specific details of Skills Experience').setText(
-        `${processedInfo?.currentPosition || 'N/A'}, ${processedInfo?.previousPosition || 'N/A'}`
-      );
+        form.getTextField('Specific details of Skills Experience').setText(
+          `${getFieldValue('currentPosition') || 'N/A'}, ${getFieldValue('previousPosition') || 'N/A'}`
+        );
 
-      // Return the filled PDF bytes
-      return await pdfDoc.save();
+        // Return the filled PDF bytes
+        return await pdfDoc.save();
       }
       else{
-         form.getTextField('company_name').setText(processedInfo?.company_name || 'N/A');
-         form.getTextField('company_address').setText(processedInfo?.company_address || 'N/A');
-         form.getTextField('company_date_established').setText(processedInfo?.company_date_established || 'N/A');
-         form.getTextField('company_contact').setText(processedInfo?.company_contact || 'N/A');
-         form.getTextField('company_ownership_nature').setText(processedInfo?.company_ownership_nature || 'N/A');
-         form.getTextField('company_ownership_soe_ministry').setText(processedInfo?.company_ownership_soe_ministry || 'N/A');
-         form.getTextField('company_ownership_jv_breakup').setText(processedInfo?.company_ownership_jv_breakup || 'N/A');
-         form.getTextField('company_shareholding_pattern').setText(processedInfo?.company_shareholding_pattern || 'N/A');
-         form.getTextField('company_is_listed').setText(processedInfo?.company_is_listed || 'N/A');
-         form.getTextField('company_listed_stock_exchange').setText(processedInfo?.company_listed_stock_exchange || 'N/A');
-         form.getTextField('company_operating_sectors').setText(processedInfo?.company_operating_sectors || 'N/A');
-         form.getTextField('company_brief_note').setText(processedInfo?.company_brief_note || 'N/A');
-         form.getTextField('company_manufacturing_note_List_of_components').setText(processedInfo?.company_manufacturing_note_List_of_components || 'N/A');
-         form.getTextField('company_manufacturing_note_Equipments').setText(processedInfo?.company_manufacturing_note_Equipments || 'N/A');
-         form.getTextField('company_manufacturing_note_Machinery').setText(processedInfo?.company_manufacturing_note_Machinery || 'N/A');
-         form.getTextField('company_manufacturing_note_Manufacturing_plants').setText(processedInfo?.company_manufacturing_note_Manufacturing_plants || 'N/A');
-         form.getTextField('company_marketing_note').setText(processedInfo?.company_marketing_note || 'N/A');
-         form.getTextField('company_services_note').setText(processedInfo?.company_services_note || 'N/A');
-         form.getTextField('company_rnd_note').setText(processedInfo?.company_rnd_note || 'N/A');
-         form.getTextField('company_hr_note').setText(processedInfo?.company_hr_note || 'N/A');
-         form.getTextField('company_turnover_last_3_years').setText(processedInfo?.company_turnover_last_3_years || 'N/A');
-         form.getTextField('company_major_clients_china').setText(processedInfo?.company_major_clients_china || 'N/A');
-         form.getTextField('company_market_share_china').setText(processedInfo?.company_market_share_china || 'N/A');
-         form.getTextField('company_competitors_china').setText(processedInfo?.company_competitors_china || 'N/A');
-         form.getTextField('company_operations_south_asia').setText(processedInfo?.company_operations_south_asia || 'N/A');
-         form.getTextField('company_presence_india').setText(processedInfo?.company_presence_india || 'N/A');
-         form.getTextField('company_investment_nature_india').setText(processedInfo?.company_investment_nature_india || 'N/A');
-         form.getTextField('company_shareholding_pattern_india').setText(processedInfo?.company_shareholding_pattern_india || 'N/A');
-         form.getTextField('company_investment_value_india').setText(processedInfo?.company_investment_value_india || 'N/A');
-         form.getTextField('company_directors_india_1_DIN').setText(processedInfo?.company_directors_india_1_DIN || 'N/A');
-         form.getTextField('company_directors_india_1_name').setText(processedInfo?.company_directors_india_1_name || 'N/A');
-         form.getTextField('company_directors_india_1_designation').setText(processedInfo?.company_directors_india_1_designation || 'N/A');
-         form.getTextField('company_directors_india_2_DIN').setText(processedInfo?.company_directors_india_2_DIN || 'N/A');
-         form.getTextField('company_directors_india_2_name').setText(processedInfo?.company_directors_india_2_name || 'N/A');
-         form.getTextField('company_directors_india_2_designation').setText(processedInfo?.company_directors_india_2_designation || 'N/A');
-         form.getTextField('company_directors_india_3_DIN').setText(processedInfo?.company_directors_india_3_DIN || 'N/A');
-         form.getTextField('company_directors_india_3_name').setText(processedInfo?.company_directors_india_3_name || 'N/A');
-         form.getTextField('company_directors_india_3_designation').setText(processedInfo?.company_directors_india_3_designation || 'N/A');
-         form.getTextField('company_directors_india_4_DIN').setText(processedInfo?.company_directors_india_4_DIN || 'N/A');
-         form.getTextField('company_directors_india_4_name').setText(processedInfo?.company_directors_india_4_name || 'N/A');
-         form.getTextField('company_directors_india_4_designation').setText(processedInfo?.company_directors_india_4_designation || 'N/A');
-         form.getTextField('company_directors_india_5_DIN').setText(processedInfo?.company_directors_india_5_DIN || 'N/A');
-         form.getTextField('company_directors_india_5_name').setText(processedInfo?.company_directors_india_5_name || 'N/A');
-         form.getTextField('company_directors_india_5_designation').setText(processedInfo?.company_directors_india_5_designation || 'N/A');
-         form.getTextField('company_india_offices_details').setText(processedInfo?.company_india_offices_details || 'N/A');
-         form.getTextField('company_employees_count_india').setText(processedInfo?.company_employees_count_india || 'N/A');
-         form.getTextField('company_turnover_india_last_3_years').setText(processedInfo?.company_turnover_india_last_3_years || 'N/A');
-         form.getTextField('company_localization_percent_india').setText(processedInfo?.company_localization_percent_india || 'N/A');
-         form.getTextField('company_import_percent_china').setText(processedInfo?.company_import_percent_china || 'N/A');
-         form.getTextField('company_competitors_india').setText(processedInfo?.company_competitors_india || 'N/A');
-         form.getTextField('company_investment_expansion_plan_india').setText(processedInfo?.company_investment_expansion_plan_india || 'N/A');
+        form.getTextField('company_name').setText(getFieldValue('company_name') || 'N/A');
+        form.getTextField('company_address').setText(getFieldValue('company_address') || 'N/A');
+        form.getTextField('company_date_established').setText(getFieldValue('company_date_established') || 'N/A');
+        form.getTextField('company_contact').setText(getFieldValue('company_contact') || 'N/A');
+        form.getTextField('company_ownership_nature').setText(getFieldValue('company_ownership_nature') || 'N/A');
+        form.getTextField('company_ownership_soe_ministry').setText(getFieldValue('company_ownership_soe_ministry') || 'N/A');
+        form.getTextField('company_ownership_jv_breakup').setText(getFieldValue('company_ownership_jv_breakup') || 'N/A');
+        form.getTextField('company_shareholding_pattern').setText(getFieldValue('company_shareholding_pattern') || 'N/A');
+        form.getTextField('company_is_listed').setText(getFieldValue('company_is_listed') || 'N/A');
+        form.getTextField('company_listed_stock_exchange').setText(getFieldValue('company_listed_stock_exchange') || 'N/A');
+        form.getTextField('company_operating_sectors').setText(getFieldValue('company_operating_sectors') || 'N/A');
+        form.getTextField('company_brief_note').setText(getFieldValue('company_brief_note') || 'N/A');
+        form.getTextField('company_manufacturing_note_List_of_components').setText(getFieldValue('company_manufacturing_note_List_of_components') || 'N/A');
+        form.getTextField('company_manufacturing_note_Equipments').setText(getFieldValue('company_manufacturing_note_Equipments') || 'N/A');
+        form.getTextField('company_manufacturing_note_Machinery').setText(getFieldValue('company_manufacturing_note_Machinery') || 'N/A');
+        form.getTextField('company_manufacturing_note_Manufacturing_plants').setText(getFieldValue('company_manufacturing_note_Manufacturing_plants') || 'N/A');
+        form.getTextField('company_marketing_note').setText(getFieldValue('company_marketing_note') || 'N/A');
+        form.getTextField('company_services_note').setText(getFieldValue('company_services_note') || 'N/A');
+        form.getTextField('company_rnd_note').setText(getFieldValue('company_rnd_note') || 'N/A');
+        form.getTextField('company_hr_note').setText(getFieldValue('company_hr_note') || 'N/A');
+        form.getTextField('company_turnover_last_3_years').setText(getFieldValue('company_turnover_last_3_years') || 'N/A');
+        form.getTextField('company_major_clients_china').setText(getFieldValue('company_major_clients_china') || 'N/A');
+        form.getTextField('company_market_share_china').setText(getFieldValue('company_market_share_china') || 'N/A');
+        form.getTextField('company_competitors_china').setText(getFieldValue('company_competitors_china') || 'N/A');
+        form.getTextField('company_operations_south_asia').setText(getFieldValue('company_operations_south_asia') || 'N/A');
+        form.getTextField('company_presence_india').setText(getFieldValue('company_presence_india') || 'N/A');
+        form.getTextField('company_investment_nature_india').setText(getFieldValue('company_investment_nature_india') || 'N/A');
+        form.getTextField('company_shareholding_pattern_india').setText(getFieldValue('company_shareholding_pattern_india') || 'N/A');
+        form.getTextField('company_investment_value_india').setText(getFieldValue('company_investment_value_india') || 'N/A');
+        form.getTextField('company_directors_india_1_DIN').setText(getFieldValue('company_directors_india_1_DIN') || 'N/A');
+        form.getTextField('company_directors_india_1_name').setText(getFieldValue('company_directors_india_1_name') || 'N/A');
+        form.getTextField('company_directors_india_1_designation').setText(getFieldValue('company_directors_india_1_designation') || 'N/A');
+        form.getTextField('company_directors_india_2_DIN').setText(getFieldValue('company_directors_india_2_DIN') || 'N/A');
+        form.getTextField('company_directors_india_2_name').setText(getFieldValue('company_directors_india_2_name') || 'N/A');
+        form.getTextField('company_directors_india_2_designation').setText(getFieldValue('company_directors_india_2_designation') || 'N/A');
+        form.getTextField('company_directors_india_3_DIN').setText(getFieldValue('company_directors_india_3_DIN') || 'N/A');
+        form.getTextField('company_directors_india_3_name').setText(getFieldValue('company_directors_india_3_name') || 'N/A');
+        form.getTextField('company_directors_india_3_designation').setText(getFieldValue('company_directors_india_3_designation') || 'N/A');
+        form.getTextField('company_directors_india_4_DIN').setText(getFieldValue('company_directors_india_4_DIN') || 'N/A');
+        form.getTextField('company_directors_india_4_name').setText(getFieldValue('company_directors_india_4_name') || 'N/A');
+        form.getTextField('company_directors_india_4_designation').setText(getFieldValue('company_directors_india_4_designation') || 'N/A');
+        form.getTextField('company_directors_india_5_DIN').setText(getFieldValue('company_directors_india_5_DIN') || 'N/A');
+        form.getTextField('company_directors_india_5_name').setText(getFieldValue('company_directors_india_5_name') || 'N/A');
+        form.getTextField('company_directors_india_5_designation').setText(getFieldValue('company_directors_india_5_designation') || 'N/A');
+        form.getTextField('company_india_offices_details').setText(getFieldValue('company_india_offices_details') || 'N/A');
+        form.getTextField('company_employees_count_india').setText(getFieldValue('company_employees_count_india') || 'N/A');
+        form.getTextField('company_turnover_india_last_3_years').setText(getFieldValue('company_turnover_india_last_3_years') || 'N/A');
+        form.getTextField('company_localization_percent_india').setText(getFieldValue('company_localization_percent_india') || 'N/A');
+        form.getTextField('company_import_percent_china').setText(getFieldValue('company_import_percent_china') || 'N/A');
+        form.getTextField('company_competitors_india').setText(getFieldValue('company_competitors_india') || 'N/A');
+        form.getTextField('company_investment_expansion_plan_india').setText(getFieldValue('company_investment_expansion_plan_india') || 'N/A');
          
-         return await pdfDoc.save();
+        return await pdfDoc.save();
       }
     };
 
