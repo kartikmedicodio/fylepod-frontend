@@ -31,23 +31,31 @@ const ProcessState = ({ state, status, onClick }) => {
         return 'bg-slate-200';
     }
   };
+  
+  // Check if this is a clickable verification state
+  const isClickableState = state === 'Verification' || state === 'Cross Verification';
+  
+  // Add hover effects and shadow for clickable states
+  const clickableStyles = isClickableState 
+    ? 'hover:shadow-md hover:brightness-105 hover:-translate-y-0.5 transform transition-all duration-200' 
+    : '';
 
   return (
     <div 
-      className="relative flex-1 cursor-pointer group"
+      className={`relative flex-1 cursor-pointer group ${isClickableState ? 'hover:z-10' : ''}`}
       onClick={onClick}
     >
       {/* Invisible click area */}
       <div className="absolute inset-0 -top-9 -bottom-2" />
       
-      {/* State Label - Simple high-contrast text */}
-      <div className="absolute -top-7 left-0 w-full text-[13px] font-semibold whitespace-nowrap transition-colors text-center 
-        text-slate-600 bg-white/90 py-0.5 px-1 rounded shadow-sm">
+      {/* State Label - Simple high-contrast text with shadow for clickable states */}
+      <div className={`absolute -top-7 left-0 w-full text-[13px] font-semibold whitespace-nowrap transition-colors text-center 
+        text-slate-600 bg-white/90 py-0.5 px-1 rounded ${isClickableState ? 'shadow-sm' : ''}`}>
         {state}
       </div>
       
-      {/* Progress Bar */}
-      <div className={`h-1.5 rounded-full border ${getStateStyles()} group-hover:brightness-95 transition-all`}>
+      {/* Progress Bar with shadow for clickable states */}
+      <div className={`h-1.5 rounded-full border ${getStateStyles()} group-hover:brightness-95 transition-all ${clickableStyles} ${isClickableState ? 'shadow-sm' : ''}`}>
         <div 
           className={`h-full rounded-full ${getProgressBarColor()} transition-all duration-300 backdrop-blur-sm`}
           style={{ 
@@ -228,7 +236,11 @@ const DocumentRow = ({
                 <ProcessState 
                   state={state.name}
                   status={state.status}
-                  onClick={() => onStateClick(state.name.toLowerCase().replace(' ', '-'), document)}
+                  onClick={() => {
+                    
+                    onStateClick(state.name, document);
+                   
+                  }}
                 />
                 {index < filteredStates.length - 1 && (
                   <div className="w-2 flex-shrink-0" />
