@@ -43,13 +43,20 @@ const LoadingOverlay = () => (
 const CrossVerificationTab = ({ 
   isLoading, 
   verificationData, 
-  managementId
+  managementId,
+  isAutoExpanded = false
 }) => {
   const [caseData, setCaseData] = useState(null);
   const [loadingCaseData, setLoadingCaseData] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
 
-
+  // Add useEffect to handle auto-expansion
+  useEffect(() => {
+    if (isAutoExpanded) {
+      console.log('Auto-expanding cross verification tab');
+      setIsExpanded(true);
+    }
+  }, [isAutoExpanded]);
 
   if (isLoading || loadingCaseData) {
     return (
@@ -233,7 +240,8 @@ const CrossVerificationTab = ({
 CrossVerificationTab.propTypes = {
   isLoading: PropTypes.bool,
   verificationData: PropTypes.object,
-  managementId: PropTypes.string
+  managementId: PropTypes.string,
+  isAutoExpanded: PropTypes.bool
 };
 
 export default CrossVerificationTab; 
