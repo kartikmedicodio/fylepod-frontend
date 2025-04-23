@@ -2784,7 +2784,7 @@ const FNCaseDetails = () => {
             </div>
 
             {/* Attorney options section - Above the input form */}
-            {messages.length > 0 && currentChat && messages[messages.length - 1]?.role === 'assistant' && (
+            {messages.length >= 6 && currentChat && messages[messages.length - 1]?.role === 'assistant' && (
               <div className="border-t border-slate-100 bg-white">
                 <div className="flex flex-col items-center py-3">
                   <div className={`overflow-hidden transition-all duration-300 ease-in-out ${showAttorneyOptions ? 'max-h-24 opacity-100' : 'max-h-0 opacity-0'}`}>
