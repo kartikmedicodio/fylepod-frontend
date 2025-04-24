@@ -41,6 +41,7 @@ import FinalizeTab from '../components/cases/FinalizeTab';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import { initializeSocket, joinDocumentRoom, handleReconnect, getSocket } from '../utils/socket';
 import { getStoredToken } from '../utils/auth';
+import LetterTab from '../components/letters/LetterTab';
 
 
 // Add a new status type to track document states
@@ -1790,21 +1791,18 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           { name: 'Document Checklist', icon: ClipboardList },
           { name: 'Questionnaire', icon: FileText },
           { name: 'Forms', icon: File },
-          { name: 'Queries', icon: AlertCircle, disabled: true }
-        ].map(({ name, icon: Icon, disabled }) => (
+          { name: 'Letters', icon: FileText } // Remove disabled property
+        ].map(({ name, icon: Icon }) => ( // Remove disabled from destructuring
           <button
             key={name}
-            disabled={disabled}
             className={`flex items-center px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
               activeTab === name.toLowerCase().replace(' ', '-')
                 ? 'border-blue-600 text-blue-600'
-                : disabled
-                ? 'border-transparent text-gray-400 cursor-not-allowed'
                 : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
             }`}
-            onClick={() => !disabled && setActiveTab(name.toLowerCase().replace(' ', '-'))}
+            onClick={() => setActiveTab(name.toLowerCase().replace(' ', '-'))}
           >
-            <Icon className={`w-4 h-4 mr-2 ${disabled ? 'opacity-50' : ''}`} />
+            <Icon className="w-4 h-4 mr-2" />
             {name}
           </button>
         ))}
@@ -2682,6 +2680,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               }}
             />
           );
+        case 'letters':
+          return <LetterTab caseData={caseData} />;
         default:
           return null;
       }
@@ -4305,6 +4305,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
+              {activeTab === 'letters' && <LetterTab caseData={caseData} />}
             </div>
           </div>
         </div>
