@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
-import { Search, Edit, Plus, Clock, CheckCircle, XCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Edit, Plus, Clock, CheckCircle, XCircle, ChevronLeft, ChevronRight, Link as LinkIcon } from 'lucide-react';
 import api from '../utils/api';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import EditChecklistModal from '../components/modals/EditChecklistModal';
@@ -12,6 +12,7 @@ const DocumentChecklist = () => {
   const navigate = useNavigate();
   const [category, setCategory] = useState(null);
   const [masterDocuments, setMasterDocuments] = useState([]);
+  const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('Process Template');
@@ -26,8 +27,8 @@ const DocumentChecklist = () => {
     if (selectedCategory === 'Process Template') {
       console.log('Initiating category details fetch for ID:', id);
       fetchCategoryDetails();
-    } else if (selectedCategory === 'Master Document List') {
-      fetchMasterDocuments();
+    } else if (selectedCategory === 'Master Form List') {
+      fetchForms();
     }
   }, [id, selectedCategory]);
 
@@ -41,6 +42,23 @@ const DocumentChecklist = () => {
     } catch (err) {
       setError('Failed to fetch master documents');
       console.error('Error fetching master documents:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchForms = async () => {
+    try {
+      setLoading(true);
+      console.log('Fetching forms for category:', id);
+      const response = await api.get(`/forms?category_id=${id}`);
+      console.log('Forms API response:', response.data);
+      if (response.data.status === 'success') {
+        setForms(response.data.data.forms);
+      }
+    } catch (err) {
+      setError('Failed to fetch forms');
+      console.error('Error fetching forms:', err);
     } finally {
       setLoading(false);
     }
@@ -94,7 +112,7 @@ const DocumentChecklist = () => {
   const sidebarCategories = [
     { id: 'back', name: '← Back', path: '/knowledge', clickable: true },
     { id: 'pt', name: 'Process Template', path: '/knowledge/templates', clickable: true },
-    { id: 'mdl', name: 'Master Document List', path: '/knowledge/master-documents', clickable: true }
+    { id: 'mdl', name: 'Forms List', path: '/knowledge/master-documents', clickable: true }
   ];
 
   const handleSidebarClick = (categoryName, path, clickable) => {
@@ -108,13 +126,12 @@ const DocumentChecklist = () => {
       return;
     }
     if (path === '/knowledge/master-documents') {
-      setSelectedCategory(categoryName);
+      setSelectedCategory('Master Form List');
       setCurrentBreadcrumb([
         { name: 'Dashboard', path: '/' },
         { name: 'Knowledge Base', path: '/knowledge' },
-        { name: 'Master Document List', path: '#' }
+        { name: 'Master Form List', path: '#' }
       ]);
-      fetchMasterDocuments();
     }
   };
 
@@ -126,7 +143,7 @@ const DocumentChecklist = () => {
       return selectedCategory === 'Process Template';
     }
     if (categoryPath === '/knowledge/master-documents') {
-      return selectedCategory === 'Master Document List';
+      return selectedCategory === 'Master Form List';
     }
     return false;
   };
@@ -217,18 +234,21 @@ const DocumentChecklist = () => {
 
       {/* Main Content */}
       <div className="flex-1 bg-[#f8fafc] rounded-lg shadow-sm h-fit">
-        {selectedCategory === 'Master Document List' ? (
-          // Master Documents List View
+        {selectedCategory === 'Master Form List' ? (
+          // Forms List View
           <div className="px-6 pt-6">
             <div className="bg-white rounded-lg border border-gray-200">
               <div className="min-w-full divide-y divide-gray-200">
                 <div className="bg-white">
-                  <div className="grid grid-cols-3 px-6 py-3 border-b border-gray-200">
+                  <div className="grid grid-cols-4 px-6 py-3 border-b border-gray-200">
                     <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Document Name
+                      Form Name
                     </div>
                     <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Validations
+                      Description
+                    </div>
+                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Links
                     </div>
                     <div className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider justify-end">
                       Created At
@@ -236,23 +256,47 @@ const DocumentChecklist = () => {
                   </div>
                 </div>
                 <div className="bg-white divide-y divide-gray-200">
-                  {masterDocuments
-                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                    .map((doc) => (
-                      <div key={doc._id} className="grid grid-cols-3 px-6 py-4 hover:bg-gray-50">
-                        <div className="text-sm text-gray-900">{doc.name}</div>
-                        <div className="text-sm text-gray-500">
-                          <ul className="list-disc pl-4 space-y-1">
-                            {doc.validations.map((validation, index) => (
-                              <li key={index} className="whitespace-pre-wrap break-words">{validation}</li>
-                            ))}
-                          </ul>
-                        </div>
-                        <div className="text-sm text-gray-500 text-right">
-                          {new Date(doc.createdAt).toLocaleDateString()}
-                        </div>
+                  {forms.length === 0 ? (
+                    <div className="px-6 py-8">
+                      <div className="text-center text-gray-500">
+                        <div className="text-sm">No forms available</div>
                       </div>
-                    ))}
+                    </div>
+                  ) : (
+                    forms
+                      .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                      .map((form) => (
+                        <div key={form._id} className="grid grid-cols-4 px-6 py-4 hover:bg-gray-50">
+                          <div className="text-sm text-gray-900">{form.form_name}</div>
+                          <div className="text-sm text-gray-500">
+                            {form.description || 'No description available'}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {form.form_links && form.form_links.length > 0 ? (
+                              <div className="flex flex-col gap-1">
+                                {form.form_links.map((link, index) => (
+                                  <a
+                                    key={index}
+                                    href={link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline truncate w-fit"
+                                  >
+                                    <LinkIcon className="h-4 w-4" />
+                                    <span className="truncate">{form.form_name}</span>
+                                  </a>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">No links available</span>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-500 text-right">
+                            {new Date(form.createdAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                      ))
+                  )}
                 </div>
               </div>
             </div>
@@ -260,23 +304,29 @@ const DocumentChecklist = () => {
             {/* Pagination */}
             <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
               <div className="text-sm text-gray-500">
-                Showing {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, masterDocuments.length)} of {masterDocuments.length}
+                Showing {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, forms.length)} of {forms.length}
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className={`p-1 rounded hover:bg-gray-100 ${currentPage === 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600'}`}
+                  disabled={currentPage === 1 || forms.length === 0}
+                  className={`p-1 rounded hover:bg-gray-100 ${
+                    currentPage === 1 || forms.length === 0 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600'
+                  }`}
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
                 <span className="text-sm text-gray-600">
-                  Page {currentPage} of {Math.ceil(masterDocuments.length / itemsPerPage)}
+                  Page {currentPage} of {Math.max(1, Math.ceil(forms.length / itemsPerPage))}
                 </span>
                 <button
-                  onClick={() => setCurrentPage(p => Math.min(Math.ceil(masterDocuments.length / itemsPerPage), p + 1))}
-                  disabled={currentPage === Math.ceil(masterDocuments.length / itemsPerPage)}
-                  className={`p-1 rounded hover:bg-gray-100 ${currentPage === Math.ceil(masterDocuments.length / itemsPerPage) ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600'}`}
+                  onClick={() => setCurrentPage(p => Math.min(Math.ceil(forms.length / itemsPerPage), p + 1))}
+                  disabled={currentPage === Math.ceil(forms.length / itemsPerPage) || forms.length === 0}
+                  className={`p-1 rounded hover:bg-gray-100 ${
+                    currentPage === Math.ceil(forms.length / itemsPerPage) || forms.length === 0 
+                      ? 'text-gray-300 cursor-not-allowed' 
+                      : 'text-gray-600'
+                  }`}
                 >
                   <ChevronRight className="w-5 h-5" />
                 </button>
