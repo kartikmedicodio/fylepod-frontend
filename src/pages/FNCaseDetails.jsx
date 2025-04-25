@@ -429,27 +429,29 @@ const FNCaseDetails = () => {
       
       // Listen for document processing events
       socket.on('document-processing-started', (data) => {
+        // Explicitly ignore storage-only documents
+        if (data.isStorageOnly || isStorageOnlyDocument(data.documentId)) return;
+        
         console.log('Document processing started:', data);
         if (data.caseId === caseId) {
           setProcessingDocIds(prev => [...prev, data.documentId]);
-          setProcessingStep(1); // Analyzing document
-          console.log(`Processing started for document: ${data.documentName || data.documentId}`);
+          setProcessingStep(1);
         }
       });
-      
+
       socket.on('document-processing-progress', (data) => {
+        // Explicitly ignore storage-only documents
+        if (data.isStorageOnly || isStorageOnlyDocument(data.documentId)) return;
+        
         console.log('Document processing progress:', data);
         if (data.caseId === caseId) {
-          // Update processing step based on the status message
           if (data.status.toLowerCase().includes('extract')) {
-            setProcessingStep(2); // Extracting information
+            setProcessingStep(2);
           } else if (data.status.toLowerCase().includes('validat')) {
-            setProcessingStep(3); // Validating content
+            setProcessingStep(3);
           } else if (data.status.toLowerCase().includes('verify')) {
-            setProcessingStep(4); // Verifying document
+            setProcessingStep(4);
           }
-          
-          console.log(`Processing ${data.documentName || data.documentId}: ${data.status}`);
         }
       });
       
@@ -525,6 +527,9 @@ const FNCaseDetails = () => {
       };
       
       socket.on('document-processing-completed', (data) => {
+        // Explicitly ignore storage-only documents
+        if (data.isStorageOnly || isStorageOnlyDocument(data.documentId)) return;
+        
         console.log('Document processing completed:', data);
         console.log('Current processing document IDs:', processingDocIds);
         
@@ -664,8 +669,8 @@ const FNCaseDetails = () => {
         socket.off('document-processing-started');
         socket.off('document-processing-progress');
         socket.off('document-processing-completed');
-                    };
-                  } catch (error) {
+      };
+    } catch (error) {
       console.error('Error setting up socket connection:', error);
     }
   }, [caseId, processingDocIds]);
@@ -1370,91 +1375,243 @@ const FNCaseDetails = () => {
       doc.status === 'uploaded' || doc.status === 'approved'
     );
 
+    // Add storage-only documents filtering
+    const pendingStorageOnlyDocs = caseData.storageOnlyDocs?.filter(doc =>
+      doc.status === 'pending'
+    ) || [];
+
+    const uploadedStorageOnlyDocs = caseData.storageOnlyDocs?.filter(doc =>
+      doc.status === 'uploaded' || doc.status === 'approved'
+    ) || [];
+
+    // Add function to handle storage-only document upload
+    const handleStorageOnlyUpload = async (documentTypeId, file) => {
+      try {
+        if (!validateFileType(file)) {
+          toast.error(`Invalid file type: ${file.name}`);
+          return;
+        }
+
+        // Show upload indicator
+        setIsProcessing(true);
+        setUploadProgress(0);
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('originalName', file.name);
+        formData.append('name', `${Date.now()}-${file.name}`);
+        formData.append('managementId', caseId);
+        formData.append('documentTypeId', documentTypeId);
+        formData.append('isStorageOnly', 'true');
+        formData.append('skipProcessing', 'true');
+        formData.append('form_category_id', caseData.categoryId?._id);
+        formData.append('mimeType', file.type);
+
+        const response = await api.post('/documents', formData, {
+          headers: {
+            'Content-Type': undefined
+          },
+          onUploadProgress: (progressEvent) => {
+            const progress = (progressEvent.loaded / progressEvent.total) * 100;
+            setUploadProgress(Math.round(progress));
+          }
+        });
+
+        if (response.data.status === 'success') {
+          // Immediately update the document status without waiting for socket events
+          await api.patch(`/management/${caseId}/documents/${documentTypeId}/status`, {
+            status: 'uploaded',
+            isStorageOnly: true
+          });
+
+          // Clear any existing validation/verification data for this document
+          const docType = caseData.storageOnlyDocs.find(doc => doc.documentTypeId === documentTypeId);
+          if (docType) {
+            // Remove this document from any existing validation data
+            if (validationDataRef.current) {
+              const updatedValidationData = {
+                ...validationDataRef.current,
+                mergedValidations: validationDataRef.current.mergedValidations?.filter(
+                  validation => validation.documentType !== docType.name
+                ) || []
+              };
+              setValidationData(updatedValidationData);
+              validationDataRef.current = updatedValidationData;
+            }
+
+            // Remove this document from any existing verification data
+            if (verificationDataRef.current) {
+              const updatedVerificationData = {
+                ...verificationDataRef.current,
+                mismatchErrors: verificationDataRef.current.mismatchErrors?.filter(
+                  error => !error.details?.[docType.name]
+                ) || []
+              };
+              setVerificationData(updatedVerificationData);
+              verificationDataRef.current = updatedVerificationData;
+            }
+          }
+
+          toast.success('Document uploaded successfully');
+          await refreshCaseData();
+        }
+      } catch (error) {
+        console.error('Error uploading storage-only document:', error);
+        toast.error('Error uploading document: ' + (error.response?.data?.message || 'Unknown error'));
+      } finally {
+        setIsProcessing(false);
+        setUploadProgress(0);
+      }
+    };
+
     const renderDocumentsList = () => (
       <div className="flex-1 border border-gray-200 rounded-lg p-4">
         <div className="space-y-6">
-          {uploadStatus === 'pending' ? (
-            pendingDocuments.length > 0 ? (
-              pendingDocuments.map((doc) => (
-                <div key={doc._id} className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow border border-dashed border-gray-200">
-                  <div className="flex flex-col">
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-sky-50 flex items-center justify-center">
-                          <svg className="w-5 h-5 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
+          {/* Regular Documents Section */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Required Documents</h3>
+            {uploadStatus === 'pending' ? (
+              pendingDocuments.length > 0 ? (
+                pendingDocuments.map((doc) => (
+                  <div key={doc._id} className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow border border-dashed border-gray-200 mb-4">
+                    <div className="flex flex-col">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-sky-50 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <h4 className="text-lg font-semibold text-gray-900">
+                              {doc.name}
+                            </h4>
+                            <p className="text-sm text-gray-500 mt-0.5">
+                              Please upload your {doc.name.toLowerCase()}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="text-lg font-semibold text-gray-900">
-                            {doc.name}
-                          </h4>
-                          <p className="text-sm text-gray-500 mt-0.5">
-                            Please upload your {doc.name.toLowerCase()}
-                          </p>
-                        </div>
+                        {doc.required && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700">
+                            Required
+                          </span>
+                        )}
                       </div>
-                      {doc.required && (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700">
-                          Required
-                        </span>
-                      )}
                     </div>
                   </div>
+                ))
+              ) : (
+                <div className="text-gray-500 text-sm text-center py-8">
+                  All documents have been uploaded.
                 </div>
-              ))
+              )
             ) : (
-              <div className="text-gray-500 text-sm text-center py-8">
-                All documents have been uploaded.
-              </div>
-            )
-          ) : (
-            uploadedDocuments.length > 0 ? (
-              uploadedDocuments.map((doc) => (
-                <div key={doc._id} className="bg-white rounded-lg shadow-sm p-5 hover:shadow-md transition-shadow">
-                  <div className="flex flex-col">
-                    <div className="flex justify-between items-start mb-4">
-                      {/* Document icon and name */}
-                      <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-sky-50 flex items-center justify-center">
-                          <svg className="w-5 h-5 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
+              uploadedDocuments.length > 0 && (
+                uploadedDocuments.map((doc) => (
+                  <div key={doc._id} className="bg-white rounded-lg shadow-sm p-5 hover:shadow-md transition-shadow mb-4">
+                    <div className="flex flex-col">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-sky-50 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <h4 className="text-xl font-semibold text-gray-900">
+                              {doc.name}
+                            </h4>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="text-xl font-semibold text-gray-900">
-                            {doc.name}
-                          </h4>
-                        </div>
-                      </div>
-
-                      {/* Status tag moved to right corner */}
-                      <span 
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                           ${doc.status === 'approved' || doc.status === 'uploaded'
                             ? 'bg-green-50 text-green-700' 
                             : 'bg-gray-50 text-gray-700'
                           }`}
-                      >
-                        {doc.status === 'approved' 
-                          ? 'Approved' 
-                          : doc.status === 'uploaded' 
-                            ? 'Uploaded' 
-                            : doc.status || 'Processing'}
-                      </span>
+                        >
+                          {doc.status === 'approved' 
+                            ? 'Approved' 
+                            : doc.status === 'uploaded' 
+                              ? 'Uploaded' 
+                              : doc.status || 'Processing'}
+                        </span>
+                      </div>
+                      <DocumentProgressBar status={doc.status || 'uploaded'} />
                     </div>
-                    
-                    {/* Progress bar below the document name */}
-                    <DocumentProgressBar status={doc.status || 'uploaded'} />
+                  </div>
+                ))
+              )
+            )}
+          </div>
+
+          {/* Storage-Only Documents Section */}
+          <div className="mt-8">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Additional Documents</h3>
+            <div className="space-y-4">
+              {pendingStorageOnlyDocs.map((doc) => (
+                <div key={doc._id} className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow border border-dashed border-gray-200">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center">
+                        <svg className="w-5 h-5 text-purple-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h4 className="text-lg font-semibold text-gray-900">{doc.name}</h4>
+                        <p className="text-sm text-gray-500">Storage only document</p>
+                      </div>
+                    </div>
+                    <div>
+                      <input
+                        type="file"
+                        id={`storage-file-${doc._id}`}
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.files?.[0]) {
+                            handleStorageOnlyUpload(doc.documentTypeId, e.target.files[0]);
+                          }
+                        }}
+                        accept="image/jpeg,image/png,image/jpg,application/pdf"
+                      />
+                      <label
+                        htmlFor={`storage-file-${doc._id}`}
+                        className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors cursor-pointer"
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        Upload File
+                      </label>
+                    </div>
                   </div>
                 </div>
-              ))
-            ) : (
-              <div className="text-gray-500 text-sm text-center py-8">
-                No documents have been uploaded yet.
-              </div>
-            )
-          )}
+              ))}
+              {uploadedStorageOnlyDocs.map((doc) => (
+                <div key={doc._id} className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center">
+                        <svg className="w-5 h-5 text-purple-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h4 className="text-lg font-semibold text-gray-900">{doc.name}</h4>
+                        <p className="text-sm text-gray-500">Storage only document</p>
+                      </div>
+                    </div>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">
+                      {doc.status === 'approved' ? 'Approved' : 'Uploaded'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {pendingStorageOnlyDocs.length === 0 && uploadedStorageOnlyDocs.length === 0 && (
+                <div className="text-gray-500 text-sm text-center py-8">
+                  No additional documents required
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -3098,50 +3255,29 @@ const FNCaseDetails = () => {
     try {
       setIsValidationLoading(true);
       
-      // First check localStorage for cached validation data
-      const savedValidationData = localStorage.getItem(`validation-data-${caseId}`);
-      if (savedValidationData) {
-        try {
-          const parsedData = JSON.parse(savedValidationData);
-          console.log('Using validation data from localStorage:', parsedData);
-          
-          // Set validation data from localStorage
-          setValidationData(parsedData);
-          validationDataRef.current = parsedData;
-          
-          // Return early - no need to make API call
-          setIsValidationLoading(false);
-          return parsedData;
-        } catch (parseError) {
-          console.error('Error parsing validation data from localStorage:', parseError);
-          // Continue with API call if parsing fails
-        }
+      // Get only regular documents (not storage-only)
+      const regularDocTypes = caseData.documentTypes
+        .filter(doc => (doc.status === 'uploaded' || doc.status === 'approved'))
+        .map(doc => doc._id);
+
+      if (regularDocTypes.length === 0) {
+        setValidationData(null);
+        return null;
       }
-      
-      // If no data in localStorage or parsing failed, fetch from API
-      console.log('No valid data in localStorage, fetching validation data from API');
-      
-      // Fetch both validation data and document URLs in parallel
+
       const [validationResponse, documentsResponse] = await Promise.all([
         api.get(`/documents/management/${caseId}/validations`),
         api.post('/documents/management-docs', {
           managementId: caseId,
-          docTypeIds: caseData.documentTypes
-            .filter(doc => doc.status === 'uploaded' || doc.status === 'approved')
-            .map(doc => doc._id)
+          docTypeIds: regularDocTypes
         })
       ]);
 
       if (validationResponse.data.status === 'success') {
-        // Create document URL mapping and document type ID mapping
+        // Create document URL mapping
         const urlMapping = documentsResponse.data.status === 'success' 
           ? documentsResponse.data.data.documents.reduce((acc, doc) => {
-              // Find the matching document type from caseData
-              const docType = caseData.documentTypes.find(dt => dt.name === doc.type);
-              acc[doc.type] = {
-                url: doc.fileUrl,
-                documentTypeId: docType?.documentTypeId
-              };
+              acc[doc.type] = doc.fileUrl;
               return acc;
             }, {})
           : {};
@@ -3152,21 +3288,8 @@ const FNCaseDetails = () => {
           documentUrls: urlMapping
         };
 
-        // Store in state and ref
         setValidationData(validationDataWithUrls);
         validationDataRef.current = validationDataWithUrls;
-        
-        // Save to localStorage
-        try {
-          localStorage.setItem(`validation-data-${caseId}`, JSON.stringify(validationDataWithUrls));
-          console.log('Saved validation data to localStorage');
-        } catch (storageError) {
-          console.error('Error saving validation data to localStorage:', storageError);
-        }
-        
-        return validationDataWithUrls;
-      } else {
-        throw new Error('Failed to fetch validation data');
       }
     } catch (error) {
       console.error('Error fetching validation data:', error);
@@ -3342,6 +3465,11 @@ const FNCaseDetails = () => {
       setShowAttorneyOptions(false);
     }
   }, [showChatPopup]);
+
+  // Helper function to check if a document is storage-only
+  const isStorageOnlyDocument = (documentId) => {
+    return caseData?.storageOnlyDocs?.some(doc => doc.documentTypeId === documentId);
+  };
 
   // Main component return
   return (
