@@ -50,8 +50,12 @@ const CaseDetailsSidebar = ({ caseData, loading, error, onEmailChange }) => {
 
           <div>
             <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Case Name</label>
-            <div className="text-sm font-medium bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full inline-block">
+            <div className="text-sm font-medium bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full inline-block mb-2">
               {caseData?.categoryName || 'Loading...'}
+            </div>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Case ID</label>
+            <div className="text-sm font-medium bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full inline-block">
+              #{caseData?._id?.slice(-6) || 'Loading...'}
             </div>
           </div>
 
