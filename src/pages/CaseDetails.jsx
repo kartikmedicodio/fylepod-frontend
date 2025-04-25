@@ -26,7 +26,8 @@ import {
   Bot,
   SendHorizontal,
   Eye,
-  ChevronDown
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
@@ -40,6 +41,7 @@ import FinalizeTab from '../components/cases/FinalizeTab';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import { initializeSocket, joinDocumentRoom, handleReconnect, getSocket } from '../utils/socket';
 import { getStoredToken } from '../utils/auth';
+import LetterTab from '../components/letters/LetterTab';
 
 
 // Add a new status type to track document states
@@ -266,6 +268,10 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     processedDocuments: [], // Track all processed documents
     validationFailuresByDocument: {} // Track validation failures by document
   });
+
+  // Add activeDocument state near other state declarations
+  const [activeDocument, setActiveDocument] = useState(null);
+  const [isAutoExpandCrossVerification, setIsAutoExpandCrossVerification] = useState(false);
 
   // Add a function at the top of the component to load data from localStorage
   const loadDataFromLocalStorage = () => {
@@ -1785,21 +1791,18 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           { name: 'Document Checklist', icon: ClipboardList },
           { name: 'Questionnaire', icon: FileText },
           { name: 'Forms', icon: File },
-          { name: 'Queries', icon: AlertCircle, disabled: true }
-        ].map(({ name, icon: Icon, disabled }) => (
+          { name: 'Letters', icon: FileText } // Remove disabled property
+        ].map(({ name, icon: Icon }) => ( // Remove disabled from destructuring
           <button
             key={name}
-            disabled={disabled}
             className={`flex items-center px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
               activeTab === name.toLowerCase().replace(' ', '-')
                 ? 'border-blue-600 text-blue-600'
-                : disabled
-                ? 'border-transparent text-gray-400 cursor-not-allowed'
                 : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
             }`}
-            onClick={() => !disabled && setActiveTab(name.toLowerCase().replace(' ', '-'))}
+            onClick={() => setActiveTab(name.toLowerCase().replace(' ', '-'))}
           >
-            <Icon className={`w-4 h-4 mr-2 ${disabled ? 'opacity-50' : ''}`} />
+            <Icon className="w-4 h-4 mr-2" />
             {name}
           </button>
         ))}
@@ -2472,12 +2475,16 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             error={extractedDataError}
           />;
         case 'validation':
+          console.log('Rendering ValidationTab with activeDocument:', activeDocument, 'selectedSubTab:', selectedSubTab);
           return (
-            <ValidationTab 
-              validationData={validationData} 
-              isLoading={isLoading}
+            <ValidationTab
+              key={`validation-tab-${activeDocument}-${validationUpdated}-${selectedSubTab}`}
+              validationData={validationDataRef.current || validationData}
+              isLoading={isLoadingValidation}
               onTabChange={(tab) => setSelectedSubTab(tab)}
-              caseData={caseData} // Add this prop
+              caseData={caseData}
+              activeDocument={activeDocument}
+              onActiveDocumentChange={setActiveDocument}
             />
           );
         case 'cross-verification':
@@ -2489,6 +2496,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               managementId={caseId}
               recipientEmail={recipientEmail}
               onNextClick={handleNextClick}
+              isAutoExpanded={isAutoExpandCrossVerification}
             />
           );
         case 'finalize':
@@ -2564,19 +2572,92 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               validationData={validationDataRef.current || validationData}
               onStateClick={(state, document) => {
                 // Handle state clicks to navigate to appropriate tabs
-                switch(state) {
-                  case 'validation':
-                    setSelectedSubTab('validation');
+                const normalizedState = state.toLowerCase().replace(/-| /g, ' ');
+                
+                switch(normalizedState) {
+                  case 'verification':
+                    console.log('Verification tab selected via state change');
+                    
+                    // Find the document index in validation data
+                    if (validationDataRef.current?.mergedValidations?.length > 0) {
+                      // Log validation data structure
+                      console.log('ValidationData structure:', {
+                        managementId: validationDataRef.current.managementId,
+                        documentsCount: validationDataRef.current.mergedValidations.length,
+                        documentTypes: validationDataRef.current.mergedValidations.map(v => v.documentType)
+                      });
+                      
+                      // First ensure validation data is synced
+                      if (!validationData || JSON.stringify(validationData) !== JSON.stringify(validationDataRef.current)) {
+                        console.log('Syncing validation state with ref data');
+                        setValidationData(validationDataRef.current);
+                      }
+                      
+                      // Get document type to search for
+                      const documentType = document.name;
+                      console.log('Looking for document type:', documentType);
+                      
+                      // Log available documents
+                      console.log('Available documents in validation data:', 
+                        validationDataRef.current.mergedValidations.map((v, i) => ({
+                          index: i,
+                          documentType: v.documentType
+                        }))
+                      );
+                      
+                      // Find the matching document by type
+                      const documentIndex = validationDataRef.current.mergedValidations.findIndex(
+                        v => v.documentType.toLowerCase() === documentType.toLowerCase()
+                      );
+                      
+                      console.log('Found document index:', documentIndex, 'for document type:', documentType);
+                      
+                      if (documentIndex !== -1) {
+                        // Set the active document index first
+                        console.log('Setting active document to index:', documentIndex);
+                        setActiveDocument(documentIndex);
+                        
+                        // Then change to validation tab
+                        console.log('Switching to validation tab with activeDocument:', documentIndex);
+                        setSelectedSubTab('validation');
+                      } else {
+                        // Try a more flexible search if exact match fails
+                        const fuzzyIndex = validationDataRef.current.mergedValidations.findIndex(
+                          v => v.documentType.toLowerCase().includes(documentType.toLowerCase()) || 
+                               documentType.toLowerCase().includes(v.documentType.toLowerCase())
+                        );
+                        
+                        if (fuzzyIndex !== -1) {
+                          console.log('Found fuzzy match at index:', fuzzyIndex);
+                          setActiveDocument(fuzzyIndex);
+                          setSelectedSubTab('validation');
+                        } else {
+                          // If still not found, just switch tabs
+                          console.warn('No matching document found, switching tabs without setting active document');
+                          setSelectedSubTab('validation');
+                        }
+                      }
+                    } else {
+                      console.warn('No validation data available');
+                      setSelectedSubTab('validation');
+                    }
                     break;
-                  case 'cross-verification':
+                  case 'cross verification':
+                    console.log('Cross-verification tab selected via state change');
+                    if (!verificationData || JSON.stringify(verificationData) !== JSON.stringify(verificationDataRef.current)) {
+                      console.log('Syncing verification state with ref data');
+                      setVerificationData(verificationDataRef.current);
+                    }
                     setSelectedSubTab('cross-verification');
                     break;
-                  case 'extracted-data':
+                  case 'extracted data':
                     setSelectedSubTab('extracted-data');
                     break;
                   default:
                     break;
                 }
+                
+                
               }}
               onApprove={handleDocumentApprove}
               onRequestReupload={handleRequestReupload}
@@ -2599,9 +2680,104 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               }}
             />
           );
+        case 'letters':
+          return <LetterTab caseData={caseData} />;
         default:
           return null;
       }
+    };
+
+    // Add a new ValidationCard component for the improved validation UI
+    const ValidationCard = ({ docValidation, index, validationUpdated }) => {
+      const passedCount = docValidation.validations.filter(v => v.passed).length;
+      const failedCount = docValidation.validations.filter(v => !v.passed).length;
+      const [isExpanded, setIsExpanded] = useState(false);
+      
+      return (
+        <div 
+          key={`validation-section-${docValidation.documentType}-${index}-${validationUpdated}`}
+          className="bg-white rounded-xl border border-gray-200 overflow-hidden transition-all duration-200 mb-2"
+        >
+          {/* Document Header */}
+          <div 
+            className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+            onClick={() => setIsExpanded(!isExpanded)}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                failedCount === 0 
+                  ? 'bg-green-50 text-green-600' 
+                  : 'bg-red-50 text-red-600'
+              }`}>
+                {failedCount === 0 ? (
+                  <Check className="w-5 h-5" />
+                ) : (
+                  <X className="w-5 h-5" />
+                )}
+              </div>
+              <div>
+                <h3 className="font-medium text-gray-900">
+                  {docValidation.documentType}
+                </h3>
+                <p className="text-sm">
+                  <span className="text-green-600">{passedCount} Passed</span> • <span className="text-red-600">{failedCount} Failed</span>
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center">
+              {failedCount > 0 && (
+                <span className="mr-3 px-3 py-1 text-xs font-medium text-red-600 bg-red-50 rounded-full">
+                  {failedCount} Issues Found
+                </span>
+              )}
+              {failedCount === 0 && (
+                <span className="mr-3 px-3 py-1 text-xs font-medium text-green-600 bg-green-50 rounded-full">
+                  All Passed
+                </span>
+              )}
+              {isExpanded ? (
+                <ChevronUp className="w-5 h-5 text-gray-400" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-gray-400" />
+              )}
+            </div>
+          </div>
+
+          {/* Validation Rules - Expandable content */}
+          {isExpanded && (
+            <div className="px-4 pb-4 border-t border-gray-200">
+              <div className="divide-y divide-gray-100">
+                {docValidation.validations.map((validation, vIndex) => (
+                  <div 
+                    key={vIndex}
+                    className="flex items-start gap-4 py-4"
+                  >
+                    <div className={`mt-1 w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      validation.passed 
+                        ? 'bg-green-100 text-green-600' 
+                        : 'bg-red-100 text-red-600'
+                    }`}>
+                      {validation.passed ? (
+                        <Check className="w-3 h-3" />
+                      ) : (
+                        <X className="w-3 h-3" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-medium text-gray-900 mb-1">
+                        {validation.rule}
+                      </h4>
+                      <p className="text-sm text-gray-600">
+                        {validation.message}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
     };
 
     const renderValidationSection = () => {
@@ -2638,7 +2814,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-            <h2 className="text-lg font-semibold text-gray-900">Document Verification</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Document Verification</h2>
               <p className="text-sm text-gray-500 mt-1">
                 Validation results for {documentCount} {documentCount === 1 ? 'document' : 'documents'}
               </p>
@@ -2654,30 +2830,18 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             )}
           </div>
 
-          {/* Documents List */}
-          <div className="space-y-4">
-            {currentValidationData.mergedValidations.map((docValidation, index) => (
-              <div 
-                key={`validation-section-${docValidation.documentType}-${index}-${validationUpdated}`}
-                className="border border-gray-200 rounded-lg overflow-hidden"
-              >
-                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                  <h3 className="font-medium text-gray-900">
-                    {docValidation.documentType}
-                    <span className="ml-2 text-sm text-gray-500">
-                      ({docValidation.validations.length} {docValidation.validations.length === 1 ? 'check' : 'checks'})
-                    </span>
-                  </h3>
-                </div>
-                <div className="p-4">
-              <DocumentVerificationSection
-                    key={`validation-content-${docValidation.documentType}-${index}-${validationUpdated}`}
-                document={{ name: docValidation.documentType }}
-                validations={docValidation.validations}
-              />
-                </div>
-              </div>
-            ))}
+          {/* Documents List - Simplified to match ValidationTab */}
+          <div className="p-4">
+            <div className="space-y-4">
+              {currentValidationData.mergedValidations.map((docValidation, index) => (
+                <ValidationCard 
+                  key={`validation-card-${docValidation.documentType}-${index}-${validationUpdated}`}
+                  docValidation={docValidation}
+                  index={index}
+                  validationUpdated={validationUpdated}
+                />
+              ))}
+            </div>
           </div>
         </div>
       );
@@ -2686,7 +2850,19 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     return (
       <div className="p-6">
         <SubTabNavigation />
-        {selectedSubTab === 'validation' ? (
+        {selectedSubTab === 'validation' && activeDocument !== null && activeDocument !== undefined ? (
+          // Use ValidationTab when we have an activeDocument
+          <ValidationTab
+            key={`validation-tab-${activeDocument}-${Date.now()}`} // Force a new instance with timestamp
+            validationData={validationDataRef.current || validationData}
+            isLoading={isLoadingValidation}
+            onTabChange={(tab) => setSelectedSubTab(tab)}
+            caseData={caseData}
+            activeDocument={activeDocument}
+            onActiveDocumentChange={setActiveDocument}
+          />
+        ) : selectedSubTab === 'validation' ? (
+          // Otherwise use the validation section
           renderValidationSection()
         ) : (
           renderSubTabContent()
@@ -3993,6 +4169,100 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     }
   };
 
+  const onStateClick = async (state, document) => {
+    // Handle state clicks to navigate to appropriate tabs
+    const normalizedState = state.toLowerCase().replace(/-| /g, ' ');
+    
+    
+    switch(normalizedState) {
+      case 'verification':
+        console.log('Verification tab selected via state change');
+        
+        // Find the document index in validation data
+        if (validationDataRef.current?.mergedValidations?.length > 0) {
+          // Log validation data structure
+          console.log('ValidationData structure:', {
+            managementId: validationDataRef.current.managementId,
+            documentsCount: validationDataRef.current.mergedValidations.length,
+            documentTypes: validationDataRef.current.mergedValidations.map(v => v.documentType)
+          });
+          
+          // First ensure validation data is synced
+          if (!validationData || JSON.stringify(validationData) !== JSON.stringify(validationDataRef.current)) {
+            console.log('Syncing validation state with ref data');
+            setValidationData(validationDataRef.current);
+          }
+          
+          // Get document type to search for
+          const documentType = document.name;
+          console.log('Looking for document type:', documentType);
+          
+          // Log available documents
+          console.log('Available documents in validation data:', 
+            validationDataRef.current.mergedValidations.map((v, i) => ({
+              index: i,
+              documentType: v.documentType
+            }))
+          );
+          
+          // Find the matching document by type
+          const documentIndex = validationDataRef.current.mergedValidations.findIndex(
+            v => v.documentType.toLowerCase() === documentType.toLowerCase()
+          );
+          
+          console.log('Found document index:', documentIndex, 'for document type:', documentType);
+          
+          if (documentIndex !== -1) {
+            // Set the active document index first
+            console.log('Setting active document to index:', documentIndex);
+            setActiveDocument(documentIndex);
+            
+            // Then change to validation tab
+            console.log('Switching to validation tab with activeDocument:', documentIndex);
+            setSelectedSubTab('validation');
+          } else {
+            // Try a more flexible search if exact match fails
+            const fuzzyIndex = validationDataRef.current.mergedValidations.findIndex(
+              v => v.documentType.toLowerCase().includes(documentType.toLowerCase()) || 
+                   documentType.toLowerCase().includes(v.documentType.toLowerCase())
+            );
+            
+            if (fuzzyIndex !== -1) {
+              console.log('Found fuzzy match at index:', fuzzyIndex);
+              setActiveDocument(fuzzyIndex);
+              setSelectedSubTab('validation');
+            } else {
+              // If still not found, just switch tabs
+              console.warn('No matching document found, switching tabs without setting active document');
+              setSelectedSubTab('validation');
+            }
+          }
+        } else {
+          console.warn('No validation data available');
+          setSelectedSubTab('validation');
+        }
+        break;
+      
+      case 'cross verification':
+        console.log('Cross-verification tab selected via state change');
+        if (!verificationData || JSON.stringify(verificationData) !== JSON.stringify(verificationDataRef.current)) {
+          console.log('Syncing verification state with ref data');
+          setVerificationData(verificationDataRef.current);
+        }
+        setSelectedSubTab('cross-verification');
+        break;
+      
+      case 'extracted data':
+        setSelectedSubTab('extracted-data');
+        break;
+      
+      default:
+        break;
+    }
+    
+    console.log('------- CASE DETAILS onStateClick END -------');
+  };
+
   // Update the main container and its children to properly handle height
   return (
     <div className="flex h-full bg-gray-50 rounded-xl">
@@ -4035,6 +4305,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
+              {activeTab === 'letters' && <LetterTab caseData={caseData} />}
             </div>
           </div>
         </div>

@@ -43,13 +43,20 @@ const LoadingOverlay = () => (
 const CrossVerificationTab = ({ 
   isLoading, 
   verificationData, 
-  managementId
+  managementId,
+  isAutoExpanded = false
 }) => {
   const [caseData, setCaseData] = useState(null);
   const [loadingCaseData, setLoadingCaseData] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
 
-
+  // Add useEffect to handle auto-expansion
+  useEffect(() => {
+    if (isAutoExpanded) {
+      console.log('Auto-expanding cross verification tab');
+      setIsExpanded(true);
+    }
+  }, [isAutoExpanded]);
 
   if (isLoading || loadingCaseData) {
     return (
@@ -201,23 +208,43 @@ const CrossVerificationTab = ({
                     <h4 className="text-sm font-medium text-gray-900 mb-2">{error.type}</h4>
 
                     {/* Error Details */}
-                    {error.details && typeof error.details === 'object' ? (
-                      <div className="flex flex-wrap items-center gap-3">
-                        {Object.entries(error.details).map(([document, value], idx) => (
-                          <div key={idx} className="inline-flex items-center bg-white px-3 py-2 rounded-lg">
-                            <span className="text-sm font-medium text-gray-500 mr-2">{document}:</span>
-                            <span className="text-sm text-gray-900">
-                              {error.type.toLowerCase().includes('date of birth') 
-                                ? formatDate(value)
-                                : value}
-                            </span>
-                          </div>
-                        ))}
+                    {error.details && (
+                      <div className="text-sm text-gray-700 bg-white p-3 rounded-lg">
+                        {(() => {
+                          if (typeof error.details === 'string') {
+                            return error.details;
+                          }
+                          
+                          if (error.details.missingFields) {
+                            return Array.isArray(error.details.missingFields) 
+                              ? error.details.missingFields.join(', ')
+                              : 'Missing fields detected';
+                          }
+                          
+                          if (error.details.description) {
+                            return error.details.description;
+                          }
+                          
+                          if (typeof error.details === 'object' && !Array.isArray(error.details)) {
+                            return (
+                              <div className="flex flex-wrap items-center gap-3">
+                                {Object.entries(error.details).map(([document, value], idx) => (
+                                  <div key={idx} className="inline-flex items-center bg-white px-3 py-2 rounded-lg border border-gray-100">
+                                    <span className="text-sm font-medium text-gray-500 mr-2">{document}:</span>
+                                    <span className="text-sm text-gray-900">
+                                      {error.type.toLowerCase().includes('date of birth') 
+                                        ? formatDate(String(value))
+                                        : String(value)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          }
+                          
+                          return 'Error details not available';
+                        })()}
                       </div>
-                    ) : (
-                      <p className="text-sm text-gray-700 bg-white p-3 rounded-lg">
-                        {error.details}
-                      </p>
                     )}
                   </div>
                 </div>
@@ -233,7 +260,8 @@ const CrossVerificationTab = ({
 CrossVerificationTab.propTypes = {
   isLoading: PropTypes.bool,
   verificationData: PropTypes.object,
-  managementId: PropTypes.string
+  managementId: PropTypes.string,
+  isAutoExpanded: PropTypes.bool
 };
 
 export default CrossVerificationTab; 
