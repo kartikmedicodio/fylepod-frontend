@@ -2855,8 +2855,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       // Get the field object
       const field = localFormData[fieldKey];
       
-      // Use the fieldLabel from the response
-      const fieldLabel = fieldKey;
+      // Use the fieldLabel from the response - prefer field.label, fallback to fieldKey
+      const fieldLabel = field?.label || field?.fieldLabel || fieldKey;
       
       // Get the fieldName for reference
       const fieldName = field?.fieldName || '';
@@ -2876,16 +2876,35 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       const getFieldType = () => {
         const lowerFieldName = fieldName.toLowerCase();
         const lowerFieldLabel = fieldKey.toLowerCase();
+        const fieldValue = field?.value;
         
-        if (lowerFieldName.includes('date') || lowerFieldLabel.includes('date')) return 'date';
+        // Check for email type
         if (lowerFieldName.includes('email') || lowerFieldLabel.includes('email')) return 'email';
-        if (
-          lowerFieldName.includes('count') || 
-          lowerFieldName.includes('percent') || 
-          lowerFieldLabel.includes('count') || 
-          lowerFieldLabel.includes('percent')
-        ) return 'number';
         
+        // Check for date type - only if the field contains a valid date value
+        if ((lowerFieldName.includes('date') || lowerFieldLabel.includes('date')) && fieldValue) {
+          // Check if the value is actually a date
+          // Check common date formats
+          
+          // Check for YYYY-MM-DD format
+          if (/^\d{4}-\d{2}-\d{2}$/.test(fieldValue)) return 'date';
+          
+          // Check for DD/MMM/YYYY format (e.g., 05/FEB/1965)
+          if (/^\d{1,2}\/[A-Za-z]{3}\/\d{4}$/.test(fieldValue)) return 'date';
+          
+          // Check for MM/DD/YYYY or DD/MM/YYYY format
+          if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(fieldValue)) return 'date';
+          
+          // Try parsing with Date object as fallback
+          try {
+            const date = new Date(fieldValue);
+            if (!isNaN(date.getTime())) return 'date';
+          } catch (error) {
+            // If parsing fails, it's not a date
+          }
+        }
+        
+        // All other fields will be text type (including number fields)
         return 'text';
       };
 
@@ -2897,14 +2916,13 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         
         // Try to parse the date string
         try {
-          // Handle different date formats
           // If it's already in YYYY-MM-DD format, return as is
           if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
           
           // Handle DD/MMM/YYYY format (like 05/FEB/1965)
-          const dateMatch = value.match(/(\d{1,2})\/([A-Za-z]{3})\/(\d{4})/);
-          if (dateMatch) {
-            const [_, day, monthStr, year] = dateMatch;
+          const dateMatch1 = value.match(/(\d{1,2})\/([A-Za-z]{3})\/(\d{4})/);
+          if (dateMatch1) {
+            const [_, day, monthStr, year] = dateMatch1;
             const months = {
               'JAN': '01', 'FEB': '02', 'MAR': '03', 'APR': '04', 'MAY': '05', 'JUN': '06',
               'JUL': '07', 'AUG': '08', 'SEP': '09', 'OCT': '10', 'NOV': '11', 'DEC': '12'
@@ -2915,10 +2933,52 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             }
           }
           
+          // Handle MM/DD/YYYY or DD/MM/YYYY format
+          const dateMatch2 = value.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+          if (dateMatch2) {
+            const [_, part1, part2, year] = dateMatch2;
+            
+            // Handle both formats conservatively by assuming MM/DD for US format 
+            // and DD/MM for other formats - we'll use MM/DD as it's more common in the system
+            // If month is > 12, swap parts
+            let month = part1;
+            let day = part2;
+            
+            if (parseInt(part1) > 12) {
+              month = part2;
+              day = part1;
+            }
+            
+            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+          }
+          
+          // Handle DD-MM-YYYY or MM-DD-YYYY format
+          const dateMatch3 = value.match(/(\d{1,2})-(\d{1,2})-(\d{4})/);
+          if (dateMatch3) {
+            const [_, part1, part2, year] = dateMatch3;
+            
+            // Handle both formats conservatively by assuming MM/DD for US format
+            // and DD/MM for other formats - we'll use MM/DD as it's more common in the system
+            // If month is > 12, swap parts
+            let month = part1;
+            let day = part2;
+            
+            if (parseInt(part1) > 12) {
+              month = part2;
+              day = part1;
+            }
+            
+            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+          }
+          
           // Try parsing with Date object as fallback
           const date = new Date(value);
           if (!isNaN(date.getTime())) {
-            return date.toISOString().split('T')[0];
+            const year = date.getFullYear();
+            // JavaScript months are 0-indexed, so we add 1 and pad
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const day = date.getDate().toString().padStart(2, '0');
+            return `${year}-${month}-${day}`;
           }
         } catch (error) {
           console.warn('Error formatting date value:', error);
@@ -3173,11 +3233,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             >
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-md font-medium text-gray-900">{questionnaire.questionnaire_name}</h3>
-                <div className="flex items-center">
-                  <span className="text-sm text-gray-600">
-                    {questionnaire.field_mappings.length} Fields
-                  </span>
-                </div>
+               
               </div>
               <p className="text-sm text-gray-500">{questionnaire.description}</p>
               
@@ -3333,7 +3389,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         // Return the filled PDF bytes
         return await pdfDoc.save();
       }
-      else{
+      else if(formId === "67ff977b5f10e4c642d2a394"){
         form.getTextField('company_name').setText(getFieldValue('company_name') || 'N/A');
         form.getTextField('company_address').setText(getFieldValue('company_address') || 'N/A');
         form.getTextField('company_date_established').setText(getFieldValue('company_date_established') || 'N/A');
@@ -3386,6 +3442,74 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         form.getTextField('company_competitors_india').setText(getFieldValue('company_competitors_india') || 'N/A');
         form.getTextField('company_investment_expansion_plan_india').setText(getFieldValue('company_investment_expansion_plan_india') || 'N/A');
          
+        return await pdfDoc.save();
+      }
+      else if(formId === "6807482c28e899d06acdfbc5"){
+        // Helper function to handle setting form field values regardless of field type
+        const setFormField = (fieldName, value) => {
+          try {
+            // First attempt to get the field
+            const field = form.getField(fieldName);
+            
+            // Check the field type and handle accordingly
+            if (field.constructor.name === 'PDFCheckBox2') {
+              // Handle checkbox fields
+              const checkbox = form.getCheckBox(fieldName);
+              // Check the checkbox if there's ANY value (not empty/null/undefined)
+              // This simplifies the logic - if the field has any value at all, it's checked
+              const isChecked = value !== undefined && value !== null && value !== '';
+              
+              if (isChecked) {
+                checkbox.check();
+              } else {
+                checkbox.uncheck();
+              }
+              // console.log(`Set checkbox field ${fieldName} to ${isChecked ? 'checked' : 'unchecked'} (value: "${value}")`);
+            } else if (field.constructor.name === 'PDFTextField2') {
+              // Handle text fields
+              const textField = form.getTextField(fieldName);
+              textField.setText(value?.toString() || 'N/A');
+              // console.log(`Set text field ${fieldName} to "${value?.toString() || 'N/A'}"`);
+            } else if (field.constructor.name === 'PDFRadioGroup2') {
+              // Handle radio button groups
+              const radioGroup = form.getRadioGroup(fieldName);
+              if (value) {
+                radioGroup.select(value.toString());
+                // console.log(`Set radio group ${fieldName} to "${value.toString()}"`);
+              }
+            } else {
+              console.warn(`Unsupported field type ${field.constructor.name} for field ${fieldName}`);
+            }
+          } catch (error) {
+            console.warn(`Error setting field ${fieldName}:`, error.message);
+          }
+        };
+        
+        // Fix for the "processedInfo.forEach is not a function" error
+        if (processedInfo) {
+          if (Array.isArray(processedInfo)) {
+            // If it's an array, use forEach as intended
+            processedInfo.forEach(field => {
+              setFormField(field.fieldName, field.value);
+            });
+          } else if (typeof processedInfo === 'object') {
+            // If it's an object, iterate through its keys
+            Object.entries(processedInfo).forEach(([key, field]) => {
+              // If the field has fieldName and value properties
+              if (field && typeof field === 'object' && field.fieldName && 'value' in field) {
+                setFormField(field.fieldName, field.value);
+              } else {
+                // Otherwise use the key as fieldName and the field value directly
+                setFormField(key, field);
+              }
+            });
+          } else {
+            console.warn('processedInfo is neither an array nor an object:', processedInfo);
+          }
+        } else {
+          console.warn('processedInfo is null or undefined');
+        }
+        
         return await pdfDoc.save();
       }
     };
