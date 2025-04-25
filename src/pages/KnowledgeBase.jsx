@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, SlidersHorizontal, Clock, Edit2, CheckCircle, XCircle, FileText, Plus } from 'lucide-react';
+import { Search, SlidersHorizontal, Clock, Edit2, CheckCircle, XCircle, FileText, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../utils/api';
 import { usePage } from '../contexts/PageContext';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
@@ -17,6 +17,12 @@ const KnowledgeBase = () => {
   const [selectedCategory, setSelectedCategory] = useState('Process Template');
   const [editingDeadline, setEditingDeadline] = useState(null);
   const [deadlineValue, setDeadlineValue] = useState('');
+  const [currentPages, setCurrentPages] = useState({
+    'Process Template': 1,
+    'Master Document List': 1,
+    'Master Forms List': 1
+  });
+  const itemsPerPage = 5;
   const { setPageTitle } = usePage();
   const { setCurrentBreadcrumb } = useBreadcrumb();
   const navigate = useNavigate();
@@ -95,6 +101,21 @@ const KnowledgeBase = () => {
         form.form_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         form.description?.toLowerCase().includes(searchQuery.toLowerCase())
       );
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+  const startIndex = (currentPages[selectedCategory] - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentItems = filteredItems.slice(startIndex, endIndex);
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPages(prev => ({
+        ...prev,
+        [selectedCategory]: newPage
+      }));
+    }
+  };
 
   const sidebarCategories = [
     { name: 'Process Template', path: '/knowledge/process-templates' },
@@ -242,7 +263,7 @@ const KnowledgeBase = () => {
               </div>
             </div>
             <div className="bg-white divide-y divide-gray-200">
-              {filteredItems.map((item) => (
+              {currentItems.map((item) => (
                 <div 
                   key={item._id} 
                   className={`grid ${
@@ -404,10 +425,26 @@ const KnowledgeBase = () => {
         {/* Pagination */}
         <div className="flex items-center justify-between px-4 py-3 text-sm text-gray-500">
           <div>
-            Showing 1 - {filteredItems.length} of {filteredItems.length}
+            Showing {startIndex + 1} - {Math.min(endIndex, filteredItems.length)} of {filteredItems.length}
           </div>
-          <div>
-            Page 1 of {Math.ceil(filteredItems.length / 10)}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handlePageChange(currentPages[selectedCategory] - 1)}
+              disabled={currentPages[selectedCategory] === 1}
+              className={`p-1 rounded-md ${currentPages[selectedCategory] === 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-100'}`}
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <span>
+              Page {currentPages[selectedCategory]} of {totalPages}
+            </span>
+            <button
+              onClick={() => handlePageChange(currentPages[selectedCategory] + 1)}
+              disabled={currentPages[selectedCategory] === totalPages}
+              className={`p-1 rounded-md ${currentPages[selectedCategory] === totalPages ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-100'}`}
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
           </div>
         </div>
       </div>
