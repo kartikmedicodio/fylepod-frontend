@@ -3,20 +3,21 @@ import { Search, SlidersHorizontal, Clock, Edit2, CheckCircle, XCircle, FileText
 import api from '../utils/api';
 import { usePage } from '../contexts/PageContext';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
-import { Link, useNavigate } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import { toast } from 'react-hot-toast';
+import Sidebar from '../components/KBSidebar';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const KnowledgeBase = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [categories, setCategories] = useState([]);
   const [masterDocuments, setMasterDocuments] = useState([]);
   const [forms, setForms] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Process Template');
-  const [editingDeadline, setEditingDeadline] = useState(null);
-  const [deadlineValue, setDeadlineValue] = useState('');
   const [currentPages, setCurrentPages] = useState({
     'Process Template': 1,
     'Master Document List': 1,
@@ -25,135 +26,91 @@ const KnowledgeBase = () => {
   const itemsPerPage = 5;
   const { setPageTitle } = usePage();
   const { setCurrentBreadcrumb } = useBreadcrumb();
-  const navigate = useNavigate();
+  const [editingDeadline, setEditingDeadline] = useState(null);
+  const [deadlineValue, setDeadlineValue] = useState('');
 
+  // Initial setup and data fetch
   useEffect(() => {
-    setPageTitle(selectedCategory);
+    setPageTitle('Knowledge Base');
+    setCurrentBreadcrumb([
+      { label: 'Dashboard', link: '/' },
+      { label: 'Knowledge Base', link: '/knowledge' }
+    ]);
+
+    // Only fetch if we don't have categories data
+    if (categories.length === 0) {
+      setLoading(true);
+      api.get('/categories')
+        .then(response => {
+          if (response.data.status === 'success') {
+            setCategories(response.data.data.categories);
+          }
+        })
+        .catch(err => {
+          console.error('Error fetching categories:', err);
+          setError('Failed to load initial data');
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, []); // Empty dependency array for single execution
+
+  const handleCategorySelect = async (category) => {
+    // Don't refetch if selecting Process Template and we already have data
+    if (category === 'Process Template' && categories.length > 0) {
+      setSelectedCategory(category);
+      setCurrentBreadcrumb([
+        { label: 'Dashboard', link: '/' },
+        { label: 'Knowledge Base', link: '/knowledge' },
+        { label: category, link: '#' }
+      ]);
+      return;
+    }
+
+    setSelectedCategory(category);
+    setLoading(true);
+    setError(null);
+
+    // Update breadcrumb immediately
     setCurrentBreadcrumb([
       { label: 'Dashboard', link: '/' },
       { label: 'Knowledge Base', link: '/knowledge' },
-      ...(selectedCategory !== 'Knowledge Base' ? [{ label: selectedCategory, link: '#' }] : [])
+      { label: category, link: '#' }
     ]);
-    if (selectedCategory === 'Process Template') {
-      fetchCategories();
-    } else if (selectedCategory === 'Master Document List') {
-      fetchMasterDocuments();
-    } else if (selectedCategory === 'Master Forms List') {
-      fetchForms();
-    }
-  }, [setPageTitle, setCurrentBreadcrumb, selectedCategory]);
 
-  const fetchCategories = async () => {
     try {
-      setLoading(true);
-      const response = await api.get('/categories');
-      if (response.data.status === 'success') {
-        setCategories(response.data.data.categories);
+      let response;
+      switch (category) {
+        case 'Process Template':
+          response = await api.get('/categories');
+          if (response.data.status === 'success') {
+            setCategories(response.data.data.categories);
+          }
+          break;
+        case 'Master Document List':
+          response = await api.get('/masterdocuments');
+          if (response.data.status === 'success') {
+            setMasterDocuments(response.data.data.masterDocuments);
+          }
+          break;
+        case 'Master Forms List':
+          response = await api.get('/forms');
+          if (response.data.status === 'success') {
+            setForms(response.data.data.forms);
+          }
+          break;
       }
     } catch (err) {
-      setError('Failed to fetch categories');
-      console.error('Error fetching categories:', err);
+      console.error('Error loading category data:', err);
+      setError('Failed to load data');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchMasterDocuments = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get('/masterdocuments');
-      if (response.data.status === 'success') {
-        setMasterDocuments(response.data.data.masterDocuments);
-      }
-    } catch (err) {
-      setError('Failed to fetch master documents');
-      console.error('Error fetching master documents:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchForms = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get('/forms');
-      if (response.data.status === 'success') {
-        setForms(response.data.data.forms);
-      }
-    } catch (err) {
-      setError('Failed to fetch forms');
-      console.error('Error fetching forms:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filteredItems = selectedCategory === 'Process Template' 
-    ? categories.filter(category =>
-        category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        category.description?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : selectedCategory === 'Master Document List'
-    ? masterDocuments.filter(doc =>
-        doc.name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : forms.filter(form =>
-        form.form_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        form.description?.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-
-  // Calculate pagination
-  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
-  const startIndex = (currentPages[selectedCategory] - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentItems = filteredItems.slice(startIndex, endIndex);
-
-  const handlePageChange = (newPage) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setCurrentPages(prev => ({
-        ...prev,
-        [selectedCategory]: newPage
-      }));
-    }
-  };
-
-  const sidebarCategories = [
-    { name: 'Process Template', path: '/knowledge/process-templates' },
-    { name: 'Master Document List', path: '/knowledge/master-documents' },
-    { name: 'Master Forms List', path: '/knowledge/master-forms' }
-  ];
-
-  const handleRowClick = (categoryId) => {
+  const handleCategoryClick = (categoryId) => {
     navigate(`/knowledge/checklist/${categoryId}`);
-  };
-
-  const saveDeadline = async (categoryId) => {
-    try {
-      const value = parseInt(deadlineValue);
-      if (isNaN(value) || value < 0) {
-        toast.error('Please enter a valid number of days');
-        return;
-      }
-
-      const response = await api.patch(`/categories/${categoryId}`, {
-        deadline: value
-      });
-
-      if (response.data.status === 'success') {
-        // Update the local state with the new deadline
-        setCategories(categories.map(cat => 
-          cat._id === categoryId ? {...cat, deadline: value} : cat
-        ));
-        toast.success('Deadline updated successfully');
-      } else {
-        toast.error('Failed to update deadline');
-      }
-    } catch (err) {
-      console.error('Error updating deadline:', err);
-      toast.error('Failed to update deadline');
-    } finally {
-      setEditingDeadline(null);
-    }
   };
 
   const handleDeadlineEdit = (e, category) => {
@@ -174,8 +131,36 @@ const KnowledgeBase = () => {
     }
   };
 
-  // Render the main content based on selected category
-  const renderMainContent = () => {
+  const saveDeadline = async (categoryId) => {
+    try {
+      const value = parseInt(deadlineValue);
+      if (isNaN(value) || value < 0) {
+        toast.error('Please enter a valid number of days');
+        return;
+      }
+
+      const response = await api.patch(`/categories/${categoryId}`, {
+        deadline: value
+      });
+
+      if (response.data.success) {
+        // Update the local state with the new deadline
+        setCategories(categories.map(cat => 
+          cat._id === categoryId ? {...cat, deadline: value} : cat
+        ));
+        toast.success('Deadline updated successfully');
+      } else {
+        toast.error('Failed to update deadline');
+      }
+    } catch (err) {
+      console.error('Error updating deadline:', err);
+      toast.error('Failed to update deadline');
+    } finally {
+      setEditingDeadline(null);
+    }
+  };
+
+  const renderContent = () => {
     if (loading) {
       return (
         <div className="px-6 py-4 text-center">
@@ -191,7 +176,21 @@ const KnowledgeBase = () => {
         </div>
       );
     }
-    
+
+    const filteredItems = selectedCategory === 'Process Template' 
+      ? categories.filter(category =>
+          category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          category.description?.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      : selectedCategory === 'Master Document List'
+      ? masterDocuments.filter(doc =>
+          doc.name.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      : forms.filter(form =>
+          form.form_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          form.description?.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+
     if (filteredItems.length === 0) {
       return (
         <div className="px-6 py-4 text-center text-gray-500">
@@ -200,7 +199,12 @@ const KnowledgeBase = () => {
       );
     }
 
-    // Render tables for all categories
+    // Calculate pagination
+    const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+    const startIndex = (currentPages[selectedCategory] - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const currentItems = filteredItems.slice(startIndex, endIndex);
+
     return (
       <>
         <div className="bg-white rounded-lg border border-gray-200">
@@ -273,7 +277,8 @@ const KnowledgeBase = () => {
                   } px-6 py-4 hover:bg-gray-50 ${selectedCategory === 'Process Template' ? 'cursor-pointer' : ''}`}
                   onClick={() => {
                     if (selectedCategory === 'Process Template') {
-                      handleRowClick(item._id);
+                      // console.log('Row clicked:', item._id);
+                      handleCategoryClick(item._id);
                     }
                   }}
                 >
@@ -331,7 +336,9 @@ const KnowledgeBase = () => {
                   ) : selectedCategory === 'Master Forms List' ? (
                     <>
                       <div className="text-sm font-mono text-gray-900">{item._id.substring(0, 8)}</div>
-                      <div className="text-sm text-gray-900">{item.form_name}</div>
+                      <div className="text-sm text-gray-900">
+                        {item.form_name}
+                      </div>
                       <div className="text-sm text-gray-500">{item.description || "No description available"}</div>
                       <div className="text-sm text-gray-500 text-right">
                         {new Date(item.createdAt).toLocaleDateString()}
@@ -370,43 +377,110 @@ const KnowledgeBase = () => {
             </div>
           </div>
         </div>
+
+        {/* Pagination */}
+        <div className="flex items-center justify-between px-4 py-3 text-sm text-gray-500">
+          <div>
+            Showing {startIndex + 1} - {Math.min(endIndex, filteredItems.length)} of {filteredItems.length}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPages(prev => ({
+                ...prev,
+                [selectedCategory]: Math.max(1, prev[selectedCategory] - 1)
+              }))}
+              disabled={currentPages[selectedCategory] === 1}
+              className={`p-1 rounded-md ${
+                currentPages[selectedCategory] === 1 
+                  ? 'text-gray-300 cursor-not-allowed' 
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <span>
+              Page {currentPages[selectedCategory]} of {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPages(prev => ({
+                ...prev,
+                [selectedCategory]: Math.min(totalPages, prev[selectedCategory] + 1)
+              }))}
+              disabled={currentPages[selectedCategory] === totalPages}
+              className={`p-1 rounded-md ${
+                currentPages[selectedCategory] === totalPages 
+                  ? 'text-gray-300 cursor-not-allowed' 
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
       </>
     );
   };
 
-  return (
-    <div className="flex h-full gap-4 pt-6">
-      {/* Left Sidebar */}
-      <div className="w-64 bg-white shadow-sm rounded-lg">
-        <div className="p-4">
-          {sidebarCategories.map((category) => (
-            <Link
-              key={category.name}
-              to={category.path}
-              className={`block w-full text-left px-4 py-2 rounded-lg text-sm mb-1 ${
-                selectedCategory === category.name
-                  ? 'bg-blue-50 text-blue-600'
-                  : 'text-gray-700 hover:bg-gray-50'
-              }`}
-              onClick={(e) => {
-                e.preventDefault(); // Prevent navigation for now
-                setSelectedCategory(category.name);
-              }}
-            >
-              {category.name}
-            </Link>
-          ))}
+  if (loading) {
+    return (
+      <div className="flex h-full gap-4 mt-8">
+        <Sidebar onCategorySelect={handleCategorySelect} />
+        <div className="flex-1 bg-[#f8fafc] rounded-lg shadow-sm h-fit">
+          <div className="p-4 flex items-center gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search"
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex-1 flex justify-center items-center p-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
         </div>
       </div>
+    );
+  }
 
+  if (error) {
+    return (
+      <div className="flex h-full gap-4 mt-8">
+        <Sidebar onCategorySelect={handleCategorySelect} />
+        <div className="flex-1 bg-[#f8fafc] rounded-lg shadow-sm h-fit">
+          <div className="p-4 flex items-center gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search"
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="p-6 text-red-500">
+            {error}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full gap-4 mt-8">
+      <Sidebar onCategorySelect={handleCategorySelect} />
+      
       {/* Main Content */}
-      <div className="flex-1 bg-[#f8fafc] rounded-lg shadow-sm">
+      <div className="flex-1 bg-[#f8fafc] rounded-lg shadow-sm h-fit">
         {/* Search Bar */}
         <div className="p-4 flex items-center gap-4">
           <div className="flex-1 relative">
-            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
-            </div>
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
               type="text"
               placeholder="Search"
@@ -419,41 +493,11 @@ const KnowledgeBase = () => {
 
         {/* Main Content */}
         <div className="px-4 pb-4">
-          {renderMainContent()}
-        </div>
-
-        {/* Pagination */}
-        <div className="flex items-center justify-between px-4 py-3 text-sm text-gray-500">
-          <div>
-            Showing {startIndex + 1} - {Math.min(endIndex, filteredItems.length)} of {filteredItems.length}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handlePageChange(currentPages[selectedCategory] - 1)}
-              disabled={currentPages[selectedCategory] === 1}
-              className={`p-1 rounded-md ${currentPages[selectedCategory] === 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-100'}`}
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <span>
-              Page {currentPages[selectedCategory]} of {totalPages}
-            </span>
-            <button
-              onClick={() => handlePageChange(currentPages[selectedCategory] + 1)}
-              disabled={currentPages[selectedCategory] === totalPages}
-              className={`p-1 rounded-md ${currentPages[selectedCategory] === totalPages ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-100'}`}
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
+          {renderContent()}
         </div>
       </div>
     </div>
   );
-};
-
-KnowledgeBase.propTypes = {
-  setCurrentBreadcrumb: PropTypes.func.isRequired
 };
 
 export default KnowledgeBase; 
