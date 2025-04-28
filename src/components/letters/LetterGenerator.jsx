@@ -1,27 +1,42 @@
 import React, { useState, useEffect } from 'react';
-import { X, Loader2, FileText, Download, Send, AlertCircle, LayoutPanelLeft, Eye } from 'lucide-react';
+import { X, Loader2, FileText, Download, AlertCircle, LayoutPanelLeft, Eye } from 'lucide-react';
 import api from '../../utils/api';
 
-const LetterGenerator = ({ isOpen, onClose, initialContent, onGenerate }) => {
+const LetterGenerator = ({ 
+  isOpen, 
+  onClose, 
+  letterTemplates, 
+  selectedTemplate,
+  onTemplateSelect,
+  onGenerate 
+}) => {
   const [content, setContent] = useState('');
+  const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState(null);
   const [viewMode, setViewMode] = useState('split'); // 'split', 'edit', 'preview'
 
   useEffect(() => {
-    if (initialContent) {
-      setContent(initialContent);
+    if (selectedTemplate) {
+      setPrompt(selectedTemplate.internalPrompt || '');
     }
-  }, [initialContent]);
+  }, [selectedTemplate]);
 
   const handleGenerate = async () => {
+    if (!selectedTemplate) {
+      setError('Please select a letter template first');
+      return;
+    }
+
     try {
       setIsGenerating(true);
       setError(null);
 
       const response = await api.post('/letters/generate', {
-        content: content
+        content: content,
+        prompt: prompt,
+        templateId: selectedTemplate._id
       });
 
       if (response.data.success) {
@@ -148,20 +163,57 @@ const LetterGenerator = ({ isOpen, onClose, initialContent, onGenerate }) => {
           {/* Editor - Hidden in preview mode */}
           {viewMode !== 'preview' && (
             <div className={`flex-1 flex flex-col min-h-0 ${viewMode === 'split' ? 'w-1/2' : 'w-full'}`}>
-              <div className="mb-3 flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700">
-                  Letter Content
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Letter Template
                 </label>
-                <div className="text-xs text-gray-500">
-                  {content.length} characters
-                </div>
+                <select
+                  value={selectedTemplate?._id || ''}
+                  onChange={(e) => {
+                    const template = letterTemplates.find(t => t._id === e.target.value);
+                    onTemplateSelect(template);
+                  }}
+                  className="w-full p-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">Select a template...</option>
+                  {letterTemplates.map(template => (
+                    <option key={template._id} value={template._id}>
+                      {template.name}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                className="flex-1 p-4 text-sm border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter your letter content here..."
-              />
+
+              {selectedTemplate && (
+                <>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Customize Prompt
+                    </label>
+                    <textarea
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      className="w-full p-4 text-sm border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent h-32"
+                      placeholder="Edit the prompt for letter generation..."
+                    />
+                  </div>
+
+                  <div className="mb-3 flex items-center justify-between">
+                    <label className="text-sm font-medium text-gray-700">
+                      Additional Content (Optional)
+                    </label>
+                    <div className="text-xs text-gray-500">
+                      {content.length} characters
+                    </div>
+                  </div>
+                  <textarea
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    className="flex-1 p-4 text-sm border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter any additional content or context for the letter..."
+                  />
+                </>
+              )}
             </div>
           )}
 
@@ -202,7 +254,7 @@ const LetterGenerator = ({ isOpen, onClose, initialContent, onGenerate }) => {
           <div className="flex items-center gap-3">
             <button
               onClick={handleGenerate}
-              disabled={isGenerating || !content.trim()}
+              disabled={isGenerating || !selectedTemplate}
               className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isGenerating ? (

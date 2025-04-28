@@ -2681,7 +2681,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             />
           );
         case 'letters':
-          return <LetterTab caseData={caseData} />;
+          return <LetterTab managementId={caseId} />;
         default:
           return null;
       }
@@ -4429,7 +4429,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
-              {activeTab === 'letters' && <LetterTab caseData={caseData} />}
+              {activeTab === 'letters' && <LetterTab managementId={caseId} />}
             </div>
           </div>
         </div>
