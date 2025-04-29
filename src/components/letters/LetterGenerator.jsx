@@ -1,6 +1,53 @@
-import React, { useState, useEffect } from 'react';
-import { X, Loader2, FileText, Download, AlertCircle, LayoutPanelLeft, Eye } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Loader2, FileText, AlertCircle, LayoutPanelLeft, Eye } from 'lucide-react';
+import { Editor } from '@tinymce/tinymce-react';
 import api from '../../utils/api';
+
+const TINYMCE_API_KEY = 'ddqwuqhde6t5al5rxogsrzlje9q74nujwn1dbou5zq2kqpd1';
+
+// Custom CSS for letter formatting
+const LETTER_STYLES = `
+body {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 40px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.letter-date {
+  text-align: right;
+  margin-bottom: 30px;
+}
+
+.letter-address {
+  margin-bottom: 20px;
+}
+
+.letter-subject {
+  font-weight: bold;
+  margin-bottom: 20px;
+}
+
+.letter-salutation {
+  margin-bottom: 20px;
+}
+
+.letter-body {
+  margin-bottom: 30px;
+  text-align: justify;
+}
+
+.letter-closing {
+  margin-top: 30px;
+  margin-bottom: 10px;
+}
+
+.letter-signature {
+  margin-top: 40px;
+}
+`;
 
 const LetterGenerator = ({ 
   isOpen, 
@@ -10,6 +57,7 @@ const LetterGenerator = ({
   onTemplateSelect,
   onGenerate 
 }) => {
+  const editorRef = useRef(null);
   const [content, setContent] = useState('');
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -23,6 +71,42 @@ const LetterGenerator = ({
     }
   }, [selectedTemplate]);
 
+  const formatLetterContent = (content) => {
+    // Split content into sections
+    const sections = content.split('\n\n');
+    let formattedContent = '';
+
+    // Format each section based on its position and content
+    sections.forEach((section, index) => {
+      const trimmedSection = section.trim();
+      
+      if (index === 0) {
+        // Date
+        formattedContent += `<div class="letter-date">${trimmedSection}</div>`;
+      } else if (trimmedSection.startsWith('Dear') || trimmedSection.startsWith('To')) {
+        // Salutation
+        formattedContent += `<div class="letter-salutation">${trimmedSection}</div>`;
+      } else if (trimmedSection.startsWith('Subject:') || trimmedSection.startsWith('Re:')) {
+        // Subject
+        formattedContent += `<div class="letter-subject">${trimmedSection}</div>`;
+      } else if (trimmedSection.startsWith('Sincerely') || trimmedSection.startsWith('Yours truly')) {
+        // Closing
+        formattedContent += `<div class="letter-closing">${trimmedSection}</div>`;
+      } else if (index === 1 || index === 2) {
+        // Address block
+        formattedContent += `<div class="letter-address">${trimmedSection.replace(/\n/g, '<br>')}</div>`;
+      } else if (index === sections.length - 1) {
+        // Signature block
+        formattedContent += `<div class="letter-signature">${trimmedSection.replace(/\n/g, '<br>')}</div>`;
+      } else {
+        // Body paragraphs
+        formattedContent += `<div class="letter-body">${trimmedSection}</div>`;
+      }
+    });
+
+    return formattedContent;
+  };
+
   const handleGenerate = async () => {
     if (!selectedTemplate) {
       setError('Please select a letter template first');
@@ -33,17 +117,24 @@ const LetterGenerator = ({
       setIsGenerating(true);
       setError(null);
 
+      const editorContent = editorRef.current ? editorRef.current.getContent() : content;
+
       const response = await api.post('/letters/generate', {
-        content: content,
+        content: editorContent,
         prompt: prompt,
         templateId: selectedTemplate._id
       });
 
       if (response.data.success) {
+        const generatedContent = formatLetterContent(response.data.data.content);
         setPreview({
-          content: response.data.data.content,
-          docx: response.data.data.docx
+          content: generatedContent
         });
+        
+        if (editorRef.current) {
+          editorRef.current.setContent(generatedContent);
+        }
+        
         if (onGenerate) {
           onGenerate(response.data.data);
         }
@@ -54,46 +145,6 @@ const LetterGenerator = ({
       setError(err.message || 'An error occurred while generating the letter');
     } finally {
       setIsGenerating(false);
-    }
-  };
-
-  const handleDownload = () => {
-    if (preview?.docx) {
-      try {
-        const docxUrl = `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${preview.docx}`;
-        const a = document.createElement('a');
-        a.href = docxUrl;
-        a.download = 'generated_letter.docx';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      } catch (error) {
-        console.error('Error downloading DOCX:', error);
-        setError('Failed to download DOCX');
-      }
-    }
-  };
-
-  const renderPDFPreview = () => {
-    if (!preview?.docx) return null;
-
-    try {
-      const docxUrl = `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${preview.docx}`;
-      return (
-        <iframe
-          src={`${docxUrl}#toolbar=0&zoom=100`}
-          className="w-full h-full rounded-lg"
-          title="DOCX Preview"
-        />
-      );
-    } catch (error) {
-      console.error('Error rendering DOCX:', error);
-      return (
-        <div className="flex items-center justify-center h-full text-red-500">
-          <AlertCircle className="w-6 h-6 mr-2" />
-          Failed to load DOCX preview
-        </div>
-      );
     }
   };
 
@@ -190,20 +241,54 @@ const LetterGenerator = ({
                     />
                   </div>
 
-                  <div className="mb-3 flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-700">
-                      Additional Content (Optional)
-                    </label>
-                    <div className="text-xs text-gray-500">
-                      {content.length} characters
-                    </div>
+                  <div className="flex-1">
+                    <Editor
+                      apiKey={TINYMCE_API_KEY}
+                      onInit={(evt, editor) => editorRef.current = editor}
+                      initialValue={content}
+                      init={{
+                        height: '100%',
+                        menubar: true,
+                        plugins: [
+                          'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+                          'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+                          'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
+                        ],
+                        toolbar: 'undo redo | blocks | ' +
+                          'bold italic forecolor | alignleft aligncenter ' +
+                          'alignright alignjustify | bullist numlist outdent indent | ' +
+                          'removeformat | help',
+                        content_style: LETTER_STYLES,
+                        formats: {
+                          letterDate: { block: 'div', classes: 'letter-date' },
+                          letterAddress: { block: 'div', classes: 'letter-address' },
+                          letterSubject: { block: 'div', classes: 'letter-subject' },
+                          letterSalutation: { block: 'div', classes: 'letter-salutation' },
+                          letterBody: { block: 'div', classes: 'letter-body' },
+                          letterClosing: { block: 'div', classes: 'letter-closing' },
+                          letterSignature: { block: 'div', classes: 'letter-signature' }
+                        },
+                        style_formats: [
+                          { title: 'Date', format: 'letterDate' },
+                          { title: 'Address', format: 'letterAddress' },
+                          { title: 'Subject', format: 'letterSubject' },
+                          { title: 'Salutation', format: 'letterSalutation' },
+                          { title: 'Body', format: 'letterBody' },
+                          { title: 'Closing', format: 'letterClosing' },
+                          { title: 'Signature', format: 'letterSignature' }
+                        ],
+                        branding: false,
+                        setup: (editor) => {
+                          editor.on('init', () => {
+                            editor.formatter.register('letterStyles', {
+                              block: 'div',
+                              classes: ['letter-date', 'letter-address', 'letter-subject', 'letter-salutation', 'letter-body', 'letter-closing', 'letter-signature']
+                            });
+                          });
+                        }
+                      }}
+                    />
                   </div>
-                  <textarea
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    className="flex-1 p-4 text-sm border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter any additional content or context for the letter..."
-                  />
                 </>
               )}
             </div>
@@ -217,14 +302,10 @@ const LetterGenerator = ({
               </label>
               <div className="flex-1 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
                 {preview ? (
-                  <div className="flex-1 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center">
-                    <div className="text-center p-6">
-                      <FileText className="w-12 h-12 text-gray-300 mb-3 mx-auto" />
-                      <p className="text-sm text-gray-500">
-                        Click "Download DOCX" to get your editable document
-                      </p>
-                    </div>
-                  </div>
+                  <div 
+                    className="h-full p-6 overflow-auto"
+                    dangerouslySetInnerHTML={{ __html: preview.content }}
+                  />
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full text-center">
                     <FileText className="w-8 h-8 text-gray-300 mb-2" />
@@ -250,34 +331,23 @@ const LetterGenerator = ({
 
         {/* Actions */}
         <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between bg-gray-50">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleGenerate}
-              disabled={isGenerating || !selectedTemplate}
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <FileText className="w-4 h-4 mr-2" />
-                  Generate
-                </>
-              )}
-            </button>
-            {preview && (
-              <button
-                onClick={handleDownload}
-                className="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Download DOCX
-              </button>
+          <button
+            onClick={handleGenerate}
+            disabled={isGenerating || !selectedTemplate}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <FileText className="w-4 h-4 mr-2" />
+                Generate
+              </>
             )}
-          </div>
+          </button>
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"

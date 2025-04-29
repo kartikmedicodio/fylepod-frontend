@@ -1,10 +1,58 @@
-import { useState, useEffect } from 'react';
-import { FileText, Save, AlertCircle, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { FileText, Loader2, AlertCircle } from 'lucide-react';
+import { Editor } from '@tinymce/tinymce-react';
 import api from '../../utils/api';
 import PropTypes from 'prop-types';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const TINYMCE_API_KEY = 'ddqwuqhde6t5al5rxogsrzlje9q74nujwn1dbou5zq2kqpd1';
+
+// Custom CSS for letter formatting
+const LETTER_STYLES = `
+body {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 40px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.letter-date {
+  text-align: right;
+  margin-bottom: 30px;
+}
+
+.letter-address {
+  margin-bottom: 20px;
+}
+
+.letter-subject {
+  font-weight: bold;
+  margin-bottom: 20px;
+}
+
+.letter-salutation {
+  margin-bottom: 20px;
+}
+
+.letter-body {
+  margin-bottom: 30px;
+  text-align: justify;
+}
+
+.letter-closing {
+  margin-top: 30px;
+  margin-bottom: 10px;
+}
+
+.letter-signature {
+  margin-top: 40px;
+}
+`;
+
 const LetterTab = ({ managementId }) => {
+  const editorRef = useRef(null);
   const [letterTemplates, setLetterTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -12,7 +60,6 @@ const LetterTab = ({ managementId }) => {
   const [prompt, setPrompt] = useState('');
   const [generatedContent, setGeneratedContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [showError, setShowError] = useState(false);
 
   useEffect(() => {
@@ -30,6 +77,12 @@ const LetterTab = ({ managementId }) => {
       setGeneratedContent('');
     }
   }, [selectedTemplate]);
+
+  useEffect(() => {
+    if (generatedContent && editorRef.current) {
+      editorRef.current.setContent(generatedContent);
+    }
+  }, [generatedContent]);
 
   const fetchManagementDetails = async () => {
     try {
@@ -71,7 +124,12 @@ const LetterTab = ({ managementId }) => {
 
       if (generateResponse.data.success) {
         const letterData = generateResponse.data.data;
-        setGeneratedContent(letterData.content);
+        const formattedContent = formatLetterContent(letterData.content);
+        setGeneratedContent(formattedContent);
+        
+        if (editorRef.current) {
+          editorRef.current.setContent(formattedContent);
+        }
       } else {
         throw new Error(generateResponse.data.error || 'Failed to generate letter');
       }
@@ -84,41 +142,40 @@ const LetterTab = ({ managementId }) => {
     }
   };
 
-  const handleSaveAndDownload = async () => {
-    if (!generatedContent || generatedContent.trim() === '') {
-      setError('No content to convert');
-      return;
-    }
+  const formatLetterContent = (content) => {
+    // Split content into sections
+    const sections = content.split('\n\n');
+    let formattedContent = '';
 
-    try {
-      setIsSaving(true);
-      setError(null);
-
-      // Convert the edited content to DOCX
-      const docxResponse = await api.post('/letters/convert-to-docx', {
-        letterContent: generatedContent,
-        managementId: managementId
-      });
-
-      if (docxResponse.data.success) {
-        // Download DOCX
-        const docxUrl = `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${docxResponse.data.data.docx}`;
-        const a = document.createElement('a');
-        a.href = docxUrl;
-        a.download = 'generated_letter.docx';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+    // Format each section based on its position and content
+    sections.forEach((section, index) => {
+      const trimmedSection = section.trim();
+      
+      if (index === 0) {
+        // Date
+        formattedContent += `<div class="letter-date">${trimmedSection}</div>`;
+      } else if (trimmedSection.startsWith('Dear') || trimmedSection.startsWith('To')) {
+        // Salutation
+        formattedContent += `<div class="letter-salutation">${trimmedSection}</div>`;
+      } else if (trimmedSection.startsWith('Subject:') || trimmedSection.startsWith('Re:')) {
+        // Subject
+        formattedContent += `<div class="letter-subject">${trimmedSection}</div>`;
+      } else if (trimmedSection.startsWith('Sincerely') || trimmedSection.startsWith('Yours truly')) {
+        // Closing
+        formattedContent += `<div class="letter-closing">${trimmedSection}</div>`;
+      } else if (index === 1 || index === 2) {
+        // Address block
+        formattedContent += `<div class="letter-address">${trimmedSection.replace(/\n/g, '<br>')}</div>`;
+      } else if (index === sections.length - 1) {
+        // Signature block
+        formattedContent += `<div class="letter-signature">${trimmedSection.replace(/\n/g, '<br>')}</div>`;
       } else {
-        throw new Error(docxResponse.data.error || 'Failed to convert to DOCX');
+        // Body paragraphs
+        formattedContent += `<div class="letter-body">${trimmedSection}</div>`;
       }
-    } catch (err) {
-      console.error('Error converting to DOCX:', err);
-      const errorMessage = err.response?.data?.error || err.message || 'An error occurred while converting to DOCX';
-      setError(errorMessage);
-    } finally {
-      setIsSaving(false);
-    }
+    });
+
+    return formattedContent;
   };
 
   const handleError = (message) => {
@@ -152,15 +209,10 @@ const LetterTab = ({ managementId }) => {
         )}
       </AnimatePresence>
 
-      <div className="flex gap-8 h-[800px] overflow-x-auto">
-        {/* Template Selection Section */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="w-[400px] min-w-[300px] max-w-[800px] bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col overflow-hidden resize-x"
-          style={{ resize: 'horizontal' }}
-        >
-          <div className="px-6 py-4 border-b border-gray-200 bg-white">
+      <div className="flex gap-8 h-[800px]">
+        {/* Template Selection and Generation Section */}
+        <div className="w-[400px] bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col">
+          <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-xl font-semibold text-gray-900">Letter Template</h2>
           </div>
           
@@ -221,78 +273,67 @@ const LetterTab = ({ managementId }) => {
               </motion.div>
             )}
           </div>
-        </motion.div>
+        </div>
 
-        {/* Preview & Editor Section */}
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="w-[600px] min-w-[400px] max-w-[1200px] bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col overflow-hidden resize-x"
-          style={{ resize: 'horizontal' }}
-        >
-          <div className="px-6 py-4 border-b border-gray-200 bg-white">
-            <h3 className="text-xl font-semibold text-gray-900">Generated Letter</h3>
+        {/* Editor Section */}
+        <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-xl font-semibold text-gray-900">Letter Content</h3>
           </div>
 
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 p-6 overflow-auto">
-              {generatedContent ? (
-                <textarea
-                  value={generatedContent}
-                  onChange={(e) => setGeneratedContent(e.target.value)}
-                  className="w-full h-full p-6 text-base border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-mono shadow-sm"
-                />
-              ) : (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="h-full flex flex-col items-center justify-center text-center"
-                >
-                  <div className="bg-gray-50 p-8 rounded-2xl">
-                    <FileText className="w-16 h-16 text-gray-400 mb-4 mx-auto" />
-                    <h4 className="text-lg font-medium text-gray-900 mb-2">
-                      {selectedTemplate ? "Ready to Generate" : "No Template Selected"}
-                    </h4>
-                    <p className="text-gray-500 max-w-sm">
-                      {selectedTemplate 
-                        ? "Click 'Generate Content' to create your letter based on the selected template" 
-                        : "Start by selecting a template from the left panel"}
-                    </p>
-                  </div>
-                </motion.div>
-              )}
-            </div>
-
-            {/* Sticky Footer with Actions */}
-            {generatedContent && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="border-t border-gray-200 bg-gray-50 p-4 rounded-b-xl"
-              >
-                <div className="flex justify-end">
-                  <button
-                    onClick={handleSaveAndDownload}
-                    disabled={isSaving}
-                    className="inline-flex items-center px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                  >
-                    {isSaving ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin mr-3" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-5 h-5 mr-2" />
-                        Save & Download
-                      </>
-                    )}
-                  </button>
-                </div>
-              </motion.div>
-            )}
+          <div className="flex-1 p-6">
+            <Editor
+              apiKey={TINYMCE_API_KEY}
+              onInit={(evt, editor) => editorRef.current = editor}
+              initialValue=""
+              init={{
+                height: '100%',
+                menubar: true,
+                plugins: [
+                  'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+                  'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+                  'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
+                ],
+                toolbar: 'undo redo | blocks | ' +
+                  'bold italic forecolor | alignleft aligncenter ' +
+                  'alignright alignjustify | bullist numlist outdent indent | ' +
+                  'removeformat | help',
+                content_style: LETTER_STYLES,
+                formats: {
+                  letterDate: { block: 'div', classes: 'letter-date' },
+                  letterAddress: { block: 'div', classes: 'letter-address' },
+                  letterSubject: { block: 'div', classes: 'letter-subject' },
+                  letterSalutation: { block: 'div', classes: 'letter-salutation' },
+                  letterBody: { block: 'div', classes: 'letter-body' },
+                  letterClosing: { block: 'div', classes: 'letter-closing' },
+                  letterSignature: { block: 'div', classes: 'letter-signature' }
+                },
+                style_formats: [
+                  { title: 'Date', format: 'letterDate' },
+                  { title: 'Address', format: 'letterAddress' },
+                  { title: 'Subject', format: 'letterSubject' },
+                  { title: 'Salutation', format: 'letterSalutation' },
+                  { title: 'Body', format: 'letterBody' },
+                  { title: 'Closing', format: 'letterClosing' },
+                  { title: 'Signature', format: 'letterSignature' }
+                ],
+                branding: false,
+                resize: false,
+                statusbar: false,
+                min_height: 500,
+                autoresize_bottom_margin: 50,
+                setup: (editor) => {
+                  editor.on('init', () => {
+                    editor.formatter.register('letterStyles', {
+                      block: 'div',
+                      classes: ['letter-date', 'letter-address', 'letter-subject', 'letter-salutation', 'letter-body', 'letter-closing', 'letter-signature']
+                    });
+                  });
+                }
+              }}
+            />
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

@@ -17,6 +17,7 @@
     "@heroicons/react": "^2.2.0",
     "@mui/icons-material": "^6.4.6",
     "@mui/material": "^6.4.6",
+    "@tinymce/tinymce-react": "^6.1.0",
     "axios": "^1.7.9",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
