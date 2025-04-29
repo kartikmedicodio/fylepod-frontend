@@ -42,7 +42,7 @@ const LetterGenerator = ({
       if (response.data.success) {
         setPreview({
           content: response.data.data.content,
-          pdf: response.data.data.pdf
+          docx: response.data.data.docx
         });
         if (onGenerate) {
           onGenerate(response.data.data);
@@ -58,48 +58,40 @@ const LetterGenerator = ({
   };
 
   const handleDownload = () => {
-    if (preview?.pdf) {
+    if (preview?.docx) {
       try {
-        const binaryString = window.atob(preview.pdf);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        
-        const blob = new Blob([bytes], { type: 'application/pdf' });
-        const url = window.URL.createObjectURL(blob);
+        const docxUrl = `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${preview.docx}`;
         const a = document.createElement('a');
-        a.href = url;
-        a.download = 'generated_letter.pdf';
+        a.href = docxUrl;
+        a.download = 'generated_letter.docx';
         document.body.appendChild(a);
         a.click();
-        window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
       } catch (error) {
-        console.error('Error downloading PDF:', error);
-        setError('Failed to download PDF');
+        console.error('Error downloading DOCX:', error);
+        setError('Failed to download DOCX');
       }
     }
   };
 
   const renderPDFPreview = () => {
-    if (!preview?.pdf) return null;
+    if (!preview?.docx) return null;
 
     try {
-      const pdfUrl = `data:application/pdf;base64,${preview.pdf}`;
+      const docxUrl = `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${preview.docx}`;
       return (
         <iframe
-          src={`${pdfUrl}#toolbar=0&zoom=100`}
+          src={`${docxUrl}#toolbar=0&zoom=100`}
           className="w-full h-full rounded-lg"
-          title="PDF Preview"
+          title="DOCX Preview"
         />
       );
     } catch (error) {
-      console.error('Error rendering PDF:', error);
+      console.error('Error rendering DOCX:', error);
       return (
         <div className="flex items-center justify-center h-full text-red-500">
           <AlertCircle className="w-6 h-6 mr-2" />
-          Failed to load PDF preview
+          Failed to load DOCX preview
         </div>
       );
     }
@@ -225,7 +217,14 @@ const LetterGenerator = ({
               </label>
               <div className="flex-1 rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
                 {preview ? (
-                  renderPDFPreview()
+                  <div className="flex-1 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center">
+                    <div className="text-center p-6">
+                      <FileText className="w-12 h-12 text-gray-300 mb-3 mx-auto" />
+                      <p className="text-sm text-gray-500">
+                        Click "Download DOCX" to get your editable document
+                      </p>
+                    </div>
+                  </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full text-center">
                     <FileText className="w-8 h-8 text-gray-300 mb-2" />
@@ -275,7 +274,7 @@ const LetterGenerator = ({
                 className="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
               >
                 <Download className="w-4 h-4 mr-2" />
-                Download PDF
+                Download DOCX
               </button>
             )}
           </div>
