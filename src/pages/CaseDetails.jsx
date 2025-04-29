@@ -960,8 +960,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         [managementDocumentId]: true
       }));
       
-      await api.patch(`/management/${caseId}/documents/${documentTypeId}/status`, {
-        status: DOCUMENT_STATUS.PENDING,
+      // Use the reupload-specific endpoint
+      await api.patch(`/management/${caseId}/documents/${documentTypeId}/reupload`, {
         documentTypeId: documentTypeId,
         managementDocumentId: managementDocumentId
       });
@@ -971,6 +971,32 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       if (response.data.status === 'success') {
         const updatedCaseData = response.data.data.entry;
         setCaseData(updatedCaseData);
+
+        // Clear validation data for this document from the current validation state
+        if (validationDataRef.current?.mergedValidations) {
+          const updatedValidations = validationDataRef.current.mergedValidations.filter(
+            validation => validation.documentType !== updatedCaseData.documentTypes.find(
+              dt => dt._id === managementDocumentId
+            )?.name
+          );
+
+          const newValidationData = {
+            ...validationDataRef.current,
+            mergedValidations: updatedValidations
+          };
+
+          // Update both the ref and state
+          validationDataRef.current = newValidationData;
+          setValidationData(newValidationData);
+
+          // Clear from localStorage as well
+          try {
+            localStorage.setItem(`validation-data-${caseId}`, JSON.stringify(newValidationData));
+          } catch (storageError) {
+            console.error('Error updating validation data in localStorage:', storageError);
+          }
+        }
+
         toast.success('Document sent for reupload');
       }
     } catch (error) {
