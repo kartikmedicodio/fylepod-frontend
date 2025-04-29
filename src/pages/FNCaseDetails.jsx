@@ -157,6 +157,14 @@ const DocumentProgressBar = ({ status }) => {
     currentStage = 3;
   } else if (normalizedStatus === 'processing') {
     currentStage = 2;
+  } else if (normalizedStatus.startsWith('processing-')) {
+    // Handle the processing-N format where N is the current processing step
+    const stepMatch = normalizedStatus.match(/processing-(\d)/);
+    if (stepMatch && stepMatch[1]) {
+      currentStage = parseInt(stepMatch[1], 10);
+    } else {
+      currentStage = 2; // Default to processing stage
+    }
   } else if (normalizedStatus === 'pending') {
     currentStage = 1;
   }
@@ -456,73 +464,49 @@ const FNCaseDetails = () => {
       });
       
       // Add a helper function to merge validation results
+      const normalizeDocType = (type) => (type || 'Document').trim().toLowerCase();
       const mergeValidationResults = (existingData, newResults, documentType) => {
-        // First check if there is data in the ref that might be more up-to-date than existingData
         const latestExistingData = validationDataRef.current || existingData;
-        
-        console.log('Merging validation results', { 
-          existingData: latestExistingData, 
-          newResults, 
-          documentType 
-        });
-        
-        // If no existing data, initialize with new results
+        const normalizedType = normalizeDocType(documentType);
+
         if (!latestExistingData || !latestExistingData.mergedValidations) {
           return {
             mergedValidations: [
               {
-                documentType: documentType || 'Document',
+                documentType: normalizedType,
                 validations: newResults.validations || []
               }
             ]
           };
         }
-        
-        // Make a deep copy of existing data to avoid mutation
+
         const mergedData = JSON.parse(JSON.stringify(latestExistingData));
-        
-        // Get all the existing document types
-        const existingDocTypes = new Set(mergedData.mergedValidations.map(item => item.documentType));
-        console.log('Existing document types:', Array.from(existingDocTypes));
-        
-        // If this is a new document type, simply add it to the array
-        if (!existingDocTypes.has(documentType)) {
-          console.log('Adding new document type:', documentType);
+        const existingIndex = mergedData.mergedValidations.findIndex(
+          item => normalizeDocType(item.documentType) === normalizedType
+        );
+
+        if (existingIndex === -1) {
           mergedData.mergedValidations.push({
-            documentType: documentType || 'Document',
+            documentType: normalizedType,
             validations: newResults.validations || []
           });
         } else {
-          // If this document type already exists, find it
-          const existingIndex = mergedData.mergedValidations.findIndex(
-            item => item.documentType === documentType
+          // Merge validations, avoiding duplicates
+          const existingValidationRules = new Set(
+            mergedData.mergedValidations[existingIndex].validations.map(
+              v => v.rule || v.name || JSON.stringify(v)
+            )
           );
-          
-          if (existingIndex >= 0) {
-            console.log('Updating existing document type:', documentType);
-            
-            // Keep track of validation rules we've seen to avoid duplicates
-            const existingValidationRules = new Set(
-              mergedData.mergedValidations[existingIndex].validations.map(v => v.rule || v.name || JSON.stringify(v))
-            );
-            
-            // Add new validation rules that don't already exist
-            const newValidations = (newResults.validations || []).filter(validation => {
-              const validationKey = validation.rule || validation.name || JSON.stringify(validation);
-              return !existingValidationRules.has(validationKey);
-            });
-            
-            // Combine existing and new validations
-            mergedData.mergedValidations[existingIndex].validations = [
-              ...mergedData.mergedValidations[existingIndex].validations,
-              ...newValidations
-            ];
-            
-            console.log(`Added ${newValidations.length} new validations for ${documentType}`);
-          }
+          const newValidations = (newResults.validations || []).filter(validation => {
+            const validationKey = validation.rule || validation.name || JSON.stringify(validation);
+            return !existingValidationRules.has(validationKey);
+          });
+          mergedData.mergedValidations[existingIndex].validations = [
+            ...mergedData.mergedValidations[existingIndex].validations,
+            ...newValidations
+          ];
         }
-        
-        console.log('Merged validation data:', mergedData);
+
         return mergedData;
       };
       
@@ -1375,6 +1359,11 @@ const FNCaseDetails = () => {
       doc.status === 'uploaded' || doc.status === 'approved'
     );
 
+    // Add documents in processing state
+    const processingDocuments = caseData.documentTypes.filter(doc => 
+      processingDocIds.includes(doc._id)
+    );
+
     // Add storage-only documents filtering
     const pendingStorageOnlyDocs = caseData.storageOnlyDocs?.filter(doc =>
       doc.status === 'pending'
@@ -1384,7 +1373,15 @@ const FNCaseDetails = () => {
       doc.status === 'uploaded' || doc.status === 'approved'
     ) || [];
 
-    // Add function to handle storage-only document upload
+    // Track storage-only documents being processed
+    const processingStorageOnlyDocs = isProcessing ? 
+      pendingStorageOnlyDocs.filter(doc => doc.documentTypeId === processingDocTypeId) : 
+      [];
+      
+    // Track the document type ID being processed
+    const [processingDocTypeId, setProcessingDocTypeId] = useState(null);
+    
+    // Add modified storage-only upload handler that tracks processing document
     const handleStorageOnlyUpload = async (documentTypeId, file) => {
       try {
         if (!validateFileType(file)) {
@@ -1392,9 +1389,11 @@ const FNCaseDetails = () => {
           return;
         }
 
-        // Show upload indicator
+        // Show upload indicator and track which document is being processed
         setIsProcessing(true);
+        setProcessingDocTypeId(documentTypeId);
         setUploadProgress(0);
+        setProcessingStep(1);
 
         const formData = new FormData();
         formData.append('file', file);
@@ -1414,10 +1413,26 @@ const FNCaseDetails = () => {
           onUploadProgress: (progressEvent) => {
             const progress = (progressEvent.loaded / progressEvent.total) * 100;
             setUploadProgress(Math.round(progress));
+            
+            // Update processing steps based on upload progress
+            if (progress < 25) {
+              setProcessingStep(1);
+            } else if (progress < 50) {
+              setProcessingStep(2);
+            } else if (progress < 75) {
+              setProcessingStep(3);
+            } else if (progress < 100) {
+              setProcessingStep(4);
+            } else {
+              setProcessingStep(5);
+            }
           }
         });
 
         if (response.data.status === 'success') {
+          // Set final processing step
+          setProcessingStep(5);
+          
           // Immediately update the document status without waiting for socket events
           await api.patch(`/management/${caseId}/documents/${documentTypeId}/status`, {
             status: 'uploaded',
@@ -1459,43 +1474,106 @@ const FNCaseDetails = () => {
         console.error('Error uploading storage-only document:', error);
         toast.error('Error uploading document: ' + (error.response?.data?.message || 'Unknown error'));
       } finally {
+        // Clear processing states
         setIsProcessing(false);
+        setProcessingDocTypeId(null);
         setUploadProgress(0);
       }
     };
 
     const renderDocumentsList = () => (
-      <div className="flex-1 border border-gray-200 rounded-lg p-4">
+      <div className="flex-1 border border-gray-200 rounded-lg p-4 relative">
+        {/* Global Processing Indicator - show when any document is being processed */}
+        {processingDocIds.length > 0 && (
+          <div className="p-4 bg-gradient-to-r from-amber-50/90 to-amber-50/70 border-b border-amber-100/50 mb-4 rounded-lg">
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                {/* Avatar container with gradient background */}
+                <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center relative overflow-hidden">
+                  {/* Gradient background */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-violet-500 to-fuchsia-500 opacity-90"></div>
+                  {/* Text */}
+                  <span className="relative text-sm font-semibold text-white tracking-wide">Diana</span>
+                  {/* Subtle glow effect */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 blur-xl -z-10"></div>
+                </div>
+                {/* Processing indicator */}
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white p-0.5">
+                  <div className="w-full h-full rounded-full bg-amber-500 animate-pulse"></div>
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-medium text-amber-900">
+                  Document Processing in Progress
+                </h3>
+                <p className="text-sm text-amber-700/90 mt-0.5 line-clamp-2">
+                  You may close the screen and continue with your work. I will update you once the processing is completed.
+                  Watch out for my detailed analysis in your email.
+                </p>
+              </div>
+              {/* Processing indicator dots */}
+              <div className="flex-shrink-0 flex items-center gap-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-500/70 animate-pulse" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-500/70 animate-pulse" style={{ animationDelay: '300ms' }}></div>
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-500/70 animate-pulse" style={{ animationDelay: '600ms' }}></div>
+              </div>
+            </div>
+          </div>
+        )}
+        
         <div className="space-y-6">
           {/* Regular Documents Section */}
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Required Documents</h3>
+            
+            {/* Documents currently in processing state */}
+            {processingDocuments.length > 0 && (
+              <div className="mb-6">
+                {processingDocuments.map((doc) => (
+                  <div key={doc._id} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-sm transition-shadow mb-4">
+                    <div className="flex items-start space-x-3">
+                      <div className="p-2 rounded-lg bg-amber-100 text-amber-600">
+                        <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-sm mb-1">
+                          {doc.name}
+                          {doc.required && (
+                            <span className="ml-2 text-xs text-red-500">*Required</span>
+                          )}
+                        </h4>
+                        <p className="text-sm text-gray-500 leading-snug">
+                          Processing document...
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
             {uploadStatus === 'pending' ? (
               pendingDocuments.length > 0 ? (
                 pendingDocuments.map((doc) => (
-                  <div key={doc._id} className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow border border-dashed border-gray-200 mb-4">
-                    <div className="flex flex-col">
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-sky-50 flex items-center justify-center">
-                            <svg className="w-5 h-5 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                          </div>
-                          <div>
-                            <h4 className="text-lg font-semibold text-gray-900">
-                              {doc.name}
-                            </h4>
-                            <p className="text-sm text-gray-500 mt-0.5">
-                              Please upload your {doc.name.toLowerCase()}
-                            </p>
-                          </div>
-                        </div>
-                        {doc.required && (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700">
-                            Required
-                          </span>
-                        )}
+                  <div key={doc._id} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-sm transition-shadow mb-4">
+                    <div className="flex items-start space-x-3">
+                      <div className="p-2 rounded-lg bg-gray-100 text-gray-600">
+                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-sm mb-1">
+                          {doc.name}
+                          {doc.required && (
+                            <span className="ml-2 text-xs text-red-500">*Required</span>
+                          )}
+                        </h4>
+                        <p className="text-sm text-gray-500 leading-snug">
+                          Please upload your {doc.name.toLowerCase()} document
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -1508,35 +1586,29 @@ const FNCaseDetails = () => {
             ) : (
               uploadedDocuments.length > 0 && (
                 uploadedDocuments.map((doc) => (
-                  <div key={doc._id} className="bg-white rounded-lg shadow-sm p-5 hover:shadow-md transition-shadow mb-4">
-                    <div className="flex flex-col">
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-sky-50 flex items-center justify-center">
-                            <svg className="w-5 h-5 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                          </div>
-                          <div>
-                            <h4 className="text-xl font-semibold text-gray-900">
-                              {doc.name}
-                            </h4>
-                          </div>
-                        </div>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                          ${doc.status === 'approved' || doc.status === 'uploaded'
-                            ? 'bg-green-50 text-green-700' 
-                            : 'bg-gray-50 text-gray-700'
-                          }`}
-                        >
-                          {doc.status === 'approved' 
-                            ? 'Approved' 
-                            : doc.status === 'uploaded' 
-                              ? 'Uploaded' 
-                              : doc.status || 'Processing'}
-                        </span>
+                  <div key={doc._id} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-sm transition-shadow mb-4">
+                    <div className="flex items-start space-x-3">
+                      <div className={`p-2 rounded-lg ${
+                        doc.status === 'approved' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
+                      }`}>
+                        {doc.status === 'approved' ? (
+                          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        )}
                       </div>
-                      <DocumentProgressBar status={doc.status || 'uploaded'} />
+                      <div>
+                        <h4 className="font-medium text-sm mb-1">
+                          {doc.name}
+                        </h4>
+                        <p className="text-sm text-gray-500 leading-snug">
+                          {doc.status === 'approved' ? 'Document approved' : 'Uploaded and awaiting approval'}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -1545,73 +1617,105 @@ const FNCaseDetails = () => {
           </div>
 
           {/* Storage-Only Documents Section */}
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Additional Documents</h3>
-            <div className="space-y-4">
-              {pendingStorageOnlyDocs.map((doc) => (
-                <div key={doc._id} className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow border border-dashed border-gray-200">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center">
-                        <svg className="w-5 h-5 text-purple-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          {(caseData.storageOnlyDocs && caseData.storageOnlyDocs.length > 0) && (
+            <div className="mt-8">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Additional Documents</h3>
+              <div className="space-y-4">
+                {/* Processing storage-only documents */}
+                {processingStorageOnlyDocs.length > 0 && (
+                  <>
+                    {processingStorageOnlyDocs.map((doc) => (
+                      <div key={doc._id} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-sm transition-shadow mb-4">
+                        <div className="flex items-start space-x-3">
+                          <div className="p-2 rounded-lg bg-amber-100 text-amber-600">
+                            <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-sm mb-1">{doc.name}</h4>
+                            <p className="text-sm text-gray-500 leading-snug">
+                              Uploading - {uploadProgress}%
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {/* Upload progress bar */}
+                        <div className="mt-3 h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-amber-500 rounded-full transition-all duration-300"
+                            style={{ width: `${uploadProgress}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+                
+                {pendingStorageOnlyDocs
+                  .filter(doc => !processingStorageOnlyDocs.some(pDoc => pDoc._id === doc._id))
+                  .map((doc) => (
+                    <div key={doc._id} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-sm transition-shadow mb-4">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center space-x-3">
+                          <div className="p-2 rounded-lg bg-gray-100 text-gray-600">
+                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-sm mb-1">{doc.name}</h4>
+                            <p className="text-sm text-gray-500">Please upload this document</p>
+                          </div>
+                        </div>
+                        <div>
+                          <input
+                            type="file"
+                            id={`storage-file-${doc._id}`}
+                            className="hidden"
+                            onChange={(e) => {
+                              if (e.target.files?.[0]) {
+                                handleStorageOnlyUpload(doc.documentTypeId, e.target.files[0]);
+                              }
+                            }}
+                            accept="image/jpeg,image/png,image/jpg,application/pdf"
+                          />
+                          <label
+                            htmlFor={`storage-file-${doc._id}`}
+                            className="inline-flex items-center px-3 py-1.5 text-xs font-medium bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors cursor-pointer"
+                          >
+                            <Upload className="w-3.5 h-3.5 mr-1.5" />
+                            Upload File
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                {uploadedStorageOnlyDocs.map((doc) => (
+                  <div key={doc._id} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-sm transition-shadow mb-4">
+                    <div className="flex items-start space-x-3">
+                      <div className="p-2 rounded-lg bg-green-100 text-green-600">
+                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       </div>
                       <div>
-                        <h4 className="text-lg font-semibold text-gray-900">{doc.name}</h4>
-                        <p className="text-sm text-gray-500">Storage only document</p>
+                        <h4 className="font-medium text-sm mb-1">{doc.name}</h4>
+                        <p className="text-sm text-gray-500 leading-snug">
+                          {doc.status === 'approved' ? 'Document approved' : 'Document uploaded'}
+                        </p>
                       </div>
-                    </div>
-                    <div>
-                      <input
-                        type="file"
-                        id={`storage-file-${doc._id}`}
-                        className="hidden"
-                        onChange={(e) => {
-                          if (e.target.files?.[0]) {
-                            handleStorageOnlyUpload(doc.documentTypeId, e.target.files[0]);
-                          }
-                        }}
-                        accept="image/jpeg,image/png,image/jpg,application/pdf"
-                      />
-                      <label
-                        htmlFor={`storage-file-${doc._id}`}
-                        className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors cursor-pointer"
-                      >
-                        <Upload className="w-4 h-4 mr-2" />
-                        Upload File
-                      </label>
                     </div>
                   </div>
-                </div>
-              ))}
-              {uploadedStorageOnlyDocs.map((doc) => (
-                <div key={doc._id} className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center">
-                        <svg className="w-5 h-5 text-purple-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h4 className="text-lg font-semibold text-gray-900">{doc.name}</h4>
-                        <p className="text-sm text-gray-500">Storage only document</p>
-                      </div>
-                    </div>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">
-                      {doc.status === 'approved' ? 'Approved' : 'Uploaded'}
-                    </span>
+                ))}
+                {pendingStorageOnlyDocs.length === 0 && uploadedStorageOnlyDocs.length === 0 && (
+                  <div className="text-gray-500 text-sm text-center py-8">
+                    No additional documents required
                   </div>
-                </div>
-              ))}
-              {pendingStorageOnlyDocs.length === 0 && uploadedStorageOnlyDocs.length === 0 && (
-                <div className="text-gray-500 text-sm text-center py-8">
-                  No additional documents required
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     );
@@ -1888,9 +1992,9 @@ const FNCaseDetails = () => {
 
         {uploadStatus === 'pending' && (
           <div className="flex gap-6">
-            {renderDocumentsList()}
-            {renderSmartUpload()}
-                </div>
+            <div className="flex-[1.5] min-w-0">{renderDocumentsList()}</div>
+            <div className="flex-[1] min-w-[340px] max-w-[420px]">{renderSmartUpload()}</div>
+          </div>
         )}
 
         {uploadStatus === 'validation' && (
