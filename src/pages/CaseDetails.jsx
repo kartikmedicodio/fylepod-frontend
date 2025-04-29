@@ -3991,6 +3991,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             // First attempt to get the field - if it doesn't exist, this will throw an error
             // which we'll catch and silently ignore
             const field = form.getField(fieldName);
+            console.log("field----", field);
 
             
             // If we get here, the field exists so process it
