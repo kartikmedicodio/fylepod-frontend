@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Search, Edit2, Clock, ChevronDown, Plus, X } from 'lucide-react';
+import { Search, Edit2, Clock, ChevronDown, Plus, X, Trash, ChevronUp } from 'lucide-react';
 import api from '../utils/api';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import PropTypes from 'prop-types';
@@ -162,9 +162,20 @@ const DocumentChecklist = () => {
         <div className="mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-semibold text-gray-900">
-                {category?.name}
-              </h1>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => navigate('/knowledge')}
+                  className="text-gray-600 hover:text-gray-900"
+                  title="Go back to process template"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                <h1 className="text-xl font-semibold text-gray-900">
+                  {category?.name}
+                </h1>
+              </div>
               <p className="mt-1 text-sm text-gray-500">
                 {category?.description}
               </p>
@@ -209,7 +220,7 @@ const DocumentChecklist = () => {
                 title="Edit Process"
               >
                 <Edit2 className="h-4 w-4 inline" />
-                Edit Process
+                Edit
               </button>
             </div>
           </>
@@ -236,15 +247,16 @@ const DocumentChecklist = () => {
                   </button>
                 </div>
                 {openValidationDocId === doc._id && (
-                  <div className="mt-3 w-full">
+                  <div className="mt-4 pl-4 border-l-2 border-gray-100">
                     <div className="mb-2">
-                      <h4 className="text-sm font-semibold text-gray-800">Validations</h4>
+                      <h4 className="text-sm font-medium text-gray-700">Validations</h4>
                     </div>
                     {doc.validations && doc.validations.length > 0 ? (
-                      <ul className="space-y-2 border border-gray-200 rounded-lg bg-gray-50 p-3">
+                      <ul className="space-y-2">
                         {doc.validations.map((val, idx) => (
-                          <li key={idx} className="p-2 rounded bg-white border border-gray-100 text-sm">
-                            {val}
+                          <li key={idx} className="flex items-start gap-2 text-sm text-gray-600">
+                            <span className="mt-1 text-blue-500">•</span>
+                            <span>{val}</span>
                           </li>
                         ))}
                       </ul>
@@ -296,7 +308,7 @@ const DocumentChecklist = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Link</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -324,7 +336,7 @@ const DocumentChecklist = () => {
                             className="text-gray-400 hover:text-red-500 transition-colors"
                             title="Remove form"
                           >
-                            <X className="h-4 w-4" />
+                            <Trash className="h-4 w-4" />
                           </button>
                         </td>
                       </tr>
