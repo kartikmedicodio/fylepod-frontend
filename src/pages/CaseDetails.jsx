@@ -40,7 +40,7 @@ import FinalizeTab from '../components/cases/FinalizeTab';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import { initializeSocket, joinDocumentRoom, handleReconnect, getSocket } from '../utils/socket';
 import { getStoredToken } from '../utils/auth';
-
+import LetterTab from '../components/letters/LetterTab';
 
 // Add a new status type to track document states
 const DOCUMENT_STATUS = {
@@ -1785,7 +1785,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           { name: 'Document Checklist', icon: ClipboardList },
           { name: 'Questionnaire', icon: FileText },
           { name: 'Forms', icon: File },
-          { name: 'Queries', icon: AlertCircle, disabled: true }
+          { name: 'Letters', icon: FileText }
         ].map(({ name, icon: Icon, disabled }) => (
           <button
             key={name}
@@ -2599,6 +2599,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               }}
             />
           );
+        case 'letters':
+          return <LetterTab managementId={caseId} />;
         default:
           return null;
       }
@@ -4700,6 +4702,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
+              {activeTab === 'letters' && <LetterTab managementId={caseId} />}
             </div>
           </div>
         </div>
