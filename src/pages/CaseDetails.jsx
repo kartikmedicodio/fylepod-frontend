@@ -2872,55 +2872,65 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     const allFields = getFields();
 
-    // Group fields by their groupName
+    // Group fields by their groupName and then subgroup by fieldLabel
     const groupedFields = useMemo(() => {
       const groups = {};
       
-      // First, organize fields by their group
+      // First pass: organize fields by their main group
       Object.entries(localFormData || {}).forEach(([fieldKey, field]) => {
         const groupName = field?.groupName || 'Ungrouped';
         
         if (!groups[groupName]) {
-          groups[groupName] = [];
+          groups[groupName] = {
+            _subgroups: {}, // For fields that can be subgrouped by fieldLabel
+            _individual: [] // For fields that don't share fieldLabel with others
+          };
         }
         
-        groups[groupName].push(fieldKey);
+        // Add the field key to the appropriate group
+        groups[groupName]._individual.push(fieldKey);
       });
       
-      // Sort fields within each group based on priority fields
-      const priorityFields = [
-        'First Name', 'Date of Birth', 'City of Birth', 'Country of Birth', 'Gender', 
-        'Nationality', 'Passport Number', 'Date of Issue', 'Date of Expiry', 'Place of Issue',
-        'Cell Number', 'Email ID', 'Educational Qualification',
-        'Current Company Name', 'Current Position'
-      ];
-      
-      // Sort each group's fields
+      // Second pass: identify fields that share the same fieldLabel within each group
       Object.keys(groups).forEach(groupName => {
-        groups[groupName].sort((a, b) => {
-          const aIndex = priorityFields.indexOf(a);
-          const bIndex = priorityFields.indexOf(b);
+        const groupData = groups[groupName];
+        const fieldLabelCounts = {};
+        
+        // Count occurrences of each fieldLabel
+        groupData._individual.forEach(fieldKey => {
+          const field = localFormData[fieldKey];
+          const fieldLabel = field?.fieldLabel || '';
           
-          // If both fields are in priority list, sort by their order in that list
-          if (aIndex !== -1 && bIndex !== -1) {
-            return aIndex - bIndex;
+          if (fieldLabel) {
+            fieldLabelCounts[fieldLabel] = (fieldLabelCounts[fieldLabel] || 0) + 1;
           }
-          
-          // If only 'a' is in priority list, it comes first
-          if (aIndex !== -1) return -1;
-          
-          // If only 'b' is in priority list, it comes first
-          if (bIndex !== -1) return 1;
-          
-          // Special case: Put all company_* fields after other fields
-          if (a.toLowerCase().includes('company') && !b.toLowerCase().includes('company')) return 1;
-          if (!a.toLowerCase().includes('company') && b.toLowerCase().includes('company')) return -1;
-          
-          // Otherwise sort alphabetically by field label
-          const aLabel = localFormData[a]?.fieldLabel || a;
-          const bLabel = localFormData[b]?.fieldLabel || b;
-          return aLabel.localeCompare(bLabel);
         });
+        
+        // Create subgroups for fieldLabels that appear more than once
+        const fieldsToMove = [];
+        
+        Object.entries(fieldLabelCounts).forEach(([fieldLabel, count]) => {
+          if (count > 1) {
+            // Create a subgroup for this fieldLabel
+            groupData._subgroups[fieldLabel] = [];
+            
+            // Find all fields with this label
+            groupData._individual.forEach(fieldKey => {
+              const field = localFormData[fieldKey];
+              if (field?.fieldLabel === fieldLabel) {
+                // Add to the subgroup
+                groupData._subgroups[fieldLabel].push(fieldKey);
+                // Mark for removal from individual list
+                fieldsToMove.push(fieldKey);
+              }
+            });
+          }
+        });
+        
+        // Remove fields that were moved to subgroups
+        groupData._individual = groupData._individual.filter(
+          fieldKey => !fieldsToMove.includes(fieldKey)
+        );
       });
       
       // Sort the groups alphabetically but put some important groups first
@@ -2951,11 +2961,19 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     }, [localFormData]);
 
     // Get filled fields count for a specific group
-    const getGroupCompletionStats = (groupFields) => {
-      if (!groupFields || groupFields.length === 0) return { completed: 0, total: 0, percentage: 0 };
+    const getGroupCompletionStats = (groupData) => {
+      if (!groupData) return { completed: 0, total: 0, percentage: 0 };
       
-      const total = groupFields.length;
-      const completed = groupFields.filter(fieldKey => !isFieldEmpty(fieldKey)).length;
+      // Collect all fields from individual and subgroups
+      let allFields = [...groupData._individual];
+      
+      // Add fields from subgroups
+      Object.values(groupData._subgroups || {}).forEach(subgroupFields => {
+        allFields = [...allFields, ...subgroupFields];
+      });
+      
+      const total = allFields.length;
+      const completed = allFields.filter(fieldKey => !isFieldEmpty(fieldKey)).length;
       const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
       
       return { completed, total, percentage };
@@ -3415,15 +3433,36 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     };
     
     // Render a single group of fields as an accordion
-    const renderGroup = (groupName, fields) => {
-      const visibleFields = fields.filter(shouldShowField);
+    const renderGroup = (groupName, groupData) => {
+      // Check if there are visible fields in this group
+      const allFields = [...groupData._individual];
+      Object.values(groupData._subgroups || {}).forEach(subgroupFields => {
+        allFields.push(...subgroupFields);
+      });
+      
+      const visibleFields = allFields.filter(shouldShowField);
       
       // If no fields are visible (when showing only empty fields), don't render this group
       if (visibleFields.length === 0) return null;
       
       // Get completion stats for this group
-      const { completed, total, percentage } = getGroupCompletionStats(fields);
+      const { completed, total, percentage } = getGroupCompletionStats(groupData);
       const isExpanded = expandedGroups[groupName] || false;
+      
+      // Function to render a subgroup
+      const renderSubgroup = (label, fields) => {
+        const visibleSubgroupFields = fields.filter(shouldShowField);
+        if (visibleSubgroupFields.length === 0) return null;
+        
+        return (
+          <div key={`subgroup-${label}`} className="mb-4 border border-gray-100 rounded p-3 bg-gray-50">
+            <div className="font-medium text-sm text-gray-700 mb-2">{label}</div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {visibleSubgroupFields.map(renderField)}
+            </div>
+          </div>
+        );
+      };
       
       return (
         <div key={groupName} className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
@@ -3478,9 +3517,17 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           {/* Accordion Content */}
           {isExpanded && (
             <div className="p-4 bg-white border-t border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {visibleFields.map(renderField)}
-              </div>
+              {/* Render subgroups first */}
+              {Object.entries(groupData._subgroups || {}).map(([label, fields]) => 
+                renderSubgroup(label, fields)
+              )}
+              
+              {/* Render individual fields */}
+              {groupData._individual.filter(shouldShowField).length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {groupData._individual.filter(shouldShowField).map(renderField)}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -3591,8 +3638,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         {/* Form Content - Grouped by sections */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           {Object.keys(groupedFields).length > 0 ? (
-            Object.entries(groupedFields).map(([groupName, fields]) => 
-              renderGroup(groupName, fields)
+            Object.entries(groupedFields).map(([groupName, groupData]) => 
+              renderGroup(groupName, groupData)
             )
           ) : (
             <div className="text-center py-8 text-gray-500">
@@ -3603,7 +3650,16 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
         {/* Show message when no empty fields match the filter */}
         {showOnlyEmpty && Object.keys(groupedFields).length > 0 && 
-         !Object.entries(groupedFields).some(([_, fields]) => fields.some(shouldShowField)) && (
+         !Object.entries(groupedFields).some(([_, groupData]) => {
+           // Check if any individual fields should be shown
+           const hasVisibleIndividualFields = groupData._individual.some(shouldShowField);
+           
+           // Check if any subgrouped fields should be shown
+           const hasVisibleSubgroupFields = Object.values(groupData._subgroups || {})
+             .some(subgroupFields => subgroupFields.some(shouldShowField));
+           
+           return hasVisibleIndividualFields || hasVisibleSubgroupFields;
+         }) && (
           <div className="text-center py-8 text-gray-500">
             No empty fields found!
           </div>
