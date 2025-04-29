@@ -4013,71 +4013,128 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       else if(formId === "6807482c28e899d06acdfbc5"){
         // Helper function to handle setting form field values regardless of field type
         const setFormField = (fieldName, value) => {
+          // Skip processing if fieldName is undefined or null
+          if (!fieldName) {
+            console.warn(`Attempted to set field with undefined or null fieldName`);
+            return;
+          }
+          
           try {
             // First attempt to get the field - if it doesn't exist, this will throw an error
-            // which we'll catch and silently ignore
             const field = form.getField(fieldName);
             console.log("field----", field);
-
             
-            // If we get here, the field exists so process it
-            // Check the field type and handle accordingly
-            if (field.constructor.name === 'PDFCheckBox2') {
-              console.log("checkbox field", fieldName);
-              // Handle checkbox fields
+            // Use feature detection instead of constructor names
+            // Try to detect field type by checking for specific methods or properties
+            let fieldType = 'unknown';
+            
+            try {
+              // Try to get it as a checkbox
               const checkbox = form.getCheckBox(fieldName);
-              // Check the checkbox if there's ANY value (not empty/null/undefined)
-              // This simplifies the logic - if the field has any value at all, it's checked
-              const isChecked = value !== undefined && value !== null && value !== '' && value !== false;
-              
-              if (isChecked) {
-                checkbox.check();
-              } else {
-                checkbox.uncheck();
+              if (checkbox && typeof checkbox.check === 'function') {
+                fieldType = 'checkbox';
+                
+                // Check the checkbox if there's ANY value (not empty/null/undefined)
+                const isChecked = value !== undefined && value !== null && value !== '' && value !== false;
+                console.log("checkbox field", fieldName, isChecked);
+                
+                if (isChecked) {
+                  checkbox.check();
+                } else {
+                  checkbox.uncheck();
+                }
+                return; // Successfully processed as checkbox
               }
-            } else if (field.constructor.name === 'PDFTextField2') {
-              console.log("text field", fieldName);
-              // Handle text fields
-              const textField = form.getTextField(fieldName);
-              textField.setText(value?.toString() || values?.toString() || 'N/A');
-            } else if (field.constructor.name === 'PDFRadioGroup2') {
-              // Handle radio button groups
-              console.log("radio field", fieldName);
-              const radioGroup = form.getRadioGroup(fieldName);
-              if (value) {
-                radioGroup.select(value.toString());
-              }
+            } catch (checkboxError) {
+              // Not a checkbox, continue to next type
             }
-            // Silently ignore unsupported field types
+            
+            try {
+              // Try to get it as a text field
+              const textField = form.getTextField(fieldName);
+              if (textField && typeof textField.setText === 'function') {
+                fieldType = 'textfield';
+                console.log("text field", fieldName);
+                
+                // Guard against undefined values
+                const textValue = value?.toString();
+                textField.setText(textValue);
+                return; // Successfully processed as text field
+              }
+            } catch (textFieldError) {
+              // Not a text field, continue to next type
+            }
+            
+            try {
+              // Try to get it as a radio group
+              const radioGroup = form.getRadioGroup(fieldName);
+              if (radioGroup && typeof radioGroup.select === 'function') {
+                fieldType = 'radiogroup';
+                console.log("radio field", fieldName);
+                
+                if (value !== undefined && value !== null && value !== '') {
+                  // Convert various value types to string safely
+                  const radioValue = value.toString();
+                  
+                  // Only try to select if it's a non-empty string
+                  if (radioValue) {
+                    radioGroup.select(radioValue);
+                  }
+                }
+                return; // Successfully processed as radio group
+              }
+            } catch (radioError) {
+              // Not a radio group
+            }
+            
+            // If we get here, field type couldn't be determined or processed
+            console.warn(`Could not determine type for field "${fieldName}" or field type not supported`);
+            
           } catch (error) {
-            // Silently ignore fields that don't exist in the PDF
-            // No console warnings or errors
+            console.error(`Field "${fieldName}" not found in the PDF form:`, error.message);
           }
         };
         
         // Fix for the "processedInfo.forEach is not a function" error
         if (processedInfo) {
+          console.log("Processing form data:", typeof processedInfo);
+          
           if (Array.isArray(processedInfo)) {
             // If it's an array, use forEach as intended
-            processedInfo.forEach(field => {
+            console.log(`Processing ${processedInfo.length} fields from array`);
+            processedInfo.forEach((field, index) => {
+              if (!field || !field.fieldName) {
+                console.error(`Field at index ${index} missing required properties:`, field);
+                return;
+              }
               setFormField(field.fieldName, field.value);
             });
           } else if (typeof processedInfo === 'object') {
             // If it's an object, iterate through its keys
-            Object.entries(processedInfo).forEach(([key, field]) => {
-              // If the field has fieldName and value properties
-              if (field && typeof field === 'object' && field.fieldName && 'value' in field) {
-                setFormField(field.fieldName, field.value);
-              } else {
-                // Otherwise use the key as fieldName and the field value directly
-                setFormField(key, field);
+            console.log(`Processing ${Object.keys(processedInfo).length} entries from object`);
+            Object.entries(processedInfo).forEach(([key, field], index) => {
+              try {
+                // If the field has fieldName and value properties
+                if (field && typeof field === 'object' && field.fieldName && 'value' in field) {
+                  console.log(`Setting field from object property [${index}]:`, field.fieldName);
+                  setFormField(field.fieldName, field.value);
+                } else {
+                  // Otherwise use the key as fieldName and the field value directly
+                  console.log(`Setting field from key [${index}]:`, key);
+                  setFormField(key, field);
+                }
+              } catch (err) {
+                console.error(`Error processing field ${key}:`, err);
               }
             });
           } else {
-            console.warn('processedInfo is neither an array nor an object:', processedInfo);
+            console.error('Invalid processedInfo format - expected array or object but got:', 
+              typeof processedInfo, 
+              processedInfo ? processedInfo.toString().substring(0, 100) : 'null'
+            );
           }
         } else {
-          console.warn('processedInfo is null or undefined');
+          console.error('No form data available: processedInfo is null or undefined');
         }
         
         return await pdfDoc.save();
