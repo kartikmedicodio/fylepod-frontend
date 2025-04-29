@@ -3996,7 +3996,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             // If we get here, the field exists so process it
             // Check the field type and handle accordingly
             if (field.constructor.name === 'PDFCheckBox2') {
-              //console.log("checkbox field", fieldName);
+              console.log("checkbox field", fieldName);
               // Handle checkbox fields
               const checkbox = form.getCheckBox(fieldName);
               // Check the checkbox if there's ANY value (not empty/null/undefined)
@@ -4009,13 +4009,13 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 checkbox.uncheck();
               }
             } else if (field.constructor.name === 'PDFTextField2') {
-              //console.log("text field", fieldName);
+              console.log("text field", fieldName);
               // Handle text fields
               const textField = form.getTextField(fieldName);
               textField.setText(value?.toString() || values?.toString() || 'N/A');
             } else if (field.constructor.name === 'PDFRadioGroup2') {
               // Handle radio button groups
-              //console.log("radio field", fieldName);
+              console.log("radio field", fieldName);
               const radioGroup = form.getRadioGroup(fieldName);
               if (value) {
                 radioGroup.select(value.toString());
