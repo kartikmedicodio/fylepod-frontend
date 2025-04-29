@@ -26,8 +26,7 @@ import {
   Bot,
   SendHorizontal,
   Eye,
-  ChevronDown,
-  ChevronUp
+  ChevronDown
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
@@ -42,7 +41,6 @@ import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import { initializeSocket, joinDocumentRoom, handleReconnect, getSocket } from '../utils/socket';
 import { getStoredToken } from '../utils/auth';
 import LetterTab from '../components/letters/LetterTab';
-
 
 // Add a new status type to track document states
 const DOCUMENT_STATUS = {
@@ -268,10 +266,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     processedDocuments: [], // Track all processed documents
     validationFailuresByDocument: {} // Track validation failures by document
   });
-
-  // Add activeDocument state near other state declarations
-  const [activeDocument, setActiveDocument] = useState(null);
-  const [isAutoExpandCrossVerification, setIsAutoExpandCrossVerification] = useState(false);
 
   // Add a function at the top of the component to load data from localStorage
   const loadDataFromLocalStorage = () => {
@@ -1791,18 +1785,21 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           { name: 'Document Checklist', icon: ClipboardList },
           { name: 'Questionnaire', icon: FileText },
           { name: 'Forms', icon: File },
-          { name: 'Letters', icon: FileText } // Remove disabled property
-        ].map(({ name, icon: Icon }) => ( // Remove disabled from destructuring
+          { name: 'Letters', icon: FileText }
+        ].map(({ name, icon: Icon, disabled }) => (
           <button
             key={name}
+            disabled={disabled}
             className={`flex items-center px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
               activeTab === name.toLowerCase().replace(' ', '-')
                 ? 'border-blue-600 text-blue-600'
+                : disabled
+                ? 'border-transparent text-gray-400 cursor-not-allowed'
                 : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
             }`}
-            onClick={() => setActiveTab(name.toLowerCase().replace(' ', '-'))}
+            onClick={() => !disabled && setActiveTab(name.toLowerCase().replace(' ', '-'))}
           >
-            <Icon className="w-4 h-4 mr-2" />
+            <Icon className={`w-4 h-4 mr-2 ${disabled ? 'opacity-50' : ''}`} />
             {name}
           </button>
         ))}
@@ -2475,16 +2472,12 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             error={extractedDataError}
           />;
         case 'validation':
-          console.log('Rendering ValidationTab with activeDocument:', activeDocument, 'selectedSubTab:', selectedSubTab);
           return (
-            <ValidationTab
-              key={`validation-tab-${activeDocument}-${validationUpdated}-${selectedSubTab}`}
-              validationData={validationDataRef.current || validationData}
-              isLoading={isLoadingValidation}
+            <ValidationTab 
+              validationData={validationData} 
+              isLoading={isLoading}
               onTabChange={(tab) => setSelectedSubTab(tab)}
-              caseData={caseData}
-              activeDocument={activeDocument}
-              onActiveDocumentChange={setActiveDocument}
+              caseData={caseData} // Add this prop
             />
           );
         case 'cross-verification':
@@ -2496,7 +2489,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               managementId={caseId}
               recipientEmail={recipientEmail}
               onNextClick={handleNextClick}
-              isAutoExpanded={isAutoExpandCrossVerification}
             />
           );
         case 'finalize':
@@ -2572,92 +2564,19 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               validationData={validationDataRef.current || validationData}
               onStateClick={(state, document) => {
                 // Handle state clicks to navigate to appropriate tabs
-                const normalizedState = state.toLowerCase().replace(/-| /g, ' ');
-                
-                switch(normalizedState) {
-                  case 'verification':
-                    console.log('Verification tab selected via state change');
-                    
-                    // Find the document index in validation data
-                    if (validationDataRef.current?.mergedValidations?.length > 0) {
-                      // Log validation data structure
-                      console.log('ValidationData structure:', {
-                        managementId: validationDataRef.current.managementId,
-                        documentsCount: validationDataRef.current.mergedValidations.length,
-                        documentTypes: validationDataRef.current.mergedValidations.map(v => v.documentType)
-                      });
-                      
-                      // First ensure validation data is synced
-                      if (!validationData || JSON.stringify(validationData) !== JSON.stringify(validationDataRef.current)) {
-                        console.log('Syncing validation state with ref data');
-                        setValidationData(validationDataRef.current);
-                      }
-                      
-                      // Get document type to search for
-                      const documentType = document.name;
-                      console.log('Looking for document type:', documentType);
-                      
-                      // Log available documents
-                      console.log('Available documents in validation data:', 
-                        validationDataRef.current.mergedValidations.map((v, i) => ({
-                          index: i,
-                          documentType: v.documentType
-                        }))
-                      );
-                      
-                      // Find the matching document by type
-                      const documentIndex = validationDataRef.current.mergedValidations.findIndex(
-                        v => v.documentType.toLowerCase() === documentType.toLowerCase()
-                      );
-                      
-                      console.log('Found document index:', documentIndex, 'for document type:', documentType);
-                      
-                      if (documentIndex !== -1) {
-                        // Set the active document index first
-                        console.log('Setting active document to index:', documentIndex);
-                        setActiveDocument(documentIndex);
-                        
-                        // Then change to validation tab
-                        console.log('Switching to validation tab with activeDocument:', documentIndex);
-                        setSelectedSubTab('validation');
-                      } else {
-                        // Try a more flexible search if exact match fails
-                        const fuzzyIndex = validationDataRef.current.mergedValidations.findIndex(
-                          v => v.documentType.toLowerCase().includes(documentType.toLowerCase()) || 
-                               documentType.toLowerCase().includes(v.documentType.toLowerCase())
-                        );
-                        
-                        if (fuzzyIndex !== -1) {
-                          console.log('Found fuzzy match at index:', fuzzyIndex);
-                          setActiveDocument(fuzzyIndex);
-                          setSelectedSubTab('validation');
-                        } else {
-                          // If still not found, just switch tabs
-                          console.warn('No matching document found, switching tabs without setting active document');
-                          setSelectedSubTab('validation');
-                        }
-                      }
-                    } else {
-                      console.warn('No validation data available');
-                      setSelectedSubTab('validation');
-                    }
+                switch(state) {
+                  case 'validation':
+                    setSelectedSubTab('validation');
                     break;
-                  case 'cross verification':
-                    console.log('Cross-verification tab selected via state change');
-                    if (!verificationData || JSON.stringify(verificationData) !== JSON.stringify(verificationDataRef.current)) {
-                      console.log('Syncing verification state with ref data');
-                      setVerificationData(verificationDataRef.current);
-                    }
+                  case 'cross-verification':
                     setSelectedSubTab('cross-verification');
                     break;
-                  case 'extracted data':
+                  case 'extracted-data':
                     setSelectedSubTab('extracted-data');
                     break;
                   default:
                     break;
                 }
-                
-                
               }}
               onApprove={handleDocumentApprove}
               onRequestReupload={handleRequestReupload}
@@ -2685,99 +2604,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         default:
           return null;
       }
-    };
-
-    // Add a new ValidationCard component for the improved validation UI
-    const ValidationCard = ({ docValidation, index, validationUpdated }) => {
-      const passedCount = docValidation.validations.filter(v => v.passed).length;
-      const failedCount = docValidation.validations.filter(v => !v.passed).length;
-      const [isExpanded, setIsExpanded] = useState(false);
-      
-      return (
-        <div 
-          key={`validation-section-${docValidation.documentType}-${index}-${validationUpdated}`}
-          className="bg-white rounded-xl border border-gray-200 overflow-hidden transition-all duration-200 mb-2"
-        >
-          {/* Document Header */}
-          <div 
-            className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
-            onClick={() => setIsExpanded(!isExpanded)}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                failedCount === 0 
-                  ? 'bg-green-50 text-green-600' 
-                  : 'bg-red-50 text-red-600'
-              }`}>
-                {failedCount === 0 ? (
-                  <Check className="w-5 h-5" />
-                ) : (
-                  <X className="w-5 h-5" />
-                )}
-              </div>
-              <div>
-                <h3 className="font-medium text-gray-900">
-                  {docValidation.documentType}
-                </h3>
-                <p className="text-sm">
-                  <span className="text-green-600">{passedCount} Passed</span> • <span className="text-red-600">{failedCount} Failed</span>
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center">
-              {failedCount > 0 && (
-                <span className="mr-3 px-3 py-1 text-xs font-medium text-red-600 bg-red-50 rounded-full">
-                  {failedCount} Issues Found
-                </span>
-              )}
-              {failedCount === 0 && (
-                <span className="mr-3 px-3 py-1 text-xs font-medium text-green-600 bg-green-50 rounded-full">
-                  All Passed
-                </span>
-              )}
-              {isExpanded ? (
-                <ChevronUp className="w-5 h-5 text-gray-400" />
-              ) : (
-                <ChevronDown className="w-5 h-5 text-gray-400" />
-              )}
-            </div>
-          </div>
-
-          {/* Validation Rules - Expandable content */}
-          {isExpanded && (
-            <div className="px-4 pb-4 border-t border-gray-200">
-              <div className="divide-y divide-gray-100">
-                {docValidation.validations.map((validation, vIndex) => (
-                  <div 
-                    key={vIndex}
-                    className="flex items-start gap-4 py-4"
-                  >
-                    <div className={`mt-1 w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      validation.passed 
-                        ? 'bg-green-100 text-green-600' 
-                        : 'bg-red-100 text-red-600'
-                    }`}>
-                      {validation.passed ? (
-                        <Check className="w-3 h-3" />
-                      ) : (
-                        <X className="w-3 h-3" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="text-sm font-medium text-gray-900 mb-1">
-                        {validation.rule}
-                      </h4>
-                      <p className="text-sm text-gray-600">
-                        {validation.message}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      );
     };
 
     const renderValidationSection = () => {
@@ -2814,7 +2640,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">Document Verification</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Document Verification</h2>
               <p className="text-sm text-gray-500 mt-1">
                 Validation results for {documentCount} {documentCount === 1 ? 'document' : 'documents'}
               </p>
@@ -2830,18 +2656,30 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             )}
           </div>
 
-          {/* Documents List - Simplified to match ValidationTab */}
-          <div className="p-4">
-            <div className="space-y-4">
-              {currentValidationData.mergedValidations.map((docValidation, index) => (
-                <ValidationCard 
-                  key={`validation-card-${docValidation.documentType}-${index}-${validationUpdated}`}
-                  docValidation={docValidation}
-                  index={index}
-                  validationUpdated={validationUpdated}
-                />
-              ))}
-            </div>
+          {/* Documents List */}
+          <div className="space-y-4">
+            {currentValidationData.mergedValidations.map((docValidation, index) => (
+              <div 
+                key={`validation-section-${docValidation.documentType}-${index}-${validationUpdated}`}
+                className="border border-gray-200 rounded-lg overflow-hidden"
+              >
+                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                  <h3 className="font-medium text-gray-900">
+                    {docValidation.documentType}
+                    <span className="ml-2 text-sm text-gray-500">
+                      ({docValidation.validations.length} {docValidation.validations.length === 1 ? 'check' : 'checks'})
+                    </span>
+                  </h3>
+                </div>
+                <div className="p-4">
+              <DocumentVerificationSection
+                    key={`validation-content-${docValidation.documentType}-${index}-${validationUpdated}`}
+                document={{ name: docValidation.documentType }}
+                validations={docValidation.validations}
+              />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       );
@@ -2850,19 +2688,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     return (
       <div className="p-6">
         <SubTabNavigation />
-        {selectedSubTab === 'validation' && activeDocument !== null && activeDocument !== undefined ? (
-          // Use ValidationTab when we have an activeDocument
-          <ValidationTab
-            key={`validation-tab-${activeDocument}-${Date.now()}`} // Force a new instance with timestamp
-            validationData={validationDataRef.current || validationData}
-            isLoading={isLoadingValidation}
-            onTabChange={(tab) => setSelectedSubTab(tab)}
-            caseData={caseData}
-            activeDocument={activeDocument}
-            onActiveDocumentChange={setActiveDocument}
-          />
-        ) : selectedSubTab === 'validation' ? (
-          // Otherwise use the validation section
+        {selectedSubTab === 'validation' ? (
           renderValidationSection()
         ) : (
           renderSubTabContent()
@@ -2907,11 +2733,60 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     const [localFormData, setLocalFormData] = useState(formData);
     // Add loading state for save action
     const [isSaving, setIsSaving] = useState(false);
+    // Add state to track expanded accordion groups
+    const [expandedGroups, setExpandedGroups] = useState({});
 
     // Update local form data when parent form data changes
     useEffect(() => {
       setLocalFormData(formData);
     }, [formData]);
+
+    // Initialize all groups as expanded on first load
+    useEffect(() => {
+      if (localFormData && Object.keys(expandedGroups).length === 0) {
+        const groups = {};
+        // Get unique group names
+        Object.values(localFormData).forEach(field => {
+          if (field?.groupName) {
+            groups[field.groupName] = true;
+          }
+        });
+        
+        // Special case: always start with Personal Information expanded
+        const initialState = Object.keys(groups).reduce((acc, groupName) => {
+          acc[groupName] = groupName === 'Personal Information';
+          return acc;
+        }, {});
+        
+        setExpandedGroups(initialState);
+      }
+    }, [localFormData]); // Remove expandedGroups from dependency array
+
+    // Toggle accordion expansion
+    const toggleGroup = (groupName) => {
+      setExpandedGroups(prev => ({
+        ...prev,
+        [groupName]: !prev[groupName]
+      }));
+    };
+
+    // Expand all groups
+    const expandAllGroups = () => {
+      const allGroups = Object.keys(expandedGroups).reduce((acc, group) => {
+        acc[group] = true;
+        return acc;
+      }, {});
+      setExpandedGroups(allGroups);
+    };
+
+    // Collapse all groups
+    const collapseAllGroups = () => {
+      const allGroups = Object.keys(expandedGroups).reduce((acc, group) => {
+        acc[group] = false;
+        return acc;
+      }, {});
+      setExpandedGroups(allGroups);
+    };
 
     // Updated function to check if a field is empty - works with new response format
     const isFieldEmpty = (fieldKey) => {
@@ -2943,6 +2818,13 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           templateId: selectedQuestionnaire?._id,
           processedInformation: localFormData
         };
+        
+        // Log for debugging
+        console.log('Radio button and checkbox fields:', 
+          Object.entries(localFormData)
+            .filter(([_, field]) => field?.fieldType === 'radio button' || field?.fieldType === 'checkbox')
+            .map(([key, field]) => ({ key, type: field.fieldType, value: field.value }))
+        );
         
         console.log('Saving questionnaire with data:', payload);
         
@@ -2979,7 +2861,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     const { filledFields, totalFields } = getFilledFieldsCount();
 
-    // Updated function to get fields from the new data structure
+    // Updated function to get fields from the new structure
     const getFields = () => {
       // If we have form data, get fields from it
       if (localFormData && Object.keys(localFormData).length > 0) {
@@ -2992,50 +2874,138 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     const allFields = getFields();
 
-    // Sort fields for a better UI experience
-    const sortedFields = useMemo(() => {
-      // Define a custom order for important fields to show first
-      const priorityFields = [
-        'First Name', 'Date of Birth', 'City of Birth', 'Country of Birth', 'Gender', 
-        'Nationality', 'Passport Number', 'Date of Issue', 'Date of Expiry', 'Place of Issue',
-        'Cell Number', 'Email ID', 'Educational Qualification',
-        'Current Company Name', 'Current Position'
-      ];
+    // Group fields by their groupName and then subgroup by fieldLabel
+    const groupedFields = useMemo(() => {
+      const groups = {};
       
-      // Sort the fields by priority first, then alphabetically
-      return [...allFields].sort((a, b) => {
-        const aIndex = priorityFields.indexOf(a);
-        const bIndex = priorityFields.indexOf(b);
+      // First pass: organize fields by their main group
+      Object.entries(localFormData || {}).forEach(([fieldKey, field]) => {
+        const groupName = field?.groupName || 'Ungrouped';
         
-        // If both fields are in priority list, sort by their order in that list
-        if (aIndex !== -1 && bIndex !== -1) {
-          return aIndex - bIndex;
+        if (!groups[groupName]) {
+          groups[groupName] = {
+            _subgroups: {}, // For fields that can be subgrouped by fieldLabel
+            _individual: [] // For fields that don't share fieldLabel with others
+          };
         }
         
-        // If only 'a' is in priority list, it comes first
-        if (aIndex !== -1) return -1;
-        
-        // If only 'b' is in priority list, it comes first
-        if (bIndex !== -1) return 1;
-        
-        // Special case: Put all company_* fields after other fields
-        if (a.toLowerCase().includes('company') && !b.toLowerCase().includes('company')) return 1;
-        if (!a.toLowerCase().includes('company') && b.toLowerCase().includes('company')) return -1;
-        
-        // Otherwise sort alphabetically
-        return a.localeCompare(b);
+        // Add the field key to the appropriate group
+        groups[groupName]._individual.push(fieldKey);
       });
-    }, [allFields]);
+      
+      // Second pass: identify fields that share the same fieldLabel within each group
+      Object.keys(groups).forEach(groupName => {
+        const groupData = groups[groupName];
+        const fieldLabelCounts = {};
+        
+        // Count occurrences of each fieldLabel
+        groupData._individual.forEach(fieldKey => {
+          const field = localFormData[fieldKey];
+          const fieldLabel = field?.fieldLabel || '';
+          
+          if (fieldLabel) {
+            fieldLabelCounts[fieldLabel] = (fieldLabelCounts[fieldLabel] || 0) + 1;
+          }
+        });
+        
+        // Create subgroups for fieldLabels that appear more than once
+        const fieldsToMove = [];
+        
+        Object.entries(fieldLabelCounts).forEach(([fieldLabel, count]) => {
+          if (count > 1) {
+            // Create a subgroup for this fieldLabel
+            groupData._subgroups[fieldLabel] = [];
+            
+            // Find all fields with this label
+            groupData._individual.forEach(fieldKey => {
+              const field = localFormData[fieldKey];
+              if (field?.fieldLabel === fieldLabel) {
+                // Add to the subgroup
+                groupData._subgroups[fieldLabel].push(fieldKey);
+                // Mark for removal from individual list
+                fieldsToMove.push(fieldKey);
+              }
+            });
+          }
+        });
+        
+        // Remove fields that were moved to subgroups
+        groupData._individual = groupData._individual.filter(
+          fieldKey => !fieldsToMove.includes(fieldKey)
+        );
+      });
+      
+      // Sort the groups alphabetically but put some important groups first
+      const sortedGroups = {};
+      const priorityGroups = [
+        'Personal Information', 
+        'Contact Information', 
+        'Birth Information',
+        'Identity Documents',
+        'Citizenship(s)'
+      ];
+      
+      // First add priority groups in order (if they exist)
+      priorityGroups.forEach(groupName => {
+        if (groups[groupName]) {
+          sortedGroups[groupName] = groups[groupName];
+        }
+      });
+      
+      // Then add the rest of the groups alphabetically
+      Object.keys(groups).sort().forEach(groupName => {
+        if (!priorityGroups.includes(groupName)) {
+          sortedGroups[groupName] = groups[groupName];
+        }
+      });
+      
+      return sortedGroups;
+    }, [localFormData]);
+
+    // Get filled fields count for a specific group
+    const getGroupCompletionStats = (groupData) => {
+      if (!groupData) return { completed: 0, total: 0, percentage: 0 };
+      
+      // Collect all fields from individual and subgroups
+      let allFields = [...groupData._individual];
+      
+      // Add fields from subgroups
+      Object.values(groupData._subgroups || {}).forEach(subgroupFields => {
+        allFields = [...allFields, ...subgroupFields];
+      });
+      
+      const total = allFields.length;
+      const completed = allFields.filter(fieldKey => !isFieldEmpty(fieldKey)).length;
+      const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+      
+      return { completed, total, percentage };
+    };
 
     const renderField = (fieldKey) => {
       // Get the field object
       const field = localFormData[fieldKey];
       
       // Use the fieldLabel from the response - prefer field.label, fallback to fieldKey
-      const fieldLabel = field?.label || field?.fieldLabel || fieldKey;
+      const fieldLabel = field?.fieldLabel || field?.label || fieldKey;
       
       // Get the fieldName for reference
       const fieldName = field?.fieldName || '';
+      
+      // Get field type from the response
+      const fieldType = field?.fieldType || 'Text Field';
+      
+      // Get field values if available (for dropdowns, radio buttons, checkboxes)
+      const fieldValues = field?.values;
+      
+      // Extract the base question name for radio buttons 
+      // Group radio buttons by their fieldLabel instead of field name pattern
+      const getBaseQuestionName = () => {
+        // If no input type or not a radio button, return fieldName
+        if (!inputType || inputType !== 'radio button') return fieldName;
+        
+        // Use field label as the group identifier - normalize it to create a consistent key
+        return (field?.fieldLabel || '').toLowerCase().replace(/\s+/g, '_');
+      };
       
       // Determine if it's a textarea field based on fieldName or label
       const isTextareaField = 
@@ -3048,47 +3018,80 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         fieldKey.toLowerCase().includes('details') || 
         fieldKey.toLowerCase().includes('plan');
 
-      // Determine field type based on fieldName or label
-      const getFieldType = () => {
+      // Determine input type based on fieldType
+      const getInputType = () => {
+        // Field type detection based on explicit fieldType property
+        if (fieldType) {
+          const type = fieldType.toLowerCase();
+          
+          if (type.includes('email')) return 'email';
+          if (type.includes('date')) return 'date';
+          if (type.includes('numerical') || type.includes('number')) return 'number';
+          if (type === 'checkbox' || type === 'radio button') return type;
+          if (type === 'dropdown') return 'dropdown';
+          
+          // If it's explicitly labeled as a text field
+          if (type.includes('text')) return isTextareaField ? 'textarea' : 'text';
+        }
+        
+        // Fallback detection based on field name and value format
         const lowerFieldName = fieldName.toLowerCase();
         const lowerFieldLabel = fieldKey.toLowerCase();
         const fieldValue = field?.value;
         
-        // Check for email type
-        if (lowerFieldName.includes('email') || lowerFieldLabel.includes('email')) return 'email';
+        // Check for email type - check both name pattern and value format
+        if (
+          lowerFieldName.includes('email') || 
+          lowerFieldLabel.includes('email') ||
+          (fieldValue && typeof fieldValue === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fieldValue))
+        ) {
+          return 'email';
+        }
         
-        // Check for date type - only if the field contains a valid date value
-        if ((lowerFieldName.includes('date') || lowerFieldLabel.includes('date')) && fieldValue) {
-          // Check if the value is actually a date
-          // Check common date formats
-          
-          // Check for YYYY-MM-DD format
-          if (/^\d{4}-\d{2}-\d{2}$/.test(fieldValue)) return 'date';
-          
-          // Check for DD/MMM/YYYY format (e.g., 05/FEB/1965)
-          if (/^\d{1,2}\/[A-Za-z]{3}\/\d{4}$/.test(fieldValue)) return 'date';
-          
-          // Check for MM/DD/YYYY or DD/MM/YYYY format
-          if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(fieldValue)) return 'date';
-          
-          // Try parsing with Date object as fallback
-          try {
-            const date = new Date(fieldValue);
-            if (!isNaN(date.getTime())) return 'date';
-          } catch (error) {
-            // If parsing fails, it's not a date
+        // Enhanced date detection - check both field name patterns and actual values
+        const dateRelatedTerms = ['date', 'dob', 'birth', 'expiry', 'issued'];
+        const isDateField = dateRelatedTerms.some(term => 
+          lowerFieldName.includes(term) || lowerFieldLabel.includes(term)
+        );
+        
+        if (isDateField || (fieldValue && typeof fieldValue === 'string')) {
+          // Check common date formats in the value
+          if (fieldValue) {
+            // ISO format: YYYY-MM-DD
+            if (/^\d{4}-\d{2}-\d{2}$/.test(fieldValue)) return 'date';
+            
+            // Common formats with slashes: MM/DD/YYYY or DD/MM/YYYY
+            if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(fieldValue)) return 'date';
+            
+            // Format with text month: DD/MMM/YYYY like 05/JAN/2021
+            if (/^\d{1,2}\/[A-Za-z]{3}\/\d{4}$/.test(fieldValue)) return 'date';
+            
+            // Another common format: MM-DD-YYYY or DD-MM-YYYY
+            if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(fieldValue)) return 'date';
+            
+            // Try parsing with Date object as last resort
+            if (isDateField) {
+              try {
+                const date = new Date(fieldValue);
+                if (!isNaN(date.getTime())) return 'date';
+              } catch (error) {
+                // If parsing fails, it's not a date
+              }
+            }
+          } else if (isDateField) {
+            // If it has a date-related name but no value yet, still use date input
+            return 'date';
           }
         }
         
-        // All other fields will be text type (including number fields)
-        return 'text';
+        return isTextareaField ? 'textarea' : 'text';
       };
 
-      const fieldType = getFieldType();
+      const inputType = getInputType();
 
       // Format date value for input field
       const formatDateValue = (value) => {
-        if (!value || fieldType !== 'date') return value || '';
+        if (!value || inputType !== 'date') return value || '';
         
         // Try to parse the date string
         try {
@@ -3163,14 +3166,166 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         // Return original value if parsing fails
         return value;
       };
+      
+      // Parse options for dropdown, radio buttons, or checkboxes
+      const getOptions = () => {
+        if (!fieldValues) return [];
+        
+        // If fieldValues is a string containing "Country List" or "State List"
+        if (typeof fieldValues === 'string') {
+          if (fieldValues.includes('Country List')) {
+            // Return a common list of countries (simplified for example)
+            return [
+              'United States', 'Canada', 'Mexico', 'United Kingdom', 'China', 'India', 
+              'Australia', 'Germany', 'France', 'Japan', 'Brazil', 'Russia'
+              // In production, use a complete country list or fetch from API
+            ];
+          }
+          
+          if (fieldValues.includes('State List')) {
+            // Return a list of US states (simplified for example)
+            return [
+              'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado',
+              'Connecticut', 'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho', 
+              'Illinois', 'Indiana', 'Iowa', 'Kansas', 'Kentucky', 'Louisiana',
+              'Maine', 'Maryland', 'Massachusetts', 'Michigan', 'Minnesota', 'Mississippi',
+              'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire', 'New Jersey',
+              'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma',
+              'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota',
+              'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington',
+              'West Virginia', 'Wisconsin', 'Wyoming'
+            ];
+          }
+          
+          // If fieldValues is a single option string
+          return [fieldValues];
+        }
+        
+        // If it's already an array, return it
+        if (Array.isArray(fieldValues)) {
+          return fieldValues;
+        }
+        
+        // If it's a comma-separated string, split it
+        if (typeof fieldValues === 'string' && fieldValues.includes(',')) {
+          return fieldValues.split(',').map(val => val.trim());
+        }
+        
+        // Default: return an empty array
+        return [];
+      };
+      
+      // Generate a unique ID for the field
+      const fieldId = `field-${fieldName.replace(/\s+/g, '-').toLowerCase()}`;
+      
+      // Get the base question name for radio groups
+      const baseQuestionName = getBaseQuestionName();
+      
+      // Create radio group name - this groups related radio options together
+      const radioGroupName = `radio-group-${baseQuestionName}`;
+      
+      // For radio buttons, get the value from the option
+      const getRadioValue = () => {
+        if (inputType !== 'radio button') return null;
+        
+        // For radio buttons, extract the option value from the field name
+        // e.g., for "sex_male", the value is "male"
+        const match = fieldName.match(/^.+?_(yes|no|male|female|true|false|other|unknown|\d+|[\w-]+)$/i);
+        return match ? match[1] : fieldValues;
+      };
+      
+      // Get the current value for this radio option
+      const radioValue = getRadioValue();
+      
+      // For radio buttons/checkboxes, determine if an option is checked
+      const isOptionChecked = (optionValue) => {
+        if (field?.value === undefined || field?.value === null) return false;
+        
+        // For checkboxes with array values
+        if (inputType === 'checkbox' && Array.isArray(field.value)) {
+          return field.value.includes(optionValue);
+        }
+        
+        // For checkboxes with boolean values (single checkbox case)
+        if (inputType === 'checkbox' && typeof field.value === 'boolean') {
+          return field.value;
+        }
+        
+        // For radio buttons
+        if (inputType === 'radio button') {
+          return field.value === true;
+        }
+        
+        // For regular fields
+        return field.value === optionValue;
+      };
+      
+      // Handle change for different input types
+      const handleChange = (value, optionValue) => {
+        if (inputType === 'radio button') {
+          // For radio buttons
+          
+          // Check if this radio is already selected - if so, unselect it (toggle behavior)
+          if (field.value === true) {
+            // Unselect this radio button
+            handleLocalInputChange(fieldKey, false);
+            return;
+          }
+          
+          // Get the fieldLabel for grouping
+          const currentFieldLabel = field?.fieldLabel || '';
+          
+          // Find all related radio fields with the same fieldLabel
+          const relatedFields = Object.entries(localFormData).filter(([key, val]) => {
+            if (!val.fieldLabel) return false;
+            
+            // Match if they share the same fieldLabel
+            return val.fieldLabel === currentFieldLabel && key !== fieldKey;
+          });
+          
+          // Set all related fields to false
+          relatedFields.forEach(([key, _]) => {
+            handleLocalInputChange(key, false);
+          });
+          
+          // Set this field to true
+          handleLocalInputChange(fieldKey, true);
+        } else if (inputType === 'checkbox') {
+          // For checkboxes, toggle the value in an array
+          if (options.length <= 1) {
+            // For single checkboxes, toggle boolean value
+            handleLocalInputChange(fieldKey, !field.value);
+          } else {
+            // For multiple options checkboxes, manage array of values
+            let newValue = Array.isArray(field.value) ? [...field.value] : [];
+            
+            if (newValue.includes(optionValue)) {
+              newValue = newValue.filter(val => val !== optionValue);
+            } else {
+              newValue.push(optionValue);
+            }
+            
+            handleLocalInputChange(fieldKey, newValue);
+          }
+        } else {
+          // For all other field types
+          handleLocalInputChange(fieldKey, value);
+        }
+      };
+      
+      // Parse options if needed
+      const options = ['dropdown', 'radio button', 'checkbox'].includes(inputType) ? getOptions() : [];
 
       return (
         <div key={fieldKey} className="mb-4">
           <label className="block text-xs text-gray-500 mb-1">
             {fieldLabel}
+            {field?.required && <span className="text-red-500 ml-1">*</span>}
           </label>
-          {isTextareaField ? (
+          
+          {inputType === 'textarea' && (
             <textarea
+              id={fieldId}
               value={field?.value || ''}
               onChange={(e) => handleLocalInputChange(fieldKey, e.target.value)}
               className={`w-full px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 min-h-[80px]
@@ -3179,10 +3334,13 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                   : 'border-gray-200 focus:border-blue-400'
                 }`}
             />
-          ) : (
+          )}
+          
+          {['text', 'email', 'date', 'number'].includes(inputType) && (
             <input
-              type={fieldType}
-              value={fieldType === 'date' 
+              id={fieldId}
+              type={inputType}
+              value={inputType === 'date' 
                 ? formatDateValue(field?.value) 
                 : (field?.value || '')}
               onChange={(e) => handleLocalInputChange(fieldKey, e.target.value)}
@@ -3192,6 +3350,187 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                   : 'border-gray-200 focus:border-blue-400'
                 }`}
             />
+          )}
+          
+          {inputType === 'dropdown' && (
+            <select
+              id={fieldId}
+              value={field?.value || ''}
+              onChange={(e) => handleLocalInputChange(fieldKey, e.target.value)}
+              className={`w-full px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 
+                ${isFieldEmpty(fieldKey)
+                  ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                  : 'border-gray-200 focus:border-blue-400'
+                }`}
+            >
+              <option value="">Select an option</option>
+              {options.map((option, index) => (
+                <option key={`${fieldId}-option-${index}`} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          )}
+          
+          {inputType === 'radio button' && (
+            <div className="mt-1 space-y-2">
+              <div className="flex items-center">
+                <input
+                  type="radio"
+                  id={fieldId}
+                  name={radioGroupName}
+                  checked={!!field.value}
+                  onChange={() => handleChange(true)}
+                  className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500"
+                />
+                <label 
+                  htmlFor={fieldId} 
+                  className="text-sm text-gray-700 cursor-pointer select-none"
+                  onClick={() => handleChange(true)}
+                >
+                  {fieldValues || radioValue || 'Yes'}
+                </label>
+                
+                {/* Add a small X button to clear selection */}
+                {field.value && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleLocalInputChange(fieldKey, false);
+                    }}
+                    className="ml-2 text-xs text-gray-400 hover:text-red-500 focus:outline-none"
+                    title="Unselect this option"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {inputType === 'checkbox' && (
+            <div className="mt-1 space-y-2">
+              {options.map((option, index) => (
+                <div key={`${fieldId}-option-${index}`} className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id={`${fieldId}-${index}`}
+                    value={option}
+                    checked={isOptionChecked(option)}
+                    onChange={(e) => handleChange(e.target.checked, option)}
+                    className="mr-2 h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                  />
+                  <label htmlFor={`${fieldId}-${index}`} className="text-sm text-gray-700">
+                    {option}
+                  </label>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    };
+    
+    // Render a single group of fields as an accordion
+    const renderGroup = (groupName, groupData) => {
+      // Check if there are visible fields in this group
+      const allFields = [...groupData._individual];
+      Object.values(groupData._subgroups || {}).forEach(subgroupFields => {
+        allFields.push(...subgroupFields);
+      });
+      
+      const visibleFields = allFields.filter(shouldShowField);
+      
+      // If no fields are visible (when showing only empty fields), don't render this group
+      if (visibleFields.length === 0) return null;
+      
+      // Get completion stats for this group
+      const { completed, total, percentage } = getGroupCompletionStats(groupData);
+      const isExpanded = expandedGroups[groupName] || false;
+      
+      // Function to render a subgroup
+      const renderSubgroup = (label, fields) => {
+        const visibleSubgroupFields = fields.filter(shouldShowField);
+        if (visibleSubgroupFields.length === 0) return null;
+        
+        return (
+          <div key={`subgroup-${label}`} className="mb-4 border border-gray-100 rounded p-3 bg-gray-50">
+            <div className="font-medium text-sm text-gray-700 mb-2">{label}</div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {visibleSubgroupFields.map(renderField)}
+            </div>
+          </div>
+        );
+      };
+      
+      return (
+        <div key={groupName} className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
+          {/* Accordion Header */}
+          <div 
+            className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors
+              ${isExpanded 
+                ? 'bg-blue-50 hover:bg-blue-100' 
+                : 'bg-gray-50 hover:bg-gray-100'}`}
+            onClick={() => toggleGroup(groupName)}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`
+                p-2 rounded-full 
+                ${isExpanded ? 'bg-blue-100' : 'bg-gray-200'}
+              `}>
+                {isExpanded 
+                  ? <ChevronDown className="w-4 h-4 text-blue-600" />
+                  : <ChevronRight className="w-4 h-4 text-gray-600" />
+                }
+              </div>
+              <h3 className={`text-lg font-medium 
+                ${isExpanded ? 'text-blue-800' : 'text-gray-800'}`}
+              >
+                {groupName}
+              </h3>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              {/* Completion status */}
+              <div className="flex items-center gap-2">
+                <div className="text-xs text-gray-600 whitespace-nowrap">
+                  {completed} of {total} completed
+                </div>
+                {/* Progress bar */}
+                <div className="w-20 h-1.5 bg-gray-200 rounded overflow-hidden">
+                  <div 
+                    className={`h-full transition-all duration-300 
+                      ${percentage === 100 
+                        ? 'bg-green-500' 
+                        : percentage > 50 
+                          ? 'bg-blue-500' 
+                          : 'bg-amber-500'}`
+                    }
+                    style={{ width: `${percentage}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Accordion Content */}
+          {isExpanded && (
+            <div className="p-4 bg-white border-t border-gray-200">
+              {/* Render subgroups first */}
+              {Object.entries(groupData._subgroups || {}).map(([label, fields]) => 
+                renderSubgroup(label, fields)
+              )}
+              
+              {/* Render individual fields */}
+              {groupData._individual.filter(shouldShowField).length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {groupData._individual.filter(shouldShowField).map(renderField)}
+                </div>
+              )}
+            </div>
           )}
         </div>
       );
@@ -3279,29 +3618,54 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           </div>
         </div>
 
-        {/* Form Content - All fields in a single section */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {sortedFields.filter(shouldShowField).map(renderField)}
-          </div>
+        {/* Accordion controls */}
+        <div className="flex items-center justify-end mb-4 gap-2">
+          <button
+            onClick={expandAllGroups}
+            className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+          >
+            <ChevronDown className="w-3 h-3" />
+            <span>Expand All</span>
+          </button>
+          <span className="text-gray-300">|</span>
+          <button
+            onClick={collapseAllGroups}
+            className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+          >
+            <ChevronRight className="w-3 h-3" />
+            <span>Collapse All</span>
+          </button>
+        </div>
 
-          {/* Show message when no fields found */}
-          {sortedFields.length === 0 && (
+        {/* Form Content - Grouped by sections */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          {Object.keys(groupedFields).length > 0 ? (
+            Object.entries(groupedFields).map(([groupName, groupData]) => 
+              renderGroup(groupName, groupData)
+            )
+          ) : (
             <div className="text-center py-8 text-gray-500">
               No questionnaire fields found. Please check the API response.
-                              </div>
-                            )}
-                        </div>
+            </div>
+          )}
+        </div>
 
         {/* Show message when no empty fields match the filter */}
-        {showOnlyEmpty && sortedFields.length > 0 && !sortedFields.some(shouldShowField) && (
+        {showOnlyEmpty && Object.keys(groupedFields).length > 0 && 
+         !Object.entries(groupedFields).some(([_, groupData]) => {
+           // Check if any individual fields should be shown
+           const hasVisibleIndividualFields = groupData._individual.some(shouldShowField);
+           
+           // Check if any subgrouped fields should be shown
+           const hasVisibleSubgroupFields = Object.values(groupData._subgroups || {})
+             .some(subgroupFields => subgroupFields.some(shouldShowField));
+           
+           return hasVisibleIndividualFields || hasVisibleSubgroupFields;
+         }) && (
           <div className="text-center py-8 text-gray-500">
             No empty fields found!
           </div>
         )}
-
-        {/* Render debug information in development mode */}
-       
       </div>
     );
   };
@@ -3624,40 +3988,43 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         // Helper function to handle setting form field values regardless of field type
         const setFormField = (fieldName, value) => {
           try {
-            // First attempt to get the field
+            // First attempt to get the field - if it doesn't exist, this will throw an error
+            // which we'll catch and silently ignore
             const field = form.getField(fieldName);
+
             
+            // If we get here, the field exists so process it
             // Check the field type and handle accordingly
             if (field.constructor.name === 'PDFCheckBox2') {
+              //console.log("checkbox field", fieldName);
               // Handle checkbox fields
               const checkbox = form.getCheckBox(fieldName);
               // Check the checkbox if there's ANY value (not empty/null/undefined)
               // This simplifies the logic - if the field has any value at all, it's checked
-              const isChecked = value !== undefined && value !== null && value !== '';
+              const isChecked = value !== undefined && value !== null && value !== '' && value !== false;
               
               if (isChecked) {
                 checkbox.check();
               } else {
                 checkbox.uncheck();
               }
-              // console.log(`Set checkbox field ${fieldName} to ${isChecked ? 'checked' : 'unchecked'} (value: "${value}")`);
             } else if (field.constructor.name === 'PDFTextField2') {
+              //console.log("text field", fieldName);
               // Handle text fields
               const textField = form.getTextField(fieldName);
-              textField.setText(value?.toString() || 'N/A');
-              // console.log(`Set text field ${fieldName} to "${value?.toString() || 'N/A'}"`);
+              textField.setText(value?.toString() || values?.toString() || 'N/A');
             } else if (field.constructor.name === 'PDFRadioGroup2') {
               // Handle radio button groups
+              //console.log("radio field", fieldName);
               const radioGroup = form.getRadioGroup(fieldName);
               if (value) {
                 radioGroup.select(value.toString());
-                // console.log(`Set radio group ${fieldName} to "${value.toString()}"`);
               }
-            } else {
-              console.warn(`Unsupported field type ${field.constructor.name} for field ${fieldName}`);
             }
+            // Silently ignore unsupported field types
           } catch (error) {
-            console.warn(`Error setting field ${fieldName}:`, error.message);
+            // Silently ignore fields that don't exist in the PDF
+            // No console warnings or errors
           }
         };
         
@@ -4291,100 +4658,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     if (onBack) {
       onBack();
     }
-  };
-
-  const onStateClick = async (state, document) => {
-    // Handle state clicks to navigate to appropriate tabs
-    const normalizedState = state.toLowerCase().replace(/-| /g, ' ');
-    
-    
-    switch(normalizedState) {
-      case 'verification':
-        console.log('Verification tab selected via state change');
-        
-        // Find the document index in validation data
-        if (validationDataRef.current?.mergedValidations?.length > 0) {
-          // Log validation data structure
-          console.log('ValidationData structure:', {
-            managementId: validationDataRef.current.managementId,
-            documentsCount: validationDataRef.current.mergedValidations.length,
-            documentTypes: validationDataRef.current.mergedValidations.map(v => v.documentType)
-          });
-          
-          // First ensure validation data is synced
-          if (!validationData || JSON.stringify(validationData) !== JSON.stringify(validationDataRef.current)) {
-            console.log('Syncing validation state with ref data');
-            setValidationData(validationDataRef.current);
-          }
-          
-          // Get document type to search for
-          const documentType = document.name;
-          console.log('Looking for document type:', documentType);
-          
-          // Log available documents
-          console.log('Available documents in validation data:', 
-            validationDataRef.current.mergedValidations.map((v, i) => ({
-              index: i,
-              documentType: v.documentType
-            }))
-          );
-          
-          // Find the matching document by type
-          const documentIndex = validationDataRef.current.mergedValidations.findIndex(
-            v => v.documentType.toLowerCase() === documentType.toLowerCase()
-          );
-          
-          console.log('Found document index:', documentIndex, 'for document type:', documentType);
-          
-          if (documentIndex !== -1) {
-            // Set the active document index first
-            console.log('Setting active document to index:', documentIndex);
-            setActiveDocument(documentIndex);
-            
-            // Then change to validation tab
-            console.log('Switching to validation tab with activeDocument:', documentIndex);
-            setSelectedSubTab('validation');
-          } else {
-            // Try a more flexible search if exact match fails
-            const fuzzyIndex = validationDataRef.current.mergedValidations.findIndex(
-              v => v.documentType.toLowerCase().includes(documentType.toLowerCase()) || 
-                   documentType.toLowerCase().includes(v.documentType.toLowerCase())
-            );
-            
-            if (fuzzyIndex !== -1) {
-              console.log('Found fuzzy match at index:', fuzzyIndex);
-              setActiveDocument(fuzzyIndex);
-              setSelectedSubTab('validation');
-            } else {
-              // If still not found, just switch tabs
-              console.warn('No matching document found, switching tabs without setting active document');
-              setSelectedSubTab('validation');
-            }
-          }
-        } else {
-          console.warn('No validation data available');
-          setSelectedSubTab('validation');
-        }
-        break;
-      
-      case 'cross verification':
-        console.log('Cross-verification tab selected via state change');
-        if (!verificationData || JSON.stringify(verificationData) !== JSON.stringify(verificationDataRef.current)) {
-          console.log('Syncing verification state with ref data');
-          setVerificationData(verificationDataRef.current);
-        }
-        setSelectedSubTab('cross-verification');
-        break;
-      
-      case 'extracted data':
-        setSelectedSubTab('extracted-data');
-        break;
-      
-      default:
-        break;
-    }
-    
-    console.log('------- CASE DETAILS onStateClick END -------');
   };
 
   // Update the main container and its children to properly handle height
