@@ -2988,26 +2988,38 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       return sortedGroups;
     }, [localFormData]);
 
-    // Get filled fields count for a specific group
+    // Get filled fields count for a specific group (by unique fieldLabel)
     const getGroupCompletionStats = (groupData) => {
       if (!groupData) return { completed: 0, total: 0, percentage: 0 };
-      
+
       // Collect all fields from individual and subgroups
       let allFields = [...groupData._individual];
-      
-      // Add fields from subgroups
       Object.values(groupData._subgroups || {}).forEach(subgroupFields => {
         allFields = [...allFields, ...subgroupFields];
       });
-      
-      const total = allFields.length;
-      const completed = allFields.filter(fieldKey => !isFieldEmpty(fieldKey)).length;
+
+      // Map of fieldLabel to all fieldKeys with that label
+      const labelToKeys = {};
+      allFields.forEach(fieldKey => {
+        const field = localFormData[fieldKey];
+        const label = field?.fieldLabel || field?.label || fieldKey;
+        if (!labelToKeys[label]) labelToKeys[label] = [];
+        labelToKeys[label].push(fieldKey);
+      });
+
+      // For each label, consider it filled if ALL its fields are filled
+      const total = Object.keys(labelToKeys).length;
+      let completed = 0;
+      Object.values(labelToKeys).forEach(keys => {
+        if (keys.every(fieldKey => !isFieldEmpty(fieldKey))) {
+          completed++;
+        }
+      });
       const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
-      
       return { completed, total, percentage };
     };
 
-    const renderField = (fieldKey) => {
+    const renderField = (fieldKey, hideLabel = false) => {
       // Get the field object
       const field = localFormData[fieldKey];
       
@@ -3344,10 +3356,12 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
       return (
         <div key={fieldKey} className="mb-4">
-          <label className="block text-xs text-gray-500 mb-1">
-            {fieldLabel}
-            {field?.required && <span className="text-red-500 ml-1">*</span>}
-          </label>
+          {!hideLabel && (
+            <label className="block text-xs text-gray-500 mb-1">
+              {fieldLabel}
+              {field?.required && <span className="text-red-500 ml-1">*</span>}
+            </label>
+          )}
           
           {inputType === 'textarea' && (
             <textarea
@@ -3486,7 +3500,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           <div key={`subgroup-${label}`} className="mb-4 border border-gray-100 rounded p-3 bg-gray-50">
             <div className="font-medium text-sm text-gray-700 mb-2">{label}</div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {visibleSubgroupFields.map(renderField)}
+              {visibleSubgroupFields.map(fieldKey => renderField(fieldKey, true))}
             </div>
           </div>
         );
@@ -3553,7 +3567,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               {/* Render individual fields */}
               {groupData._individual.filter(shouldShowField).length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {groupData._individual.filter(shouldShowField).map(renderField)}
+                  {groupData._individual.filter(shouldShowField).map(fieldKey => renderField(fieldKey))}
                 </div>
               )}
             </div>
