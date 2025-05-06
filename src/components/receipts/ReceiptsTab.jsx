@@ -1,65 +1,36 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, Loader2, Eye, Edit, Check } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-
-// Mock data for testing
-const MOCK_RECEIPTS = [
-  {
-    id: 1,
-    type: 'Approval Notice',
-    analysis: "Fiona's analysis",
-    noticeDate: '23/10/2025',
-    receiptNumber: '2735254',
-    formType: '2735254',
-    caseType: 'H1B',
-    filingDate: 'DD/MM/YYYY',
-    priorityDate: 'DD/MM/YYYY',
-    applicantName: 'John Doe',
-    approvalDetails: '',
-    validityDates: '',
-    additionalInfo: 'Next Steps: Instructions for next steps, such as the issuance of a visa or a green card. Contact Information: USCIS contact details for further questions.'
-  },
-  {
-    id: 2,
-    type: 'Transfer Notice',
-    analysis: "Fiona's analysis",
-    noticeDate: '23/10/2025',
-    receiptNumber: '2735254',
-    formType: '2735254',
-    caseType: 'H1B',
-    filingDate: 'DD/MM/YYYY',
-    priorityDate: 'DD/MM/YYYY',
-    applicantName: 'John Doe',
-    oldServiceCenter: '',
-    newServiceCenter: '',
-    additionalInfo: 'Reason for Transfer: Explanation for why the case was transferred (e.g., workload balancing). No Action Required Statement: Confirmation that no action is needed from the applicant. Next Steps: Information about what to expect after the transfer.',
-    noticeChanged: true
-  },
-  {
-    id: 3,
-    type: 'Receipt Notice',
-    analysis: "Fiona's analysis",
-    noticeDate: '23/10/2025',
-    receiptNumber: 'SRC202512345',
-    formType: 'I-130',
-    caseType: 'H1B',
-    filingDate: 'DD/MM/YYYY',
-    priorityDate: 'DD/MM/YYYY',
-    applicantName: 'John Doe',
-    processingCenter: '',
-    paymentAmount: '',
-    paymentMethod: '',
-    additionalInfo: 'Next Steps: Instructions for further actions (e.g., waiting for biometrics or interview notice). Case Status Tracking: Instructions to track the case online. USCIS Contact Information: Phone number for inquiries.'
-  }
-];
+import axios from 'axios';
+import api from "../../utils/api"
 
 const ReceiptsTab = ({ managementId }) => {
   const [files, setFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [receipts, setReceipts] = useState(MOCK_RECEIPTS); // Using mock data
+  const [receipts, setReceipts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    fetchReceipts();
+  }, [managementId]);
+
+  const fetchReceipts = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get(`/receipts/by-management/${managementId}`);
+      if (response.data.status === 'success') {
+        setReceipts(response.data.data.receipts);
+      }
+    } catch (error) {
+      toast.error('Failed to fetch receipts');
+      console.error('Error fetching receipts:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -93,7 +64,7 @@ const ReceiptsTab = ({ managementId }) => {
     });
     setFiles(validFiles);
     if (validFiles.length > 0) {
-      simulateUpload(validFiles);
+      uploadFiles(validFiles);
     }
   };
 
@@ -102,189 +73,210 @@ const ReceiptsTab = ({ managementId }) => {
     return allowedTypes.includes(file.type);
   };
 
-  // Simulate upload process
-  const simulateUpload = (filesToUpload) => {
+  const uploadFiles = async (filesToUpload) => {
     setIsUploading(true);
     setUploadProgress(0);
 
-    // Simulate progress updates
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsUploading(false);
-          // Add new mock receipt after upload
-          const newReceipt = {
-            id: Date.now(),
-            type: 'New Notice',
-            analysis: "Pending analysis",
-            noticeDate: new Date().toLocaleDateString(),
-            receiptNumber: `RN${Math.floor(Math.random() * 1000000)}`,
-            formType: 'I-129',
-            caseType: 'H1B',
-            filingDate: 'DD/MM/YYYY',
-            priorityDate: 'DD/MM/YYYY',
-            applicantName: 'John Doe',
-            additionalInfo: 'Newly uploaded notice pending processing.'
-          };
-          setReceipts(prev => [newReceipt, ...prev]);
-          toast.success('Government Notice uploaded successfully');
-          setFiles([]);
-          return 0;
-        }
-        return prev + 10;
-      });
-    }, 300);
+    try {
+      for (const file of filesToUpload) {
+        console.log(file);
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('managementId', managementId);
+
+        await api.post('/receipts', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          },
+          onUploadProgress: (progressEvent) => {
+            const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(progress);
+          },
+        });
+      }
+      
+      toast.success('Government Notice uploaded successfully');
+      setFiles([]);
+      fetchReceipts(); // Refresh the receipts list
+    } catch (error) {
+      toast.error('Failed to upload file');
+      console.error('Error uploading file:', error);
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
   };
 
-  const handleViewDocument = (receiptId) => {
-    toast.success('Viewing document: ' + receiptId);
+  const handleViewDocument = (fileUrl) => {
+    window.open(fileUrl, '_blank');
   };
 
   const handleEditDocument = (receiptId) => {
     toast.success('Editing document: ' + receiptId);
   };
 
-  const ReceiptCard = ({ receipt }) => (
-    <div className="py-6 first:pt-0 last:pb-0 relative">
-      {/* Left vertical line and dot */}
-      <div className="absolute left-0 top-0 bottom-0 flex flex-col items-center">
-        <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center z-10">
-          <Check className="w-4 h-4 text-white" />
+  const ReceiptCard = ({ receipt }) => {
+    const extractedData = receipt.extractedData || {};
+    const additionalInfo = receipt.additionalInformation?.additionalInfo?.otherDetails || '';
+
+    // Function to render a field
+    const renderField = (fieldKey, fieldData) => {
+      if (!fieldData) return null;
+      
+      return (
+        <div>
+          <p className="text-sm text-gray-500 mb-1">{fieldData.displayName}</p>
+          <p className="text-sm font-medium">{fieldData.value || 'N/A'}</p>
         </div>
-        <div className="w-0.5 bg-gray-200 flex-grow"></div>
+      );
+    };
+
+    // Group fields into sections based on their type
+    const renderFieldSection = (fields, columns = 3) => {
+      const fieldEntries = Object.entries(fields).filter(([_, data]) => data && data.displayName);
+      
+      if (fieldEntries.length === 0) return null;
+
+      return (
+        <div className={`grid grid-cols-${columns} gap-6 mb-4`}>
+          {fieldEntries.map(([key, data]) => (
+            <div key={key}>
+              {renderField(key, data)}
+            </div>
+          ))}
+        </div>
+      );
+    };
+
+    // Group fields by their type
+    const groupFieldsByType = () => {
+      const groups = {
+        required: {},
+        dates: {},
+        typeSpecific: {},
+        additional: {}
+      };
+
+      Object.entries(extractedData).forEach(([key, data]) => {
+        if (!data || !data.displayName) return;
+
+        // Check if it's a date field
+        if (data.type === 'date') {
+          groups.dates[key] = data;
+        }
+        // Check if it's a required field
+        else if (data.required) {
+          groups.required[key] = data;
+        }
+        // Check if it's type-specific (based on field name pattern)
+        else if (key.toLowerCase().includes(receipt.type.toLowerCase())) {
+          groups.typeSpecific[key] = data;
+        }
+        // All other fields go to additional
+        else {
+          groups.additional[key] = data;
+        }
+      });
+
+      return groups;
+    };
+
+    const fieldGroups = groupFieldsByType();
+
+    // Calculate optimal columns for type-specific fields
+    const getTypeSpecificColumns = () => {
+      const typeSpecificCount = Object.keys(fieldGroups.typeSpecific).length;
+      if (typeSpecificCount <= 2) return 2;
+      if (typeSpecificCount <= 3) return 3;
+      return 4;
+    };
+
+    return (
+      <div className="py-6 first:pt-0 last:pb-0 relative">
+        {/* Left vertical line and dot */}
+        <div className="absolute left-0 top-0 bottom-0 flex flex-col items-center">
+          <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center z-10">
+            <Check className="w-4 h-4 text-white" />
+          </div>
+          <div className="w-0.5 bg-gray-200 flex-grow"></div>
+        </div>
+
+        {/* Content with left padding for the line */}
+        <div className="pl-12">
+          {/* Header with title and buttons */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-medium">
+                {receipt.type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+              </h3>
+              {extractedData.noticeDate?.value && (
+                <span className="text-sm text-gray-500">
+                  Notice date {extractedData.noticeDate.value}
+                </span>
+              )}
+              {receipt.status && (
+                <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs">
+                  {receipt.status}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {receipt.fileUrl && (
+                <button
+                  onClick={() => handleViewDocument(receipt.fileUrl)}
+                  className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm border border-blue-200 rounded-md px-3 py-1"
+                >
+                  <Eye className="w-4 h-4" />
+                  View document
+                </button>
+              )}
+              
+            </div>
+          </div>
+
+          {/* Required Fields Section */}
+          {Object.keys(fieldGroups.required).length > 0 && (
+            <>
+              {/* <h4 className="text-sm font-medium text-gray-700 mb-2">Required Information</h4> */}
+              {renderFieldSection(fieldGroups.required)}
+            </>
+          )}
+
+          {/* Dates Section */}
+          {Object.keys(fieldGroups.dates).length > 0 && (
+            <>
+              {/* <h4 className="text-sm font-medium text-gray-700 mb-2">Dates</h4> */}
+              {renderFieldSection(fieldGroups.dates)}
+            </>
+          )}
+
+          {/* Type-specific Fields */}
+          {Object.keys(fieldGroups.typeSpecific).length > 0 && (
+            <>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Additional Details</h4>
+              {renderFieldSection(fieldGroups.typeSpecific, getTypeSpecificColumns())}
+            </>
+          )}
+
+          {/* Additional Fields */}
+          {Object.keys(fieldGroups.additional).length > 0 && (
+            <>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Other Information</h4>
+              {renderFieldSection(fieldGroups.additional)}
+            </>
+          )}
+
+          {/* Additional info from API */}
+          {additionalInfo && (
+            <div className="mt-4">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Additional Information</h4>
+              <p className="text-sm text-gray-600">{additionalInfo}</p>
+            </div>
+          )}
+        </div>
       </div>
-
-      {/* Content with left padding for the line */}
-      <div className="pl-12">
-        {/* Header with title and buttons */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <h3 className="text-lg font-medium">{receipt.type}</h3>
-            <span className="text-sm text-gray-500">Notice date {receipt.noticeDate}</span>
-            {receipt.analysis && (
-              <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs">
-                {receipt.analysis}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleViewDocument(receipt.id)}
-              className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm border border-blue-200 rounded-md px-3 py-1"
-            >
-              <Eye className="w-4 h-4" />
-              View document
-            </button>
-            <button
-              onClick={() => handleEditDocument(receipt.id)}
-              className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm border border-blue-200 rounded-md px-3 py-1"
-            >
-              <Edit className="w-4 h-4" />
-              Edit
-            </button>
-          </div>
-        </div>
-
-        {/* First row of fields */}
-        <div className="grid grid-cols-3 gap-6 mb-4">
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Receipt Number</p>
-            <p className="text-sm font-medium">{receipt.receiptNumber}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Form Type</p>
-            <p className="text-sm font-medium">{receipt.formType}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Case type</p>
-            <p className="text-sm font-medium">{receipt.caseType}</p>
-          </div>
-        </div>
-
-        {/* Applicant name */}
-        <div className="mb-4">
-          <p className="text-sm text-gray-500 mb-1">Applicant/Beneficiary Name</p>
-          <p className="text-sm font-medium">{receipt.applicantName}</p>
-        </div>
-
-        {/* Dates row */}
-        <div className="grid grid-cols-3 gap-6 mb-4">
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Notice Date</p>
-            <p className="text-sm font-medium">{receipt.noticeDate}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Filing Date</p>
-            <p className="text-sm font-medium">{receipt.filingDate}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Priority Date</p>
-            <p className="text-sm font-medium">{receipt.priorityDate}</p>
-          </div>
-        </div>
-
-        {/* Conditional fields based on notice type */}
-        {receipt.type === 'Approval Notice' && (
-          <div className="grid grid-cols-2 gap-6 mb-4">
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Approval Details</p>
-              <p className="text-sm font-medium">{receipt.approvalDetails || ''}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Validity Dates</p>
-              <p className="text-sm font-medium">{receipt.validityDates || ''}</p>
-            </div>
-          </div>
-        )}
-
-        {receipt.type === 'Transfer Notice' && (
-          <div className="grid grid-cols-2 gap-6 mb-4">
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Old Service Center</p>
-              <p className="text-sm font-medium">{receipt.oldServiceCenter || ''}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 mb-1">New Service Center</p>
-              <p className="text-sm font-medium">{receipt.newServiceCenter || ''}</p>
-            </div>
-          </div>
-        )}
-
-        {receipt.type === 'Receipt Notice' && (
-          <div className="grid grid-cols-3 gap-6 mb-4">
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Processing Center</p>
-              <p className="text-sm font-medium">{receipt.processingCenter || ''}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Payment amount</p>
-              <p className="text-sm font-medium">{receipt.paymentAmount || ''}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Payment method</p>
-              <p className="text-sm font-medium">{receipt.paymentMethod || ''}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Additional info */}
-        {receipt.additionalInfo && (
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Additional Info</p>
-            <p className="text-sm text-gray-600">{receipt.additionalInfo}</p>
-          </div>
-        )}
-
-        {/* Notice changed alert */}
-        {receipt.noticeChanged && (
-          <div className="mt-4 py-2 px-3 bg-amber-50 text-amber-800 text-sm rounded-md border border-amber-200">
-            Government Notice number has been changed
-          </div>
-        )}
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="p-6">
@@ -346,11 +338,15 @@ const ReceiptsTab = ({ managementId }) => {
         )}
       </div>
 
-      {/* Receipts List - Single Container */}
+      {/* Receipts List */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
-        {receipts.length > 0 ? (
-          receipts.map((receipt, index) => (
-            <ReceiptCard key={receipt.id} receipt={receipt} />
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+          </div>
+        ) : receipts.length > 0 ? (
+          receipts.map((receipt) => (
+            <ReceiptCard key={receipt._id} receipt={receipt} />
           ))
         ) : (
           <div className="text-center py-8 text-gray-500">
