@@ -41,6 +41,7 @@ import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import { initializeSocket, joinDocumentRoom, handleReconnect, getSocket } from '../utils/socket';
 import { getStoredToken } from '../utils/auth';
 import LetterTab from '../components/letters/LetterTab';
+import ReceiptsTab from '../components/receipts/ReceiptsTab';
 
 // Add a new status type to track document states
 const DOCUMENT_STATUS = {
@@ -1811,7 +1812,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           { name: 'Document Checklist', icon: ClipboardList },
           { name: 'Questionnaire', icon: FileText },
           { name: 'Forms', icon: File },
-          { name: 'Letters', icon: FileText }
+          { name: 'Letters', icon: FileText },
+          { name: 'Receipts', icon: FileText }, // Add this new tab
         ].map(({ name, icon: Icon, disabled }) => (
           <button
             key={name}
@@ -2627,6 +2629,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           );
         case 'letters':
           return <LetterTab managementId={caseId} />;
+        case 'receipts':
+          return <ReceiptsTab managementId={caseId} />;
         default:
           return null;
       }
@@ -4801,6 +4805,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
               {activeTab === 'letters' && <LetterTab managementId={caseId} />}
+              {activeTab === 'receipts' && <ReceiptsTab managementId={caseId} />} {/* Add this line */}
             </div>
           </div>
         </div>
