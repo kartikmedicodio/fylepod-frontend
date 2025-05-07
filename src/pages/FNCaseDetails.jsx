@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import {  
   Loader2,
@@ -257,7 +257,9 @@ const FNCaseDetails = () => {
   const [questionnaireData, setQuestionnaireData] = useState(null);
   const [formData, setFormData] = useState({
     Passport: {},
-    Resume: {}
+    Resume: {
+      educationalQualification: [] // Initialize as empty array
+    }
   });
   const [processingStep, setProcessingStep] = useState(0);
   const [isSavingQuestionnaire, setIsSavingQuestionnaire] = useState(false);
@@ -302,6 +304,7 @@ const FNCaseDetails = () => {
   const [isEscalating, setIsEscalating] = useState(false);
   // Add this new state near other state declarations
   const [showAttorneyOptions, setShowAttorneyOptions] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
 
   // Group all useRef hooks
   const messagesEndRef = useRef(null);
@@ -888,9 +891,51 @@ const FNCaseDetails = () => {
     const fetchQuestionnaires = async () => {
       try {
         setIsLoadingQuestionnaires(true);
-        const response = await api.get('/questionnaires');
+        const response = await api.get(`/questionnaires`);
+        
         if (response.data.status === 'success') {
-          setQuestionnaires(response.data.data.templates);
+          const templates = response.data.data.templates;
+          
+          if (templates && templates.length > 0) {
+            // Create a combined questionnaire from all templates
+            const combinedQuestionnaire = {
+              _id: templates[0]._id, // Use the first template's ID
+              questionnaire_name: 'Combined Questionnaire',
+              description: 'Combined questionnaire for all required information',
+              field_mappings: [],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              __v: 0,
+              categoryId: templates[0].categoryId
+            };
+            
+            // Merge all field mappings from all templates
+            templates.forEach(template => {
+              if (template.field_mappings && template.field_mappings.length > 0) {
+                // Check for duplicate fieldNames before adding
+                template.field_mappings.forEach(field => {
+                  const isDuplicate = combinedQuestionnaire.field_mappings.some(
+                    existingField => existingField.fieldName === field.fieldName
+                  );
+                  
+                  if (!isDuplicate) {
+                    combinedQuestionnaire.field_mappings.push({
+                      ...field,
+                      _id: field._id // Preserve the original field ID
+                    });
+                  }
+                });
+              }
+            });
+            
+            // Set the combined questionnaire as the only one available
+            setQuestionnaires([combinedQuestionnaire]);
+            
+            // Log the total number of fields in the combined questionnaire
+            console.log(`Combined questionnaire created with ${combinedQuestionnaire.field_mappings.length} fields`);
+          } else {
+            setQuestionnaires([]);
+          }
         }
       } catch (error) {
         console.error('Error fetching questionnaires:', error);
@@ -2243,74 +2288,53 @@ const FNCaseDetails = () => {
       setLoadingStep(0);
       
       try {
-        // Get the questionnaire response
-        const response = await api.get(`/questionnaire-responses/management/${caseId}`, {
-          params: {
-            templateId: questionnaire._id
-          }
-        });
+        const response = await api.get(`/questionnaire-responses/management/${caseId}`);
         
         if (response.data.status === 'success') {
           setLoadingStep(2);
-          // Get the first response
-          const questionnaireResponse = response.data.data.responses[0];
           
           // Set questionnaire data
           setQuestionnaireData(response.data.data);
           
-          // Map the processed information to form data
-          const mappedData = {};
-          
-          // Process each field mapping
-          questionnaire.field_mappings.forEach(field => {
-            const sourceDoc = field.sourceDocument;
-            const fieldName = field.fieldName;
+          // Check if there are responses
+          if (response.data.data?.responses && response.data.data.responses.length > 0) {
+            // Get the first response's processedInformation
+            const processedInfo = response.data.data.responses[0].processedInformation;
             
-            // Get the processed data for this document type
-            const docData = caseData.processedInformation?.[sourceDoc];
-            
-            if (docData) {
-              // Initialize the section if it doesn't exist
-              if (!mappedData[sourceDoc]) {
-                mappedData[sourceDoc] = {};
-              }
+            if (processedInfo) {
+              // Use the processedInformation exactly as it comes from the API
+              console.log('Loaded questionnaire data:', processedInfo);
               
-              // Special handling for educationalQualification object
-              if (fieldName === 'educationalQualification' && typeof docData[fieldName] === 'object') {
-                // Format educational qualification as a string
-                const edu = docData[fieldName];
-                mappedData[sourceDoc][fieldName] = `${edu.courseLevel} in ${edu.specialization} from ${edu.institution} (GPA: ${edu.gpa})`;
-              } else {
-                // Map the field value
-                mappedData[sourceDoc][fieldName] = docData[fieldName] || '';
-              }
+              // The new response format has fieldName, fieldLabel, and value properties
+              // Save the full response structure to ensure we have all necessary data
+              setFormData(processedInfo);
+              setIsQuestionnaireCompleted(true);
+            } else {
+              console.log('No processedInformation found in response, initializing empty form');
+              setFormData({});
             }
-          });
-          
-          // Set form data with mapped data
-          setFormData(mappedData);
-          
-          // Set saved fields if status is 'saved'
-          if (questionnaireResponse.status === 'saved') {
-            setSavedFields(questionnaireResponse.processedInformation);
-            setQuestionnaireStatus('saved');
           } else {
-            setQuestionnaireStatus('pending');
-            setSavedFields({ Passport: {}, Resume: {} });
+            console.log('No responses found in API data, initializing empty form');
+            setFormData({});
           }
+        } else {
+          console.error('API request succeeded but returned error status:', response.data);
+          toast.error('Failed to load questionnaire data: API returned error status');
+          setFormData({});
         }
       } catch (error) {
         console.error('Error fetching questionnaire details:', error);
-        toast.error('Failed to load questionnaire details');
+        toast.error('Failed to load questionnaire details: ' + (error.message || 'Unknown error'));
+        // Initialize with empty data in case of error
+        setFormData({});
       } finally {
         setIsLoadingQuestionnaire(false);
-        setLoadingStep(0);
       }
     };
 
-    if (isLoadingQuestionnaires) {
+    if (isLoading) {
       return (
-        <div className="bg-white rounded-lg border border-gray-200 flex items-center justify-center h-64">
+        <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
         </div>
       );
@@ -2322,6 +2346,7 @@ const FNCaseDetails = () => {
           <div className="flex flex-col items-center justify-center h-64 space-y-4">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
             <div className="text-gray-600 text-sm">
+              {/* Only show current loading state */}
               <div className="flex items-center space-x-2 transition-all duration-300">
                 <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
                 <span>
@@ -2336,40 +2361,32 @@ const FNCaseDetails = () => {
       }
 
       return (
-        <div className="bg-white rounded-lg border border-gray-200">
-          <QuestionnaireDetailView 
-            questionnaire={selectedQuestionnaire}
-            onBack={() => setSelectedQuestionnaire(null)}
-          />
-        </div>
+        <QuestionnaireDetailView 
+          questionnaire={selectedQuestionnaire}
+          onBack={() => setSelectedQuestionnaire(null)}
+        />
       );
     }
 
     return (
-      <div className="bg-white rounded-lg border border-gray-200">
-        <div className="p-6">
-          <div className="mb-6">
-            <h2 className="text-lg font-semibold text-gray-900">Questionnaire List</h2>
-          </div>
+      <div className="p-6">
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold text-gray-900">Questionnaire</h2>
+        </div>
 
-          <div className="space-y-3">
-            {questionnaires.map((questionnaire) => (
-              <div 
-                key={questionnaire._id} 
-                className="bg-gray-50 rounded-lg border border-gray-200 p-4 hover:bg-gray-100 transition-all cursor-pointer"
-                onClick={() => handleQuestionnaireClick(questionnaire)}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-medium text-gray-900">{questionnaire.questionnaire_name}</h3>
-                  <div className="flex items-center">
-                    <span className="text-sm text-gray-600">
-                      {questionnaire.field_mappings.length} Fields
-                    </span>
-                  </div>
-                </div>
+        <div className="space-y-3">
+          {questionnaires.map((questionnaire) => (
+            <div 
+              key={questionnaire._id} 
+              className="bg-white rounded-lg border border-gray-200 p-4 hover:bg-gray-50 transition-all cursor-pointer"
+              onClick={() => handleQuestionnaireClick(questionnaire)}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-md font-medium text-gray-900">{questionnaire.questionnaire_name}</h3>
               </div>
-            ))}
-          </div>
+              <p className="text-sm text-gray-500">{questionnaire.description}</p>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -2379,412 +2396,954 @@ const FNCaseDetails = () => {
     const [showOnlyEmpty, setShowOnlyEmpty] = useState(false);
     const [localFormData, setLocalFormData] = useState(formData);
     const [isSaving, setIsSaving] = useState(false);
-    // Add state to track fields that are currently being edited
     const [editingFields, setEditingFields] = useState({});
+    const [expandedGroups, setExpandedGroups] = useState({});
 
     useEffect(() => {
       setLocalFormData(formData);
     }, [formData]);
 
-    // Add function to mark a field as being edited
-    const startEditing = (section, field, nestedField = null) => {
-      const fieldKey = nestedField 
-        ? `${section}.${field}.${nestedField}` 
-        : `${section}.${field}`;
-      
-      setEditingFields(prev => ({
+    // Initialize all groups as expanded on first load
+    useEffect(() => {
+      if (localFormData && Object.keys(expandedGroups).length === 0) {
+        const groups = {};
+        // Get unique group names
+        Object.values(localFormData).forEach(field => {
+          if (field?.groupName) {
+            groups[field.groupName] = true;
+          }
+        });
+        
+        // Special case: always start with Personal Information expanded
+        const initialState = Object.keys(groups).reduce((acc, groupName) => {
+          acc[groupName] = groupName === 'Personal Information';
+          return acc;
+        }, {});
+        
+        setExpandedGroups(initialState);
+      }
+    }, [localFormData]);
+
+    // Toggle accordion expansion
+    const toggleGroup = (groupName) => {
+      setExpandedGroups(prev => ({
         ...prev,
-        [fieldKey]: true
+        [groupName]: !prev[groupName]
       }));
     };
 
-    // Add function to check if a field is being edited
-    const isEditing = (section, field, nestedField = null) => {
-      const fieldKey = nestedField 
-        ? `${section}.${field}.${nestedField}` 
-        : `${section}.${field}`;
-      
-      return editingFields[fieldKey];
+    // Expand all groups
+    const expandAllGroups = () => {
+      const allGroups = Object.keys(expandedGroups).reduce((acc, group) => {
+        acc[group] = true;
+        return acc;
+      }, {});
+      setExpandedGroups(allGroups);
     };
 
-    const isFieldEmpty = (section, field, nestedField = null) => {
-      const value = localFormData?.[section]?.[field];
-      if (nestedField && field === 'educationalQualification') {
-        return !value?.[nestedField] || (typeof value?.[nestedField] === 'string' && value[nestedField].trim() === '');
-      }
-      if (typeof value === 'object' && value !== null) {
-        return Object.values(value).every(val => !val || (typeof val === 'string' && val.trim() === ''));
-      }
-      return !value || (typeof value === 'string' && value.trim() === '');
+    // Collapse all groups
+    const collapseAllGroups = () => {
+      const allGroups = Object.keys(expandedGroups).reduce((acc, group) => {
+        acc[group] = false;
+        return acc;
+      }, {});
+      setExpandedGroups(allGroups);
     };
 
-    const shouldShowField = (section, field, nestedField = null) => {
-      // If not showing only empty fields, show all fields
-      if (!showOnlyEmpty) {
-        return true;
-      }
-      
-      // If the field is currently being edited, always show it
-      if (isEditing(section, field.fieldName, nestedField)) {
-        return true;
-      }
-      
-      // Special handling for educationalQualification
-      if (field.fieldName === 'educationalQualification') {
-        // If checking a specific nested field
-        if (nestedField) {
-          // Check if the field was empty in the saved data (not current local data)
-          const savedValue = savedFields?.[section]?.educationalQualification?.[nestedField];
-          // Check if the field is currently empty (after edits)
-          const currentValue = localFormData?.[section]?.educationalQualification?.[nestedField];
-          
-          // Show if either saved value is empty OR current value is empty (user emptied it)
-          return (!savedValue || savedValue.trim() === '') || (!currentValue || currentValue.trim() === '');
+    // Updated function to check if a field is empty - works with new response format
+    const isFieldEmpty = (fieldKey) => {
+      const field = localFormData?.[fieldKey];
+      return !field || field.value === undefined || field.value === null || field.value === '';
+    };
+
+    // Updated input change handler to work with the new format
+    const handleLocalInputChange = (fieldKey, value) => {
+      setLocalFormData(prev => ({
+        ...prev,
+        [fieldKey]: {
+          ...prev[fieldKey],
+          value: value
         }
-        // If no nested field specified, show if any nested field is empty in saved data or current data
-        return ['institution', 'courseLevel', 'specialization', 'gpa'].some(nested => {
-          const savedValue = savedFields?.[section]?.educationalQualification?.[nested];
-          const currentValue = localFormData?.[section]?.educationalQualification?.[nested];
-          return (!savedValue || savedValue.trim() === '') || (!currentValue || currentValue.trim() === '');
-        });
-      }
-      
-      // For other fields - check against saved data or current data if empty
-      const savedValue = savedFields?.[section]?.[field.fieldName];
-      const currentValue = localFormData?.[section]?.[field.fieldName];
-      
-      // Show if either saved value is empty OR current value is empty (user emptied it)
-      return (!savedValue || (typeof savedValue === 'string' && savedValue.trim() === '')) || 
-             (!currentValue || (typeof currentValue === 'string' && currentValue.trim() === ''));
+      }));
     };
 
-    const handleLocalInputChange = (section, field, value) => {
-      // Mark the field as being edited when the user starts typing
-      if (field === 'educationalQualification' && typeof value === 'object') {
-        // For nested fields, determine which nested field changed
-        const changedNestedField = Object.keys(value).find(
-          key => value[key] !== localFormData?.Resume?.educationalQualification?.[key]
-        );
-        if (changedNestedField) {
-          startEditing(section, field, changedNestedField);
-        }
-      } else {
-        startEditing(section, field);
-      }
-      
-      // Update form data as before
-      setLocalFormData(prev => {
-        const newData = {
-          ...prev,
-          [section]: {
-            ...(prev[section] || {}),
-            [field]: value
-          }
-        };
-        return newData;
-      });
-    };
-
-    const getFieldClassName = (section, field, nestedField = null) => {
-      if (field === 'educationalQualification' && nestedField) {
-        // Current value in the input field
-        const value = localFormData?.[section]?.educationalQualification?.[nestedField];
-        // Saved value from the database
-        const savedValue = savedFields?.[section]?.educationalQualification?.[nestedField];
-        
-        // If field is empty, show red
-        if (!value || value.trim() === '') {
-          return 'border-red-300 bg-red-50/50';
-        }
-        
-        // If field value differs from saved value, show blue (edited)
-        if (value !== savedValue) {
-          return 'border-blue-300 bg-blue-50/50';
-        }
-        
-        // Otherwise show gray (saved and filled)
-        return 'border-gray-200 bg-gray-50';
-      }
-      
-      // Current value in the input field
-      const value = localFormData?.[section]?.[field];
-      // Saved value from the database
-      const savedValue = savedFields?.[section]?.[field];
-      
-      // If field is empty, show red
-      if (!value || (typeof value === 'string' && value.trim() === '')) {
-        return 'border-red-300 bg-red-50/50';
-      }
-      
-      // If field value differs from saved value, show blue (edited)
-      if (value !== savedValue) {
-        return 'border-blue-300 bg-blue-50/50';
-      }
-      
-      // Otherwise show gray (saved and filled)
-      return 'border-gray-200 bg-gray-50';
-    };
-
+    // Updated save handler to maintain the correct structure
     const handleLocalSave = async () => {
       try {
         setIsSaving(true);
-        const response = await api.put(`/questionnaire-responses/management/${caseId}`, {
-          templateId: questionnaire._id,
+        
+        // Update parent state
+        setFormData(localFormData);
+        
+        // Create request payload - keep the same structure as received
+        const payload = {
+          templateId: selectedQuestionnaire?._id,
           processedInformation: localFormData
-        });
+        };
+        
+        // Log for debugging
+        console.log('Radio button and checkbox fields:', 
+          Object.entries(localFormData)
+            .filter(([_, field]) => field?.fieldType === 'radio button' || field?.fieldType === 'checkbox')
+            .map(([key, field]) => ({ key, type: field.fieldType, value: field.value }))
+        );
+        
+        console.log('Saving questionnaire with data:', payload);
+        
+        const response = await api.put(`/questionnaire-responses/management/${caseId}`, payload);
 
         if (response.data.status === 'success') {
-          setFormData(localFormData);
-          setSavedFields(localFormData);
-          setQuestionnaireStatus('saved');
-          toast.success('Questionnaire saved successfully');
-          // Clear editing state after successful save
-          setEditingFields({});
+          toast.success('Changes saved successfully');
+          setIsQuestionnaireCompleted(true);
+          
+          // Optionally navigate to the next tab
+          // setActiveTab('forms');
         }
       } catch (error) {
         console.error('Error saving questionnaire:', error);
-        toast.error('Failed to save questionnaire');
+        toast.error('Failed to save changes');
       } finally {
         setIsSaving(false);
       }
     };
 
+    // Updated function to count filled fields
     const getFilledFieldsCount = () => {
-      let totalFields = 0;
-      let filledFields = 0;
+      const allFields = Object.keys(localFormData || {});
+      const totalFields = allFields.length;
+      const filledFields = allFields.filter(fieldKey => !isFieldEmpty(fieldKey)).length;
+      return { filledFields, totalFields };
+    };
 
-      // Count Passport fields
-      const passportFields = questionnaire.field_mappings.filter(field => field.sourceDocument === 'Passport');
-      totalFields += passportFields.length;
-      passportFields.forEach(field => {
-        if (localFormData?.Passport?.[field.fieldName]) {
-          filledFields++;
+    // Update function to check if field should be visible
+    const shouldShowField = (fieldKey) => {
+      if (!showOnlyEmpty) return true;
+      return isFieldEmpty(fieldKey);
+    };
+
+    const { filledFields, totalFields } = getFilledFieldsCount();
+
+    // Updated function to get fields from the new structure
+    const getFields = () => {
+      // If we have form data, get fields from it
+      if (localFormData && Object.keys(localFormData).length > 0) {
+        return Object.keys(localFormData);
+      }
+      
+      // Otherwise return empty array
+      return [];
+    };
+
+    const allFields = getFields();
+
+    // Group fields by their groupName and then subgroup by fieldLabel
+    const groupedFields = useMemo(() => {
+      const groups = {};
+      
+      // First pass: organize fields by their main group
+      Object.entries(localFormData || {}).forEach(([fieldKey, field]) => {
+        const groupName = field?.groupName || 'Ungrouped';
+        
+        if (!groups[groupName]) {
+          groups[groupName] = {
+            _subgroups: {}, // For fields that can be subgrouped by fieldLabel
+            _individual: [] // For fields that don't share fieldLabel with others
+          };
+        }
+        
+        // Add the field key to the appropriate group
+        groups[groupName]._individual.push(fieldKey);
+      });
+      
+      // Second pass: identify fields that share the same fieldLabel within each group
+      Object.keys(groups).forEach(groupName => {
+        const groupData = groups[groupName];
+        const fieldLabelCounts = {};
+        
+        // Count occurrences of each fieldLabel
+        groupData._individual.forEach(fieldKey => {
+          const field = localFormData[fieldKey];
+          const fieldLabel = field?.fieldLabel || '';
+          
+          if (fieldLabel) {
+            fieldLabelCounts[fieldLabel] = (fieldLabelCounts[fieldLabel] || 0) + 1;
+          }
+        });
+        
+        // Create subgroups for fieldLabels that appear more than once
+        const fieldsToMove = [];
+        
+        Object.entries(fieldLabelCounts).forEach(([fieldLabel, count]) => {
+          if (count > 1) {
+            // Create a subgroup for this fieldLabel
+            groupData._subgroups[fieldLabel] = [];
+            
+            // Find all fields with this label
+            groupData._individual.forEach(fieldKey => {
+              const field = localFormData[fieldKey];
+              if (field?.fieldLabel === fieldLabel) {
+                // Add to the subgroup
+                groupData._subgroups[fieldLabel].push(fieldKey);
+                // Mark for removal from individual list
+                fieldsToMove.push(fieldKey);
+              }
+            });
+          }
+        });
+        
+        // Remove fields that were moved to subgroups
+        groupData._individual = groupData._individual.filter(
+          fieldKey => !fieldsToMove.includes(fieldKey)
+        );
+      });
+      
+      // Sort the groups alphabetically but put some important groups first
+      const sortedGroups = {};
+      const priorityGroups = [
+        'Personal Information', 
+        'Contact Information', 
+        'Birth Information',
+        'Identity Documents',
+        'Citizenship(s)'
+      ];
+      
+      // First add priority groups in order (if they exist)
+      priorityGroups.forEach(groupName => {
+        if (groups[groupName]) {
+          sortedGroups[groupName] = groups[groupName];
         }
       });
+      
+      // Then add the rest of the groups alphabetically
+      Object.keys(groups).sort().forEach(groupName => {
+        if (!priorityGroups.includes(groupName)) {
+          sortedGroups[groupName] = groups[groupName];
+        }
+      });
+      
+      return sortedGroups;
+    }, [localFormData]);
 
-      // Count Resume fields
-      const resumeFields = questionnaire.field_mappings.filter(field => field.sourceDocument === 'Resume');
-      resumeFields.forEach(field => {
-        if (field.fieldName === 'educationalQualification') {
-          totalFields += 1;
-          if (localFormData?.Resume?.educationalQualification) {
-            filledFields++;
+    // Get filled fields count for a specific group (by unique fieldLabel)
+    const getGroupCompletionStats = (groupData) => {
+      if (!groupData) return { completed: 0, total: 0, percentage: 0 };
+
+      // Collect all fields from individual and subgroups
+      let allFields = [...groupData._individual];
+      Object.values(groupData._subgroups || {}).forEach(subgroupFields => {
+        allFields = [...allFields, ...subgroupFields];
+      });
+
+      // Map of fieldLabel to all fieldKeys with that label
+      const labelToKeys = {};
+      allFields.forEach(fieldKey => {
+        const field = localFormData[fieldKey];
+        const label = field?.fieldLabel || field?.label || fieldKey;
+        if (!labelToKeys[label]) labelToKeys[label] = [];
+        labelToKeys[label].push(fieldKey);
+      });
+
+      // For each label, consider it filled if ALL its fields are filled
+      const total = Object.keys(labelToKeys).length;
+      let completed = 0;
+      Object.values(labelToKeys).forEach(keys => {
+        if (keys.every(fieldKey => !isFieldEmpty(fieldKey))) {
+          completed++;
+        }
+      });
+      const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+      return { completed, total, percentage };
+    };
+
+    const renderField = (fieldKey, hideLabel = false) => {
+      // Get the field object
+      const field = localFormData[fieldKey];
+      
+      // Use the fieldLabel from the response - prefer field.label, fallback to fieldKey
+      const fieldLabel = field?.fieldLabel || field?.label || fieldKey;
+      
+      // Get the fieldName for reference
+      const fieldName = field?.fieldName || '';
+      
+      // Get field type from the response
+      const fieldType = field?.fieldType || 'Text Field';
+      
+      // Get field values if available (for dropdowns, radio buttons, checkboxes)
+      const fieldValues = field?.values;
+      
+      // Extract the base question name for radio buttons 
+      // Group radio buttons by their fieldLabel instead of field name pattern
+      const getBaseQuestionName = () => {
+        // If no input type or not a radio button, return fieldName
+        if (!inputType || inputType !== 'radio button') return fieldName;
+        
+        // Use field label as the group identifier - normalize it to create a consistent key
+        return (field?.fieldLabel || '').toLowerCase().replace(/\s+/g, '_');
+      };
+      
+      // Determine if it's a textarea field based on fieldName or label
+      const isTextareaField = 
+        fieldName.includes('note') || 
+        fieldName.includes('brief') || 
+        fieldName.includes('details') || 
+        fieldName.includes('plan') ||
+        fieldKey.toLowerCase().includes('note') || 
+        fieldKey.toLowerCase().includes('brief') || 
+        fieldKey.toLowerCase().includes('details') || 
+        fieldKey.toLowerCase().includes('plan');
+
+      // Determine input type based on fieldType
+      const getInputType = () => {
+        // Field type detection based on explicit fieldType property
+        if (fieldType) {
+          const type = fieldType.toLowerCase();
+          
+          if (type.includes('email')) return 'email';
+          if (type.includes('date')) return 'date';
+          if (type.includes('numerical') || type.includes('number')) return 'number';
+          if (type === 'checkbox' || type === 'radio button') return type;
+          if (type === 'dropdown') return 'dropdown';
+          
+          // If it's explicitly labeled as a text field
+          if (type.includes('text')) return isTextareaField ? 'textarea' : 'text';
+        }
+        
+        // Fallback detection based on field name and value format
+        const lowerFieldName = fieldName.toLowerCase();
+        const lowerFieldLabel = fieldKey.toLowerCase();
+        const fieldValue = field?.value;
+        
+        // Check for email type - check both name pattern and value format
+        if (
+          lowerFieldName.includes('email') || 
+          lowerFieldLabel.includes('email') ||
+          (fieldValue && typeof fieldValue === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fieldValue))
+        ) {
+          return 'email';
+        }
+        
+        // Enhanced date detection - check both field name patterns and actual values
+        const dateRelatedTerms = ['date', 'dob', 'birth', 'expiry', 'issued'];
+        const isDateField = dateRelatedTerms.some(term => 
+          lowerFieldName.includes(term) || lowerFieldLabel.includes(term)
+        );
+        
+        if (isDateField || (fieldValue && typeof fieldValue === 'string')) {
+          // Check common date formats in the value
+          if (fieldValue) {
+            // ISO format: YYYY-MM-DD
+            if (/^\d{4}-\d{2}-\d{2}$/.test(fieldValue)) return 'date';
+            
+            // Common formats with slashes: MM/DD/YYYY or DD/MM/YYYY
+            if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(fieldValue)) return 'date';
+            
+            // Format with text month: DD/MMM/YYYY like 05/JAN/2021
+            if (/^\d{1,2}\/[A-Za-z]{3}\/\d{4}$/.test(fieldValue)) return 'date';
+            
+            // Another common format: MM-DD-YYYY or DD-MM-YYYY
+            if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(fieldValue)) return 'date';
+            
+            // Try parsing with Date object as last resort
+            if (isDateField) {
+              try {
+                const date = new Date(fieldValue);
+                if (!isNaN(date.getTime())) return 'date';
+              } catch (error) {
+                // If parsing fails, it's not a date
+              }
+            }
+          } else if (isDateField) {
+            // If it has a date-related name but no value yet, still use date input
+            return 'date';
+          }
+        }
+        
+        return isTextareaField ? 'textarea' : 'text';
+      };
+
+      const inputType = getInputType();
+
+      // Format date value for input field
+      const formatDateValue = (value) => {
+        if (!value || inputType !== 'date') return value || '';
+        
+        // Try to parse the date string
+        try {
+          // If it's already in YYYY-MM-DD format, return as is
+          if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+          
+          // Handle DD/MMM/YYYY format (like 05/FEB/1965)
+          const dateMatch1 = value.match(/(\d{1,2})\/([A-Za-z]{3})\/(\d{4})/);
+          if (dateMatch1) {
+            const [_, day, monthStr, year] = dateMatch1;
+            const months = {
+              'JAN': '01', 'FEB': '02', 'MAR': '03', 'APR': '04', 'MAY': '05', 'JUN': '06',
+              'JUL': '07', 'AUG': '08', 'SEP': '09', 'OCT': '10', 'NOV': '11', 'DEC': '12'
+            };
+            const month = months[monthStr.toUpperCase()];
+            if (month) {
+              return `${year}-${month}-${day.padStart(2, '0')}`;
+            }
+          }
+          
+          // Handle MM/DD/YYYY or DD/MM/YYYY format
+          const dateMatch2 = value.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+          if (dateMatch2) {
+            const [_, part1, part2, year] = dateMatch2;
+            
+            // Handle both formats conservatively by assuming MM/DD for US format 
+            // and DD/MM for other formats - we'll use MM/DD as it's more common in the system
+            // If month is > 12, swap parts
+            let month = part1;
+            let day = part2;
+            
+            if (parseInt(part1) > 12) {
+              month = part2;
+              day = part1;
+            }
+            
+            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+          }
+          
+          // Handle DD-MM-YYYY or MM-DD-YYYY format
+          const dateMatch3 = value.match(/(\d{1,2})-(\d{1,2})-(\d{4})/);
+          if (dateMatch3) {
+            const [_, part1, part2, year] = dateMatch3;
+            
+            // Handle both formats conservatively by assuming MM/DD for US format
+            // and DD/MM for other formats - we'll use MM/DD as it's more common in the system
+            // If month is > 12, swap parts
+            let month = part1;
+            let day = part2;
+            
+            if (parseInt(part1) > 12) {
+              month = part2;
+              day = part1;
+            }
+            
+            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+          }
+          
+          // Try parsing with Date object as fallback
+          const date = new Date(value);
+          if (!isNaN(date.getTime())) {
+            const year = date.getFullYear();
+            // JavaScript months are 0-indexed, so we add 1 and pad
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const day = date.getDate().toString().padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          }
+        } catch (error) {
+          console.warn('Error formatting date value:', error);
+        }
+        
+        // Return original value if parsing fails
+        return value;
+      };
+      
+      // Parse options for dropdown, radio buttons, or checkboxes
+      const getOptions = () => {
+        if (!fieldValues) return [];
+        
+        // If fieldValues is a string containing "Country List" or "State List"
+        if (typeof fieldValues === 'string') {
+          if (fieldValues.includes('Country List')) {
+            // Return a common list of countries (simplified for example)
+            return [
+              'United States', 'Canada', 'Mexico', 'United Kingdom', 'China', 'India', 
+              'Australia', 'Germany', 'France', 'Japan', 'Brazil', 'Russia'
+              // In production, use a complete country list or fetch from API
+            ];
+          }
+          
+          if (fieldValues.includes('State List')) {
+            // Return a list of US states (simplified for example)
+            return [
+              'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado',
+              'Connecticut', 'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho', 
+              'Illinois', 'Indiana', 'Iowa', 'Kansas', 'Kentucky', 'Louisiana',
+              'Maine', 'Maryland', 'Massachusetts', 'Michigan', 'Minnesota', 'Mississippi',
+              'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire', 'New Jersey',
+              'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma',
+              'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota',
+              'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington',
+              'West Virginia', 'Wisconsin', 'Wyoming'
+            ];
+          }
+          
+          // If fieldValues is a single option string
+          return [fieldValues];
+        }
+        
+        // If it's already an array, return it
+        if (Array.isArray(fieldValues)) {
+          return fieldValues;
+        }
+        
+        // If it's a comma-separated string, split it
+        if (typeof fieldValues === 'string' && fieldValues.includes(',')) {
+          return fieldValues.split(',').map(val => val.trim());
+        }
+        
+        // Default: return an empty array
+        return [];
+      };
+      
+      // Generate a unique ID for the field
+      const fieldId = `field-${fieldName.replace(/\s+/g, '-').toLowerCase()}`;
+      
+      // Get the base question name for radio groups
+      const baseQuestionName = getBaseQuestionName();
+      
+      // Create radio group name - this groups related radio options together
+      const radioGroupName = `radio-group-${baseQuestionName}`;
+      
+      // For radio buttons, get the value from the option
+      const getRadioValue = () => {
+        if (inputType !== 'radio button') return null;
+        
+        // For radio buttons, extract the option value from the field name
+        // e.g., for "sex_male", the value is "male"
+        const match = fieldName.match(/^.+?_(yes|no|male|female|true|false|other|unknown|\d+|[\w-]+)$/i);
+        return match ? match[1] : fieldValues;
+      };
+      
+      // Get the current value for this radio option
+      const radioValue = getRadioValue();
+      
+      // For radio buttons/checkboxes, determine if an option is checked
+      const isOptionChecked = (optionValue) => {
+        if (field?.value === undefined || field?.value === null) return false;
+        
+        // For checkboxes with array values
+        if (inputType === 'checkbox' && Array.isArray(field.value)) {
+          return field.value.includes(optionValue);
+        }
+        
+        // For checkboxes with boolean values (single checkbox case)
+        if (inputType === 'checkbox' && typeof field.value === 'boolean') {
+          return field.value;
+        }
+        
+        // For radio buttons
+        if (inputType === 'radio button') {
+          return field.value === true;
+        }
+        
+        // For regular fields
+        return field.value === optionValue;
+      };
+      
+      // Handle change for different input types
+      const handleChange = (value, optionValue) => {
+        if (inputType === 'radio button') {
+          // For radio buttons
+          
+          // Check if this radio is already selected - if so, unselect it (toggle behavior)
+          if (field.value === true) {
+            // Unselect this radio button
+            handleLocalInputChange(fieldKey, false);
+            return;
+          }
+          
+          // Get the fieldLabel for grouping
+          const currentFieldLabel = field?.fieldLabel || '';
+          
+          // Find all related radio fields with the same fieldLabel
+          const relatedFields = Object.entries(localFormData).filter(([key, val]) => {
+            if (!val.fieldLabel) return false;
+            
+            // Match if they share the same fieldLabel
+            return val.fieldLabel === currentFieldLabel && key !== fieldKey;
+          });
+          
+          // Set all related fields to false
+          relatedFields.forEach(([key, _]) => {
+            handleLocalInputChange(key, false);
+          });
+          
+          // Set this field to true
+          handleLocalInputChange(fieldKey, true);
+        } else if (inputType === 'checkbox') {
+          // For checkboxes, toggle the value in an array
+          if (options.length <= 1) {
+            // For single checkboxes, toggle boolean value
+            handleLocalInputChange(fieldKey, !field.value);
+          } else {
+            // For multiple options checkboxes, manage array of values
+            let newValue = Array.isArray(field.value) ? [...field.value] : [];
+            
+            if (newValue.includes(optionValue)) {
+              newValue = newValue.filter(val => val !== optionValue);
+            } else {
+              newValue.push(optionValue);
+            }
+            
+            handleLocalInputChange(fieldKey, newValue);
           }
         } else {
-          totalFields += 1;
-          if (localFormData?.Resume?.[field.fieldName]) {
-            filledFields++;
-          }
+          // For all other field types
+          handleLocalInputChange(fieldKey, value);
         }
+      };
+      
+      // Parse options if needed
+      const options = ['dropdown', 'radio button', 'checkbox'].includes(inputType) ? getOptions() : [];
+
+      return (
+        <div key={fieldKey} className="mb-4">
+          {!hideLabel && (
+            <label className="block text-xs text-gray-500 mb-1">
+              {fieldLabel}
+              {field?.required && <span className="text-red-500 ml-1">*</span>}
+            </label>
+          )}
+          
+          {inputType === 'textarea' && (
+            <textarea
+              id={fieldId}
+              value={field?.value || ''}
+              onChange={(e) => handleLocalInputChange(fieldKey, e.target.value)}
+              className={`w-full px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 min-h-[80px]
+                ${isFieldEmpty(fieldKey)
+                  ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                  : 'border-gray-200 focus:border-blue-400'
+                }`}
+            />
+          )}
+          
+          {['text', 'email', 'date', 'number'].includes(inputType) && (
+            <input
+              id={fieldId}
+              type={inputType}
+              value={inputType === 'date' 
+                ? formatDateValue(field?.value) 
+                : (field?.value || '')}
+              onChange={(e) => handleLocalInputChange(fieldKey, e.target.value)}
+              className={`w-full px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 
+                ${isFieldEmpty(fieldKey)
+                  ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                  : 'border-gray-200 focus:border-blue-400'
+                }`}
+            />
+          )}
+          
+          {inputType === 'dropdown' && (
+            <select
+              id={fieldId}
+              value={field?.value || ''}
+              onChange={(e) => handleLocalInputChange(fieldKey, e.target.value)}
+              className={`w-full px-3 py-1.5 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 
+                ${isFieldEmpty(fieldKey)
+                  ? 'border-red-300 bg-red-50/50 focus:border-red-400'
+                  : 'border-gray-200 focus:border-blue-400'
+                }`}
+            >
+              <option value="">Select an option</option>
+              {options.map((option, index) => (
+                <option key={`${fieldId}-option-${index}`} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          )}
+          
+          {inputType === 'radio button' && (
+            <div className="mt-1 space-y-2">
+              <div className="flex items-center">
+                <input
+                  type="radio"
+                  id={fieldId}
+                  name={radioGroupName}
+                  checked={!!field.value}
+                  onChange={() => handleChange(true)}
+                  className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500"
+                />
+                <label 
+                  htmlFor={fieldId} 
+                  className="text-sm text-gray-700 cursor-pointer select-none"
+                  onClick={() => handleChange(true)}
+                >
+                  {fieldValues || radioValue || 'Yes'}
+                </label>
+                
+                {/* Add a small X button to clear selection */}
+                {field.value && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleLocalInputChange(fieldKey, false);
+                    }}
+                    className="ml-2 text-xs text-gray-400 hover:text-red-500 focus:outline-none"
+                    title="Unselect this option"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {inputType === 'checkbox' && (
+            <div className="mt-1 space-y-2">
+              {options.map((option, index) => (
+                <div key={`${fieldId}-option-${index}`} className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id={`${fieldId}-${index}`}
+                    value={option}
+                    checked={isOptionChecked(option)}
+                    onChange={(e) => handleChange(e.target.checked, option)}
+                    className="mr-2 h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                  />
+                  <label htmlFor={`${fieldId}-${index}`} className="text-sm text-gray-700">
+                    {option}
+                  </label>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    };
+    
+    // Render a single group of fields as an accordion
+    const renderGroup = (groupName, groupData) => {
+      // Check if there are visible fields in this group
+      const allFields = [...groupData._individual];
+      Object.values(groupData._subgroups || {}).forEach(subgroupFields => {
+        allFields.push(...subgroupFields);
       });
-
-      return { total: totalFields, filled: filledFields };
+      
+      const visibleFields = allFields.filter(shouldShowField);
+      
+      // If no fields are visible (when showing only empty fields), don't render this group
+      if (visibleFields.length === 0) return null;
+      
+      // Get completion stats for this group
+      const { completed, total, percentage } = getGroupCompletionStats(groupData);
+      const isExpanded = expandedGroups[groupName] || false;
+      
+      // Function to render a subgroup
+      const renderSubgroup = (label, fields) => {
+        const visibleSubgroupFields = fields.filter(shouldShowField);
+        if (visibleSubgroupFields.length === 0) return null;
+        
+        return (
+          <div key={`subgroup-${label}`} className="mb-4 border border-gray-100 rounded p-3 bg-gray-50">
+            <div className="font-medium text-sm text-gray-700 mb-2">{label}</div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {visibleSubgroupFields.map(fieldKey => renderField(fieldKey, true))}
+            </div>
+          </div>
+        );
+      };
+      
+      return (
+        <div key={groupName} className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
+          {/* Accordion Header */}
+          <div 
+            className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors
+              ${isExpanded 
+                ? 'bg-blue-50 hover:bg-blue-100' 
+                : 'bg-gray-50 hover:bg-gray-100'}`}
+            onClick={() => toggleGroup(groupName)}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`
+                p-2 rounded-full 
+                ${isExpanded ? 'bg-blue-100' : 'bg-gray-200'}
+              `}>
+                {isExpanded 
+                  ? <ChevronDown className="w-4 h-4 text-blue-600" />
+                  : <ChevronRight className="w-4 h-4 text-gray-600" />
+                }
+              </div>
+              <h3 className={`text-lg font-medium 
+                ${isExpanded ? 'text-blue-800' : 'text-gray-800'}`}
+              >
+                {groupName}
+              </h3>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              {/* Completion status */}
+              <div className="flex items-center gap-2">
+                <div className="text-xs text-gray-600 whitespace-nowrap">
+                  {completed} of {total} completed
+                </div>
+                {/* Progress bar */}
+                <div className="w-20 h-1.5 bg-gray-200 rounded overflow-hidden">
+                  <div 
+                    className={`h-full transition-all duration-300 
+                      ${percentage === 100 
+                        ? 'bg-green-500' 
+                        : percentage > 50 
+                          ? 'bg-blue-500' 
+                          : 'bg-amber-500'}`
+                      }
+                    style={{ width: `${percentage}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Accordion Content */}
+          {isExpanded && (
+            <div className="p-4 bg-white border-t border-gray-200">
+              {/* Render subgroups first */}
+              {Object.entries(groupData._subgroups || {}).map(([label, fields]) => 
+                renderSubgroup(label, fields)
+              )}
+              
+              {/* Render individual fields */}
+              {groupData._individual.filter(shouldShowField).length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {groupData._individual.filter(shouldShowField).map(fieldKey => renderField(fieldKey))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
     };
-
-    const isFieldSaved = (section, field) => {
-      return savedFields?.[section]?.[field] === localFormData?.[section]?.[field];
-    };
-
-    const { total, filled } = getFilledFieldsCount();
-    const progress = total > 0 ? Math.round((filled / total) * 100) : 0;
 
     return (
       <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <button
+        {/* Header with Back Button */}
+        <div className="mb-6 flex justify-between">
+          <div className="flex items-center gap-8">
+            <button 
               onClick={onBack}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="text-gray-600 hover:text-gray-800 transition-colors"
             >
-              <ChevronLeft className="w-5 h-5 text-gray-600" />
+              <ChevronLeft className="w-5 h-5" />
             </button>
             <div>
-              <h2 className="text-lg font-medium text-gray-900">Questionnaire</h2>
-              <p className="text-sm text-gray-600">{questionnaire.questionnaire_name}</p>
+              <div className="flex items-center gap-8">
+                <h2 className="text-lg font-medium text-gray-900">Questionnaire</h2>
+              </div>
+              <p className="text-sm text-gray-600">{questionnaire?.questionnaire_name || 'Response Details'}</p>
             </div>
           </div>
           <div className='flex items-center gap-4'>
+            {/* Add Empty Fields Toggle Button */}
+            <button
+              onClick={() => setShowOnlyEmpty(!showOnlyEmpty)}
+              className={`px-4 py-2 rounded text-sm font-medium transition-colors flex items-center gap-2
+                ${showOnlyEmpty 
+                  ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+            >
+              {showOnlyEmpty ? (
+                <>
+                  <Eye className="w-4 h-4" />
+                  Show All Fields
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="w-4 h-4" />
+                  Show Empty Fields
+                </>
+              )}
+            </button>
+
             <div className="flex items-center gap-2">
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showOnlyEmpty}
-                  onChange={(e) => setShowOnlyEmpty(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 rounded-full peer 
-                  peer-checked:after:translate-x-full 
-                  after:content-[''] after:absolute after:top-0.5 after:left-[2px] 
-                  after:bg-white after:border-gray-300 after:border after:rounded-full 
-                  after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600">
+              <div className="text-sm text-gray-600">
+                {filledFields} out of {totalFields} fields completed
+              </div>
+              {/* Progress bar with animated dots */}
+              <div className="relative w-32">
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-green-500 transition-all duration-500"
+                    style={{ width: `${totalFields ? (filledFields / totalFields) * 100 : 0}%` }}
+                  />
                 </div>
-                <span className="ml-3 text-sm font-medium text-gray-700">
-                  Show only empty fields
-                </span>
-              </label>
+                {filledFields < totalFields && (
+                  <div className="absolute top-0 left-0 w-full h-full flex items-center justify-end pr-2">
+                    <div className="flex gap-1">
+                      <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '0ms' }} />
+                      <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '200ms' }} />
+                      <div className="w-1 h-1 rounded-full bg-gray-400/50 animate-pulse" style={{ animationDelay: '400ms' }} />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="text-sm text-gray-600">
-              {filled} of {total} fields filled
-            </div>
+            
             <button
               onClick={handleLocalSave}
               disabled={isSaving}
-              className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                isSaving
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-              }`}
+              className="px-6 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              {isSaving ? 'Saving...' : 'Save Changes'}
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                'Save'
+              )}
             </button>
           </div>
         </div>
 
-        <div className="space-y-6">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-sm font-medium text-gray-900 mb-4">Passport Information</h3>
-            <div className="grid grid-cols-3 gap-4">
-              {questionnaire.field_mappings
-                .filter(field => field.sourceDocument === 'Passport')
-                .map(field => (
-                  shouldShowField('Passport', field) && (
-                    <div key={field._id}>
-                      <label className="block text-sm text-gray-600 mb-1 font-semibold">
-                        {field.fieldName}
-                      </label>
-                      <input
-                        type="text"
-                        value={localFormData?.Passport?.[field.fieldName] || ''}
-                        onChange={(e) => handleLocalInputChange('Passport', field.fieldName, e.target.value)}
-                        className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Passport', field.fieldName, field.required)}`}
-                      />
-                    </div>
-                  )
-                ))}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-sm font-medium text-gray-900 mb-4">Professional Information</h3>
-            <div className="grid grid-cols-2 gap-4">
-              {questionnaire.field_mappings
-                .filter(field => field.sourceDocument === 'Resume')
-                .map(field => {
-                  if (field.fieldName === 'educationalQualification') {
-                    const hasEmptyFields = ['institution', 'courseLevel', 'specialization', 'gpa'].some(
-                      nestedField => shouldShowField('Resume', field, nestedField)
-                    );
-
-                    return hasEmptyFields ? (
-                      <div key={field._id} className="col-span-2">
-                        <label className="block text-sm text-gray-600 mb-1 font-semibold">
-                          {field.fieldName}
-                        </label>
-                        <div className="grid grid-cols-2 gap-4">
-                          {shouldShowField('Resume', field, 'institution') && (
-                            <div>
-                              <label className="block text-sm text-gray-600 mb-1">Institution</label>
-                              <input
-                                type="text"
-                                value={localFormData?.Resume?.educationalQualification?.institution || ''}
-                                onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', {
-                                  ...localFormData?.Resume?.educationalQualification,
-                                  institution: e.target.value
-                                })}
-                                className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', 'educationalQualification', 'institution')}`}
-                              />
-                            </div>
-                          )}
-                          {shouldShowField('Resume', field, 'courseLevel') && (
-                            <div>
-                              <label className="block text-sm text-gray-600 mb-1">Course Level</label>
-                              <input
-                                type="text"
-                                value={localFormData?.Resume?.educationalQualification?.courseLevel || ''}
-                                onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', {
-                                  ...localFormData?.Resume?.educationalQualification,
-                                  courseLevel: e.target.value
-                                })}
-                                className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', 'educationalQualification', 'courseLevel')}`}
-                              />
-                            </div>
-                          )}
-                          {shouldShowField('Resume', field, 'specialization') && (
-                            <div>
-                              <label className="block text-sm text-gray-600 mb-1">Specialization</label>
-                              <input
-                                type="text"
-                                value={localFormData?.Resume?.educationalQualification?.specialization || ''}
-                                onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', {
-                                  ...localFormData?.Resume?.educationalQualification,
-                                  specialization: e.target.value
-                                })}
-                                className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', 'educationalQualification', 'specialization')}`}
-                              />
-                            </div>
-                          )}
-                          {shouldShowField('Resume', field, 'gpa') && (
-                            <div>
-                              <label className="block text-sm text-gray-600 mb-1">GPA</label>
-                              <input
-                                type="text"
-                                value={localFormData?.Resume?.educationalQualification?.gpa || ''}
-                                onChange={(e) => handleLocalInputChange('Resume', 'educationalQualification', {
-                                  ...localFormData?.Resume?.educationalQualification,
-                                  gpa: e.target.value
-                                })}
-                                className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', 'educationalQualification', 'gpa')}`}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ) : null;
-                  }
-                  return shouldShowField('Resume', field) && (
-                    <div key={field._id}>
-                      <label className="block text-sm text-gray-600 mb-1 font-semibold">
-                        {field.fieldName}
-                      </label>
-                      <input
-                        type="text"
-                        value={localFormData?.Resume?.[field.fieldName] || ''}
-                        onChange={(e) => handleLocalInputChange('Resume', field.fieldName, e.target.value)}
-                        className={`w-full px-3 py-2 border rounded-lg text-sm ${getFieldClassName('Resume', field.fieldName, field.required)}`}
-                      />
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
+        {/* Accordion controls */}
+        <div className="flex items-center justify-end mb-4 gap-2">
+          <button
+            onClick={expandAllGroups}
+            className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+          >
+            <ChevronDown className="w-3 h-3" />
+            <span>Expand All</span>
+          </button>
+          <span className="text-gray-300">|</span>
+          <button
+            onClick={collapseAllGroups}
+            className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+          >
+            <ChevronRight className="w-3 h-3" />
+            <span>Collapse All</span>
+          </button>
         </div>
 
-        {/* Show message when no empty fields are found */}
-        {showOnlyEmpty && 
-         !questionnaire.field_mappings.some(field => 
-           shouldShowField(field.sourceDocument, field)
-         ) && (
-           <div className="text-center py-8 text-gray-500">
-             No empty fields found
-           </div>
-         )}
+        {/* Form Content - Grouped by sections */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          {Object.keys(groupedFields).length > 0 ? (
+            Object.entries(groupedFields).map(([groupName, groupData]) => 
+              renderGroup(groupName, groupData)
+            )
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              No questionnaire fields found. Please check the API response.
+            </div>
+          )}
+        </div>
+
+        {/* Show message when no empty fields match the filter */}
+        {showOnlyEmpty && Object.keys(groupedFields).length > 0 && 
+         !Object.entries(groupedFields).some(([_, groupData]) => {
+           // Check if any individual fields should be shown
+           const hasVisibleIndividualFields = groupData._individual.some(shouldShowField);
+           
+           // Check if any subgrouped fields should be shown
+           const hasVisibleSubgroupFields = Object.values(groupData._subgroups || {})
+             .some(subgroupFields => subgroupFields.some(shouldShowField));
+           
+           return hasVisibleIndividualFields || hasVisibleSubgroupFields;
+         }) && (
+          <div className="text-center py-8 text-gray-500">
+            No empty fields found!
+          </div>
+        )}
       </div>
     );
-  };
-
-  // Add PropTypes validation
-  QuestionnaireDetailView.propTypes = {
-    questionnaire: PropTypes.shape({
-      _id: PropTypes.string.isRequired,
-      questionnaire_name: PropTypes.string.isRequired,
-      field_mappings: PropTypes.arrayOf(PropTypes.shape({
-        _id: PropTypes.string.isRequired,
-        sourceDocument: PropTypes.string.isRequired,
-        fieldName: PropTypes.string.isRequired,
-        displayName: PropTypes.string.isRequired
-      })).isRequired
-    }).isRequired,
-    onBack: PropTypes.func.isRequired
   };
 
   // Function to handle escalating to attorney
