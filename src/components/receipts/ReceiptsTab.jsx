@@ -115,6 +115,15 @@ const ReceiptsTab = ({ managementId }) => {
     toast.success('Editing document: ' + receiptId);
   };
 
+  const getGridColsClass = (columns) => {
+    switch (columns) {
+      case 2: return "grid-cols-2";
+      case 3: return "grid-cols-3";
+      case 4: return "grid-cols-4";
+      default: return "grid-cols-1";
+    }
+  };
+
   const ReceiptCard = ({ receipt }) => {
     const extractedData = receipt.extractedData || {};
     const additionalInfo = receipt.additionalInformation?.additionalInfo?.otherDetails || '';
@@ -138,7 +147,7 @@ const ReceiptsTab = ({ managementId }) => {
       if (fieldEntries.length === 0) return null;
 
       return (
-        <div className={`grid grid-cols-${columns} gap-6 mb-4`}>
+        <div className={`grid ${getGridColsClass(columns)} gap-6 mb-4`}>
           {fieldEntries.map(([key, data]) => (
             <div key={key}>
               {renderField(key, data)}
