@@ -22,7 +22,20 @@ const ReceiptsTab = ({ managementId }) => {
       setLoading(true);
       const response = await api.get(`/receipts/by-management/${managementId}`);
       if (response.data.status === 'success') {
-        setReceipts(response.data.data.receipts);
+        // Sort receipts by notice date in descending order (latest first)
+        const sortedReceipts = response.data.data.receipts.sort((a, b) => {
+          const dateA = a.extractedData?.noticeDate?.value || '';
+          const dateB = b.extractedData?.noticeDate?.value || '';
+          
+          // Parse dates into Date objects for proper comparison
+          const parsedDateA = dateA ? new Date(dateA) : new Date(0);
+          const parsedDateB = dateB ? new Date(dateB) : new Date(0);
+          
+          // Sort in descending order (newest first)
+          return parsedDateB - parsedDateA;
+        });
+        setReceipts(sortedReceipts);
+        // console.log(sortedReceipts);
       }
     } catch (error) {
       toast.error('Failed to fetch receipts');
