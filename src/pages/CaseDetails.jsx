@@ -26,7 +26,8 @@ import {
   Bot,
   SendHorizontal,
   Eye,
-  ChevronDown
+  ChevronDown,
+  LucideReceiptText
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
@@ -1813,7 +1814,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           { name: 'Questionnaire', icon: FileText },
           { name: 'Forms', icon: File },
           { name: 'Letters', icon: FileText },
-          { name: 'Receipts', icon: FileText }, // Add this new tab
+          { name: 'Receipts', icon: LucideReceiptText }, // Add this new tab
         ].map(({ name, icon: Icon, disabled }) => (
           <button
             key={name}

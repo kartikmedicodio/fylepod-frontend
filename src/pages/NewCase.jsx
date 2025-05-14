@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { ChevronDown, Pencil, X, Loader2 } from 'lucide-react';
+import { ChevronDown, X, Loader2, FileText, Users, UserCog, AlertCircle } from 'lucide-react';
 import { usePage } from '../contexts/PageContext';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,12 +7,53 @@ import { getStoredUser } from '../utils/auth';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
+import PropTypes from 'prop-types';
 
 const FionaIcon = () => (
   <div className="w-6 h-6 rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 flex items-center justify-center text-white font-semibold text-sm">
     F
   </div>
 );
+
+const DianaIcon = () => (
+  <div className="w-6 h-6 rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 flex items-center justify-center text-white font-semibold text-sm">
+    D
+  </div>
+);
+
+const StepIndicator = ({ isActive, isCompleted, icon: Icon, label }) => (
+  <div className="flex flex-col items-center gap-2">
+    <div 
+      className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300
+        ${isCompleted ? 'bg-green-500 text-white' : isActive ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-400'}`}
+    >
+      <Icon className="w-5 h-5" />
+    </div>
+    <span className={`text-sm font-medium ${isActive ? 'text-blue-600' : 'text-gray-500'}`}>
+      {label}
+    </span>
+  </div>
+);
+
+StepIndicator.propTypes = {
+  isActive: PropTypes.bool.isRequired,
+  isCompleted: PropTypes.bool.isRequired,
+  icon: PropTypes.elementType.isRequired,
+  label: PropTypes.string.isRequired
+};
+
+const ProgressLine = ({ isCompleted }) => (
+  <div className="flex-1 h-[2px] bg-gray-200">
+    <div 
+      className={`h-full transition-all duration-500 ${isCompleted ? 'bg-green-500' : 'bg-gray-200'}`}
+      style={{ width: isCompleted ? '100%' : '0%' }}
+    />
+  </div>
+);
+
+ProgressLine.propTypes = {
+  isCompleted: PropTypes.bool.isRequired
+};
 
 const NewCase = () => {
   const { setPageTitle } = usePage();
@@ -37,7 +78,6 @@ const NewCase = () => {
   const [customerSearch, setCustomerSearch] = useState('');
   const [attorneySearch, setAttorneySearch] = useState('');
   const [isCreatingCase, setIsCreatingCase] = useState(false);
-  const [loadingStep, setLoadingStep] = useState(0);
   const [loggedInUserDetails, setLoggedInUserDetails] = useState(null);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
 
@@ -359,115 +399,187 @@ const NewCase = () => {
   const handleCreateCase = async () => {
     try {
       if (!selectedTemplate || !selectedCustomer || !selectedAttorney) {
-        setError('Please select template, customer and attorney');
+        toast.error(
+          <div className="flex flex-col gap-1">
+            <span className="font-medium">Missing Information</span>
+            <span className="text-sm text-gray-500">
+              Please select all required fields
+            </span>
+          </div>,
+          {
+            duration: 3000,
+            position: 'top-right',
+            style: {
+              background: '#fff',
+              color: '#1f2937',
+              padding: '16px',
+              borderRadius: '8px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            },
+          }
+        );
         return;
       }
 
       if (!selectedDocuments || selectedDocuments.length === 0) {
-        setError('Please select at least one document');
+        toast.error(
+          <div className="flex flex-col gap-1">
+            <span className="font-medium">No Documents Selected</span>
+            <span className="text-sm text-gray-500">
+              Please select at least one document
+            </span>
+          </div>,
+          {
+            duration: 3000,
+            position: 'top-right',
+            style: {
+              background: '#fff',
+              color: '#1f2937',
+              padding: '16px',
+              borderRadius: '8px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            },
+          }
+        );
         return;
       }
 
       setIsCreatingCase(true);
-      setLoadingStep(0);
 
-      // Show initial toast
-      const toastId = toast.loading('Fiona is creating your case...', {
-        position: 'top-right',
-        duration: 4000,
-        style: {
-          background: '#fff',
-          color: '#333',
-          padding: '16px',
-          borderRadius: '8px',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-        },
-      });
-
-      // Simulate steps with delays
-      const steps = [
-        { delay: 0, step: 0 },    // Initial - Fiona starting...
-        { delay: 1000, step: 1 }, // Creating template...
-        { delay: 2000, step: 2 }, // Processing documents...
-        { delay: 3000, step: 3 }, // Finalizing case...
-      ];
-
-      // Schedule all step updates
-      steps.forEach(({ delay, step }) => {
-        setTimeout(() => setLoadingStep(step), delay);
-      });
-
-      // Actual API call after delay to show all steps
-      setTimeout(async () => {
-        const requestBody = {
-          userId: selectedCustomer._id,
-          categoryId: selectedTemplate._id,
-          createdBy: user.id,
-          lawfirmId: selectedAttorney.lawfirm_id._id,
-          userName: selectedCustomer.name,
-          categoryName: selectedTemplate.name,
-          caseManagerId: selectedAttorney._id,
-          caseManagerName: selectedAttorney.name,
-          documentTypes: selectedDocuments.map(doc => ({
-            documentTypeId: doc._id,
-            name: doc.name,
-            required: doc.required || false,
-            status: 'pending'
-          }))
-        };
-
-        const response = await api.post('/management', requestBody);
-        
-        if (response.data.status === 'success') {
-          const caseId = response.data.data.management._id;
-          
-          // Update the loading toast with success message
-          toast.success(
-            <div className="flex flex-col gap-1">
-              <span className="font-medium font-semibold">Case created successfully! ✨</span>
-              <span className="text-sm text-gray-600">
-                Fiona has prepared everything for you
-              </span>
-            </div>,
-            {
-              id: toastId,
-              duration: 5000,
-              style: {
-                background: '#fff',
-                color: '#333',
-                padding: '16px',
-                borderRadius: '8px',
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-              },
-              icon: <FionaIcon />,
-            }
-          );
-
-          navigate(`/cases/${caseId}`);
-        }
-      }, 4000);
-
-    } catch (error) {
-      setError(error.response?.data?.message || 'Failed to create case');
-      setIsCreatingCase(false);
-      setLoadingStep(0);
-
-      // Show error toast
-      toast.error(
-        <div className="flex flex-col gap-1">
-          <span className="font-medium font-semibold">Oops! Something went wrong</span>
-          <span className="text-sm text-gray-600">
-            Fiona could not create the case
-          </span>
+      // Show initial toast with Fiona
+      const toastId = toast.loading(
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 flex items-center justify-center text-white">
+            <FionaIcon />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="font-medium">Creating your case</span>
+            <span className="text-sm text-gray-500">This will only take a moment</span>
+          </div>
         </div>,
         {
-          duration: 5000,
+          position: 'top-center',
           style: {
             background: '#fff',
-            color: '#333',
+            color: '#1f2937',
             padding: '16px',
             borderRadius: '8px',
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            minWidth: '360px',
+          },
+        }
+      );
+
+      const requestBody = {
+        userId: selectedCustomer._id,
+        categoryId: selectedTemplate._id,
+        createdBy: user.id,
+        lawfirmId: selectedAttorney.lawfirm_id._id,
+        userName: selectedCustomer.name,
+        categoryName: selectedTemplate.name,
+        caseManagerId: selectedAttorney._id,
+        caseManagerName: selectedAttorney.name,
+        documentTypes: selectedDocuments.map(doc => ({
+          documentTypeId: doc._id,
+          name: doc.name,
+          required: doc.required || false,
+          status: 'pending'
+        }))
+      };
+
+      const response = await api.post('/management', requestBody);
+      
+      if (response.data.status === 'success') {
+        const caseId = response.data.data.management._id;
+        
+        // First success toast with Fiona
+        toast.success(
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 flex items-center justify-center text-white flex-shrink-0">
+              <FionaIcon />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="font-medium">Case created successfully</span>
+              <span className="text-sm text-gray-500">
+                I have set up everything for you. Diana will now take over with the document collection process.
+              </span>
+            </div>
+          </div>,
+          {
+            id: toastId,
+            duration: 2000,
+            position: 'top-center',
+            style: {
+              background: '#fff',
+              color: '#1f2937',
+              padding: '16px',
+              borderRadius: '8px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+              minWidth: '400px',
+            },
+          }
+        );
+
+        // Second toast with Diana after a short delay
+        setTimeout(() => {
+          toast.success(
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 flex items-center justify-center text-white flex-shrink-0">
+                <DianaIcon />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="font-medium">Hello, I&apos;m Diana</span>
+                <span className="text-sm text-gray-500">
+                  I will help you gather and verify all the necessary documents.
+                </span>
+              </div>
+            </div>,
+            {
+              duration: 4000,
+              position: 'top-center',
+              style: {
+                background: '#fff',
+                color: '#1f2937',
+                padding: '16px',
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                minWidth: '400px',
+              },
+            }
+          );
+        }, 2500);
+
+        // Navigate to case details after Diana's introduction
+        setTimeout(() => {
+          navigate(`/cases/${caseId}`);
+        }, 4000);
+      }
+    } catch (error) {
+      setError(error.response?.data?.message || 'Failed to create case');
+      setIsCreatingCase(false);
+
+      // Show error toast with Fiona
+      toast.error(
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-500">
+            <AlertCircle className="w-5 h-5" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="font-medium">Failed to create case</span>
+            <span className="text-sm text-gray-500">
+              {error.response?.data?.message || 'Please try again'}
+            </span>
+          </div>
+        </div>,
+        {
+          duration: 4000,
+          style: {
+            background: '#fff',
+            color: '#1f2937',
+            padding: '16px',
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            minWidth: '400px',
           },
         }
       );
@@ -525,20 +637,6 @@ const NewCase = () => {
     );
   };
 
-  // Helper function to get loading message
-  const getLoadingMessage = () => {
-    switch (loadingStep) {
-      case 1:
-        return "Creating case...";
-      case 2:
-        return "Assigning attorney...";
-      case 3:
-        return "Generating documents...";
-      default:
-        return "Please wait...";
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex-1 p-8 flex items-center justify-center">
@@ -559,258 +657,355 @@ const NewCase = () => {
   }
 
   return (
-    <div className="h-full w-full flex items-center justify-center p-8">
-      <div className="w-full max-w-4xl bg-white rounded-2xl shadow-lg border border-gray-100">
+    <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="px-10 pt-10 pb-8">
-          <h1 className="text-2xl font-semibold text-gray-900">Create New Case</h1>
-          <p className="mt-2 text-sm text-gray-500">Fill in the details below to create a new case</p>
+        <div className="text-center mb-12">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent mb-4">
+            Create New Case
+          </h1>
+          <div className="flex flex-col items-center gap-2">
+            <p className="text-blue-600 text-lg font-medium">
+              Fill in the required information to create a new case
+            </p>
+            <div className="w-20 h-1 rounded-full bg-gradient-to-r from-blue-500/50 to-blue-600/50"></div>
+          </div>
         </div>
 
-        {/* Form Section */}
-        <div className="px-10 pb-10 space-y-8">
-          {/* Template Selection */}
-          <div>
-            <label className="block text-sm font-medium text-blue-600 mb-2">
-              Select Template
-            </label>
-            <div className="relative" ref={dropdownRefs.template}>
-              <button
-                type="button"
-                onClick={() => handleDropdownOpen('template', isTemplateDropdownOpen, setIsTemplateDropdownOpen)}
-                className="w-full h-[42px] bg-white border border-gray-200 rounded-lg px-4 text-sm text-gray-600 text-left flex items-center justify-between hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all duration-200"
-              >
-                <span className="truncate">{selectedTemplate?.name || 'Search template name...'}</span>
-                <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
-              </button>
-
-              {isTemplateDropdownOpen && categories.length > 0 && (
-                <div 
-                  className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg"
-                  onMouseEnter={() => clearDropdownTimeout('template')}
-                  onMouseLeave={() => startDropdownTimeout('template', setIsTemplateDropdownOpen)}
+        {/* Form Card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+          {/* Form Content */}
+          <div className="p-8 space-y-8">
+            {/* Template Selection */}
+            <div className="space-y-4">
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <FileText className="w-4 h-4 text-blue-500" />
+                Select Template
+              </label>
+              <div className="relative" ref={dropdownRefs.template}>
+                <button
+                  type="button"
+                  onClick={() => handleDropdownOpen('template', isTemplateDropdownOpen, setIsTemplateDropdownOpen)}
+                  className={`w-full h-12 bg-white border ${
+                    isTemplateDropdownOpen ? 'border-blue-500 ring-2 ring-blue-50' : 'border-gray-200'
+                  } rounded-lg px-4 text-sm text-left flex items-center justify-between hover:border-gray-300 focus:outline-none transition-all duration-200`}
                 >
-                  <div className="p-2">
-                    <input
-                      type="text"
-                      value={templateSearch}
-                      onChange={(e) => {
-                        setTemplateSearch(e.target.value);
-                        clearDropdownTimeout('template');
-                      }}
-                      onFocus={() => clearDropdownTimeout('template')}
-                      placeholder="Search templates..."
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all duration-200"
-                    />
-                  </div>
-                  <ul className="py-1 max-h-[240px] overflow-auto">
-                    {getFilteredCategories().map((category) => (
-                      <li
-                        key={category._id}
-                        onClick={() => {
-                          setSelectedTemplate(category);
-                          setSelectedDocuments(category.documentTypes);
-                          handleDropdownOpen('template', isTemplateDropdownOpen, setIsTemplateDropdownOpen);
-                        }}
-                        className="px-4 py-2.5 hover:bg-gray-50 cursor-pointer text-sm text-gray-700 border-b border-gray-50 last:border-b-0 transition-colors duration-150"
-                      >
-                        {category.name}
-                      </li>
-                    ))}
-                    {getFilteredCategories().length === 0 && (
-                      <li className="px-4 py-3 text-sm text-gray-500">
-                        No templates found
-                      </li>
-                    )}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </div>
+                  <span className={`truncate ${selectedTemplate ? 'text-gray-900 font-medium' : 'text-gray-400'}`}>
+                    {selectedTemplate?.name || 'Search template name...'}
+                  </span>
+                  <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
+                    isTemplateDropdownOpen ? 'transform rotate-180' : ''
+                  }`} />
+                </button>
 
-          {/* Customer Selection */}
-          <div>
-            <label className="block text-sm font-medium text-blue-600 mb-2">
-              Select Customer
-            </label>
-            <div className="relative" ref={dropdownRefs.customer}>
-              <button
-                type="button"
-                onClick={() => handleDropdownOpen('customer', isCustomerDropdownOpen, setIsCustomerDropdownOpen)}
-                className="w-full h-[42px] bg-white border border-gray-200 rounded-lg px-4 text-sm text-gray-600 text-left flex items-center justify-between hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all duration-200"
-              >
-                <span className="truncate">
-                  {selectedCustomer ? (
-                    <div className="flex items-center space-x-2">
-                      <span>{selectedCustomer.name}</span>
+                {isTemplateDropdownOpen && (
+                  <div 
+                    className="absolute z-50 w-full mt-2 bg-white border border-gray-100 rounded-lg shadow-xl overflow-hidden"
+                    onMouseEnter={() => clearDropdownTimeout('template')}
+                    onMouseLeave={() => startDropdownTimeout('template', setIsTemplateDropdownOpen)}
+                  >
+                    <div className="p-2 border-b border-gray-100">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={templateSearch}
+                          onChange={(e) => {
+                            setTemplateSearch(e.target.value);
+                            clearDropdownTimeout('template');
+                          }}
+                          onFocus={() => clearDropdownTimeout('template')}
+                          placeholder="Search templates..."
+                          className="w-full px-3 py-2 pl-8 bg-gray-50 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all duration-200"
+                        />
+                        <FileText className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+                      </div>
                     </div>
-                  ) : (
-                    'Search customer name...'
-                  )}
-                </span>
-                <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
-              </button>
-
-              {isCustomerDropdownOpen && users.length > 0 && (
-                <div 
-                  className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg"
-                  onMouseEnter={() => clearDropdownTimeout('customer')}
-                  onMouseLeave={() => startDropdownTimeout('customer', setIsCustomerDropdownOpen)}
-                >
-                  <div className="p-2">
-                    <input
-                      type="text"
-                      value={customerSearch}
-                      onChange={(e) => {
-                        setCustomerSearch(e.target.value);
-                        clearDropdownTimeout('customer');
-                      }}
-                      onFocus={() => clearDropdownTimeout('customer')}
-                      placeholder="Search customers..."
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all duration-200"
-                    />
-                  </div>
-                  <ul className="py-1 max-h-[240px] overflow-auto">
-                    {getFilteredUsers().map((user) => (
-                      <li
-                        key={user._id}
-                        onClick={() => {
-                          setSelectedCustomer(user);
-                          handleDropdownOpen('customer', isCustomerDropdownOpen, setIsCustomerDropdownOpen);
-                        }}
-                        className="px-4 py-2.5 hover:bg-gray-50 cursor-pointer text-sm flex items-center justify-between border-b border-gray-50 last:border-b-0 transition-colors duration-150"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-gradient-to-br from-blue-100 to-blue-50 rounded-full flex items-center justify-center">
-                            <span className="text-blue-600 text-xs font-medium">
-                              {user.name.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="font-medium text-gray-700">{user.name}</span>
-                            {user.company_name && (
-                              <span className="text-xs text-gray-500">
-                                {user.company_name}
-                              </span>
-                            )}
-                          </div>
+                    <div className="max-h-[240px] overflow-auto">
+                      {categories.length === 0 ? (
+                        <div className="px-4 py-8 text-center">
+                          <Loader2 className="w-6 h-6 text-gray-400 mx-auto mb-2 animate-spin" />
+                          <p className="text-sm text-gray-500">Loading templates...</p>
                         </div>
-                        <span className="text-xs bg-gray-50 text-gray-600 px-2.5 py-1 rounded-full">
-                          {user.company_name ? 'Corporation' : 'Individual'}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Attorney/Case Manager Selection */}
-          <div>
-            <label className="block text-sm font-medium text-blue-600 mb-2">
-              Select Case Manager
-            </label>
-            <div className="relative" ref={dropdownRefs.attorney}>
-              <button
-                type="button"
-                onClick={() => handleDropdownOpen('attorney', isAttorneyDropdownOpen, setIsAttorneyDropdownOpen)}
-                className="w-full h-[42px] bg-white border border-gray-200 rounded-lg px-4 text-sm text-gray-600 text-left flex items-center justify-between hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all duration-200"
-              >
-                <span className="truncate">
-                  {selectedAttorney ? (
-                    <div className="flex items-center space-x-2">
-                      <span>{selectedAttorney.name}</span>
-                    </div>
-                  ) : (
-                    'Select case manager...'
-                  )}
-                </span>
-                <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
-              </button>
-
-              {isAttorneyDropdownOpen && attorneys.length > 0 && (
-                <div 
-                  className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg"
-                  onMouseEnter={() => clearDropdownTimeout('attorney')}
-                  onMouseLeave={() => startDropdownTimeout('attorney', setIsAttorneyDropdownOpen)}
-                >
-                  <div className="p-2">
-                    <input
-                      type="text"
-                      value={attorneySearch}
-                      onChange={(e) => {
-                        setAttorneySearch(e.target.value);
-                        clearDropdownTimeout('attorney');
-                      }}
-                      onFocus={() => clearDropdownTimeout('attorney')}
-                      placeholder="Search case managers..."
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all duration-200"
-                    />
-                  </div>
-                  <ul className="py-1 max-h-[240px] overflow-auto">
-                    {getFilteredAttorneys().map((attorney) => {
-                      const isSelected = selectedAttorney?._id === attorney._id;
-                      return (
-                        <li
-                          key={attorney._id}
-                          onClick={() => handleAttorneySelect(attorney)}
-                          className="px-4 py-2.5 hover:bg-gray-50 cursor-pointer text-sm flex items-center justify-between border-b border-gray-50 last:border-b-0 transition-colors duration-150"
-                        >
-                          <div className="flex items-center space-x-3">
-                            <div className="w-8 h-8 bg-gradient-to-br from-blue-100 to-blue-50 rounded-full flex items-center justify-center">
-                              <span className="text-blue-600 text-xs font-medium">
-                                {attorney.name.charAt(0).toUpperCase()}
-                              </span>
+                      ) : getFilteredCategories().length === 0 ? (
+                        <div className="px-4 py-8 text-center">
+                          <AlertCircle className="w-6 h-6 text-gray-400 mx-auto mb-2" />
+                          <p className="text-sm text-gray-500">No templates found</p>
+                        </div>
+                      ) : (
+                        getFilteredCategories().map((category) => (
+                          <button
+                            key={category._id}
+                            onClick={() => {
+                              setSelectedTemplate(category);
+                              setSelectedDocuments(category.documentTypes);
+                              handleDropdownOpen('template', isTemplateDropdownOpen, setIsTemplateDropdownOpen);
+                            }}
+                            className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors duration-150"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                                <FileText className="w-4 h-4 text-blue-500" />
+                              </div>
+                              <div>
+                                <div className="font-medium text-gray-900">{category.name}</div>
+                                {category.description && (
+                                  <div className="text-xs text-gray-500 mt-0.5">{category.description}</div>
+                                )}
+                              </div>
                             </div>
-                            <span className="font-medium text-gray-700">{attorney.name}</span>
-                          </div>
-                          {isSelected && (
-                            <svg className="w-5 h-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Create Case Button */}
-          <div className="pt-6 flex justify-end">
-            <button
-              type="button"
-              onClick={handleCreateCase}
-              disabled={!selectedTemplate || !selectedCustomer || !selectedAttorney || isCreatingCase}
-              className={`min-w-[220px] h-[42px] rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:cursor-not-allowed flex items-center justify-center gap-2 relative overflow-hidden px-6
-                ${isCreatingCase 
-                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600 bg-[length:200%_100%] animate-gradient disabled:animate-gradient disabled:opacity-90' 
-                  : 'bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400'
-                }`}
-            >
-              <div className={`absolute inset-0 ${isCreatingCase ? 'bg-indigo-600/10 animate-pulse' : ''}`} />
-              <div className="relative flex items-center justify-center gap-3 text-white">
-                {isCreatingCase ? (
-                  <div className="flex items-center gap-3 justify-center">
-                    <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
-                    <span className="animate-fadeIn whitespace-nowrap text-center">{getLoadingMessage()}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  'Create Case'
                 )}
               </div>
-            </button>
+            </div>
+
+            {/* Customer Selection */}
+            <div className="space-y-4">
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <Users className="w-4 h-4 text-blue-500" />
+                Select Customer
+              </label>
+              <div className="relative" ref={dropdownRefs.customer}>
+                <button
+                  type="button"
+                  onClick={() => handleDropdownOpen('customer', isCustomerDropdownOpen, setIsCustomerDropdownOpen)}
+                  className={`w-full h-12 bg-white border ${
+                    isCustomerDropdownOpen ? 'border-blue-500 ring-2 ring-blue-50' : 'border-gray-200'
+                  } rounded-lg px-4 text-sm text-left flex items-center justify-between hover:border-gray-300 focus:outline-none transition-all duration-200`}
+                >
+                  <span className={`truncate ${selectedCustomer ? 'text-gray-900 font-medium' : 'text-gray-400'}`}>
+                    {selectedCustomer ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center">
+                          <span className="text-blue-600 text-xs font-medium">
+                            {selectedCustomer.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <span>{selectedCustomer.name}</span>
+                      </div>
+                    ) : (
+                      'Search customer name...'
+                    )}
+                  </span>
+                  <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
+                    isCustomerDropdownOpen ? 'transform rotate-180' : ''
+                  }`} />
+                </button>
+
+                {isCustomerDropdownOpen && (
+                  <div 
+                    className="absolute z-50 w-full mt-2 bg-white border border-gray-100 rounded-lg shadow-xl overflow-hidden"
+                    onMouseEnter={() => clearDropdownTimeout('customer')}
+                    onMouseLeave={() => startDropdownTimeout('customer', setIsCustomerDropdownOpen)}
+                  >
+                    <div className="p-2 border-b border-gray-100">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={customerSearch}
+                          onChange={(e) => {
+                            setCustomerSearch(e.target.value);
+                            clearDropdownTimeout('customer');
+                          }}
+                          onFocus={() => clearDropdownTimeout('customer')}
+                          placeholder="Search customers..."
+                          className="w-full px-3 py-2 pl-8 bg-gray-50 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all duration-200"
+                        />
+                        <Users className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+                      </div>
+                    </div>
+                    <div className="max-h-[240px] overflow-auto">
+                      {isLoadingUsers ? (
+                        <div className="px-4 py-8 text-center">
+                          <Loader2 className="w-6 h-6 text-gray-400 mx-auto mb-2 animate-spin" />
+                          <p className="text-sm text-gray-500">Loading customers...</p>
+                        </div>
+                      ) : getFilteredUsers().length === 0 ? (
+                        <div className="px-4 py-8 text-center">
+                          <AlertCircle className="w-6 h-6 text-gray-400 mx-auto mb-2" />
+                          <p className="text-sm text-gray-500">No customers found</p>
+                        </div>
+                      ) : (
+                        getFilteredUsers().map((user) => (
+                          <button
+                            key={user._id}
+                            onClick={() => {
+                              setSelectedCustomer(user);
+                              handleDropdownOpen('customer', isCustomerDropdownOpen, setIsCustomerDropdownOpen);
+                            }}
+                            className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors duration-150"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center flex-shrink-0">
+                                  <span className="text-blue-600 text-sm font-medium">
+                                    {user.name.charAt(0).toUpperCase()}
+                                  </span>
+                                </div>
+                                <div>
+                                  <div className="font-medium text-gray-900">{user.name}</div>
+                                  {user.company_name && (
+                                    <div className="text-xs text-gray-500 mt-0.5">{user.company_name}</div>
+                                  )}
+                                </div>
+                              </div>
+                              <span className="text-xs bg-gray-50 text-gray-600 px-2.5 py-1 rounded-full">
+                                {user.company_name ? 'Corporation' : 'Individual'}
+                              </span>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Attorney/Case Manager Selection */}
+            <div className="space-y-4">
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <UserCog className="w-4 h-4 text-blue-500" />
+                Select Case Manager
+              </label>
+              <div className="relative" ref={dropdownRefs.attorney}>
+                <button
+                  type="button"
+                  onClick={() => handleDropdownOpen('attorney', isAttorneyDropdownOpen, setIsAttorneyDropdownOpen)}
+                  className={`w-full h-12 bg-white border ${
+                    isAttorneyDropdownOpen ? 'border-blue-500 ring-2 ring-blue-50' : 'border-gray-200'
+                  } rounded-lg px-4 text-sm text-left flex items-center justify-between hover:border-gray-300 focus:outline-none transition-all duration-200`}
+                >
+                  <span className={`truncate ${selectedAttorney ? 'text-gray-900 font-medium' : 'text-gray-400'}`}>
+                    {selectedAttorney ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center">
+                          <span className="text-blue-600 text-xs font-medium">
+                            {selectedAttorney.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <span>{selectedAttorney.name}</span>
+                      </div>
+                    ) : (
+                      'Select case manager...'
+                    )}
+                  </span>
+                  <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
+                    isAttorneyDropdownOpen ? 'transform rotate-180' : ''
+                  }`} />
+                </button>
+
+                {isAttorneyDropdownOpen && (
+                  <div 
+                    className="absolute z-50 w-full mt-2 bg-white border border-gray-100 rounded-lg shadow-xl overflow-hidden"
+                    onMouseEnter={() => clearDropdownTimeout('attorney')}
+                    onMouseLeave={() => startDropdownTimeout('attorney', setIsAttorneyDropdownOpen)}
+                  >
+                    <div className="p-2 border-b border-gray-100">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={attorneySearch}
+                          onChange={(e) => {
+                            setAttorneySearch(e.target.value);
+                            clearDropdownTimeout('attorney');
+                          }}
+                          onFocus={() => clearDropdownTimeout('attorney')}
+                          placeholder="Search case managers..."
+                          className="w-full px-3 py-2 pl-8 bg-gray-50 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all duration-200"
+                        />
+                        <UserCog className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+                      </div>
+                    </div>
+                    <div className="max-h-[240px] overflow-auto">
+                      {isLoadingUsers ? (
+                        <div className="px-4 py-8 text-center">
+                          <Loader2 className="w-6 h-6 text-gray-400 mx-auto mb-2 animate-spin" />
+                          <p className="text-sm text-gray-500">Loading case managers...</p>
+                        </div>
+                      ) : getFilteredAttorneys().length === 0 ? (
+                        <div className="px-4 py-8 text-center">
+                          <AlertCircle className="w-6 h-6 text-gray-400 mx-auto mb-2" />
+                          <p className="text-sm text-gray-500">No case managers found</p>
+                        </div>
+                      ) : (
+                        getFilteredAttorneys().map((attorney) => {
+                          const isSelected = selectedAttorney?._id === attorney._id;
+                          return (
+                            <button
+                              key={attorney._id}
+                              onClick={() => handleAttorneySelect(attorney)}
+                              className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors duration-150"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center flex-shrink-0">
+                                    <span className="text-blue-600 text-sm font-medium">
+                                      {attorney.name.charAt(0).toUpperCase()}
+                                    </span>
+                                  </div>
+                                  <div className="font-medium text-gray-900">{attorney.name}</div>
+                                </div>
+                                {isSelected && (
+                                  <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
+                                    <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
+                                      <path
+                                        d="M10 3L4.5 8.5L2 6"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      />
+                                    </svg>
+                                  </div>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Create Case Button */}
+            <div className="pt-6">
+              <button
+                type="button"
+                onClick={handleCreateCase}
+                disabled={!selectedTemplate || !selectedCustomer || !selectedAttorney || isCreatingCase}
+                className={`w-full h-12 rounded-lg text-sm font-medium transition-all duration-300 focus:outline-none focus:ring-offset-2 focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed relative overflow-hidden
+                  ${isCreatingCase 
+                    ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white' 
+                    : 'bg-blue-500 hover:bg-blue-600 text-white disabled:bg-gray-100 disabled:text-gray-400'
+                  }`}
+              >
+                <div className={`absolute inset-0 ${isCreatingCase ? 'bg-black/10' : ''}`} />
+                <div className="relative flex items-center justify-center gap-3">
+                  {isCreatingCase ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Creating case...</span>
+                    </>
+                  ) : (
+                    'Create Case'
+                  )}
+                </div>
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Edit Template Modal */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-[500px] max-h-[80vh] overflow-hidden shadow-xl transform transition-all">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100]">
+          <div className="bg-white rounded-xl w-[500px] max-h-[80vh] overflow-hidden shadow-xl transform transition-all animate-modal-enter">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-lg font-semibold text-gray-800">
@@ -832,8 +1027,9 @@ const NewCase = () => {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search documents..."
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-gray-300 transition-all duration-200"
+                    className="w-full px-4 py-2.5 pl-10 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all duration-200"
                   />
+                  <FileText className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
                 </div>
               </div>
 
@@ -842,22 +1038,21 @@ const NewCase = () => {
               </div>
 
               {/* Document List */}
-              <div className="space-y-1 mb-6 max-h-[320px] overflow-y-auto pr-2">
+              <div className="space-y-2 mb-6 max-h-[320px] overflow-y-auto pr-2">
                 {getFilteredDocuments().map((doc) => {
                   const isSelected = tempSelectedDocuments.some(d => d.name === doc.name);
                   return (
-                    <div
+                    <button
                       key={doc._id}
                       onClick={() => handleDocumentToggle(doc.name)}
-                      className="flex items-center py-2.5 px-3 cursor-pointer hover:bg-gray-50 rounded-lg transition-colors duration-150"
+                      className="w-full flex items-center p-3 hover:bg-gray-50 rounded-lg transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-100"
                     >
-                      <div className="flex items-center space-x-3 w-full">
-                        <button
-                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200
-                            ${isSelected 
-                              ? 'border-blue-500 bg-blue-500 text-white' 
-                              : 'border-gray-300 hover:border-blue-400'
-                            }`}
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200
+                          ${isSelected 
+                            ? 'border-blue-500 bg-blue-500 text-white' 
+                            : 'border-gray-300 hover:border-blue-400'
+                          }`}
                         >
                           {isSelected && (
                             <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none">
@@ -870,19 +1065,19 @@ const NewCase = () => {
                               />
                             </svg>
                           )}
-                        </button>
+                        </div>
                         <span className="text-sm font-medium text-gray-700">{doc.name}</span>
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
                 
-                {/* No results message */}
                 {getFilteredDocuments().length === 0 && (
                   <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <span className="text-sm text-gray-500">
+                    <AlertCircle className="w-6 h-6 text-gray-400 mb-2" />
+                    <p className="text-sm text-gray-500">
                       No documents found matching &ldquo;{searchQuery}&rdquo;
-                    </span>
+                    </p>
                   </div>
                 )}
               </div>
@@ -890,7 +1085,7 @@ const NewCase = () => {
               {/* Done Button */}
               <button
                 onClick={handleDoneClick}
-                className="w-full py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg text-sm font-medium hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className="w-full h-11 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
                 Done
               </button>
