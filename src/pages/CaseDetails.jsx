@@ -43,6 +43,7 @@ import { initializeSocket, joinDocumentRoom, handleReconnect, getSocket } from '
 import { getStoredToken } from '../utils/auth';
 import LetterTab from '../components/letters/LetterTab';
 import ReceiptsTab from '../components/receipts/ReceiptsTab';
+import DocumentsArchiveTab from '../components/documents/DocumentsArchiveTab';
 
 // Add a new status type to track document states
 const DOCUMENT_STATUS = {
@@ -1814,7 +1815,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           { name: 'Questionnaire', icon: FileText },
           { name: 'Forms', icon: File },
           { name: 'Letters', icon: FileText },
-          { name: 'Receipts', icon: LucideReceiptText }, // Add this new tab
+          { name: 'Documents Archive', icon: FileText },
+          { name: 'Receipts', icon: LucideReceiptText },
         ].map(({ name, icon: Icon, disabled }) => (
           <button
             key={name}
@@ -4806,7 +4808,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
               {activeTab === 'letters' && <LetterTab managementId={caseId} />}
-              {activeTab === 'receipts' && <ReceiptsTab managementId={caseId} />} {/* Add this line */}
+              {activeTab === 'documents-archive' && <DocumentsArchiveTab managementId={caseId} />}
+              {activeTab === 'receipts' && <ReceiptsTab managementId={caseId} />}
             </div>
           </div>
         </div>
