@@ -363,13 +363,22 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       // Get the processedInformation from the first response
       const processedInfo = questionnaireData.responses[0].processedInformation;
       
-      if (processedInfo) {
-        // Use the processedInformation exactly as it comes from the API
-        console.log('Setting form data from questionnaire response:', processedInfo);
-        setFormData(processedInfo);
+      if (processedInfo && selectedQuestionnaire) {
+        // Initialize form data with all fields from the questionnaire template
+        const initialFormData = {};
+        selectedQuestionnaire.field_mappings.forEach(field => {
+          // Copy all field properties
+          initialFormData[field._id] = {
+            ...field,
+            value: processedInfo[field._id]?.value || null
+          };
+        });
+        
+        console.log('Setting form data from questionnaire response:', initialFormData);
+        setFormData(initialFormData);
       }
     }
-  }, [questionnaireData]);
+  }, [questionnaireData, selectedQuestionnaire]);
 
   // Set up document processing socket listeners
   useEffect(() => {
@@ -1288,45 +1297,83 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         if (response.data.status === 'success') {
           const templates = response.data.data.templates;
           
+          // Log only fields with isDependent: true from the API response
+          const dependentFields = templates.flatMap(template => 
+            template.field_mappings.filter(field => field.isDependent === true)
+          );
+          // console.log('Dependent fields from API:', dependentFields.map(field => ({
+          //   fieldName: field.fieldName,
+          //   dependentFields: field.dependentFields
+          // })));
+          
           // Only process if there are templates
           if (templates && templates.length > 0) {
             // Create a combined questionnaire by merging all field mappings
             const combinedQuestionnaire = {
-              _id: "combined-questionnaire-id", // Create a unique ID for the combined questionnaire
-              questionnaire_name: "Combined Questionnaire", // Set a name for the combined questionnaire
+              _id: "combined-questionnaire-id",
+              questionnaire_name: "Combined Questionnaire",
               description: "Combination of all available questionnaires",
               field_mappings: [],
-              createdBy: templates[0].createdBy, // Use the first template's createdBy info
+              createdBy: templates[0].createdBy,
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
               __v: 0,
               categoryId: templates[0].categoryId
             };
             
+            // Create a map to store fields by fieldName to prevent duplicates
+            const fieldMap = new Map();
+            
             // Merge all field mappings from all templates
             templates.forEach(template => {
               if (template.field_mappings && template.field_mappings.length > 0) {
                 // Check for duplicate fieldNames before adding
                 template.field_mappings.forEach(field => {
-                  const isDuplicate = combinedQuestionnaire.field_mappings.some(
-                    existingField => existingField.fieldName === field.fieldName
-                  );
+                  // Only log if field is dependent
+                  if (field.isDependent === true) {
+                    console.log('Processing dependent field:', {
+                      fieldName: field.fieldName,
+                      dependentFields: field.dependentFields
+                    });
+                  }
                   
-                  if (!isDuplicate) {
-                    combinedQuestionnaire.field_mappings.push({
+                  // Use fieldName as the key to prevent duplicates
+                  if (!fieldMap.has(field.fieldName)) {
+                    fieldMap.set(field.fieldName, {
                       ...field,
-                      _id: field._id // Preserve the original field ID
+                      isDependent: field.isDependent || false,
+                      dependentFields: field.dependentFields || [],
+                      sourceDocument: field.sourceDocument || null,
+                      required: field.required || false,
+                      value: null
                     });
                   }
                 });
               }
             });
             
+            // Convert the map values to array and set as field_mappings
+            combinedQuestionnaire.field_mappings = Array.from(fieldMap.values());
+            
+            // Log only dependent fields in final combined questionnaire
+            const finalDependentFields = combinedQuestionnaire.field_mappings.filter(field => field.isDependent === true);
+            console.log('Dependent fields in combined questionnaire:', finalDependentFields.map(field => ({
+              fieldName: field.fieldName,
+              dependentFields: field.dependentFields
+            })));
+            
             // Set the combined questionnaire as the only one available
             setQuestionnaires([combinedQuestionnaire]);
             
-            // Log the total number of fields in the combined questionnaire
-            console.log(`Combined questionnaire created with ${combinedQuestionnaire.field_mappings.length} fields`);
+            // Initialize formData with all field properties
+            const initialFormData = {};
+            combinedQuestionnaire.field_mappings.forEach(field => {
+              initialFormData[field._id] = {
+                ...field,
+                value: null
+              };
+            });
+            setFormData(initialFormData);
           } else {
             setQuestionnaires([]);
           }
@@ -2827,13 +2874,37 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     // Updated input change handler to work with the new format
     const handleLocalInputChange = (fieldKey, value) => {
-      setLocalFormData(prev => ({
-        ...prev,
-        [fieldKey]: {
-          ...prev[fieldKey],
-          value: value
-        }
-      }));
+      // Log the field change
+      // console.log('Field Change:', {
+      //   fieldKey,
+      //   newValue: value,
+      //   field: localFormData[fieldKey],
+      //   isDependentField: localFormData[fieldKey]?.isDependent,
+      //   dependentFields: localFormData[fieldKey]?.dependentFields
+      // });
+
+      setLocalFormData(prev => {
+        const updatedData = {
+          ...prev,
+          [fieldKey]: {
+            ...prev[fieldKey],
+            value: value
+          }
+        };
+
+        // Log the state after update
+        // console.log('Form Data After Change:', {
+        //   changedField: fieldKey,
+        //   allFields: Object.entries(updatedData).map(([key, field]) => ({
+        //     fieldName: field.fieldName,
+        //     value: field.value,
+        //     isDependent: field.isDependent,
+        //     dependentFields: field.dependentFields
+        //   }))
+        // });
+
+        return updatedData;
+      });
     };
 
     // Updated save handler to maintain the correct structure
@@ -2844,20 +2915,24 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         // Update parent state
         setFormData(localFormData);
         
-        // Create request payload - keep the same structure as received
+        // Create a trimmed version of the form data with only essential fields
+        const trimmedFormData = {};
+        Object.entries(localFormData).forEach(([key, field]) => {
+          trimmedFormData[key] = {
+            value: field.value,
+            fieldName: field.fieldName,
+            isDependent: field.isDependent,
+            dependentFields: field.dependentFields
+          };
+        });
+        
+        // Create request payload with trimmed data
         const payload = {
           templateId: selectedQuestionnaire?._id,
-          processedInformation: localFormData
+          processedInformation: trimmedFormData
         };
         
-        // Log for debugging
-        console.log('Radio button and checkbox fields:', 
-          Object.entries(localFormData)
-            .filter(([_, field]) => field?.fieldType === 'radio button' || field?.fieldType === 'checkbox')
-            .map(([key, field]) => ({ key, type: field.fieldType, value: field.value }))
-        );
-        
-        console.log('Saving questionnaire with data:', payload);
+        // console.log('Saving questionnaire with trimmed data:', payload);
         
         const response = await api.put(`/questionnaire-responses/management/${caseId}`, payload);
 
@@ -2886,8 +2961,32 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     // Update function to check if field should be visible
     const shouldShowField = (fieldKey) => {
-      if (!showOnlyEmpty) return true;
-      return isFieldEmpty(fieldKey);
+      const field = localFormData[fieldKey];
+      
+      // If field doesn't exist in form data, don't show it
+      if (!field) return false;
+      
+      // If field is dependent
+      if (field.isDependent === true) {
+        // Find parent field that has this field's ID in its dependentFields array
+        const parentField = Object.values(localFormData).find(f => 
+          f.dependentFields?.includes(field._id)
+        );
+        
+        // Don't show if:
+        // 1. No parent found, or
+        // 2. Parent's value is not true
+        if (!parentField || parentField.value !== true) {
+          return false;
+        }
+      }
+      
+      // Handle empty fields filter
+      if (showOnlyEmpty) {
+        return isFieldEmpty(fieldKey);
+      }
+      
+      return true;
     };
 
     const { filledFields, totalFields } = getFilledFieldsCount();
@@ -3333,6 +3432,13 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           
           // Set this field to true
           handleLocalInputChange(fieldKey, true);
+
+          // Log the selected field data
+          // console.log('Selected radio button field data:', {
+          //   ...field,
+          //   _id: field._id || fieldKey, // Use the original _id if available
+          //   value: true
+          // });
         } else if (inputType === 'checkbox') {
           // For checkboxes, toggle the value in an array
           if (options.length <= 1) {
@@ -3723,6 +3829,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       setLoadingStep(0);
       
       try {
+        // Only fetch responses since we already have the template
         const response = await api.get(`/questionnaire-responses/management/${caseId}`);
         
         if (response.data.status === 'success') {
@@ -3737,20 +3844,45 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             const processedInfo = response.data.data.responses[0].processedInformation;
             
             if (processedInfo) {
-              // Use the processedInformation exactly as it comes from the API
-              console.log('Loaded questionnaire data:', processedInfo);
+              // Initialize form data with all fields from the questionnaire template
+              const initialFormData = {};
+              questionnaire.field_mappings.forEach(field => {
+                // Copy all field properties
+                initialFormData[field._id] = {
+                  ...field,
+                  value: processedInfo[field._id]?.value || null
+                };
+              });
               
-              // The new response format has fieldName, fieldLabel, and value properties
-              // Save the full response structure to ensure we have all necessary data
-              setFormData(processedInfo);
+              // Log the initialized form data
+              console.log('Initialized questionnaire data:', initialFormData);
+              
+              // Save the form data
+              setFormData(initialFormData);
               setIsQuestionnaireCompleted(true);
             } else {
               console.log('No processedInformation found in response, initializing empty form');
-              setFormData({});
+              // Initialize with all fields but no values
+              const emptyFormData = {};
+              questionnaire.field_mappings.forEach(field => {
+                emptyFormData[field._id] = {
+                  ...field,
+                  value: null
+                };
+              });
+              setFormData(emptyFormData);
             }
           } else {
             console.log('No responses found in API data, initializing empty form');
-            setFormData({});
+            // Initialize with all fields but no values
+            const emptyFormData = {};
+            questionnaire.field_mappings.forEach(field => {
+              emptyFormData[field._id] = {
+                ...field,
+                value: null
+              };
+            });
+            setFormData(emptyFormData);
           }
         } else {
           console.error('API request succeeded but returned error status:', response.data);

@@ -950,10 +950,23 @@ const FNCaseDetails = () => {
   }, []); // Empty dependency array means this runs once when component mounts
 
   useEffect(() => {
-    if (questionnaireData?.responses?.[0]?.processedInformation) {
-      setFormData(questionnaireData.responses[0].processedInformation);
+    if (questionnaireData?.responses?.[0]?.processedInformation && selectedQuestionnaire) {
+      const processedInfo = questionnaireData.responses[0].processedInformation;
+      
+      // Initialize form data with all fields from the questionnaire template
+      const initialFormData = {};
+      selectedQuestionnaire.field_mappings.forEach(field => {
+        // Copy all field properties
+        initialFormData[field._id] = {
+          ...field,
+          value: processedInfo[field._id]?.value || null
+        };
+      });
+      
+      // console.log('Setting form data from questionnaire response:', initialFormData);
+      setFormData(initialFormData);
     }
-  }, [questionnaireData]);
+  }, [questionnaireData, selectedQuestionnaire]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -2302,20 +2315,45 @@ const FNCaseDetails = () => {
             const processedInfo = response.data.data.responses[0].processedInformation;
             
             if (processedInfo) {
-              // Use the processedInformation exactly as it comes from the API
-              console.log('Loaded questionnaire data:', processedInfo);
+              // Initialize form data with all fields from the questionnaire template
+              const initialFormData = {};
+              questionnaire.field_mappings.forEach(field => {
+                // Copy all field properties
+                initialFormData[field._id] = {
+                  ...field,
+                  value: processedInfo[field._id]?.value || null
+                };
+              });
               
-              // The new response format has fieldName, fieldLabel, and value properties
-              // Save the full response structure to ensure we have all necessary data
-              setFormData(processedInfo);
+              // Log the initialized form data
+              // console.log('Initialized questionnaire data:', initialFormData);
+              
+              // Save the form data
+              setFormData(initialFormData);
               setIsQuestionnaireCompleted(true);
             } else {
               console.log('No processedInformation found in response, initializing empty form');
-              setFormData({});
+              // Initialize with all fields but no values
+              const emptyFormData = {};
+              questionnaire.field_mappings.forEach(field => {
+                emptyFormData[field._id] = {
+                  ...field,
+                  value: null
+                };
+              });
+              setFormData(emptyFormData);
             }
           } else {
             console.log('No responses found in API data, initializing empty form');
-            setFormData({});
+            // Initialize with all fields but no values
+            const emptyFormData = {};
+            questionnaire.field_mappings.forEach(field => {
+              emptyFormData[field._id] = {
+                ...field,
+                value: null
+              };
+            });
+            setFormData(emptyFormData);
           }
         } else {
           console.error('API request succeeded but returned error status:', response.data);
@@ -2458,13 +2496,37 @@ const FNCaseDetails = () => {
 
     // Updated input change handler to work with the new format
     const handleLocalInputChange = (fieldKey, value) => {
-      setLocalFormData(prev => ({
-        ...prev,
-        [fieldKey]: {
-          ...prev[fieldKey],
-          value: value
-        }
-      }));
+      // Log the field change
+      // console.log('Field Change:', {
+      //   fieldKey,
+      //   newValue: value,
+      //   field: localFormData[fieldKey],
+      //   isDependentField: localFormData[fieldKey]?.isDependent,
+      //   dependentFields: localFormData[fieldKey]?.dependentFields
+      // });
+
+      setLocalFormData(prev => {
+        const updatedData = {
+          ...prev,
+          [fieldKey]: {
+            ...prev[fieldKey],
+            value: value
+          }
+        };
+
+        // Log the state after update
+        // console.log('Form Data After Change:', {
+        //   changedField: fieldKey,
+        //   allFields: Object.entries(updatedData).map(([key, field]) => ({
+        //     fieldName: field.fieldName,
+        //     value: field.value,
+        //     isDependent: field.isDependent,
+        //     dependentFields: field.dependentFields
+        //   }))
+        // });
+
+        return updatedData;
+      });
     };
 
     // Updated save handler to maintain the correct structure
@@ -2475,20 +2537,24 @@ const FNCaseDetails = () => {
         // Update parent state
         setFormData(localFormData);
         
-        // Create request payload - keep the same structure as received
+        // Create a trimmed version of the form data with only essential fields
+        const trimmedFormData = {};
+        Object.entries(localFormData).forEach(([key, field]) => {
+          trimmedFormData[key] = {
+            value: field.value,
+            fieldName: field.fieldName,
+            isDependent: field.isDependent,
+            dependentFields: field.dependentFields
+          };
+        });
+        
+        // Create request payload with trimmed data
         const payload = {
           templateId: selectedQuestionnaire?._id,
-          processedInformation: localFormData
+          processedInformation: trimmedFormData
         };
         
-        // Log for debugging
-        console.log('Radio button and checkbox fields:', 
-          Object.entries(localFormData)
-            .filter(([_, field]) => field?.fieldType === 'radio button' || field?.fieldType === 'checkbox')
-            .map(([key, field]) => ({ key, type: field.fieldType, value: field.value }))
-        );
-        
-        console.log('Saving questionnaire with data:', payload);
+        console.log('Saving questionnaire with trimmed data:', payload);
         
         const response = await api.put(`/questionnaire-responses/management/${caseId}`, payload);
 
@@ -2517,8 +2583,32 @@ const FNCaseDetails = () => {
 
     // Update function to check if field should be visible
     const shouldShowField = (fieldKey) => {
-      if (!showOnlyEmpty) return true;
-      return isFieldEmpty(fieldKey);
+      const field = localFormData[fieldKey];
+      
+      // If field doesn't exist in form data, don't show it
+      if (!field) return false;
+      
+      // If field is dependent
+      if (field.isDependent === true) {
+        // Find parent field that has this field's ID in its dependentFields array
+        const parentField = Object.values(localFormData).find(f => 
+          f.dependentFields?.includes(field._id)
+        );
+        
+        // Don't show if:
+        // 1. No parent found, or
+        // 2. Parent's value is not true
+        if (!parentField || parentField.value !== true) {
+          return false;
+        }
+      }
+      
+      // Handle empty fields filter
+      if (showOnlyEmpty) {
+        return isFieldEmpty(fieldKey);
+      }
+      
+      return true;
     };
 
     const { filledFields, totalFields } = getFilledFieldsCount();
