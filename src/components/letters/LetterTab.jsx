@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { FileText, Loader2, AlertCircle } from 'lucide-react';
+import { FileText, Loader2, AlertCircle, Save, Download, Trash2, Plus, Eye } from 'lucide-react';
 import { Editor } from '@tinymce/tinymce-react';
 import api from '../../utils/api';
 import PropTypes from 'prop-types';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useParams } from 'react-router-dom';
+import { Button, List, message, Popconfirm, Space, Typography } from 'antd';
+import { DeleteOutlined, EyeOutlined } from '@ant-design/icons';
 
 const TINYMCE_API_KEY = 'ddqwuqhde6t5al5rxogsrzlje9q74nujwn1dbou5zq2kqpd1';
 
@@ -58,9 +61,15 @@ const LetterTab = ({ managementId }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [prompt, setPrompt] = useState('');
-  const [generatedContent, setGeneratedContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showError, setShowError] = useState(false);
+  const [currentLetterId, setCurrentLetterId] = useState(null);
+  const [currentLetter, setCurrentLetter] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [savedLetters, setSavedLetters] = useState([]);
+  const [showTemplateSelection, setShowTemplateSelection] = useState(false);
+  const [showEditor, setShowEditor] = useState(false);
 
   useEffect(() => {
     if (!managementId) {
@@ -74,15 +83,8 @@ const LetterTab = ({ managementId }) => {
   useEffect(() => {
     if (selectedTemplate) {
       setPrompt(selectedTemplate.internalPrompt || '');
-      setGeneratedContent('');
     }
   }, [selectedTemplate]);
-
-  useEffect(() => {
-    if (generatedContent && editorRef.current) {
-      editorRef.current.setContent(generatedContent);
-    }
-  }, [generatedContent]);
 
   const fetchManagementDetails = async () => {
     try {
@@ -101,34 +103,138 @@ const LetterTab = ({ managementId }) => {
     }
   };
 
+  const fetchSavedLetters = async () => {
+    try {
+      const response = await api.get(`/letters/management/${managementId}`);
+      if (response.data.success) {
+        setSavedLetters(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching saved letters:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (managementId) {
+      fetchSavedLetters();
+    }
+  }, [managementId]);
+
+  const loadSavedLetter = async (letterId) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await api.get(`/letters/${letterId}`);
+      
+      if (response.data.success) {
+        const letter = response.data.data;
+        
+        setCurrentLetterId(letter._id);
+        setCurrentLetter(letter);
+        
+        const template = letterTemplates.find(t => t._id === letter.templateId._id);
+        setSelectedTemplate(template || letter.templateId);
+        
+        if (template?.internalPrompt) {
+          setPrompt(template.internalPrompt);
+        }
+
+        if (editorRef.current && letter.content) {
+          let contentToSet = letter.content;
+          if (!contentToSet.includes('<div class="letter-')) {
+            contentToSet = formatLetterContent(contentToSet.toString());
+          }
+
+          setTimeout(() => {
+            if (editorRef.current) {
+              editorRef.current.setContent(contentToSet);
+            }
+          }, 500);
+        }
+        setShowEditor(true);
+      } else {
+        throw new Error(response.data.error || 'Failed to load letter');
+      }
+    } catch (error) {
+      console.error('Error loading saved letter:', error);
+      setError('Failed to load the saved letter');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!selectedTemplate) {
       setError('Please select a letter template first');
+      setShowError(true);
       return;
     }
 
     if (!prompt || prompt.trim() === '') {
       setError('Please enter the letter content');
+      setShowError(true);
       return;
     }
 
     try {
       setIsGenerating(true);
       setError(null);
+      setShowError(false);
 
       const generateResponse = await api.post('/letters/generate', {
         content: prompt,
         managementId: managementId,
-        templateId: selectedTemplate._id
+        templateId: selectedTemplate._id,
+        save: true
       });
 
       if (generateResponse.data.success) {
         const letterData = generateResponse.data.data;
+        if (!letterData.content || !letterData.letterId) {
+          console.error('Invalid letter data:', letterData);
+          throw new Error('Invalid letter data received from server');
+        }
+
         const formattedContent = formatLetterContent(letterData.content);
-        setGeneratedContent(formattedContent);
+        setCurrentLetterId(letterData.letterId);
         
-        if (editorRef.current) {
-          editorRef.current.setContent(formattedContent);
+        // First update the state
+        setShowTemplateSelection(false);
+        setShowEditor(true);
+
+        // Wait for editor to be ready
+        const setEditorContent = () => {
+          return new Promise((resolve, reject) => {
+            let attempts = 0;
+            const maxAttempts = 10;
+            const interval = setInterval(() => {
+              if (editorRef.current) {
+                clearInterval(interval);
+                try {
+                  console.log('Setting content in editor:', formattedContent);
+                  editorRef.current.setContent(formattedContent);
+                  resolve();
+                } catch (err) {
+                  reject(err);
+                }
+              } else if (attempts >= maxAttempts) {
+                clearInterval(interval);
+                reject(new Error('Editor not ready after maximum attempts'));
+              }
+              attempts++;
+            }, 200);
+          });
+        };
+
+        try {
+          await setEditorContent();
+          await fetchSavedLetters();
+          setError('Letter generated successfully');
+          setShowError(true);
+          setTimeout(() => setShowError(false), 3000);
+        } catch (editorError) {
+          throw new Error('Failed to set editor content: ' + editorError.message);
         }
       } else {
         throw new Error(generateResponse.data.error || 'Failed to generate letter');
@@ -137,40 +243,195 @@ const LetterTab = ({ managementId }) => {
       console.error('Error generating letter:', err);
       const errorMessage = err.response?.data?.error || err.message || 'An error occurred while generating the letter';
       setError(errorMessage);
+      setShowError(true);
     } finally {
       setIsGenerating(false);
     }
   };
 
+  // Add a function to validate editor state
+  const validateEditor = () => {
+    if (!editorRef.current) {
+      throw new Error('Editor not initialized');
+    }
+    
+    const content = editorRef.current.getContent();
+    if (!content || !content.trim()) {
+      throw new Error('Letter content cannot be empty');
+    }
+    
+    return content;
+  };
+
+  const handleSave = async () => {
+    if (!currentLetterId) {
+      setError('No letter to save');
+      setShowError(true);
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setError(null);
+      setShowError(false);
+
+      // Validate editor state and content
+      const currentContent = validateEditor();
+
+      const response = await api.put(`/letters/${currentLetterId}`, {
+        status: 'final',
+        content: currentContent,
+        isHtml: true
+      });
+
+      if (response.data.success) {
+        await fetchSavedLetters();
+        setError('Letter saved successfully');
+        setShowError(true);
+        setTimeout(() => setShowError(false), 3000);
+      } else {
+        throw new Error(response.data.error || 'Failed to save letter');
+      }
+    } catch (err) {
+      console.error('Error saving letter:', err);
+      const errorMessage = err.response?.data?.error || err.message || 'An error occurred while saving the letter';
+      setError(errorMessage);
+      setShowError(true);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const downloadPDF = async (letterId, filename) => {
+    try {
+      console.log('Downloading PDF for letter:', letterId);
+      const response = await api({
+        url: `/letters/${letterId}/download`,
+        method: 'GET',
+        responseType: 'blob'
+      });
+
+      if (!response.data || response.data.size === 0) {
+        throw new Error('Received empty PDF data');
+      }
+
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const objectUrl = window.URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.style.display = 'none';
+      link.href = objectUrl;
+      link.download = filename || `letter_${letterId}.pdf`;
+      
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(objectUrl);
+      
+      return true;
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      throw new Error('Failed to download PDF: ' + (error.response?.data?.error || error.message));
+    }
+  };
+
+  const handleDownloadPDF = async (letterId) => {
+    if (!letterId) {
+      setError('Letter ID not available');
+      return;
+    }
+    try {
+      setIsDownloading(true);
+      const letterName = savedLetters.find(l => l._id === letterId)?.templateId?.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'letter';
+      const timestamp = new Date().toISOString().split('T')[0];
+      const filename = `${letterName}_${timestamp}.pdf`;
+      await downloadPDF(letterId, filename);
+    } catch (error) {
+      setError('Failed to download PDF');
+      setShowError(true);
+      setTimeout(() => setShowError(false), 5000);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handleSaveAndDownload = async () => {
+    if (!currentLetterId) {
+      setError('No letter to save');
+      setShowError(true);
+      return;
+    }
+
+    try {
+      setIsDownloading(true);
+      setError(null);
+      setShowError(false);
+
+      // Validate editor state and content
+      const currentContent = validateEditor();
+
+      // First save the letter
+      const saveResponse = await api.put(`/letters/${currentLetterId}`, {
+        status: 'final',
+        content: currentContent,
+        isHtml: true
+      });
+
+      if (!saveResponse.data.success) {
+        throw new Error(saveResponse.data.error || 'Failed to save letter');
+      }
+
+      const updatedLetter = saveResponse.data.data;
+      setCurrentLetter(updatedLetter);
+      await fetchSavedLetters();
+
+      // Then download the PDF
+      const letterName = selectedTemplate?.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'letter';
+      const timestamp = new Date().toISOString().split('T')[0];
+      const filename = `${letterName}_${timestamp}.pdf`;
+      
+      await downloadPDF(currentLetterId, filename);
+      
+      // Show success message
+      setError('Letter saved and downloaded successfully');
+      setShowError(true);
+      setTimeout(() => setShowError(false), 3000);
+    } catch (err) {
+      console.error('Error saving and downloading letter:', err);
+      const errorMessage = err.response?.data?.error || err.message || 'An error occurred while saving and downloading the letter';
+      setError(errorMessage);
+      setShowError(true);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const formatLetterContent = (content) => {
-    // Split content into sections
+    if (content.includes('<div class="letter-')) {
+      return content;
+    }
+
     const sections = content.split('\n\n');
     let formattedContent = '';
 
-    // Format each section based on its position and content
     sections.forEach((section, index) => {
       const trimmedSection = section.trim();
       
       if (index === 0) {
-        // Date
         formattedContent += `<div class="letter-date">${trimmedSection}</div>`;
       } else if (trimmedSection.startsWith('Dear') || trimmedSection.startsWith('To')) {
-        // Salutation
         formattedContent += `<div class="letter-salutation">${trimmedSection}</div>`;
       } else if (trimmedSection.startsWith('Subject:') || trimmedSection.startsWith('Re:')) {
-        // Subject
         formattedContent += `<div class="letter-subject">${trimmedSection}</div>`;
       } else if (trimmedSection.startsWith('Sincerely') || trimmedSection.startsWith('Yours truly')) {
-        // Closing
         formattedContent += `<div class="letter-closing">${trimmedSection}</div>`;
       } else if (index === 1 || index === 2) {
-        // Address block
         formattedContent += `<div class="letter-address">${trimmedSection.replace(/\n/g, '<br>')}</div>`;
       } else if (index === sections.length - 1) {
-        // Signature block
         formattedContent += `<div class="letter-signature">${trimmedSection.replace(/\n/g, '<br>')}</div>`;
       } else {
-        // Body paragraphs
         formattedContent += `<div class="letter-body">${trimmedSection}</div>`;
       }
     });
@@ -178,10 +439,65 @@ const LetterTab = ({ managementId }) => {
     return formattedContent;
   };
 
-  const handleError = (message) => {
-    setError(message);
-    setShowError(true);
-    setTimeout(() => setShowError(false), 5000);
+  const handleDeleteLetter = async (letterId, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!window.confirm('Are you sure you want to delete this letter?')) {
+      return;
+    }
+
+    try {
+      const response = await api.delete(`/letters/${letterId}`);
+
+      if (response.data.success) {
+        setSavedLetters(savedLetters.filter(letter => letter._id !== letterId));
+        if (currentLetterId === letterId) {
+          setCurrentLetterId(null);
+          setShowEditor(false);
+        }
+        setError(null);
+      } else {
+        throw new Error('Failed to delete letter');
+      }
+    } catch (error) {
+      console.error('Delete letter error:', error);
+      setError('Failed to delete letter');
+      setShowError(true);
+    }
+  };
+
+  const handleNewLetter = () => {
+    setShowTemplateSelection(true);
+    setShowEditor(false);
+    setSelectedTemplate(null);
+    setCurrentLetterId(null);
+    setPrompt('');
+  };
+
+  const handleViewPDF = async (letterId) => {
+    try {
+      // First ensure the PDF exists by saving if needed
+      const letter = savedLetters.find(l => l._id === letterId);
+      if (!letter.pdfUrl) {
+        const saveResponse = await api.put(`/letters/${letterId}`, {
+          status: 'final',
+          content: letter.content,
+          isHtml: letter.isHtml || false
+        });
+        if (saveResponse.data.success) {
+          await fetchSavedLetters();
+          window.open(saveResponse.data.data.pdfUrl, '_blank');
+        }
+      } else {
+        window.open(letter.pdfUrl, '_blank');
+      }
+    } catch (error) {
+      console.error('Error viewing PDF:', error);
+      setError('Failed to view PDF');
+      setShowError(true);
+      setTimeout(() => setShowError(false), 5000);
+    }
   };
 
   if (loading) {
@@ -201,93 +517,247 @@ const LetterTab = ({ managementId }) => {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-3"
+            className={`mb-4 p-4 rounded-lg flex items-center space-x-3 ${
+              error.includes('successfully') 
+                ? 'bg-green-50 border border-green-200' 
+                : 'bg-red-50 border border-red-200'
+            }`}
           >
-            <AlertCircle className="w-5 h-5 text-red-500" />
-            <p className="text-red-700">{error}</p>
+            <AlertCircle className={`w-5 h-5 ${
+              error.includes('successfully') ? 'text-green-500' : 'text-red-500'
+            }`} />
+            <p className={
+              error.includes('successfully') ? 'text-green-700' : 'text-red-700'
+            }>{error}</p>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div className="flex gap-8 h-[800px]">
-        {/* Template Selection and Generation Section */}
-        <div className="w-[400px] bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">Letter Template</h2>
+      {!showEditor && !showTemplateSelection && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <h2 className="text-xl font-semibold text-gray-900">Letters</h2>
+            <button
+              onClick={handleNewLetter}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              New Letter
+            </button>
           </div>
-          
-          <div className="p-6 flex-1 flex flex-col space-y-6 overflow-y-auto">
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Select Template
-              </label>
-              <select
-                value={selectedTemplate?._id || ''}
-                onChange={(e) => {
-                  const template = letterTemplates.find(t => t._id === e.target.value);
-                  setSelectedTemplate(template);
-                }}
-                className="w-full p-3 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white shadow-sm"
-              >
-                <option value="">Choose a template...</option>
-                {letterTemplates.map(template => (
-                  <option key={template._id} value={template._id}>
-                    {template.name}
-                  </option>
+          <div className="p-6">
+            {savedLetters.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No letters yet. Click "New Letter" to create one.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {savedLetters.map((letter) => (
+                  <div
+                    key={letter._id}
+                    className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <button
+                        onClick={() => loadSavedLetter(letter._id)}
+                        className="flex-1 text-left flex items-center"
+                      >
+                        <FileText className="w-5 h-5 mr-3 text-gray-500" />
+                        <div className="flex flex-col">
+                          <span className="font-medium text-gray-900">
+                            {letter.templateId.name}
+                          </span>
+                          <span className="text-sm text-gray-500">
+                            Created: {new Date(letter.createdAt).toLocaleDateString()}
+                          </span>
+                          <span className="text-sm text-gray-500">
+                            Status: {letter.status}
+                          </span>
+                        </div>
+                      </button>
+                      <div className="flex items-center space-x-2">
+                        {letter.status === 'final' && (
+                          <>
+                            <button
+                              onClick={() => handleViewPDF(letter._id)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="View PDF"
+                            >
+                              <Eye className="w-5 h-5" />
+                            </button>
+                            <button
+                              onClick={() => handleDownloadPDF(letter._id)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Download PDF"
+                            >
+                              <Download className="w-5 h-5" />
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={(e) => handleDeleteLetter(letter._id, e)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete letter"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 ))}
-              </select>
-            </div>
-
-            {selectedTemplate && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex-1 flex flex-col space-y-6"
-              >
-                <div className="flex-1 flex flex-col">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Additional Instructions
-                  </label>
-                  <textarea
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    className="w-full p-4 text-base border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 flex-1 shadow-sm"
-                    placeholder="Add any specific details or instructions for your letter..."
-                  />
-                </div>
-
-                <button
-                  onClick={handleGenerate}
-                  disabled={isGenerating}
-                  className="w-full inline-flex items-center justify-center px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin mr-3" />
-                      Generating...
-                    </>
-                  ) : (
-                    'Generate Content'
-                  )}
-                </button>
-              </motion.div>
+              </div>
             )}
           </div>
         </div>
+      )}
 
-        {/* Editor Section */}
-        <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col">
+      {showTemplateSelection && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
           <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-xl font-semibold text-gray-900">Letter Content</h3>
+            <h2 className="text-xl font-semibold text-gray-900">Select Template</h2>
+          </div>
+          <div className="p-6">
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Choose a Template
+                </label>
+                <select
+                  value={selectedTemplate?._id || ''}
+                  onChange={(e) => {
+                    const template = letterTemplates.find(t => t._id === e.target.value);
+                    setSelectedTemplate(template);
+                  }}
+                  className="w-full p-3 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white shadow-sm"
+                >
+                  <option value="">Select a template...</option>
+                  {letterTemplates.map(template => (
+                    <option key={template._id} value={template._id}>
+                      {template.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedTemplate && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="space-y-6"
+                >
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Additional Instructions
+                    </label>
+                    <textarea
+                      value={prompt}
+                      onChange={(e) => setPrompt(e.target.value)}
+                      className="w-full p-4 text-base border border-gray-300 rounded-lg h-32 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 shadow-sm"
+                      placeholder="Add any specific details or instructions for your letter..."
+                    />
+                  </div>
+
+                  <div className="flex justify-end space-x-3">
+                    <button
+                      onClick={() => {
+                        setShowTemplateSelection(false);
+                        setSelectedTemplate(null);
+                      }}
+                      className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleGenerate}
+                      disabled={isGenerating}
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                          Generating...
+                        </>
+                      ) : (
+                        'Generate Letter'
+                      )}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditor && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => {
+                  setShowEditor(false);
+                  setCurrentLetterId(null);
+                }}
+                className="text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                ← Back to Letters
+              </button>
+              <h2 className="text-xl font-semibold text-gray-900">
+                {selectedTemplate?.name || 'Edit Letter'}
+              </h2>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleSave}
+                disabled={isSaving || isDownloading}
+                className="inline-flex items-center justify-center px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              >
+                {isSaving ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Changes
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleSaveAndDownload}
+                disabled={isSaving || isDownloading}
+                className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              >
+                {isDownloading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4 mr-2" />
+                    Save & Download
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
-          <div className="flex-1 p-6">
+          <div className="p-6">
             <Editor
               apiKey={TINYMCE_API_KEY}
-              onInit={(evt, editor) => editorRef.current = editor}
-              initialValue=""
+              onInit={(evt, editor) => {
+                console.log('Editor initialized');
+                editorRef.current = editor;
+                // Only load content if we have a current letter
+                if (editor && currentLetterId) {
+                  const currentContent = savedLetters.find(l => l._id === currentLetterId)?.content;
+                  if (currentContent) {
+                    const formattedContent = formatLetterContent(currentContent);
+                    editor.setContent(formattedContent);
+                  }
+                }
+              }}
               init={{
-                height: '100%',
+                height: 600,
                 menubar: true,
                 plugins: [
                   'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
@@ -298,7 +768,26 @@ const LetterTab = ({ managementId }) => {
                   'bold italic forecolor | alignleft aligncenter ' +
                   'alignright alignjustify | bullist numlist outdent indent | ' +
                   'removeformat | help',
-                content_style: LETTER_STYLES,
+                content_style: `
+                  body {
+                    font-family: 'Times New Roman', Times, serif;
+                    font-size: 12pt;
+                    line-height: 1.15;
+                    width: 100%;
+                    margin: 0;
+                    padding: 2em;
+                    background: white;
+                  }
+                  .letter-date { text-align: right; margin-bottom: 2em; }
+                  .letter-address { margin-bottom: 1em; line-height: 1.15; }
+                  .letter-subject { font-weight: bold; margin-bottom: 1em; }
+                  .letter-salutation { margin-bottom: 1em; }
+                  .letter-body { margin-bottom: 1em; text-align: left; }
+                  .letter-closing { margin-top: 1em; margin-bottom: 0.3em; }
+                  .letter-signature { margin-top: 1.5em; }
+                  p { margin: 0 0 1em 0; }
+                  br { line-height: 1.15; }
+                `,
                 formats: {
                   letterDate: { block: 'div', classes: 'letter-date' },
                   letterAddress: { block: 'div', classes: 'letter-address' },
@@ -320,21 +809,17 @@ const LetterTab = ({ managementId }) => {
                 branding: false,
                 resize: false,
                 statusbar: false,
-                min_height: 500,
                 autoresize_bottom_margin: 50,
-                setup: (editor) => {
-                  editor.on('init', () => {
-                    editor.formatter.register('letterStyles', {
-                      block: 'div',
-                      classes: ['letter-date', 'letter-address', 'letter-subject', 'letter-salutation', 'letter-body', 'letter-closing', 'letter-signature']
-                    });
+                setup: function(editor) {
+                  editor.on('init', function() {
+                    console.log('Editor setup complete');
                   });
                 }
               }}
             />
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
