@@ -97,7 +97,7 @@ const ReceiptsTab = ({ managementId }) => {
         formData.append('file', file);
         formData.append('managementId', managementId);
 
-        await api.post('/receipts', formData, {
+        const response = await api.post('/receipts', formData, {
           headers: {
             'Content-Type': 'multipart/form-data'
           },
@@ -106,13 +106,15 @@ const ReceiptsTab = ({ managementId }) => {
             setUploadProgress(progress);
           },
         });
+        console.log("response", response);
       }
       
       toast.success('Government Notice uploaded successfully');
       setFiles([]);
       fetchReceipts(); // Refresh the receipts list
     } catch (error) {
-      toast.error('Failed to upload file');
+      const errorMessage = error.response?.data?.message?.error || 'Failed to upload file';
+      toast.error(errorMessage);
       console.error('Error uploading file:', error);
     } finally {
       setIsUploading(false);
