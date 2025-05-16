@@ -84,9 +84,6 @@ const countFailedValidations = (validationResults) => {
 const formatValidationData = (validationResults, documentType) => {
   if (!validationResults) return null;
   
-  // Log validation results for debugging
-  console.log("Formatting validation results:", validationResults);
-  
   // Check if validation data is already in the expected format
   if (validationResults.mergedValidations) {
     return validationResults;
@@ -105,7 +102,6 @@ const formatValidationData = (validationResults, documentType) => {
     ]
   };
   
-  console.log("Formatted validation data:", formattedData);
   return formattedData;
 };
 
@@ -272,44 +268,36 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
   // Add a function at the top of the component to load data from localStorage
   const loadDataFromLocalStorage = () => {
-    console.log('Checking localStorage for saved data...');
     try {
-      // Load validation data
-      const savedValidationData = localStorage.getItem(`validation-data-${caseId}`);
-      if (savedValidationData) {
-        const parsedData = JSON.parse(savedValidationData);
+            const validationDataString = localStorage.getItem('validationData');
+      if (validationDataString) {
+        const parsedData = JSON.parse(validationDataString);
         console.log('Found validation data in localStorage:', parsedData);
-        
-        // Set the validation data in both state and ref
         setValidationData(parsedData);
         validationDataRef.current = parsedData;
       } else {
         console.log('No validation data found in localStorage');
       }
       
-      // Load cross-verification data
-      const savedCrossVerificationData = localStorage.getItem(`cross-verification-data-${caseId}`);
-      if (savedCrossVerificationData) {
-        const parsedData = JSON.parse(savedCrossVerificationData);
+      const crossVerificationDataString = localStorage.getItem('crossVerificationData');
+      if (crossVerificationDataString) {
+        const parsedData = JSON.parse(crossVerificationDataString);
         console.log('Found cross-verification data in localStorage:', parsedData);
-        
-        // Set the cross-verification data in both state and ref
         setVerificationData(parsedData);
         verificationDataRef.current = parsedData;
       } else {
         console.log('No cross-verification data found in localStorage');
       }
-      
       return {
         validationDataFound: !!savedValidationData,
         verificationDataFound: !!savedCrossVerificationData
       };
     } catch (error) {
-      console.error('Error loading saved data from localStorage:', error);
+      console.error('Error loading data from localStorage:', error);
       return {
         validationDataFound: false,
         verificationDataFound: false
-      };
+      };    
     }
   };
 
@@ -408,17 +396,15 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       
       // Listen for document processing events
       socket.on('document-processing-started', (data) => {
-        console.log('Document processing started:', data);
+        console.log(`Processing started for document: ${data.documentName || data.documentId}`);
         if (data.caseId === caseId) {
           setProcessingDocIds(prev => [...prev, data.documentId]);
           setProcessingStep(1); // Analyzing document
-          // Removed toast notification for processing started - we'll show only one at the end
-          console.log(`Processing started for document: ${data.documentName || data.documentId}`);
         }
       });
       
       socket.on('document-processing-progress', (data) => {
-        console.log('Document processing progress:', data);
+        console.log(`Processing ${data.documentName || data.documentId}: ${data.status}`);
         if (data.caseId === caseId) {
           // Update processing step based on the status message
           if (data.status.toLowerCase().includes('extract')) {
@@ -428,10 +414,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           } else if (data.status.toLowerCase().includes('verify')) {
             setProcessingStep(4); // Verifying document
           }
-          
-          // Don't show a toast for every progress update to avoid flooding the UI
-          // Instead, just update the processing step silently
-          console.log(`Processing ${data.documentName || data.documentId}: ${data.status}`);
         }
       });
       
@@ -1232,8 +1214,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     const fetchCaseDetails = async () => {
       try {
         // First, load any data we have in localStorage
-        const { verificationDataFound } = loadDataFromLocalStorage();
-        console.log(`Initial localStorage load complete. Cross-verification data found: ${verificationDataFound}`);
+        loadDataFromLocalStorage();
+        console.log('Initial localStorage load complete');
         
         // Now fetch the case data from API
         setIsLoading(true);
@@ -2876,35 +2858,36 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     // Updated input change handler to work with the new format
     const handleLocalInputChange = (fieldKey, value) => {
-      // Log the field change
-      // console.log('Field Change:', {
-      //   fieldKey,
-      //   newValue: value,
-      //   field: localFormData[fieldKey],
-      //   isDependentField: localFormData[fieldKey]?.isDependent,
-      //   dependentFields: localFormData[fieldKey]?.dependentFields
-      // });
+      // Log detailed field information when clicked/changed
+      console.log('Field Interaction:', {
+        fieldKey,
+        currentValue: value,
+        fieldDetails: localFormData[fieldKey],
+        timestamp: new Date().toISOString()
+      });
 
-      setLocalFormData(prev => {
-        const updatedData = {
-          ...prev,
-          [fieldKey]: {
-            ...prev[fieldKey],
+      setLocalFormData(prevData => {
+        const updatedData = { ...prevData };
+        if (updatedData[fieldKey]) {
+          updatedData[fieldKey] = {
+            ...updatedData[fieldKey],
             value: value
-          }
-        };
-
-        // Log the state after update
-        // console.log('Form Data After Change:', {
-        //   changedField: fieldKey,
-        //   allFields: Object.entries(updatedData).map(([key, field]) => ({
-        //     fieldName: field.fieldName,
-        //     value: field.value,
-        //     isDependent: field.isDependent,
-        //     dependentFields: field.dependentFields
-        //   }))
-        // });
-
+          };
+        }
+        
+        // Debug logging after update
+        console.log('Form data after update:', {
+          changedField: fieldKey,
+          newValue: value,
+          allFields: Object.entries(updatedData).map(([key, field]) => ({
+            fieldKey: key,
+            fieldName: field.fieldName,
+            value: field.value,
+            isDependent: field.isDependent,
+            visibilityConditions: field.visibilityConditions
+          }))
+        });
+        
         return updatedData;
       });
     };
@@ -2962,33 +2945,155 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     };
 
     // Update function to check if field should be visible
+    const evaluateDependencyRule = (rule, allFields) => {
+      if (!rule) return true;
+
+      // Find target field by ID or field name
+      const targetField = Object.values(allFields).find(f => 
+        f._id === rule.targetFieldId || f.fieldName === rule.targetField
+      );
+      
+      if (!targetField) return false;
+
+      switch (rule.type) {
+        case 'NOT_EQUALS':
+          return targetField.value !== rule.targetValue;
+        case 'EQUALS':
+          return targetField.value === rule.targetValue;
+        case 'IN':
+          return Array.isArray(rule.targetValue) && rule.targetValue.includes(targetField.value);
+        case 'NOT_IN':
+          return Array.isArray(rule.targetValue) && !rule.targetValue.includes(targetField.value);
+        default:
+          return false;
+      }
+    };
+
+    const evaluateVisibilityCondition = (condition, allFields) => {
+      if (!condition || !condition.parentField) return true;
+
+      const parentField = Object.values(allFields).find(f => f._id === condition.parentField);
+      
+      if (!parentField) return false;
+
+      // If no showWhen rules, default to showing the field
+      if (!condition.showWhen || condition.showWhen.length === 0) return true;
+
+      // All rules in showWhen must be satisfied
+      return condition.showWhen.every(rule => {
+        const parentValue = parentField.value;
+
+        switch (rule.operator) {
+          case 'equals':
+            return parentValue === rule.value;
+          case 'not_equals':
+            return parentValue !== rule.value;
+          case 'in':
+            return Array.isArray(rule.value) && rule.value.includes(parentValue);
+          case 'not_in':
+            return parentValue !== null && parentValue !== undefined && 
+                   Array.isArray(rule.value) && !rule.value.includes(parentValue);
+          case 'exists':
+            return parentValue !== null && parentValue !== undefined;
+          case 'not_exists':
+            return parentValue === null || parentValue === undefined;
+          case 'greater_than':
+            return typeof parentValue === 'number' && parentValue > rule.value;
+          case 'less_than':
+            return typeof parentValue === 'number' && parentValue < rule.value;
+          case 'greater_than_or_equal':
+            return typeof parentValue === 'number' && parentValue >= rule.value;
+          case 'less_than_or_equal':
+            return typeof parentValue === 'number' && parentValue <= rule.value;
+          default:
+            return false;
+        }
+      });
+    };
+
     const shouldShowField = (fieldKey) => {
       const field = localFormData[fieldKey];
       
       // If field doesn't exist in form data, don't show it
       if (!field) return false;
       
-      // If field is dependent
-      if (field.isDependent === true) {
-        // Find parent field that has this field's ID in its dependentFields array
+      let shouldShow = true;
+
+      if (field.visibilityConditions?.length > 0) {
+        shouldShow = field.visibilityConditions.some(condition => {
+          if (!condition || !condition.parentField) return true;
+
+          const parentField = Object.values(localFormData).find(f => f._id === condition.parentField);
+          
+          if (!parentField) return false;
+
+          // If no showWhen rules, default to showing the field
+          if (!condition.showWhen || condition.showWhen.length === 0) return true;
+
+          // All rules in showWhen must be satisfied
+          return condition.showWhen.every(rule => {
+            const parentValue = Number(parentField.value); // Convert to number for numeric comparisons
+
+            switch (rule.operator) {
+              case 'equals':
+                return parentValue === rule.value;
+              case 'not_equals':
+                return parentValue !== rule.value;
+              case 'in':
+                return Array.isArray(rule.value) && rule.value.includes(parentValue);
+              case 'not_in':
+                return Array.isArray(rule.value) && !rule.value.includes(parentValue);
+              case 'exists':
+                return parentValue !== null && parentValue !== undefined;
+              case 'not_exists':
+                return parentValue === null || parentValue === undefined;
+              case 'greater_than':
+                return !isNaN(parentValue) && parentValue > rule.value;
+              case 'less_than':
+                return !isNaN(parentValue) && parentValue < rule.value;
+              case 'greater_than_or_equal':
+                return !isNaN(parentValue) && parentValue >= rule.value;
+              case 'less_than_or_equal':
+                return !isNaN(parentValue) && parentValue <= rule.value;
+              default:
+                return false;
+            }
+          });
+        });
+      }
+      
+      if (shouldShow && field.dependencyRule) {
+        shouldShow = evaluateDependencyRule(field.dependencyRule, localFormData);
+      }
+      else if (shouldShow && field.isDependent === true && !field.visibilityConditions?.length) {
         const parentField = Object.values(localFormData).find(f => 
-          f.dependentFields?.includes(field._id)
+          f.dependentFields?.some(depField => {
+            if (typeof depField === 'string') {
+              return depField === field.fieldName || depField === field._id;
+            }
+            return false;
+          })
         );
         
-        // Don't show if:
-        // 1. No parent found, or
-        // 2. Parent's value is not true
-        if (!parentField || parentField.value !== true) {
-          return false;
+        // For radio buttons, check if the value is "Yes" or true
+        // For other fields, check if the value is truthy
+        const parentValue = parentField?.value;
+        const isParentActive = 
+          parentValue === true || 
+          parentValue === "Yes" || 
+          parentValue === "yes" ||
+          (typeof parentValue === 'string' && parentValue.toLowerCase() === 'yes');
+        
+        if (!parentField || !isParentActive) {
+          shouldShow = false;
         }
       }
       
-      // Handle empty fields filter
-      if (showOnlyEmpty) {
-        return isFieldEmpty(fieldKey);
+      if (shouldShow && showOnlyEmpty) {
+        shouldShow = isFieldEmpty(fieldKey);
       }
-      
-      return true;
+
+      return shouldShow;
     };
 
     const { filledFields, totalFields } = getFilledFieldsCount();
@@ -3434,13 +3539,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           
           // Set this field to true
           handleLocalInputChange(fieldKey, true);
-
-          // Log the selected field data
-          // console.log('Selected radio button field data:', {
-          //   ...field,
-          //   _id: field._id || fieldKey, // Use the original _id if available
-          //   value: true
-          // });
         } else if (inputType === 'checkbox') {
           // For checkboxes, toggle the value in an array
           if (options.length <= 1) {
@@ -3534,7 +3632,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                   name={radioGroupName}
                   checked={!!field.value}
                   onChange={() => handleChange(true)}
-                  className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500"
+                  className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
                 />
                 <label 
                   htmlFor={fieldId} 
@@ -4952,5 +5050,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 };
 
 export default CaseDetails;
+
 
 
