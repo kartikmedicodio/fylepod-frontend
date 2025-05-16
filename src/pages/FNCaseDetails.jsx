@@ -1571,9 +1571,18 @@ const FNCaseDetails = () => {
               </div>
               {/* Processing indicator dots */}
               <div className="flex-shrink-0 flex items-center gap-1">
-                <div className="w-1.5 h-1.5 rounded-full bg-amber-500/70 animate-pulse" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-1.5 h-1.5 rounded-full bg-amber-500/70 animate-pulse" style={{ animationDelay: '300ms' }}></div>
-                <div className="w-1.5 h-1.5 rounded-full bg-amber-500/70 animate-pulse" style={{ animationDelay: '600ms' }}></div>
+                <div 
+                  className="w-1.5 h-1.5 rounded-full bg-amber-500/90 animate-[pulse_1s_ease-in-out_infinite,bounce_1s_ease-in-out_infinite]" 
+                  style={{ animationDelay: '0ms' }}
+                ></div>
+                <div 
+                  className="w-1.5 h-1.5 rounded-full bg-amber-500/90 animate-[pulse_1s_ease-in-out_infinite,bounce_1s_ease-in-out_infinite]" 
+                  style={{ animationDelay: '300ms' }}
+                ></div>
+                <div 
+                  className="w-1.5 h-1.5 rounded-full bg-amber-500/90 animate-[pulse_1s_ease-in-out_infinite,bounce_1s_ease-in-out_infinite]" 
+                  style={{ animationDelay: '600ms' }}
+                ></div>
               </div>
             </div>
           </div>
@@ -3709,7 +3718,7 @@ const FNCaseDetails = () => {
                         }}
                         className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5"
                       >
-                        <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg className="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M12 6V2H8"/>
                           <path d="m8 18-4 4V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2Z"/>
                           <path d="M2 12h2"/>
@@ -3726,7 +3735,7 @@ const FNCaseDetails = () => {
                         }}
                         className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5"
                       >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                         <span>Schedule Meeting</span>
@@ -3859,7 +3868,7 @@ const FNCaseDetails = () => {
                   onClick={handleScheduleMeeting}
                   className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg shadow-sm hover:shadow-md transition-all flex items-center gap-2"
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                   Schedule Meeting
@@ -3878,7 +3887,7 @@ const FNCaseDetails = () => {
                     <>
                       
 
-                      <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg className="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M12 6V2H8"/>
                         <path d="m8 18-4 4V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2Z"/>
                         <path d="M2 12h2"/>
