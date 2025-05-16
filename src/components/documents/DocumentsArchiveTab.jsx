@@ -34,7 +34,7 @@ const DocumentsArchiveTab = ({ managementId }) => {
 
   const fetchLetters = async () => {
     try {
-      const response = await api.get(`/letters/management/${managementId}`);
+      const response = await api.get(`/letters/management/${managementId}?status=final`);
       if (response.data.success) {
         setLetters(response.data.data);
       }
@@ -328,42 +328,40 @@ const DocumentsArchiveTab = ({ managementId }) => {
             <div>
               <h3 className="text-sm font-medium text-gray-700 mb-3">Letters</h3>
               <div className="space-y-3">
-                {letters
-                  .filter(letter => letter.status === 'final')
-                  .map((letter) => (
-                    <div
-                      key={letter._id}
-                      className={`flex items-center p-4 rounded-lg border transition-colors cursor-pointer ${
-                        selectedLetters.includes(letter._id)
-                          ? 'bg-blue-50 border-blue-200'
-                          : 'bg-white border-gray-200 hover:bg-gray-50'
-                      }`}
-                      onClick={() => handleLetterSelect(letter._id)}
-                    >
-                      <div className={`p-2 rounded-lg mr-4 ${
-                        selectedLetters.includes(letter._id)
-                          ? 'bg-blue-100'
-                          : 'bg-gray-100'
-                      }`}>
-                        {selectedLetters.includes(letter._id) ? (
-                          <Check className="w-5 h-5 text-blue-600" />
-                        ) : (
-                          <Mail className="w-5 h-5 text-gray-600" />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-sm font-medium text-gray-900">
-                          {letter.templateId?.name || 'Custom Letter'}
-                        </h3>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Created on {new Date(letter.createdAt).toLocaleDateString()}
-                        </p>
-                        <p className="text-sm text-gray-500 mt-1 line-clamp-1">
-                          {letter.content.substring(0, 100)}...
-                        </p>
-                      </div>
+                {letters.map((letter) => (
+                  <div
+                    key={letter._id}
+                    className={`flex items-center p-4 rounded-lg border transition-colors cursor-pointer ${
+                      selectedLetters.includes(letter._id)
+                        ? 'bg-blue-50 border-blue-200'
+                        : 'bg-white border-gray-200 hover:bg-gray-50'
+                    }`}
+                    onClick={() => handleLetterSelect(letter._id)}
+                  >
+                    <div className={`p-2 rounded-lg mr-4 ${
+                      selectedLetters.includes(letter._id)
+                        ? 'bg-blue-100'
+                        : 'bg-gray-100'
+                    }`}>
+                      {selectedLetters.includes(letter._id) ? (
+                        <Check className="w-5 h-5 text-blue-600" />
+                      ) : (
+                        <Mail className="w-5 h-5 text-gray-600" />
+                      )}
                     </div>
-                  ))}
+                    <div className="flex-1">
+                      <h3 className="text-sm font-medium text-gray-900">
+                        {letter.templateId?.name || 'Custom Letter'}
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Created on {new Date(letter.createdAt).toLocaleDateString()}
+                      </p>
+                      <p className="text-sm text-gray-500 mt-1 line-clamp-1">
+                        {letter.content.substring(0, 100)}...
+                      </p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
