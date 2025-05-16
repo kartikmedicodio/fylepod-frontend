@@ -5,6 +5,8 @@ import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, CirclePlus } from
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
+import { Listbox } from '@headlessui/react';
+import { ChevronUpDownIcon } from '@heroicons/react/20/solid';
 
 const CorporationsSkeleton = () => (
   <div className="p-4">
@@ -262,26 +264,59 @@ const Corporations = () => {
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="absolute top-full mt-2 left-0 w-48 bg-white border rounded-xl shadow-lg z-10 py-2
+                  className="absolute top-full mt-2 left-0 w-56 bg-white border rounded-xl shadow-lg z-10 py-2
                            backdrop-blur-sm bg-white/95"
                 >
                   <div className="px-3 py-2">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Number of Employees
                     </label>
-                    <select
-                      value={employeeFilter}
-                      onChange={(e) => handleFilterChange(e.target.value)}
-                      className="w-full p-2 text-sm border rounded-lg focus:outline-none focus:border-blue-500
-                               focus:ring-2 focus:ring-blue-100 transition-all duration-200"
-                    >
-                      <option value="all">All</option>
-                      <option value="less5">Less than 5</option>
-                      <option value="5to10">5 to 10</option>
-                      <option value="more10">More than 10</option>
-                    </select>
+                    <Listbox value={employeeFilter} onChange={handleFilterChange}>
+                      <div className="relative">
+                        <Listbox.Button className="w-full rounded-md border border-gray-300 py-2 px-3 text-sm text-left flex justify-between items-center">
+                          <span>
+                            {{
+                              all: 'All',
+                              less5: 'Less than 5',
+                              '5to10': '5 to 10',
+                              more10: 'More than 10'
+                            }[employeeFilter]}
+                          </span>
+                          <ChevronUpDownIcon className="w-4 h-4 text-gray-400 ml-2" />
+                        </Listbox.Button>
+                        <Listbox.Options className="absolute mt-1 w-full bg-white shadow-lg rounded-md z-10">
+                          <Listbox.Option value="all" className={({ active, selected }) =>
+                            `cursor-pointer select-none relative py-2 px-3
+                            ${selected ? 'bg-blue-600 text-white' : ''}
+                            ${active && !selected ? 'bg-blue-100' : ''}`
+                          }>
+                            All
+                          </Listbox.Option>
+                          <Listbox.Option value="less5" className={({ active, selected }) =>
+                            `cursor-pointer select-none relative py-2 px-3
+                            ${selected ? 'bg-blue-600 text-white' : ''}
+                            ${active && !selected ? 'bg-blue-100' : ''}`
+                          }>
+                            Less than 5
+                          </Listbox.Option>
+                          <Listbox.Option value="5to10" className={({ active, selected }) =>
+                            `cursor-pointer select-none relative py-2 px-3
+                            ${selected ? 'bg-blue-600 text-white' : ''}
+                            ${active && !selected ? 'bg-blue-100' : ''}`
+                          }>
+                            5 to 10
+                          </Listbox.Option>
+                          <Listbox.Option value="more10" className={({ active, selected }) =>
+                            `cursor-pointer select-none relative py-2 px-3
+                            ${selected ? 'bg-blue-600 text-white' : ''}
+                            ${active && !selected ? 'bg-blue-100' : ''}`
+                          }>
+                            More than 10
+                          </Listbox.Option>
+                        </Listbox.Options>
+                      </div>
+                    </Listbox>
                   </div>
-
                   {employeeFilter !== 'all' && (
                     <>
                       <div className="border-t my-1" />

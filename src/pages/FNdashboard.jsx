@@ -655,11 +655,11 @@ const DocumentStatusCards = ({ cases }) => {
           ],
           message: !hasVerificationResults ? 'Document Under Review' :
             validationErrors.length > 0 ? 'Verification Issues Found' : 'Ready for Approval',
-          messageClass: !hasVerificationResults ? 
-            'text-slate-600 bg-slate-50/50 border-slate-100 ring-1 ring-slate-100/50' :
-            validationErrors.length > 0 ?
-              'text-amber-600 bg-amber-50/50 border-amber-100 ring-1 ring-amber-100/50' :
-              'text-blue-600 bg-blue-50/50 border-blue-100 ring-1 ring-blue-100/50'
+          messageClass: !hasVerificationResults
+            ? 'text-indigo-700 bg-indigo-50 border-indigo-200 ring-1 ring-indigo-100/50'
+            : validationErrors.length > 0
+              ? 'text-amber-600 bg-amber-50/50 border-amber-100 ring-1 ring-amber-100/50'
+              : 'text-blue-600 bg-blue-50/50 border-blue-100 ring-1 ring-blue-100/50'
         };
       default:
         return {
@@ -669,7 +669,7 @@ const DocumentStatusCards = ({ cases }) => {
             { name: 'Approved', status: 'pending' }
           ],
           message: 'Awaiting Upload',
-          messageClass: 'text-slate-600 bg-slate-50/50 border-slate-100 ring-1 ring-slate-100/50'
+          messageClass: 'text-gray-700 bg-gray-100 border-gray-200 ring-1 ring-gray-200/50'
         };
     }
   };
