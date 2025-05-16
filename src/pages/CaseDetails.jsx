@@ -2,25 +2,16 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { 
   Check, 
-  Search, 
-  SlidersHorizontal, 
-  MoreVertical, 
   Loader2,
   ChevronRight, 
-  Building2,
-  Users,
   User,
   FileText,
   ClipboardList,
-  Phone,
   Mail,
-  Globe,
-  MapPin,
   Upload,
   File,
   X,
   AlertCircle,
-  Filter,
   ChevronLeft,
   Download,
   Bot,
@@ -44,6 +35,7 @@ import { getStoredToken } from '../utils/auth';
 import LetterTab from '../components/letters/LetterTab';
 import ReceiptsTab from '../components/receipts/ReceiptsTab';
 import DocumentsArchiveTab from '../components/documents/DocumentsArchiveTab';
+import CommunicationsTab from '../components/CommunicationsTab';
 
 // Add a new status type to track document states
 const DOCUMENT_STATUS = {
@@ -1845,6 +1837,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           { name: 'Forms', icon: File },
           { name: 'Letters', icon: FileText },
           { name: 'Documents Archive', icon: FileText },
+          { name: 'Communications', icon: Mail },
           { name: 'Receipts', icon: LucideReceiptText },
         ].map(({ name, icon: Icon, disabled }) => (
           <button
@@ -2663,6 +2656,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           return <LetterTab managementId={caseId} />;
         case 'receipts':
           return <ReceiptsTab managementId={caseId} />;
+        case 'communications':
+          return <CommunicationsTab caseId={caseId} />;
         default:
           return null;
       }
@@ -5040,6 +5035,9 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               {activeTab === 'letters' && <LetterTab managementId={caseId} />}
               {activeTab === 'documents-archive' && <DocumentsArchiveTab managementId={caseId} />}
               {activeTab === 'receipts' && <ReceiptsTab managementId={caseId} />}
+              {activeTab === 'communications' && (
+                <CommunicationsTab caseId={caseId} />
+              )}
             </div>
           </div>
         </div>
