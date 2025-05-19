@@ -19,8 +19,8 @@ import {
   Eye,
   ChevronDown,
   LucideReceiptText,
-  CreditCard ,
-  Package
+  Package,
+  CreditCard
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
@@ -40,6 +40,7 @@ import DocumentsArchiveTab from '../components/documents/DocumentsArchiveTab';
 import PaymentTab from '../components/payments/PaymentTab';
 import CommunicationsTab from '../components/CommunicationsTab';
 import RetainerTab from '../components/RetainerTab';
+import PaymentTab from '../components/payments/PaymentTab';
 
 // Add a new status type to track document states
 const DOCUMENT_STATUS = {
@@ -1971,15 +1972,14 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       <div className="flex -mb-px">
         {[
           { name: 'Profile', icon: User },
+          { name: 'Retainer', icon: FileText },
           { name: 'Payment', icon: CreditCard },
-          { name: 'Retainer', icon: FileText },  // Moved up here
           { name: 'Document Checklist', icon: ClipboardList },
           { name: 'Questionnaire', icon: FileText },
           { name: 'Forms', icon: File },
           { name: 'Letters', icon: FileText },
           { name: 'Receipts', icon: LucideReceiptText },
           { name: 'Packaging', icon: Package },
-          // { name: 'Documents Archive', icon: FileText },
           { name: 'Communications', icon: Mail },
         ].map(({ name, icon: Icon, disabled }) => (
           <button
@@ -2831,6 +2831,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               />
             );
           })();
+        case 'payment':
+          return <PaymentTab caseId={caseId} />;
         default:
           return null;
       }
@@ -5213,6 +5215,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                   applicantId={caseData.userId?._id}
                 />
               }
+              {activeTab === 'payment' && <PaymentTab caseId={caseId} />}
               {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
