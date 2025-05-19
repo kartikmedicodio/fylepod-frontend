@@ -5,8 +5,10 @@ import api from "../utils/api";
 import { Loader2, Eye, Download, Plus, ArrowLeft, FileText, Calendar, ChevronDown } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { PDFDocument } from 'pdf-lib';
+import PropTypes from 'prop-types';
+import { getStoredUser } from '../utils/auth';
 
-const RetainerTab = ({ companyId, profileData }) => {
+const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantId }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [templates, setTemplates] = useState([]);
@@ -16,22 +18,57 @@ const RetainerTab = ({ companyId, profileData }) => {
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [userRole, setUserRole] = useState(null);
 
   useEffect(() => {
-    if (companyId) {
+    // Get user role from localStorage
+    const user = getStoredUser();
+    console.log('Current user data:', user);
+    setUserRole(user?.role);
+    
+    if (caseId) {
       fetchRetainerTemplates();
       fetchExistingRetainers();
     }
-  }, [companyId]);
+  }, [caseId]);
+
+  useEffect(() => {
+    console.log('RetainerTab Props:', {
+      companyId,
+      caseId,
+      caseManagerId,
+      applicantId,
+      hasProfileData: !!profileData
+    });
+    
+    const missingProps = [];
+    if (!companyId) missingProps.push('companyId');
+    if (!caseId) missingProps.push('caseId');
+    if (!caseManagerId) missingProps.push('caseManagerId');
+    if (!applicantId) missingProps.push('applicantId');
+    
+    if (missingProps.length > 0) {
+      console.warn('RetainerTab initialized with missing required props:', missingProps);
+    }
+  }, [companyId, caseId, caseManagerId, applicantId]);
 
   const fetchExistingRetainers = async () => {
     try {
-      const response = await api.get(`/retainer/company/${companyId}`);
-      if (response.data) {
-        setRetainers(response.data);
+      console.log('Fetching retainers for case:', caseId);
+      const response = await api.get(`/retainer/case/${caseId}`);
+      console.log('Retainers response:', response.data);
+      
+      if (response.data && response.data.status === 'success') {
+        setRetainers(response.data.data || []);
+        console.log('Set retainers:', response.data.data);
+      } else {
+        console.warn('Unexpected response structure:', response.data);
+        setRetainers([]);
       }
     } catch (err) {
       console.error('Error fetching existing retainers:', err);
+      toast.error('Failed to fetch retainers');
+      setRetainers([]);
     }
   };
 
@@ -111,7 +148,27 @@ const RetainerTab = ({ companyId, profileData }) => {
 
     try {
       setIsUploading(true);
-      // Get the selected template
+      
+      console.log('Download Attempt - IDs:', {
+        caseId,
+        caseManagerId,
+        applicantId,
+        companyId
+      });
+
+      // Validate required IDs before proceeding
+      const missingIds = [];
+      if (!caseId) missingIds.push('caseId');
+      if (!caseManagerId) missingIds.push('caseManagerId');
+      if (!applicantId) missingIds.push('applicantId');
+      if (!companyId) missingIds.push('companyId');
+
+      if (missingIds.length > 0) {
+        console.error('Missing IDs:', missingIds);
+        console.error('Current props:', { caseId, caseManagerId, applicantId, companyId });
+        throw new Error(`Missing required IDs: ${missingIds.join(', ')}`);
+      }
+
       const template = templates.find(t => t._id === selectedTemplate);
       if (!template) {
         throw new Error('Template not found');
@@ -140,11 +197,19 @@ const RetainerTab = ({ companyId, profileData }) => {
       // Get the populated PDF bytes
       const populatedPdfBytes = await pdfDoc.save();
       
-      // Create FormData for upload
+      // Create FormData with additional fields
       const formData = new FormData();
       formData.append('file', new Blob([populatedPdfBytes], { type: 'application/pdf' }), 'retainer.pdf');
       formData.append('companyId', companyId);
       formData.append('templateId', selectedTemplate);
+      formData.append('caseId', caseId);
+      formData.append('caseManagerId', caseManagerId);
+      formData.append('applicantId', applicantId);
+
+      // Log FormData contents
+      for (let pair of formData.entries()) {
+        console.log(pair[0] + ': ' + pair[1]);
+      }
 
       // Upload to backend
       const uploadResponse = await api.post('/retainer/upload', formData, {
@@ -209,7 +274,7 @@ const RetainerTab = ({ companyId, profileData }) => {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <h2 className="text-2xl font-semibold text-gray-900">Retainer Information</h2>
-        {!showCreateForm && (
+        {!showCreateForm && userRole === 'attorney' && (
           <button
             onClick={() => setShowCreateForm(true)}
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
@@ -231,7 +296,7 @@ const RetainerTab = ({ companyId, profileData }) => {
                 {retainers.map((retainer) => (
                   <div 
                     key={retainer._id} 
-                    className="flex items-center justify-between pl-6 pr-6 pt-4 pb-4 bg-gray-50 rounded-lg border border-gray-200 "
+                    className="flex items-center justify-between pl-6 pr-6 pt-4 pb-4 bg-gray-50 rounded-lg border border-gray-200"
                   >
                     <div className="flex items-center space-x-4">
                       <div className="p-3 bg-blue-100 rounded-lg">
@@ -239,19 +304,32 @@ const RetainerTab = ({ companyId, profileData }) => {
                       </div>
                       <div>
                         <p className="font-medium text-gray-900">{retainer.template_id.template_name}</p>
-                        <div className="flex items-center text-sm text-gray-500 mt-1">
-                          <Calendar className="w-4 h-4 mr-1" />
-                          <span>Created: {new Date(retainer.createdAt).toLocaleDateString()}</span>
+                        <div className="flex flex-col text-sm text-gray-500 mt-1">
+                          <div className="flex items-center">
+                            <Calendar className="w-4 h-4 mr-1" />
+                            <span>Created: {new Date(retainer.createdAt).toLocaleDateString()}</span>
+                          </div>
+                          <span>Case: {retainer.case_id?.case_number}</span>
+                          <span>Status: {retainer.sign_status}</span>
                         </div>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleViewDocument(retainer.pdf_url)}
-                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-                    >
-                      <Eye className="w-4 h-4 mr-2" />
-                      View Document
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        retainer.sign_status === 'signed' ? 'bg-green-100 text-green-800' :
+                        retainer.sign_status === 'rejected' ? 'bg-red-100 text-red-800' :
+                        'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {retainer.sign_status.charAt(0).toUpperCase() + retainer.sign_status.slice(1)}
+                      </span>
+                      <button
+                        onClick={() => handleViewDocument(retainer.pdf_url)}
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        View Document
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -337,6 +415,14 @@ const RetainerTab = ({ companyId, profileData }) => {
       </div>
     </div>
   );
+};
+
+RetainerTab.propTypes = {
+  companyId: PropTypes.string.isRequired,
+  profileData: PropTypes.object.isRequired,
+  caseId: PropTypes.string.isRequired,
+  caseManagerId: PropTypes.string.isRequired, 
+  applicantId: PropTypes.string.isRequired
 };
 
 export default RetainerTab; 
