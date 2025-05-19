@@ -1216,7 +1216,28 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         const response = await api.get(`/management/${caseId}`);
         if (response.data.status === 'success') {
           const caseData = response.data.data.entry;
-          console.log('Case data:', caseData);
+          console.log('Fetched Case Data:', caseData);
+          
+          // If case_manager_id is a string or object ID, fetch the full case manager details
+          if (caseData?.case_manager_id) {
+            try {
+              const managerId = typeof caseData.case_manager_id === 'object' 
+                ? caseData.case_manager_id._id 
+                : caseData.case_manager_id;
+              
+              const managerResponse = await api.get(`/users/${managerId}`);
+              if (managerResponse.data.status === 'success') {
+                console.log('Manager Response:', managerResponse.data);
+                caseData.case_manager_id = managerResponse.data.data.user;
+              }
+            } catch (err) {
+              console.error('Error fetching case manager details:', err);
+              // Keep the original ID if fetch fails
+              caseData.case_manager_id = managerId;
+            }
+          }
+
+          console.log('Case Manager ID (after):', caseData?.case_manager_id);
           setCaseData(caseData);
           
           // Check if there are any uploaded documents
@@ -2663,7 +2684,34 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         case 'communications':
           return <CommunicationsTab caseId={caseId} />;
         case 'retainer':
-          return <RetainerTab companyId={profileData.company_id._id} profileData={profileData} />;
+          return (() => {
+            // Get the case manager ID, handling both string and object formats
+            const managerId = (() => {
+              const cmId = caseData?.caseManagerId; // Changed from case_manager_id to caseManagerId
+              if (!cmId) return null;
+              if (typeof cmId === 'string') return cmId;
+              if (typeof cmId === 'object' && cmId._id) return cmId._id;
+              return null;
+            })();
+
+            console.log('Retainer Tab Data:', {
+              caseId,
+              caseManagerId: managerId,
+              rawCaseManagerId: caseData?.caseManagerId,
+              userId: caseData?.userId?._id,
+              fullCaseData: caseData
+            });
+
+            return (
+              <RetainerTab 
+                companyId={profileData.company_id._id} 
+                profileData={profileData}
+                caseId={caseId}
+                caseManagerId={managerId}
+                applicantId={caseData.userId?._id}
+              />
+            );
+          })();
         default:
           return null;
       }
@@ -5035,7 +5083,15 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           <div className="flex-1 overflow-auto"> {/* This will scroll independently */}
             <div className="max-w-7xl mx-auto">
               {activeTab === 'profile' && <ProfileTab profileData={caseData.userId} />}
-              {activeTab === 'retainer' && <RetainerTab companyId={profileData.company_id._id} profileData={profileData} />}
+              {activeTab === 'retainer' && 
+                <RetainerTab 
+                  companyId={profileData.company_id._id} 
+                  profileData={profileData}
+                  caseId={caseId}
+                  caseManagerId={caseData?.caseManagerId?._id}
+                  applicantId={caseData.userId?._id}
+                />
+              }
               {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
