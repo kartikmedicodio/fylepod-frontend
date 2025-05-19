@@ -830,7 +830,7 @@ const FNCaseDetails = () => {
         
         setIsLoading(true);
         
-        // Fetch case details
+        // Fetch case details first
         const caseResponse = await api.get(`/management/${caseId}`);
 
         if (caseResponse.data.status === 'success') {
@@ -850,15 +850,9 @@ const FNCaseDetails = () => {
 
           // If we have uploaded docs and no validation data yet, fetch it
           if (hasUploadedDocs && !validationDataFound) {
+            // Wait for validation data to be fetched
             await fetchValidationData();
           }
-
-          // Remove this section to ensure we always start with 'pending'
-          /* 
-          // Update uploadStatus based on document status
-          const hasPendingDocs = caseData.documentTypes.some(doc => doc.status === 'pending');
-          setUploadStatus(hasPendingDocs ? 'pending' : 'uploaded');
-          */
 
           // If we have a userId, fetch the complete profile
           if (caseData.userId?._id) {
@@ -4017,12 +4011,24 @@ const FNCaseDetails = () => {
     try {
       setIsValidationLoading(true);
       
-      // Get only regular documents (not storage-only)
-      const regularDocTypes = caseData.documentTypes
-        .filter(doc => (doc.status === 'uploaded' || doc.status === 'approved'))
-        .map(doc => doc._id);
+      // Check if caseData exists
+      if (!caseData) {
+        console.log('Case data not yet loaded, fetching case data first');
+        const caseResponse = await api.get(`/management/${caseId}`);
+        if (caseResponse.data.status === 'success') {
+          setCaseData(caseResponse.data.data.entry);
+        } else {
+          throw new Error('Failed to fetch case data');
+        }
+      }
+      
+      // Get regular documents (not storage-only) - use optional chaining
+      const regularDocTypes = caseData?.documentTypes
+        ?.filter(doc => (doc.status === 'uploaded' || doc.status === 'approved'))
+        ?.map(doc => doc._id) || [];
 
       if (regularDocTypes.length === 0) {
+        console.log('No uploaded documents found for validation');
         setValidationData(null);
         return null;
       }
@@ -4052,6 +4058,8 @@ const FNCaseDetails = () => {
 
         setValidationData(validationDataWithUrls);
         validationDataRef.current = validationDataWithUrls;
+        
+        return validationDataWithUrls;
       }
     } catch (error) {
       console.error('Error fetching validation data:', error);
@@ -4059,6 +4067,7 @@ const FNCaseDetails = () => {
     } finally {
       setIsValidationLoading(false);
     }
+    return null;
   };
 
   // Update the tab click handler
