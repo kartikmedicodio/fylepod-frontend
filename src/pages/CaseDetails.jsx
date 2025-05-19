@@ -27,7 +27,8 @@ import {
   SendHorizontal,
   Eye,
   ChevronDown,
-  LucideReceiptText
+  LucideReceiptText,
+  CreditCard // Add this import for payment icon
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
@@ -44,6 +45,7 @@ import { getStoredToken } from '../utils/auth';
 import LetterTab from '../components/letters/LetterTab';
 import ReceiptsTab from '../components/receipts/ReceiptsTab';
 import DocumentsArchiveTab from '../components/documents/DocumentsArchiveTab';
+import PaymentTab from '../components/payments/PaymentTab';
 
 // Add a new status type to track document states
 const DOCUMENT_STATUS = {
@@ -1840,6 +1842,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       <div className="flex -mb-px">
         {[
           { name: 'Profile', icon: User },
+          { name: 'Payment', icon: CreditCard },
           { name: 'Document Checklist', icon: ClipboardList },
           { name: 'Questionnaire', icon: FileText },
           { name: 'Forms', icon: File },
@@ -2663,6 +2666,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           return <LetterTab managementId={caseId} />;
         case 'receipts':
           return <ReceiptsTab managementId={caseId} />;
+        case 'payment':
+          return <PaymentTab caseId={caseId} />;
         default:
           return null;
       }
@@ -5034,6 +5039,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           <div className="flex-1 overflow-auto"> {/* This will scroll independently */}
             <div className="max-w-7xl mx-auto">
               {activeTab === 'profile' && <ProfileTab profileData={caseData.userId} />}
+              {activeTab === 'payment' && <PaymentTab caseId={caseId} />}
               {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
