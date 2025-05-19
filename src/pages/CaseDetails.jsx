@@ -35,9 +35,9 @@ import { initializeSocket, joinDocumentRoom, handleReconnect, getSocket } from '
 import { getStoredToken } from '../utils/auth';
 import LetterTab from '../components/letters/LetterTab';
 import ReceiptsTab from '../components/receipts/ReceiptsTab';
-import RetainerTab from '../components/RetainerTab';
 import DocumentsArchiveTab from '../components/documents/DocumentsArchiveTab';
 import CommunicationsTab from '../components/CommunicationsTab';
+import RetainerTab from '../components/RetainerTab';
 
 // Add a new status type to track document states
 const DOCUMENT_STATUS = {
@@ -992,6 +992,85 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     }
   };
 
+  const [emailSent, setEmailSent] = useState(false);
+  const processingDocsRef = useRef(new Set());
+  const socketRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.off('document-processing-completed');
+        socketRef.current.off('document-processing-failed');
+        socketRef.current.off('connect_error');
+        socketRef.current.disconnect();
+      }
+    };
+  }, []);
+
+  const handleSendValidationEmail = async () => {
+    if (emailSent) return; // Prevent duplicate emails
+    try {
+      // First get the validation data
+      const validationResponse = await api.get(`/documents/management/${caseId}/validations`);
+      const validationData = validationResponse.data;
+
+      // Then get the cross-verification data
+      const crossVerifyResponse = await api.get(`/management/${caseId}/cross-verify`);
+      const crossVerifyData = crossVerifyResponse.data;
+
+      // Get recipient name from profile data or use a default
+      const recipientName = profileData?.name || 'Sir/Madam';
+
+      // Structure the request body according to the backend's expected format
+      const requestBody = {
+        errorType: 'validation',
+        errorDetails: {
+          validationResults: validationData.data.mergedValidations.flatMap(doc => 
+            doc.validations.map(v => ({
+              documentType: doc.documentType,
+              rule: v.rule,
+              passed: v.passed,
+              message: v.message
+            }))
+          ),
+          mismatchErrors: crossVerifyData.data.verificationResults.mismatchErrors || [],
+          missingErrors: crossVerifyData.data.verificationResults.missingErrors || [],
+          summarizationErrors: crossVerifyData.data.verificationResults.summarizationErrors || []
+        },
+        recipientEmail,
+        recipientName
+      };
+
+      // First generate the draft mail
+      const draftResponse = await api.post('/mail/draft', requestBody);
+      
+      if (draftResponse.data.status === 'success') {
+        // Then send the actual email
+        const mailContent = draftResponse.data.data;
+        const sendResponse = await api.post('/mail/send', {
+          subject: mailContent.subject,
+          body: mailContent.body,
+          recipientEmail: recipientEmail,
+          recipientName: recipientName
+        });
+
+        if (sendResponse.data.status === 'success') {
+          setEmailSent(true); // Mark email as sent
+          toast.success('Validation report email sent successfully');
+        } else {
+          console.error('Failed to send email:', sendResponse.data);
+          toast.error('Failed to send validation report email');
+        }
+      } else {
+        console.error('Failed to generate draft mail:', draftResponse.data);
+        toast.error('Failed to generate validation report email');
+      }
+    } catch (error) {
+      console.error('Error sending validation email:', error);
+      toast.error('Failed to send validation report email');
+    }
+  };
+
   const handleFileUpload = async (files) => {
     if (!files.length) return;
     
@@ -1050,7 +1129,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             successfulUploads++;
             
             // Add the document ID to processing state immediately after successful upload
-            setProcessingDocIds(prev => [...prev, uploadedDoc._id]);
+            processingDocsRef.current.add(uploadedDoc._id);
+            setProcessingDocIds(Array.from(processingDocsRef.current));
             
             return uploadedDoc;
           }
@@ -1074,6 +1154,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           // Initialize socket connection with auth token
           const token = getStoredToken();
           const socket = initializeSocket(token);
+          socketRef.current = socket;
           
           // Check socket connection
           if (!socket.connected) {
@@ -1092,6 +1173,38 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               joinDocumentRoom(docId);
             });
           }
+          
+          // Remove any existing listeners before adding new ones
+          socket.off('document-processing-completed');
+          
+          // Add event listener for when all documents are processed
+          socket.on('document-processing-completed', async (data) => {
+            console.log('Document processing completed:', data);
+            
+            // Remove the processed document ID from the tracking set
+            processingDocsRef.current.delete(data.documentId);
+            setProcessingDocIds(Array.from(processingDocsRef.current));
+            
+            // Check if this was the last document to be processed
+            if (processingDocsRef.current.size === 0 && !emailSent) {
+              // Fetch latest case data
+              const response = await api.get(`/management/${caseId}`);
+              if (response.data.status === 'success') {
+                const updatedCaseData = response.data.data.entry;
+                setCaseData(updatedCaseData);
+                
+                // Check if all documents are uploaded and validated
+                const allUploaded = updatedCaseData.documentTypes.every(
+                  doc => doc.status === 'uploaded' || doc.status === 'approved'
+                );
+
+                if (allUploaded) {
+                  // Send validation email only if it hasn't been sent yet
+                  await handleSendValidationEmail();
+                }
+              }
+            }
+          });
           
           console.log(`Requested to join ${uploadedDocIds.length} document rooms`);
           toast.success(`Uploaded ${successfulUploads} document(s). Processing will begin shortly.`);
@@ -1282,7 +1395,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       try {
         const response = await api.get('/auth/me');
         if (response.data.status === 'success') {
-          console.log('Profile data:', response.data.data.user.company_id._id);
           setProfileData(response.data.data.user);
         }
       } catch (error) {
@@ -1577,6 +1689,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           // Get the management data that we want to send to the AI
           const managementData = caseResponse.data.data.entry;
           
+          
           // Prepare management model data to include in chat context
           const managementContext = {
             caseId: managementData._id,
@@ -1861,8 +1974,9 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           { name: 'Questionnaire', icon: FileText },
           { name: 'Forms', icon: File },
           { name: 'Letters', icon: FileText },
-          { name: 'Receipts', icon: FileText },
+          { name: 'Receipts', icon: LucideReceiptText },
           { name: 'Packaging', icon: Package },
+          // { name: 'Documents Archive', icon: FileText },
           { name: 'Communications', icon: Mail },
         ].map(({ name, icon: Icon, disabled }) => (
           <button
