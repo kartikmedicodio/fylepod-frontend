@@ -3,6 +3,90 @@ import PropTypes from 'prop-types';
 import { Mail, Search, ChevronDown, ExternalLink, Loader2, X } from 'lucide-react';
 import api from '../utils/api';
 
+// Update the formatDate function to separate date and time
+const formatDate = (dateString) => {
+  const date = new Date(dateString);
+  const dateStr = date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+  const timeStr = date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+  return { dateStr, timeStr };
+};
+
+const EmailListItem = ({ email, onClick, isSelected }) => {
+  const { dateStr, timeStr } = formatDate(email.date);
+  
+  return (
+    <div
+      className={`flex flex-col px-4 py-2 hover:bg-gray-50 cursor-pointer ${
+        isSelected ? 'bg-blue-50' : ''
+      }`}
+      onClick={() => onClick(email)}
+    >
+      <div className="flex items-center gap-2">
+        <div className={`w-2 h-2 rounded-full ${
+          email.status === 'sent' ? 'bg-green-500' : 
+          email.status === 'failed' ? 'bg-red-500' : 
+          'bg-gray-400'
+        }`} />
+        <p className="text-sm font-medium text-gray-900 truncate flex-1">
+          {email.type === 'received' ? email.from : email.recipient}
+        </p>
+        <span className="text-xs text-gray-500">{dateStr}</span>
+      </div>
+      <p className="text-sm text-gray-600 truncate pl-4">
+        {email.subject}
+      </p>
+    </div>
+  );
+};
+
+const EmailContent = ({ email, onClose }) => {
+  const { dateStr, timeStr } = formatDate(email.date);
+  
+  return (
+    <div className="flex flex-col h-full">
+      <div className="p-4 border-b flex justify-between items-center">
+        <h2 className="text-xl font-semibold">{email.subject}</h2>
+        <button 
+          onClick={onClose}
+          className="text-gray-500 hover:text-gray-700 md:hidden"
+        >
+          <X className="w-6 h-6" />
+        </button>
+      </div>
+      <div className="p-4 border-b space-y-2">
+        <p><span className="font-medium">From:</span> {email.from || 'System'}</p>
+        <p><span className="font-medium">To:</span> {email.recipient}</p>
+        {email.cc && <p><span className="font-medium">CC:</span> {email.cc}</p>}
+        <p><span className="font-medium">Date:</span> {dateStr} {timeStr}</p>
+        <p>
+          <span className="font-medium">Status:</span> 
+          <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+            email.status === 'sent' ? 'bg-green-100 text-green-800' : 
+            email.status === 'failed' ? 'bg-red-100 text-red-800' :
+            'bg-gray-100 text-gray-800'
+          }`}>
+            {email.status}
+          </span>
+        </p>
+      </div>
+      <div className="flex-1 p-4 overflow-y-auto">
+        <div 
+          className="prose max-w-none"
+          dangerouslySetInnerHTML={{ __html: email.htmlContent }}
+        />
+      </div>
+    </div>
+  );
+};
+
 const CommunicationsTab = ({ caseId }) => {
   const [emails, setEmails] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -77,16 +161,6 @@ const CommunicationsTab = ({ caseId }) => {
         : true
     );
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8 text-gray-500">
@@ -104,132 +178,86 @@ const CommunicationsTab = ({ caseId }) => {
   }
 
   return (
-    <>
-      <div className="flex flex-col h-full bg-white rounded-lg shadow">
-        {/* Header */}
-        <div className="p-4 border-b">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
-            <Mail className="w-5 h-5" />
-            Communications
-          </h2>
+    <div className="flex flex-col h-full bg-white">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b">
+        <div className="flex items-center gap-2">
+          <Mail className="w-5 h-5" />
+          <h2 className="text-lg font-medium">Communications</h2>
         </div>
-
-        {/* Search and Filter Bar */}
-        <div className="p-4 border-b flex items-center gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Search emails..."
-              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <div className="relative">
-            <select
-              className="appearance-none bg-white border rounded-lg px-4 py-2 pr-8 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-            >
-              <option value="all">All</option>
-              <option value="sent">Sent</option>
-              <option value="received">Received</option>
-            </select>
-            <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
-          </div>
-        </div>
-
-        {/* Email List */}
-        <div className="flex-1 overflow-y-auto">
-          {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-            </div>
-          ) : filteredEmails.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-500">
-              <Mail className="w-12 h-12 mb-2" />
-              <p>No emails found</p>
-            </div>
-          ) : (
-            <div className="divide-y">
-              {filteredEmails.map((email) => (
-                <div
-                  key={email.id}
-                  className="p-4 hover:bg-gray-50 cursor-pointer transition-colors"
-                  onClick={() => handleEmailClick(email)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-900">{email.subject}</h3>
-                      <div className="text-sm text-gray-500 mt-1 space-y-0.5">
-                        <p>From: {email.from || 'System'}</p>
-                        <p>To: {email.recipient}</p>
-                        {email.cc && <p>CC: {email.cc}</p>}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        email.status === 'sent' ? 'bg-green-100 text-green-800' : 
-                        email.status === 'failed' ? 'bg-red-100 text-red-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {email.status}
-                      </span>
-                      <span className="text-sm text-gray-500">
-                        {formatDate(email.date)}
-                      </span>
-                      <ExternalLink className="w-4 h-4 text-gray-400" />
-                    </div>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-2 line-clamp-2">
-                    {email.preview}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <button 
+          onClick={fetchEmails}
+          className="text-sm text-gray-600 hover:text-gray-900"
+        >
+          Refresh
+        </button>
       </div>
 
-      {/* Email Modal */}
-      {isModalOpen && selectedEmail && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden">
-            <div className="p-4 border-b flex justify-between items-center">
-              <h2 className="text-xl font-semibold">{selectedEmail.subject}</h2>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="text-gray-500 hover:text-gray-700"
+      {/* Main Content */}
+      <div className="flex-1 flex">
+        {/* Email List Panel */}
+        <div className={`flex flex-col border-r ${selectedEmail ? 'w-[350px]' : 'w-full'}`}>
+          {/* Search and Filter */}
+          <div className="p-3 border-b bg-white">
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="Search communications..."
+                  className="w-full pl-9 pr-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <select
+                className="text-sm border rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
               >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="p-4 border-b space-y-2">
-              <p><span className="font-medium">From:</span> {selectedEmail.from || 'System'}</p>
-              <p><span className="font-medium">To:</span> {selectedEmail.recipient}</p>
-              {selectedEmail.cc && <p><span className="font-medium">CC:</span> {selectedEmail.cc}</p>}
-              <p><span className="font-medium">Date:</span> {formatDate(selectedEmail.date)}</p>
-              <p><span className="font-medium">Status:</span> 
-                <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
-                  selectedEmail.status === 'sent' ? 'bg-green-100 text-green-800' : 
-                  selectedEmail.status === 'failed' ? 'bg-red-100 text-red-800' :
-                  'bg-gray-100 text-gray-800'
-                }`}>
-                  {selectedEmail.status}
-                </span>
-              </p>
-            </div>
-            <div className="p-4 overflow-y-auto max-h-[60vh]">
-              <div 
-                className="prose max-w-none"
-                dangerouslySetInnerHTML={{ __html: selectedEmail.htmlContent }}
-              />
+                <option value="all">All</option>
+                <option value="sent">Sent</option>
+                <option value="received">Received</option>
+              </select>
             </div>
           </div>
+
+          {/* Email List */}
+          <div className="flex-1 overflow-y-auto divide-y">
+            {loading ? (
+              <div className="flex items-center justify-center h-32">
+                <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+              </div>
+            ) : filteredEmails.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                <Mail className="w-8 h-8 mb-2" />
+                <p className="text-sm font-medium">No communications found</p>
+                <p className="text-xs text-gray-400">Try adjusting your search or filters</p>
+              </div>
+            ) : (
+              filteredEmails.map((email) => (
+                <EmailListItem
+                  key={email.id}
+                  email={email}
+                  onClick={handleEmailClick}
+                  isSelected={selectedEmail?.id === email.id}
+                />
+              ))
+            )}
+          </div>
         </div>
-      )}
-    </>
+
+        {/* Email Content Panel */}
+        {selectedEmail && (
+          <div className="flex-1 flex flex-col">
+            <EmailContent 
+              email={selectedEmail} 
+              onClose={() => setSelectedEmail(null)}
+            />
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 

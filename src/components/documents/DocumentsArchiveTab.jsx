@@ -244,7 +244,7 @@ const DocumentsArchiveTab = ({ managementId }) => {
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Documents Archive</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Packaging</h2>
           <p className="text-sm text-gray-500 mt-1">
             Select documents and letters to combine into a single PDF file
           </p>
