@@ -26,6 +26,7 @@ import { getStoredToken, getStoredUser } from '../utils/auth';
 import { useAuth } from '../contexts/AuthContext';
 import { createQuery } from '../services/queryService';
 import { getCalApi } from "@calcom/embed-react";
+import RetainerTab from '../components/RetainerTab';
 
 const getInitials = (name) => {
   return name
@@ -818,7 +819,7 @@ const FNCaseDetails = () => {
 
   // Update the initial setup useEffect
   useEffect(() => {
-    // Always start with documents-checklist tab and upload pending status
+    // Keep documents-checklist as default tab
     setActiveTab('documents-checklist');
     setUploadStatus('pending');
 
@@ -1403,25 +1404,38 @@ const FNCaseDetails = () => {
   };
 
   const DocumentsChecklistTab = () => {
-    const pendingDocuments = caseData.documentTypes.filter(doc => 
+    // Add loading and null checks
+    if (!caseData) {
+      return (
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        </div>
+      );
+    }
+
+    // Ensure documentTypes exists with a default empty array
+    const documentTypes = caseData.documentTypes || [];
+    const storageOnlyDocs = caseData.storageOnlyDocs || [];
+
+    const pendingDocuments = documentTypes.filter(doc => 
       doc.status === 'pending'
     );
     
-    const uploadedDocuments = caseData.documentTypes.filter(doc => 
+    const uploadedDocuments = documentTypes.filter(doc => 
       doc.status === 'uploaded' || doc.status === 'approved'
     );
 
     // Add documents in processing state
-    const processingDocuments = caseData.documentTypes.filter(doc => 
+    const processingDocuments = documentTypes.filter(doc => 
       processingDocIds.includes(doc._id)
     );
 
     // Add storage-only documents filtering
-    const pendingStorageOnlyDocs = caseData.storageOnlyDocs?.filter(doc =>
+    const pendingStorageOnlyDocs = storageOnlyDocs.filter(doc =>
       doc.status === 'pending'
     ) || [];
 
-    const uploadedStorageOnlyDocs = caseData.storageOnlyDocs?.filter(doc =>
+    const uploadedStorageOnlyDocs = storageOnlyDocs.filter(doc =>
       doc.status === 'uploaded' || doc.status === 'approved'
     ) || [];
 
@@ -4373,7 +4387,7 @@ const FNCaseDetails = () => {
       {/* Tabs Navigation */}
       <div className="px-6 py-4">
         <div className="flex gap-2">
-          {['Documents Checklist', 'Questionnaire'].map((tab) => {
+          {['Retainers', 'Documents Checklist', 'Questionnaire'].map((tab) => {
             const isQuestionnaire = tab === 'Questionnaire';
             const hasUploadedDocuments = caseData?.documentTypes?.some(doc => 
               doc.status === 'uploaded' || doc.status === 'approved'
@@ -4418,6 +4432,17 @@ const FNCaseDetails = () => {
           </div>
         ) : (
           <>
+            {activeTab === 'retainers' && (
+              <div className="bg-white rounded-lg border border-gray-200">
+                <RetainerTab 
+                  companyId={caseData?.userId?.company_id} 
+                  profileData={caseData?.userId}
+                  caseId={caseId}
+                  caseManagerId={caseData?.caseManagerId?._id}
+                  applicantId={caseData?.userId?._id}
+                />
+              </div>
+            )}
             {activeTab === 'documents-checklist' && (
               <div className="bg-white rounded-lg border border-gray-200">
                 <DocumentsChecklistTab />
