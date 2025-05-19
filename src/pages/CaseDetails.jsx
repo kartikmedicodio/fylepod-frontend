@@ -19,7 +19,8 @@ import {
   Eye,
   ChevronDown,
   LucideReceiptText,
-  CreditCard // Add this import for payment icon
+  CreditCard ,
+  Package
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
@@ -1837,13 +1838,13 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         {[
           { name: 'Profile', icon: User },
           { name: 'Payment', icon: CreditCard },
+          { name: 'Retainer', icon: FileText },  // Moved up here
           { name: 'Document Checklist', icon: ClipboardList },
           { name: 'Questionnaire', icon: FileText },
           { name: 'Forms', icon: File },
           { name: 'Letters', icon: FileText },
-          { name: 'Receipts', icon: FileText }, // Add this new tab
-          { name: 'Retainer', icon: FileText },
-          { name: 'Documents Archive', icon: FileText },
+          { name: 'Receipts', icon: FileText },
+          { name: 'Packaging', icon: Package },
           { name: 'Communications', icon: Mail },
         ].map(({ name, icon: Icon, disabled }) => (
           <button
@@ -5040,16 +5041,14 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             <div className="max-w-7xl mx-auto">
               {activeTab === 'profile' && <ProfileTab profileData={caseData.userId} />}
               {activeTab === 'payment' && <PaymentTab caseId={caseId} />}
+              {activeTab === 'retainer' && <RetainerTab companyId={profileData.company_id._id} profileData={profileData} />}
               {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
               {activeTab === 'letters' && <LetterTab managementId={caseId} />}
-              {activeTab === 'documents-archive' && <DocumentsArchiveTab managementId={caseId} />}
               {activeTab === 'receipts' && <ReceiptsTab managementId={caseId} />}
-              {activeTab === 'communications' && (
-                <CommunicationsTab caseId={caseId} />
-              )}
-              {activeTab === 'retainer' && <RetainerTab companyId={profileData.company_id._id} profileData={profileData} />}
+              {activeTab === 'packaging' && <DocumentsArchiveTab managementId={caseId} />}
+              {activeTab === 'communications' && <CommunicationsTab caseId={caseId} />}
             </div>
           </div>
         </div>
