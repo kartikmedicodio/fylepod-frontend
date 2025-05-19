@@ -34,6 +34,7 @@ import { initializeSocket, joinDocumentRoom, handleReconnect, getSocket } from '
 import { getStoredToken } from '../utils/auth';
 import LetterTab from '../components/letters/LetterTab';
 import ReceiptsTab from '../components/receipts/ReceiptsTab';
+import RetainerTab from '../components/RetainerTab';
 import DocumentsArchiveTab from '../components/documents/DocumentsArchiveTab';
 import CommunicationsTab from '../components/CommunicationsTab';
 
@@ -1259,6 +1260,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       try {
         const response = await api.get('/auth/me');
         if (response.data.status === 'success') {
+          console.log('Profile data:', response.data.data.user.company_id._id);
           setProfileData(response.data.data.user);
         }
       } catch (error) {
@@ -1836,9 +1838,10 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           { name: 'Questionnaire', icon: FileText },
           { name: 'Forms', icon: File },
           { name: 'Letters', icon: FileText },
+          { name: 'Receipts', icon: FileText }, // Add this new tab
+          { name: 'Retainer', icon: FileText },
           { name: 'Documents Archive', icon: FileText },
           { name: 'Communications', icon: Mail },
-          { name: 'Receipts', icon: LucideReceiptText },
         ].map(({ name, icon: Icon, disabled }) => (
           <button
             key={name}
@@ -2658,6 +2661,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           return <ReceiptsTab managementId={caseId} />;
         case 'communications':
           return <CommunicationsTab caseId={caseId} />;
+        case 'retainer':
+          return <RetainerTab companyId={profileData.company_id._id} profileData={profileData} />;
         default:
           return null;
       }
@@ -5038,6 +5043,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               {activeTab === 'communications' && (
                 <CommunicationsTab caseId={caseId} />
               )}
+              {activeTab === 'retainer' && <RetainerTab companyId={profileData.company_id._id} profileData={profileData} />}
             </div>
           </div>
         </div>
