@@ -4226,7 +4226,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   };
 
   // Add FormPreviewModal component before FormsTab
-  const FormPreviewModal = ({ isOpen, onClose, pdfBytes, formName }) => {
+  const FormPreviewModal = ({ isOpen, onClose, pdfBytes, formName, onDownload }) => {
     const [pdfUrl, setPdfUrl] = useState(null);
 
     useEffect(() => {
@@ -4248,9 +4248,18 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         <div className="bg-white rounded-lg p-6 max-w-4xl w-full h-[90vh] flex flex-col">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold">{formName} - Preview</h2>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-              <X className="w-6 h-6" />
-            </button>
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={onDownload}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                Download
+              </button>
+              <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 bg-gray-100 rounded-lg overflow-hidden">
@@ -4273,6 +4282,27 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     const [previewPdfBytes, setPreviewPdfBytes] = useState(null);
     const [selectedForm, setSelectedForm] = useState(null);
     const [showPreview, setShowPreview] = useState(false);
+    const [existingForms, setExistingForms] = useState([]);
+    const [isLoadingForms, setIsLoadingForms] = useState(true);
+
+    // Add useEffect to fetch existing forms
+    useEffect(() => {
+      const fetchExistingForms = async () => {
+        try {
+          const response = await api.get(`/management/forms-url/${caseId}`);
+          if (response.data.status === 'success') {
+            setExistingForms(response.data.data.formsUrl);
+          }
+        } catch (error) {
+          console.error('Error fetching existing forms:', error);
+          toast.error('Failed to fetch existing forms');
+        } finally {
+          setIsLoadingForms(false);
+        }
+      };
+
+      fetchExistingForms();
+    }, []);
 
     // Function to generate filled PDF
     const generateFilledPDF = async (formId, data) => {
@@ -4589,26 +4619,51 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     const handleDownloadComplete = async () => {
       try {
-        // Update case status to completed
-        await api.patch(`/management/${caseId}/status`, {
-          status: 'completed'
+        // Create a blob from the PDF bytes
+        const blob = new Blob([previewPdfBytes], { type: 'application/pdf' });
+        
+        // Create a download link and trigger local download
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `${selectedForm.form_name}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+
+        // Create FormData to send to backend
+        const formData = new FormData();
+        formData.append('file', blob, `${selectedForm.form_name}.pdf`);
+        formData.append('managementId', caseId);
+
+        // Send the file to backend
+        await api.post('/management/upload-form', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
         });
+
+        // // Update case status to completed
+        // await api.patch(`/management/${caseId}/status`, {
+        //   status: 'completed'
+        // });
         
         // Show success message
-        toast.success('Form downloaded and case marked as completed');
+        toast.success('Form downloaded and uploaded successfully');
         
-        // Refresh case data to update UI
-        const response = await api.get(`/management/${caseId}`);
-        if (response.data.status === 'success') {
-          const updatedCaseData = response.data.data.entry;
-          setCaseData(updatedCaseData);
-        }
+        // // Refresh case data to update UI
+        // const response = await api.get(`/management/${caseId}`);
+        // if (response.data.status === 'success') {
+        //   const updatedCaseData = response.data.data.entry;
+        //   setCaseData(updatedCaseData);
+        // }
 
         // Close the preview modal
         setShowPreview(false);
       } catch (error) {
-        console.error('Error updating case status:', error);
-        toast.error('Form downloaded but failed to update case status');
+        console.error('Error processing form:', error);
+        toast.error('Error processing form. Please try again.');
       }
     };
 
@@ -4650,31 +4705,85 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     return (
       <div className="p-6">
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold text-gray-900">Forms</h2>
-          {forms.map((form) => (
-            <div 
-              key={form._id}
-              onClick={() => handleFormClick(form)}
-              className="bg-white rounded-lg border border-gray-200 p-4 hover:bg-gray-50 transition-all cursor-pointer"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <h3 className="text-sm font-medium text-gray-900">{form.form_name}</h3>
-                </div>
-                <div>
-                  {loadingFormId === form._id ? (
-                    <div className="flex items-center text-gray-400">
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                      Processing...
+        <div className="space-y-6">
+         
+
+          {/* New Forms Section */}
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Available Forms</h2>
+            <div className="space-y-3">
+              {forms.map((form) => (
+                <div 
+                  key={form._id}
+                  onClick={() => handleFormClick(form)}
+                  className="bg-white rounded-lg border border-gray-200 p-4 hover:bg-gray-50 transition-all cursor-pointer"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h3 className="text-sm font-medium text-gray-900">{form.form_name}</h3>
                     </div>
-                  ) : (
-                    <Download className="w-4 h-4 text-gray-400" />
-                  )}
+                    <div>
+                      {loadingFormId === form._id ? (
+                        <div className="flex items-center text-gray-400">
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          Processing...
+                        </div>
+                      ) : (
+                        <Download className="w-4 h-4 text-gray-400" />
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
-          ))}
+          </div>
+
+           {/* Existing Forms Section */}
+           <div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Existing Forms</h2>
+            {isLoadingForms ? (
+              <div className="flex items-center justify-center h-32">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+              </div>
+            ) : existingForms.length > 0 ? (
+              <div className="grid grid-cols-1 gap-3">
+                {existingForms.map((formUrl, index) => {
+                  // Extract filename from URL
+                  const fileName = formUrl.split('/').pop();
+                  // Decode the URL-encoded filename
+                  const decodedFileName = decodeURIComponent(fileName);
+                  
+                  return (
+                    <div 
+                      key={index}
+                      className="bg-white rounded-lg border border-gray-200 p-4 hover:bg-gray-50 transition-all"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <h3 className="text-sm font-medium text-gray-900">{decodedFileName}</h3>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={formUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                          >
+                            <Eye className="w-4 h-4" />
+                            View
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center text-gray-500 py-4">
+                No existing forms found
+              </div>
+            )}
+          </div>
         </div>
 
         <FormPreviewModal
@@ -4682,6 +4791,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           onClose={() => setShowPreview(false)}
           pdfBytes={previewPdfBytes}
           formName={selectedForm?.form_name}
+          onDownload={handleDownloadComplete}
         />
       </div>
     );
