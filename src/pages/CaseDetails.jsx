@@ -263,12 +263,16 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   // Add a function at the top of the component to load data from localStorage
   const loadDataFromLocalStorage = () => {
     try {
-            const validationDataString = localStorage.getItem('validationData');
+      let validationDataFound = false;
+      let verificationDataFound = false;
+
+      const validationDataString = localStorage.getItem('validationData');
       if (validationDataString) {
         const parsedData = JSON.parse(validationDataString);
         console.log('Found validation data in localStorage:', parsedData);
         setValidationData(parsedData);
         validationDataRef.current = parsedData;
+        validationDataFound = true;
       } else {
         console.log('No validation data found in localStorage');
       }
@@ -279,12 +283,14 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         console.log('Found cross-verification data in localStorage:', parsedData);
         setVerificationData(parsedData);
         verificationDataRef.current = parsedData;
+        verificationDataFound = true;
       } else {
         console.log('No cross-verification data found in localStorage');
       }
+
       return {
-        validationDataFound: !!savedValidationData,
-        verificationDataFound: !!savedCrossVerificationData
+        validationDataFound,
+        verificationDataFound
       };
     } catch (error) {
       console.error('Error loading data from localStorage:', error);
@@ -1021,53 +1027,73 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       // Get recipient name from profile data or use a default
       const recipientName = profileData?.name || 'Sir/Madam';
 
+      // Get the case owner's userId from caseData
+      const userId = caseData?.userId;
+
       // Structure the request body according to the backend's expected format
       const requestBody = {
         errorType: 'validation',
         errorDetails: {
-          validationResults: validationData.data.mergedValidations.flatMap(doc => 
-            doc.validations.map(v => ({
-              documentType: doc.documentType,
-              rule: v.rule,
-              passed: v.passed,
-              message: v.message
-            }))
-          ),
+          validationResults: validationData.data.mergedValidations,
           mismatchErrors: crossVerifyData.data.verificationResults.mismatchErrors || [],
           missingErrors: crossVerifyData.data.verificationResults.missingErrors || [],
           summarizationErrors: crossVerifyData.data.verificationResults.summarizationErrors || []
         },
         recipientEmail,
-        recipientName
+        recipientName,
+        managementId: caseId,
+        emailType: 'validation',
+        userId: userId // Use the case owner's userId
       };
 
-      // First generate the draft mail
+      // Log the request body for debugging
+      console.log('Sending validation email request with data:', {
+        recipientEmail,
+        recipientName,
+        managementId: caseId,
+        userId: userId,
+        validationCount: validationData.data.mergedValidations?.length,
+        mismatchCount: crossVerifyData.data.verificationResults.mismatchErrors?.length,
+        missingCount: crossVerifyData.data.verificationResults.missingErrors?.length
+      });
+
+      // Generate the draft mail content
       const draftResponse = await api.post('/mail/draft', requestBody);
       
-      if (draftResponse.data.status === 'success') {
-        // Then send the actual email
-        const mailContent = draftResponse.data.data;
-        const sendResponse = await api.post('/mail/send', {
-          subject: mailContent.subject,
-          body: mailContent.body,
-          recipientEmail: recipientEmail,
-          recipientName: recipientName
-        });
+      if (draftResponse.data.status !== 'success') {
+        throw new Error('Failed to generate draft: ' + draftResponse.data.message);
+      }
 
-        if (sendResponse.data.status === 'success') {
-          setEmailSent(true); // Mark email as sent
-          toast.success('Validation report email sent successfully');
-        } else {
-          console.error('Failed to send email:', sendResponse.data);
-          toast.error('Failed to send validation report email');
-        }
+      const mailContent = draftResponse.data.data;
+
+      // Send the email
+      const sendResponse = await api.post('/mail/send', {
+        subject: mailContent.subject,
+        body: mailContent.body,
+        recipientEmail: recipientEmail,
+        recipientName: recipientName,
+        managementId: caseId,
+        emailType: 'validation',
+        userId: userId // Use the case owner's userId
+      });
+
+      if (sendResponse.data.status === "success") {
+        setEmailSent(true);
+        setMessages(prev => [...prev, {
+          type: 'system',
+          content: 'Validation email sent successfully.',
+          timestamp: new Date().toISOString()
+        }]);
       } else {
-        console.error('Failed to generate draft mail:', draftResponse.data);
-        toast.error('Failed to generate validation report email');
+        throw new Error('Failed to send email: ' + sendResponse.data.message);
       }
     } catch (error) {
       console.error('Error sending validation email:', error);
-      toast.error('Failed to send validation report email');
+      setMessages(prev => [...prev, {
+        type: 'error',
+        content: 'Failed to send validation email: ' + (error.response?.data?.message || error.message),
+        timestamp: new Date().toISOString()
+      }]);
     }
   };
 
