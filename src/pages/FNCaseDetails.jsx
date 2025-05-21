@@ -4388,7 +4388,7 @@ const FNCaseDetails = () => {
       {/* Tabs Navigation */}
       <div className="px-6 py-4">
         <div className="flex gap-2">
-          {['Retainers', 'Payments', 'Documents Checklist', 'Questionnaire'].map((tab) => {            const isQuestionnaire = tab === 'Questionnaire';            const hasUploadedDocuments = caseData?.documentTypes?.some(doc =>               doc.status === 'uploaded' || doc.status === 'approved'            );            const isDisabled = isQuestionnaire && !hasUploadedDocuments;
+          {['Retainers', 'Payments', 'Documents Checklist', 'Questionnaire'].map((tab) => {            const isQuestionnaire = tab === 'Questionnaire';            const hasUploadedDocuments = caseData?.documentTypes?.some(doc =>              doc.status === 'uploaded' || doc.status === 'approved'            );            const isDisabled = isQuestionnaire && !hasUploadedDocuments;
 
             return (
               <div key={tab} className="relative group">

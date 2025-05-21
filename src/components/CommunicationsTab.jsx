@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { Mail, Search, ChevronDown, ExternalLink, Loader2, X } from 'lucide-react';
 import api from '../utils/api';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 
 // Update the formatDate function to separate date and time
 const formatDate = (dateString) => {
@@ -105,6 +106,7 @@ const CommunicationsTab = ({ caseId }) => {
   const [emails, setEmails] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filter, setFilter] = useState('all'); // all, sent, received
   const [error, setError] = useState(null);
   const [selectedEmail, setSelectedEmail] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -161,6 +163,11 @@ const CommunicationsTab = ({ caseId }) => {
   };
 
   const filteredEmails = emails
+    .filter(email => {
+      if (filter === 'sent') return email.type === 'sent';
+      if (filter === 'received') return email.type === 'received';
+      return true;
+    })
     .filter(email =>
       searchTerm
         ? email.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -190,8 +197,8 @@ const CommunicationsTab = ({ caseId }) => {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
         <div className="flex items-center gap-3">
-          <Mail className="w-5 h-5 text-gray-700" />
-          <h2 className="text-lg font-semibold text-gray-800">Communications</h2>
+          <Mail className="w-5 h-5 text-gray-500" />
+          <h2 className="text-lg font-medium text-gray-800">Communications</h2>
         </div>
         <button 
           onClick={fetchEmails}
@@ -205,17 +212,28 @@ const CommunicationsTab = ({ caseId }) => {
       <div className="flex-1 flex">
         {/* Email List Panel */}
         <div className={`flex flex-col border-r border-gray-100 ${selectedEmail ? 'w-[400px]' : 'w-full'}`}>
-          {/* Search */}
+          {/* Search and Filter */}
           <div className="p-4 border-b border-gray-100 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Search communications..."
-                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-shadow"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="Search communications..."
+                  className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <select
+                className="text-sm border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+              >
+                <option value="all">All</option>
+                <option value="sent">Sent</option>
+                <option value="received">Received</option>
+              </select>
             </div>
           </div>
 
@@ -232,11 +250,11 @@ const CommunicationsTab = ({ caseId }) => {
                 <p className="text-xs text-gray-400 mt-1">Try adjusting your search or filters</p>
               </div>
             ) : (
-              filteredEmails.map((email) => (
+              filteredEmails.map(email => (
                 <EmailListItem
                   key={email.id}
                   email={email}
-                  onClick={handleEmailClick}
+                  onClick={() => handleEmailClick(email)}
                   isSelected={selectedEmail?.id === email.id}
                 />
               ))
@@ -246,14 +264,18 @@ const CommunicationsTab = ({ caseId }) => {
 
         {/* Email Content Panel */}
         {selectedEmail && (
-          <div className="flex-1 flex flex-col">
-            <EmailContent 
-              email={selectedEmail} 
-              onClose={() => setSelectedEmail(null)}
-            />
+          <div className="flex-1 hidden md:block">
+            <EmailContent email={selectedEmail} onClose={() => setSelectedEmail(null)} />
           </div>
         )}
       </div>
+
+      {/* Mobile Email Content Modal */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen} className="relative z-50">
+        <DialogContent className="sm:max-w-[600px]">
+          {selectedEmail && <EmailContent email={selectedEmail} onClose={() => setIsModalOpen(false)} />}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
