@@ -1,125 +1,180 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import axios from 'axios';
-import { API_URL } from '../config';
+import { useParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements } from '@stripe/react-stripe-js';
-import PaymentForm from '../components/payments/PaymentForm';
+import PropTypes from 'prop-types';
+import api from '../utils/api';
+import { Loader2, CreditCard, CheckCircle2, XCircle, Clock, DollarSign, Calendar } from 'lucide-react';
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+const PaymentStatusIcon = ({ status }) => {
+  switch (status?.toLowerCase()) {
+    case 'succeeded':
+      return <CheckCircle2 className="w-5 h-5 text-green-500" />;
+    case 'failed':
+      return <XCircle className="w-5 h-5 text-red-500" />;
+    case 'pending':
+      return <Clock className="w-5 h-5 text-yellow-500" />;
+    default:
+      return <CreditCard className="w-5 h-5 text-gray-500" />;
+  }
+};
+
+PaymentStatusIcon.propTypes = {
+  status: PropTypes.string
+};
+
+const PaymentStatus = ({ status }) => {
+  const getStatusConfig = () => {
+    switch (status?.toLowerCase()) {
+      case 'succeeded':
+        return {
+          text: 'Payment Complete',
+          className: 'bg-green-50 text-green-700 border-green-200'
+        };
+      case 'failed':
+        return {
+          text: 'Payment Failed',
+          className: 'bg-red-50 text-red-700 border-red-200'
+        };
+      case 'pending':
+        return {
+          text: 'Payment Pending',
+          className: 'bg-yellow-50 text-yellow-700 border-yellow-200'
+        };
+      default:
+        return {
+          text: 'Payment Required',
+          className: 'bg-blue-50 text-blue-700 border-blue-200'
+        };
+    }
+  };
+
+  const config = getStatusConfig();
+  return (
+    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${config.className}`}>
+      {config.text}
+    </span>
+  );
+};
+
+PaymentStatus.propTypes = {
+  status: PropTypes.string
+};
 
 const FNPayments = () => {
-  const { user } = useAuth();
+  const { caseId } = useParams();
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [clientSecret, setClientSecret] = useState("");
 
   useEffect(() => {
     fetchPayments();
-  }, [user.id]);
+  }, [caseId]);
 
   const fetchPayments = async () => {
     try {
-      const response = await axios.get(`${API_URL}/payments/user/${user.id}`);
-      setPayments(response.data);
-      setLoading(false);
+      setLoading(true);
+      const response = await api.get(`/payments/case/${caseId}`);
+      
+      if (response.data.status === 'success') {
+        const paymentData = response.data.data;
+        setPayments(Array.isArray(paymentData) ? paymentData : [paymentData].filter(Boolean));
+      } else {
+        setPayments([]);
+      }
     } catch (error) {
+      console.error('Error fetching payments:', error);
       toast.error('Failed to fetch payments');
+      setPayments([]);
+    } finally {
       setLoading(false);
     }
   };
 
-  const initiatePayment = async () => {
-    try {
-      const response = await axios.post(`${API_URL}/payments/create-intent`, {
-        userId: user.id,
-        amount: 5000 // Example amount in cents
-      });
-      setClientSecret(response.data.clientSecret);
-      setShowPaymentModal(true);
-    } catch (error) {
-      toast.error('Failed to initiate payment');
-    }
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Not set';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      </div>
+    );
+  }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-semibold text-gray-800">Payments</h1>
-        <button
-          onClick={initiatePayment}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-        >
-          Make Payment
-        </button>
+    <div className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-semibold text-gray-900">Case Payments</h2>
       </div>
 
-      {loading ? (
-        <div className="text-center">Loading...</div>
-      ) : (
-        <div className="bg-white rounded-lg shadow">
-          <table className="min-w-full">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {payments.map((payment) => (
-                <tr key={payment._id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {new Date(payment.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    ${payment.amount / 100}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      payment.status === 'succeeded' 
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {payment.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {payments.length === 0 ? (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+          <CreditCard className="mx-auto h-12 w-12 text-gray-400" />
+          <h3 className="mt-4 text-lg font-medium text-gray-900">No payments available</h3>
+          <p className="mt-2 text-sm text-gray-500">There are no pending payments at this time.</p>
         </div>
-      )}
-
-      {showPaymentModal && clientSecret && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg w-full max-w-md">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Make Payment</h2>
-              <button 
-                onClick={() => setShowPaymentModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                ×
-              </button>
+      ) : (
+        <div className="space-y-4">
+          {payments.map((payment, index) => (
+            <div
+              key={payment._id || index}
+              className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:border-blue-200 transition-colors"
+            >
+              <div className="p-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <PaymentStatusIcon status={payment.status} />
+                      <PaymentStatus status={payment.status} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <div className="flex items-center text-sm text-gray-500 mb-1">
+                          <DollarSign className="w-4 h-4 mr-1" />
+                          Payment Amount
+                        </div>
+                        <div className="text-2xl font-semibold text-gray-900">
+                          ${payment.amount.toLocaleString()}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex items-center text-sm text-gray-500 mb-1">
+                          <Calendar className="w-4 h-4 mr-1" />
+                          Due Date
+                        </div>
+                        <div className="text-base text-gray-900">
+                          {formatDate(payment.deadline)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="ml-6 pt-6">
+                    {payment.status?.toLowerCase() !== 'succeeded' && payment.paymentLinkUrl && (
+                      <a
+                        href={payment.paymentLinkUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                      >
+                        <CreditCard className="w-5 h-5 mr-2" />
+                        Pay Now
+                      </a>
+                    )}
+                  </div>
+                </div>
+                {payment.description && (
+                  <div className="mt-4 text-sm text-gray-600">
+                    {payment.description}
+                  </div>
+                )}
+              </div>
             </div>
-            <Elements stripe={stripePromise} options={{ clientSecret }}>
-              <PaymentForm 
-                onSuccess={() => {
-                  setShowPaymentModal(false);
-                  fetchPayments();
-                }}
-              />
-            </Elements>
-          </div>
+          ))}
         </div>
       )}
     </div>

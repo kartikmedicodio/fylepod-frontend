@@ -1991,42 +1991,98 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     );
   };
 
-  // Enhanced tab navigation
-  const TabNavigation = () => (
-    <div className="border-b border-gray-200 px-6">
-      <div className="flex -mb-px">
-        {[
-          { name: 'Profile', icon: User },
-          { name: 'Payment', icon: CreditCard },
-          { name: 'Retainer', icon: FileText },
-          { name: 'Document Checklist', icon: ClipboardList },
-          { name: 'Questionnaire', icon: FileText },
-          { name: 'Forms', icon: File },
-          { name: 'Letters', icon: FileText },
-          { name: 'Receipts', icon: LucideReceiptText },
-          { name: 'Packaging', icon: Package },
-          // { name: 'Documents Archive', icon: FileText },
-          { name: 'Communications', icon: Mail },
-        ].map(({ name, icon: Icon, disabled }) => (
+  // Enhanced tab navigation with scroll
+  const TabNavigation = () => {
+    const scrollContainerRef = useRef(null);
+    const [showLeftArrow, setShowLeftArrow] = useState(false);
+    const [showRightArrow, setShowRightArrow] = useState(false);
+
+    const checkForArrows = () => {
+      if (scrollContainerRef.current) {
+        const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
+        setShowLeftArrow(scrollLeft > 0);
+        setShowRightArrow(scrollLeft < scrollWidth - clientWidth);
+      }
+    };
+
+    useEffect(() => {
+      checkForArrows();
+      window.addEventListener('resize', checkForArrows);
+      return () => window.removeEventListener('resize', checkForArrows);
+    }, []);
+
+    const scroll = (direction) => {
+      if (scrollContainerRef.current) {
+        const scrollAmount = 200;
+        scrollContainerRef.current.scrollBy({
+          left: direction === 'left' ? -scrollAmount : scrollAmount,
+          behavior: 'smooth'
+        });
+        setTimeout(checkForArrows, 100);
+      }
+    };
+
+    return (
+      <div className="border-b border-gray-200 px-6 relative">
+        {/* Left Arrow */}
+        {showLeftArrow && (
           <button
-            key={name}
-            disabled={disabled}
-            className={`flex items-center px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === name.toLowerCase().replace(' ', '-')
-                ? 'border-blue-600 text-blue-600'
-                : disabled
-                ? 'border-transparent text-gray-400 cursor-not-allowed'
-                : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
-            }`}
-            onClick={() => !disabled && setActiveTab(name.toLowerCase().replace(' ', '-'))}
+            onClick={() => scroll('left')}
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 p-1 rounded-full shadow-md hover:bg-gray-50 transition-colors"
           >
-            <Icon className={`w-4 h-4 mr-2 ${disabled ? 'opacity-50' : ''}`} />
-            {name}
+            <ChevronLeft className="w-5 h-5 text-gray-600" />
           </button>
-        ))}
+        )}
+        
+        {/* Right Arrow */}
+        {showRightArrow && (
+          <button
+            onClick={() => scroll('right')}
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 p-1 rounded-full shadow-md hover:bg-gray-50 transition-colors"
+          >
+            <ChevronRight className="w-5 h-5 text-gray-600" />
+          </button>
+        )}
+
+        {/* Scrollable Container */}
+        <div 
+          ref={scrollContainerRef}
+          className="flex -mb-px overflow-x-auto scrollbar-hide"
+          onScroll={checkForArrows}
+        >
+          {[
+            { name: 'Profile', icon: User },
+            { name: 'Payment', icon: CreditCard },
+            { name: 'Retainer', icon: FileText },
+            { name: 'Document Checklist', icon: ClipboardList },
+            { name: 'Questionnaire', icon: FileText },
+            { name: 'Forms', icon: File },
+            { name: 'Letters', icon: FileText },
+            { name: 'Receipts', icon: LucideReceiptText },
+            { name: 'Packaging', icon: Package },
+            // { name: 'Documents Archive', icon: FileText },
+            { name: 'Communications', icon: Mail },
+          ].map(({ name, icon: Icon, disabled }) => (
+            <button
+              key={name}
+              disabled={disabled}
+              className={`flex items-center px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === name.toLowerCase().replace(' ', '-')
+                  ? 'border-blue-600 text-blue-600'
+                  : disabled
+                  ? 'border-transparent text-gray-400 cursor-not-allowed'
+                  : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
+              }`}
+              onClick={() => !disabled && setActiveTab(name.toLowerCase().replace(' ', '-'))}
+            >
+              <Icon className={`w-4 h-4 mr-2 ${disabled ? 'opacity-50' : ''}`} />
+              {name}
+            </button>
+          ))}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const DocumentVerificationSection = ({ document, validations = [] }) => {
     const passedCount = validations.filter(v => v.passed).length;

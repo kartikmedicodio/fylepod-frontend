@@ -329,17 +329,29 @@ const DocumentsArchiveTab = ({ managementId }) => {
       }
 
       const mergedPdfBytes = await mergedPdf.save();
-      const blob = new Blob([mergedPdfBytes], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `combined_documents_${new Date().toISOString().split('T')[0]}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      
+      // Create form data with the PDF and metadata
+      const formData = new FormData();
+      formData.append('pdf', new Blob([mergedPdfBytes], { type: 'application/pdf' }), 'combined.pdf');
+      formData.append('name', `Combined Documents ${new Date().toISOString().split('T')[0]}`);
+      formData.append('managementId', managementId);
+      formData.append('documents', JSON.stringify(selectedItems.filter(item => item.type === 'document').map(item => item.id)));
+      formData.append('letters', JSON.stringify(selectedItems.filter(item => item.type === 'letter').map(item => item.id)));
+      formData.append('blankPages', JSON.stringify(selectedItems.map((item, index) => item.type === 'blank' ? index : null).filter(index => index !== null)));
 
-      toast.success('Documents combined successfully');
+      // Upload to backend
+      const response = await api.post('/combined-pdfs', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      if (response.data.status === 'success') {
+        toast.success('Documents combined successfully');
+        // Optionally, you can redirect to a view where they can see all combined PDFs
+        // or provide a direct download link from the blob storage
+        window.open(response.data.data.combinedPdf.blobUrl, '_blank');
+      }
     } catch (error) {
       console.error('Error generating combined PDF:', error);
       toast.error('Failed to combine documents');
