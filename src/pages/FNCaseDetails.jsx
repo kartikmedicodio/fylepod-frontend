@@ -26,6 +26,7 @@ import { getStoredToken, getStoredUser } from '../utils/auth';
 import { useAuth } from '../contexts/AuthContext';
 import { createQuery } from '../services/queryService';
 import { getCalApi } from "@calcom/embed-react";
+import RetainerTab from '../components/RetainerTab';
 
 const getInitials = (name) => {
   return name
@@ -818,7 +819,7 @@ const FNCaseDetails = () => {
 
   // Update the initial setup useEffect
   useEffect(() => {
-    // Always start with documents-checklist tab and upload pending status
+    // Keep documents-checklist as default tab
     setActiveTab('documents-checklist');
     setUploadStatus('pending');
 
@@ -830,7 +831,7 @@ const FNCaseDetails = () => {
         
         setIsLoading(true);
         
-        // Fetch case details
+        // Fetch case details first
         const caseResponse = await api.get(`/management/${caseId}`);
 
         if (caseResponse.data.status === 'success') {
@@ -850,15 +851,9 @@ const FNCaseDetails = () => {
 
           // If we have uploaded docs and no validation data yet, fetch it
           if (hasUploadedDocs && !validationDataFound) {
+            // Wait for validation data to be fetched
             await fetchValidationData();
           }
-
-          // Remove this section to ensure we always start with 'pending'
-          /* 
-          // Update uploadStatus based on document status
-          const hasPendingDocs = caseData.documentTypes.some(doc => doc.status === 'pending');
-          setUploadStatus(hasPendingDocs ? 'pending' : 'uploaded');
-          */
 
           // If we have a userId, fetch the complete profile
           if (caseData.userId?._id) {
@@ -1409,25 +1404,38 @@ const FNCaseDetails = () => {
   };
 
   const DocumentsChecklistTab = () => {
-    const pendingDocuments = caseData.documentTypes.filter(doc => 
+    // Add loading and null checks
+    if (!caseData) {
+      return (
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        </div>
+      );
+    }
+
+    // Ensure documentTypes exists with a default empty array
+    const documentTypes = caseData.documentTypes || [];
+    const storageOnlyDocs = caseData.storageOnlyDocs || [];
+
+    const pendingDocuments = documentTypes.filter(doc => 
       doc.status === 'pending'
     );
     
-    const uploadedDocuments = caseData.documentTypes.filter(doc => 
+    const uploadedDocuments = documentTypes.filter(doc => 
       doc.status === 'uploaded' || doc.status === 'approved'
     );
 
     // Add documents in processing state
-    const processingDocuments = caseData.documentTypes.filter(doc => 
+    const processingDocuments = documentTypes.filter(doc => 
       processingDocIds.includes(doc._id)
     );
 
     // Add storage-only documents filtering
-    const pendingStorageOnlyDocs = caseData.storageOnlyDocs?.filter(doc =>
+    const pendingStorageOnlyDocs = storageOnlyDocs.filter(doc =>
       doc.status === 'pending'
     ) || [];
 
-    const uploadedStorageOnlyDocs = caseData.storageOnlyDocs?.filter(doc =>
+    const uploadedStorageOnlyDocs = storageOnlyDocs.filter(doc =>
       doc.status === 'uploaded' || doc.status === 'approved'
     ) || [];
 
@@ -1571,9 +1579,18 @@ const FNCaseDetails = () => {
               </div>
               {/* Processing indicator dots */}
               <div className="flex-shrink-0 flex items-center gap-1">
-                <div className="w-1.5 h-1.5 rounded-full bg-amber-500/70 animate-pulse" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-1.5 h-1.5 rounded-full bg-amber-500/70 animate-pulse" style={{ animationDelay: '300ms' }}></div>
-                <div className="w-1.5 h-1.5 rounded-full bg-amber-500/70 animate-pulse" style={{ animationDelay: '600ms' }}></div>
+                <div 
+                  className="w-1.5 h-1.5 rounded-full bg-amber-500/90 animate-[pulse_1s_ease-in-out_infinite,bounce_1s_ease-in-out_infinite]" 
+                  style={{ animationDelay: '0ms' }}
+                ></div>
+                <div 
+                  className="w-1.5 h-1.5 rounded-full bg-amber-500/90 animate-[pulse_1s_ease-in-out_infinite,bounce_1s_ease-in-out_infinite]" 
+                  style={{ animationDelay: '300ms' }}
+                ></div>
+                <div 
+                  className="w-1.5 h-1.5 rounded-full bg-amber-500/90 animate-[pulse_1s_ease-in-out_infinite,bounce_1s_ease-in-out_infinite]" 
+                  style={{ animationDelay: '600ms' }}
+                ></div>
               </div>
             </div>
           </div>
@@ -3709,7 +3726,7 @@ const FNCaseDetails = () => {
                         }}
                         className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5"
                       >
-                        <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg className="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M12 6V2H8"/>
                           <path d="m8 18-4 4V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2Z"/>
                           <path d="M2 12h2"/>
@@ -3726,7 +3743,7 @@ const FNCaseDetails = () => {
                         }}
                         className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5"
                       >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                         <span>Schedule Meeting</span>
@@ -3859,7 +3876,7 @@ const FNCaseDetails = () => {
                   onClick={handleScheduleMeeting}
                   className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg shadow-sm hover:shadow-md transition-all flex items-center gap-2"
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                   Schedule Meeting
@@ -3878,7 +3895,7 @@ const FNCaseDetails = () => {
                     <>
                       
 
-                      <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg className="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M12 6V2H8"/>
                         <path d="m8 18-4 4V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2Z"/>
                         <path d="M2 12h2"/>
@@ -4008,12 +4025,24 @@ const FNCaseDetails = () => {
     try {
       setIsValidationLoading(true);
       
-      // Get only regular documents (not storage-only)
-      const regularDocTypes = caseData.documentTypes
-        .filter(doc => (doc.status === 'uploaded' || doc.status === 'approved'))
-        .map(doc => doc._id);
+      // Check if caseData exists
+      if (!caseData) {
+        console.log('Case data not yet loaded, fetching case data first');
+        const caseResponse = await api.get(`/management/${caseId}`);
+        if (caseResponse.data.status === 'success') {
+          setCaseData(caseResponse.data.data.entry);
+        } else {
+          throw new Error('Failed to fetch case data');
+        }
+      }
+      
+      // Get regular documents (not storage-only) - use optional chaining
+      const regularDocTypes = caseData?.documentTypes
+        ?.filter(doc => (doc.status === 'uploaded' || doc.status === 'approved'))
+        ?.map(doc => doc._id) || [];
 
       if (regularDocTypes.length === 0) {
+        console.log('No uploaded documents found for validation');
         setValidationData(null);
         return null;
       }
@@ -4043,6 +4072,8 @@ const FNCaseDetails = () => {
 
         setValidationData(validationDataWithUrls);
         validationDataRef.current = validationDataWithUrls;
+        
+        return validationDataWithUrls;
       }
     } catch (error) {
       console.error('Error fetching validation data:', error);
@@ -4050,6 +4081,7 @@ const FNCaseDetails = () => {
     } finally {
       setIsValidationLoading(false);
     }
+    return null;
   };
 
   // Update the tab click handler
@@ -4355,7 +4387,7 @@ const FNCaseDetails = () => {
       {/* Tabs Navigation */}
       <div className="px-6 py-4">
         <div className="flex gap-2">
-          {['Documents Checklist', 'Questionnaire'].map((tab) => {
+          {['Retainers', 'Documents Checklist', 'Questionnaire'].map((tab) => {
             const isQuestionnaire = tab === 'Questionnaire';
             const hasUploadedDocuments = caseData?.documentTypes?.some(doc => 
               doc.status === 'uploaded' || doc.status === 'approved'
@@ -4400,6 +4432,17 @@ const FNCaseDetails = () => {
           </div>
         ) : (
           <>
+            {activeTab === 'retainers' && (
+              <div className="bg-white rounded-lg border border-gray-200">
+                <RetainerTab 
+                  companyId={caseData?.userId?.company_id} 
+                  profileData={caseData?.userId}
+                  caseId={caseId}
+                  caseManagerId={caseData?.caseManagerId?._id}
+                  applicantId={caseData?.userId?._id}
+                />
+              </div>
+            )}
             {activeTab === 'documents-checklist' && (
               <div className="bg-white rounded-lg border border-gray-200">
                 <DocumentsChecklistTab />

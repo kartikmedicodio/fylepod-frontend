@@ -70,6 +70,8 @@ const LetterTab = ({ managementId }) => {
   const [savedLetters, setSavedLetters] = useState([]);
   const [showTemplateSelection, setShowTemplateSelection] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
+  const [isEditorReady, setIsEditorReady] = useState(false);
+  const [pendingContent, setPendingContent] = useState(null);
 
   useEffect(() => {
     if (!managementId) {
@@ -120,48 +122,52 @@ const LetterTab = ({ managementId }) => {
     }
   }, [managementId]);
 
-  const loadSavedLetter = async (letterId) => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await api.get(`/letters/${letterId}`);
-      
-      if (response.data.success) {
-        const letter = response.data.data;
-        
-        setCurrentLetterId(letter._id);
-        setCurrentLetter(letter);
-        
-        const template = letterTemplates.find(t => t._id === letter.templateId._id);
-        setSelectedTemplate(template || letter.templateId);
-        
-        if (template?.internalPrompt) {
-          setPrompt(template.internalPrompt);
+  // Effect to handle setting content when editor becomes ready
+  useEffect(() => {
+    const setPendingEditorContent = async () => {
+      if (isEditorReady && editorRef.current && pendingContent) {
+        try {
+          await setEditorContent(pendingContent);
+          setPendingContent(null); // Clear pending content after successful set
+        } catch (err) {
+          console.error('Error setting pending content:', err);
+          setError('Failed to load letter content. Please try again.');
+          setShowError(true);
         }
-
-        if (editorRef.current && letter.content) {
-          let contentToSet = letter.content;
-          if (!contentToSet.includes('<div class="letter-')) {
-            contentToSet = formatLetterContent(contentToSet.toString());
-          }
-
-          setTimeout(() => {
-            if (editorRef.current) {
-              editorRef.current.setContent(contentToSet);
-            }
-          }, 500);
-        }
-        setShowEditor(true);
-      } else {
-        throw new Error(response.data.error || 'Failed to load letter');
       }
-    } catch (error) {
-      console.error('Error loading saved letter:', error);
-      setError('Failed to load the saved letter');
-    } finally {
-      setLoading(false);
-    }
+    };
+
+    setPendingEditorContent();
+  }, [isEditorReady, pendingContent]);
+
+  const setEditorContent = async (content) => {
+    return new Promise((resolve, reject) => {
+      if (!editorRef.current) {
+        reject(new Error('Editor reference not available'));
+        return;
+      }
+
+      try {
+        // Ensure content is properly formatted
+        const formattedContent = formatLetterContent(content);
+        
+        // Set content with a larger delay to ensure editor is ready
+        setTimeout(() => {
+          try {
+            if (editorRef.current) {
+              editorRef.current.setContent(formattedContent);
+              resolve();
+            } else {
+              reject(new Error('Editor not available after delay'));
+            }
+          } catch (err) {
+            reject(new Error(`Failed to set editor content: ${err.message}`));
+          }
+        }, 500); // Increased delay to 500ms
+      } catch (err) {
+        reject(new Error(`Error formatting content: ${err.message}`));
+      }
+    });
   };
 
   const handleGenerate = async () => {
@@ -196,46 +202,21 @@ const LetterTab = ({ managementId }) => {
           throw new Error('Invalid letter data received from server');
         }
 
-        const formattedContent = formatLetterContent(letterData.content);
         setCurrentLetterId(letterData.letterId);
         
-        // First update the state
+        // Set the content as pending before showing editor
+        setPendingContent(letterData.content);
+        
+        // Update UI state
         setShowTemplateSelection(false);
         setShowEditor(true);
 
-        // Wait for editor to be ready
-        const setEditorContent = () => {
-          return new Promise((resolve, reject) => {
-            let attempts = 0;
-            const maxAttempts = 10;
-            const interval = setInterval(() => {
-              if (editorRef.current) {
-                clearInterval(interval);
-                try {
-                  console.log('Setting content in editor:', formattedContent);
-                  editorRef.current.setContent(formattedContent);
-                  resolve();
-                } catch (err) {
-                  reject(err);
-                }
-              } else if (attempts >= maxAttempts) {
-                clearInterval(interval);
-                reject(new Error('Editor not ready after maximum attempts'));
-              }
-              attempts++;
-            }, 200);
-          });
-        };
-
-        try {
-          await setEditorContent();
-          await fetchSavedLetters();
-          setError('Letter generated successfully');
-          setShowError(true);
-          setTimeout(() => setShowError(false), 3000);
-        } catch (editorError) {
-          throw new Error('Failed to set editor content: ' + editorError.message);
-        }
+        // Fetch updated letters list
+        await fetchSavedLetters();
+        
+        setError('Letter generated successfully');
+        setShowError(true);
+        setTimeout(() => setShowError(false), 3000);
       } else {
         throw new Error(generateResponse.data.error || 'Failed to generate letter');
       }
@@ -747,14 +728,7 @@ const LetterTab = ({ managementId }) => {
               onInit={(evt, editor) => {
                 console.log('Editor initialized');
                 editorRef.current = editor;
-                // Only load content if we have a current letter
-                if (editor && currentLetterId) {
-                  const currentContent = savedLetters.find(l => l._id === currentLetterId)?.content;
-                  if (currentContent) {
-                    const formattedContent = formatLetterContent(currentContent);
-                    editor.setContent(formattedContent);
-                  }
-                }
+                setIsEditorReady(true);
               }}
               init={{
                 height: 600,

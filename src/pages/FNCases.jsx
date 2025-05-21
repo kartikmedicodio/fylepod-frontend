@@ -6,6 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
+import { Listbox } from '@headlessui/react';
+import { ChevronUpDownIcon } from '@heroicons/react/20/solid';
 
 // Reuse the same skeleton component
 const CasesSkeleton = () => {
@@ -407,49 +409,100 @@ const FNCases = () => {
                 {/* Status Filter */}
                 <div>
                   <label className="text-sm font-medium text-gray-700 block mb-2">Status</label>
-                  <select
+                  <Listbox
                     value={tempFilters.status}
-                    onChange={(e) => handleFilterChange('status', e.target.value)}
-                    className="w-full rounded-md border border-gray-300 py-2 px-3 text-sm"
+                    onChange={value => handleFilterChange('status', value)}
                   >
-                    {filterOptions.status.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                    <div className="relative">
+                      <Listbox.Button className="w-full rounded-md border border-gray-300 py-2 px-3 text-sm text-left flex justify-between items-center">
+                        <span>
+                          {filterOptions.status.find(o => o.value === tempFilters.status)?.label || 'Select...'}
+                        </span>
+                        <ChevronUpDownIcon className="w-4 h-4 text-gray-400 ml-2" />
+                      </Listbox.Button>
+                      <Listbox.Options className="absolute mt-1 w-full bg-white shadow-lg rounded-md z-10">
+                        {filterOptions.status.map((option) => (
+                          <Listbox.Option
+                            key={option.value}
+                            value={option.value}
+                            className={({ active, selected }) =>
+                              `cursor-pointer select-none relative py-2 px-3
+                              ${selected ? 'bg-blue-600 text-white' : ''}
+                              ${active && !selected ? 'bg-blue-100' : ''}`
+                            }
+                          >
+                            {option.label}
+                          </Listbox.Option>
+                        ))}
+                      </Listbox.Options>
+                    </div>
+                  </Listbox>
                 </div>
 
                 {/* Document Status Filter */}
                 <div>
                   <label className="text-sm font-medium text-gray-700 block mb-2">Document Status</label>
-                  <select
+                  <Listbox
                     value={tempFilters.documentStatus}
-                    onChange={(e) => handleFilterChange('documentStatus', e.target.value)}
-                    className="w-full rounded-md border border-gray-300 py-2 px-3 text-sm"
+                    onChange={value => handleFilterChange('documentStatus', value)}
                   >
-                    {filterOptions.documentStatus.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                    <div className="relative">
+                      <Listbox.Button className="w-full rounded-md border border-gray-300 py-2 px-3 text-sm text-left flex justify-between items-center">
+                        <span>
+                          {filterOptions.documentStatus.find(o => o.value === tempFilters.documentStatus)?.label || 'Select...'}
+                        </span>
+                        <ChevronUpDownIcon className="w-4 h-4 text-gray-400 ml-2" />
+                      </Listbox.Button>
+                      <Listbox.Options className="absolute mt-1 w-full bg-white shadow-lg rounded-md z-10">
+                        {filterOptions.documentStatus.map((option) => (
+                          <Listbox.Option
+                            key={option.value}
+                            value={option.value}
+                            className={({ active, selected }) =>
+                              `cursor-pointer select-none relative py-2 px-3
+                              ${selected ? 'bg-blue-600 text-white' : ''}
+                              ${active && !selected ? 'bg-blue-100' : ''}`
+                            }
+                          >
+                            {option.label}
+                          </Listbox.Option>
+                        ))}
+                      </Listbox.Options>
+                    </div>
+                  </Listbox>
                 </div>
 
                 {/* Deadline Filter */}
                 <div>
                   <label className="text-sm font-medium text-gray-700 block mb-2">Deadline</label>
-                  <select
+                  <Listbox
                     value={tempFilters.deadline}
-                    onChange={(e) => handleFilterChange('deadline', e.target.value)}
-                    className="w-full rounded-md border border-gray-300 py-2 px-3 text-sm"
+                    onChange={value => handleFilterChange('deadline', value)}
                   >
-                    {filterOptions.deadline.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                    <div className="relative">
+                      <Listbox.Button className="w-full rounded-md border border-gray-300 py-2 px-3 text-sm text-left flex justify-between items-center">
+                        <span>
+                          {filterOptions.deadline.find(o => o.value === tempFilters.deadline)?.label || 'Select...'}
+                        </span>
+                        <ChevronUpDownIcon className="w-4 h-4 text-gray-400 ml-2" />
+                      </Listbox.Button>
+                      <Listbox.Options className="absolute mt-1 w-full bg-white shadow-lg rounded-md z-10">
+                        {filterOptions.deadline.map((option) => (
+                          <Listbox.Option
+                            key={option.value}
+                            value={option.value}
+                            className={({ active, selected }) =>
+                              `cursor-pointer select-none relative py-2 px-3
+                              ${selected ? 'bg-blue-600 text-white' : ''}
+                              ${active && !selected ? 'bg-blue-100' : ''}`
+                            }
+                          >
+                            {option.label}
+                          </Listbox.Option>
+                        ))}
+                      </Listbox.Options>
+                    </div>
+                  </Listbox>
                 </div>
 
                 {/* Action Buttons */}

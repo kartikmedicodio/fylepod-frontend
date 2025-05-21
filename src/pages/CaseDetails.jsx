@@ -2,25 +2,16 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { 
   Check, 
-  Search, 
-  SlidersHorizontal, 
-  MoreVertical, 
   Loader2,
   ChevronRight, 
-  Building2,
-  Users,
   User,
   FileText,
   ClipboardList,
-  Phone,
   Mail,
-  Globe,
-  MapPin,
   Upload,
   File,
   X,
   AlertCircle,
-  Filter,
   ChevronLeft,
   Download,
   Bot,
@@ -28,7 +19,8 @@ import {
   Eye,
   ChevronDown,
   LucideReceiptText,
-  CreditCard // Add this import for payment icon
+  CreditCard, // Add this import for payment icon
+  Package
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
@@ -46,6 +38,8 @@ import LetterTab from '../components/letters/LetterTab';
 import ReceiptsTab from '../components/receipts/ReceiptsTab';
 import DocumentsArchiveTab from '../components/documents/DocumentsArchiveTab';
 import PaymentTab from '../components/payments/PaymentTab';
+import CommunicationsTab from '../components/CommunicationsTab';
+import RetainerTab from '../components/RetainerTab';
 
 // Add a new status type to track document states
 const DOCUMENT_STATUS = {
@@ -271,12 +265,16 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   // Add a function at the top of the component to load data from localStorage
   const loadDataFromLocalStorage = () => {
     try {
-            const validationDataString = localStorage.getItem('validationData');
+      let validationDataFound = false;
+      let verificationDataFound = false;
+
+      const validationDataString = localStorage.getItem('validationData');
       if (validationDataString) {
         const parsedData = JSON.parse(validationDataString);
         console.log('Found validation data in localStorage:', parsedData);
         setValidationData(parsedData);
         validationDataRef.current = parsedData;
+        validationDataFound = true;
       } else {
         console.log('No validation data found in localStorage');
       }
@@ -287,12 +285,14 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         console.log('Found cross-verification data in localStorage:', parsedData);
         setVerificationData(parsedData);
         verificationDataRef.current = parsedData;
+        verificationDataFound = true;
       } else {
         console.log('No cross-verification data found in localStorage');
       }
+
       return {
-        validationDataFound: !!savedValidationData,
-        verificationDataFound: !!savedCrossVerificationData
+        validationDataFound,
+        verificationDataFound
       };
     } catch (error) {
       console.error('Error loading data from localStorage:', error);
@@ -1000,6 +1000,105 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     }
   };
 
+  const [emailSent, setEmailSent] = useState(false);
+  const processingDocsRef = useRef(new Set());
+  const socketRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.off('document-processing-completed');
+        socketRef.current.off('document-processing-failed');
+        socketRef.current.off('connect_error');
+        socketRef.current.disconnect();
+      }
+    };
+  }, []);
+
+  const handleSendValidationEmail = async () => {
+    if (emailSent) return; // Prevent duplicate emails
+    try {
+      // First get the validation data
+      const validationResponse = await api.get(`/documents/management/${caseId}/validations`);
+      const validationData = validationResponse.data;
+
+      // Then get the cross-verification data
+      const crossVerifyResponse = await api.get(`/management/${caseId}/cross-verify`);
+      const crossVerifyData = crossVerifyResponse.data;
+
+      // Get recipient name from profile data or use a default
+      const recipientName = profileData?.name || 'Sir/Madam';
+
+      // Get the case owner's userId from caseData
+      const userId = caseData?.userId;
+
+      // Structure the request body according to the backend's expected format
+      const requestBody = {
+        errorType: 'validation',
+        errorDetails: {
+          validationResults: validationData.data.mergedValidations,
+          mismatchErrors: crossVerifyData.data.verificationResults.mismatchErrors || [],
+          missingErrors: crossVerifyData.data.verificationResults.missingErrors || [],
+          summarizationErrors: crossVerifyData.data.verificationResults.summarizationErrors || []
+        },
+        recipientEmail,
+        recipientName,
+        managementId: caseId,
+        emailType: 'validation',
+        userId: userId // Use the case owner's userId
+      };
+
+      // Log the request body for debugging
+      console.log('Sending validation email request with data:', {
+        recipientEmail,
+        recipientName,
+        managementId: caseId,
+        userId: userId,
+        validationCount: validationData.data.mergedValidations?.length,
+        mismatchCount: crossVerifyData.data.verificationResults.mismatchErrors?.length,
+        missingCount: crossVerifyData.data.verificationResults.missingErrors?.length
+      });
+
+      // Generate the draft mail content
+      const draftResponse = await api.post('/mail/draft', requestBody);
+      
+      if (draftResponse.data.status !== 'success') {
+        throw new Error('Failed to generate draft: ' + draftResponse.data.message);
+      }
+
+      const mailContent = draftResponse.data.data;
+
+      // Send the email
+      const sendResponse = await api.post('/mail/send', {
+        subject: mailContent.subject,
+        body: mailContent.body,
+        recipientEmail: recipientEmail,
+        recipientName: recipientName,
+        managementId: caseId,
+        emailType: 'validation',
+        userId: userId // Use the case owner's userId
+      });
+
+      if (sendResponse.data.status === "success") {
+        setEmailSent(true);
+        setMessages(prev => [...prev, {
+          type: 'system',
+          content: 'Validation email sent successfully.',
+          timestamp: new Date().toISOString()
+        }]);
+      } else {
+        throw new Error('Failed to send email: ' + sendResponse.data.message);
+      }
+    } catch (error) {
+      console.error('Error sending validation email:', error);
+      setMessages(prev => [...prev, {
+        type: 'error',
+        content: 'Failed to send validation email: ' + (error.response?.data?.message || error.message),
+        timestamp: new Date().toISOString()
+      }]);
+    }
+  };
+
   const handleFileUpload = async (files) => {
     if (!files.length) return;
     
@@ -1058,7 +1157,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             successfulUploads++;
             
             // Add the document ID to processing state immediately after successful upload
-            setProcessingDocIds(prev => [...prev, uploadedDoc._id]);
+            processingDocsRef.current.add(uploadedDoc._id);
+            setProcessingDocIds(Array.from(processingDocsRef.current));
             
             return uploadedDoc;
           }
@@ -1082,6 +1182,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           // Initialize socket connection with auth token
           const token = getStoredToken();
           const socket = initializeSocket(token);
+          socketRef.current = socket;
           
           // Check socket connection
           if (!socket.connected) {
@@ -1100,6 +1201,38 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               joinDocumentRoom(docId);
             });
           }
+          
+          // Remove any existing listeners before adding new ones
+          socket.off('document-processing-completed');
+          
+          // Add event listener for when all documents are processed
+          socket.on('document-processing-completed', async (data) => {
+            console.log('Document processing completed:', data);
+            
+            // Remove the processed document ID from the tracking set
+            processingDocsRef.current.delete(data.documentId);
+            setProcessingDocIds(Array.from(processingDocsRef.current));
+            
+            // Check if this was the last document to be processed
+            if (processingDocsRef.current.size === 0 && !emailSent) {
+              // Fetch latest case data
+              const response = await api.get(`/management/${caseId}`);
+              if (response.data.status === 'success') {
+                const updatedCaseData = response.data.data.entry;
+                setCaseData(updatedCaseData);
+                
+                // Check if all documents are uploaded and validated
+                const allUploaded = updatedCaseData.documentTypes.every(
+                  doc => doc.status === 'uploaded' || doc.status === 'approved'
+                );
+
+                if (allUploaded) {
+                  // Send validation email only if it hasn't been sent yet
+                  await handleSendValidationEmail();
+                }
+              }
+            }
+          });
           
           console.log(`Requested to join ${uploadedDocIds.length} document rooms`);
           toast.success(`Uploaded ${successfulUploads} document(s). Processing will begin shortly.`);
@@ -1224,7 +1357,28 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         const response = await api.get(`/management/${caseId}`);
         if (response.data.status === 'success') {
           const caseData = response.data.data.entry;
-          console.log('Case data:', caseData);
+          console.log('Fetched Case Data:', caseData);
+          
+          // If case_manager_id is a string or object ID, fetch the full case manager details
+          if (caseData?.case_manager_id) {
+            try {
+              const managerId = typeof caseData.case_manager_id === 'object' 
+                ? caseData.case_manager_id._id 
+                : caseData.case_manager_id;
+              
+              const managerResponse = await api.get(`/users/${managerId}`);
+              if (managerResponse.data.status === 'success') {
+                console.log('Manager Response:', managerResponse.data);
+                caseData.case_manager_id = managerResponse.data.data.user;
+              }
+            } catch (err) {
+              console.error('Error fetching case manager details:', err);
+              // Keep the original ID if fetch fails
+              caseData.case_manager_id = managerId;
+            }
+          }
+
+          console.log('Case Manager ID (after):', caseData?.case_manager_id);
           setCaseData(caseData);
           
           // Check if there are any uploaded documents
@@ -1563,6 +1717,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           // Get the management data that we want to send to the AI
           const managementData = caseResponse.data.data.entry;
           
+          
           // Prepare management model data to include in chat context
           const managementContext = {
             caseId: managementData._id,
@@ -1843,12 +1998,15 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         {[
           { name: 'Profile', icon: User },
           { name: 'Payment', icon: CreditCard },
+          { name: 'Retainer', icon: FileText },
           { name: 'Document Checklist', icon: ClipboardList },
           { name: 'Questionnaire', icon: FileText },
           { name: 'Forms', icon: File },
           { name: 'Letters', icon: FileText },
-          { name: 'Documents Archive', icon: FileText },
           { name: 'Receipts', icon: LucideReceiptText },
+          { name: 'Packaging', icon: Package },
+          // { name: 'Documents Archive', icon: FileText },
+          { name: 'Communications', icon: Mail },
         ].map(({ name, icon: Icon, disabled }) => (
           <button
             key={name}
@@ -2668,6 +2826,37 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           return <ReceiptsTab managementId={caseId} />;
         case 'payment':
           return <PaymentTab caseId={caseId} />;
+        case 'communications':
+          return <CommunicationsTab caseId={caseId} />;
+        case 'retainer':
+          return (() => {
+            // Get the case manager ID, handling both string and object formats
+            const managerId = (() => {
+              const cmId = caseData?.caseManagerId; // Changed from case_manager_id to caseManagerId
+              if (!cmId) return null;
+              if (typeof cmId === 'string') return cmId;
+              if (typeof cmId === 'object' && cmId._id) return cmId._id;
+              return null;
+            })();
+
+            console.log('Retainer Tab Data:', {
+              caseId,
+              caseManagerId: managerId,
+              rawCaseManagerId: caseData?.caseManagerId,
+              userId: caseData?.userId?._id,
+              fullCaseData: caseData
+            });
+
+            return (
+              <RetainerTab 
+                companyId={profileData.company_id._id} 
+                profileData={profileData}
+                caseId={caseId}
+                caseManagerId={managerId}
+                applicantId={caseData.userId?._id}
+              />
+            );
+          })();
         default:
           return null;
       }
@@ -4068,7 +4257,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   };
 
   // Add FormPreviewModal component before FormsTab
-  const FormPreviewModal = ({ isOpen, onClose, pdfBytes, formName }) => {
+  const FormPreviewModal = ({ isOpen, onClose, pdfBytes, formName, onDownload }) => {
     const [pdfUrl, setPdfUrl] = useState(null);
 
     useEffect(() => {
@@ -4090,9 +4279,18 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         <div className="bg-white rounded-lg p-6 max-w-4xl w-full h-[90vh] flex flex-col">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold">{formName} - Preview</h2>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-              <X className="w-6 h-6" />
-            </button>
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={onDownload}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                Download
+              </button>
+              <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 bg-gray-100 rounded-lg overflow-hidden">
@@ -4115,6 +4313,27 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     const [previewPdfBytes, setPreviewPdfBytes] = useState(null);
     const [selectedForm, setSelectedForm] = useState(null);
     const [showPreview, setShowPreview] = useState(false);
+    const [existingForms, setExistingForms] = useState([]);
+    const [isLoadingForms, setIsLoadingForms] = useState(true);
+
+    // Add useEffect to fetch existing forms
+    useEffect(() => {
+      const fetchExistingForms = async () => {
+        try {
+          const response = await api.get(`/management/forms-url/${caseId}`);
+          if (response.data.status === 'success') {
+            setExistingForms(response.data.data.formsUrl);
+          }
+        } catch (error) {
+          console.error('Error fetching existing forms:', error);
+          toast.error('Failed to fetch existing forms');
+        } finally {
+          setIsLoadingForms(false);
+        }
+      };
+
+      fetchExistingForms();
+    }, []);
 
     // Function to generate filled PDF
     const generateFilledPDF = async (formId, data) => {
@@ -4431,26 +4650,51 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     const handleDownloadComplete = async () => {
       try {
-        // Update case status to completed
-        await api.patch(`/management/${caseId}/status`, {
-          status: 'completed'
+        // Create a blob from the PDF bytes
+        const blob = new Blob([previewPdfBytes], { type: 'application/pdf' });
+        
+        // Create a download link and trigger local download
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `${selectedForm.form_name}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+
+        // Create FormData to send to backend
+        const formData = new FormData();
+        formData.append('file', blob, `${selectedForm.form_name}.pdf`);
+        formData.append('managementId', caseId);
+
+        // Send the file to backend
+        await api.post('/management/upload-form', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
         });
+
+        // // Update case status to completed
+        // await api.patch(`/management/${caseId}/status`, {
+        //   status: 'completed'
+        // });
         
         // Show success message
-        toast.success('Form downloaded and case marked as completed');
+        toast.success('Form downloaded and uploaded successfully');
         
-        // Refresh case data to update UI
-        const response = await api.get(`/management/${caseId}`);
-        if (response.data.status === 'success') {
-          const updatedCaseData = response.data.data.entry;
-          setCaseData(updatedCaseData);
-        }
+        // // Refresh case data to update UI
+        // const response = await api.get(`/management/${caseId}`);
+        // if (response.data.status === 'success') {
+        //   const updatedCaseData = response.data.data.entry;
+        //   setCaseData(updatedCaseData);
+        // }
 
         // Close the preview modal
         setShowPreview(false);
       } catch (error) {
-        console.error('Error updating case status:', error);
-        toast.error('Form downloaded but failed to update case status');
+        console.error('Error processing form:', error);
+        toast.error('Error processing form. Please try again.');
       }
     };
 
@@ -4492,31 +4736,85 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     return (
       <div className="p-6">
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold text-gray-900">Forms</h2>
-          {forms.map((form) => (
-            <div 
-              key={form._id}
-              onClick={() => handleFormClick(form)}
-              className="bg-white rounded-lg border border-gray-200 p-4 hover:bg-gray-50 transition-all cursor-pointer"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <h3 className="text-sm font-medium text-gray-900">{form.form_name}</h3>
-                </div>
-                <div>
-                  {loadingFormId === form._id ? (
-                    <div className="flex items-center text-gray-400">
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                      Processing...
+        <div className="space-y-6">
+         
+
+          {/* New Forms Section */}
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Available Forms</h2>
+            <div className="space-y-3">
+              {forms.map((form) => (
+                <div 
+                  key={form._id}
+                  onClick={() => handleFormClick(form)}
+                  className="bg-white rounded-lg border border-gray-200 p-4 hover:bg-gray-50 transition-all cursor-pointer"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h3 className="text-sm font-medium text-gray-900">{form.form_name}</h3>
                     </div>
-                  ) : (
-                    <Download className="w-4 h-4 text-gray-400" />
-                  )}
+                    <div>
+                      {loadingFormId === form._id ? (
+                        <div className="flex items-center text-gray-400">
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          Processing...
+                        </div>
+                      ) : (
+                        <Download className="w-4 h-4 text-gray-400" />
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
-          ))}
+          </div>
+
+           {/* Existing Forms Section */}
+           <div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Existing Forms</h2>
+            {isLoadingForms ? (
+              <div className="flex items-center justify-center h-32">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+              </div>
+            ) : existingForms.length > 0 ? (
+              <div className="grid grid-cols-1 gap-3">
+                {existingForms.map((formUrl, index) => {
+                  // Extract filename from URL
+                  const fileName = formUrl.split('/').pop();
+                  // Decode the URL-encoded filename
+                  const decodedFileName = decodeURIComponent(fileName);
+                  
+                  return (
+                    <div 
+                      key={index}
+                      className="bg-white rounded-lg border border-gray-200 p-4 hover:bg-gray-50 transition-all"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <h3 className="text-sm font-medium text-gray-900">{decodedFileName}</h3>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={formUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                          >
+                            <Eye className="w-4 h-4" />
+                            View
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center text-gray-500 py-4">
+                No existing forms found
+              </div>
+            )}
+          </div>
         </div>
 
         <FormPreviewModal
@@ -4524,6 +4822,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           onClose={() => setShowPreview(false)}
           pdfBytes={previewPdfBytes}
           formName={selectedForm?.form_name}
+          onDownload={handleDownloadComplete}
         />
       </div>
     );
@@ -5040,12 +5339,22 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             <div className="max-w-7xl mx-auto">
               {activeTab === 'profile' && <ProfileTab profileData={caseData.userId} />}
               {activeTab === 'payment' && <PaymentTab caseId={caseId} />}
+              {activeTab === 'retainer' && 
+                <RetainerTab 
+                  companyId={profileData.company_id._id} 
+                  profileData={profileData}
+                  caseId={caseId}
+                  caseManagerId={caseData?.caseManagerId?._id}
+                  applicantId={caseData.userId?._id}
+                />
+              }
               {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
               {activeTab === 'letters' && <LetterTab managementId={caseId} />}
-              {activeTab === 'documents-archive' && <DocumentsArchiveTab managementId={caseId} />}
               {activeTab === 'receipts' && <ReceiptsTab managementId={caseId} />}
+              {activeTab === 'packaging' && <DocumentsArchiveTab managementId={caseId} />}
+              {activeTab === 'communications' && <CommunicationsTab caseId={caseId} />}
             </div>
           </div>
         </div>
