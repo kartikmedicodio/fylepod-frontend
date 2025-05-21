@@ -225,10 +225,11 @@ const NewEmployee = () => {
       }, 1500);
 
     } catch (error) {
-      toast.error('Failed to create employee', {
-        description: error.response?.data?.message || error.message || 'Please try again',
-        duration: 3000,
-      });
+      if (error.response?.data?.message?.includes('already exists')) {
+        toast.error('This email is already registered. Please use a different email address.');
+      } else {
+        toast.error(error.response?.data?.message || error.message || 'Failed to create employee');
+      }
     } finally {
       setIsSubmitting(false);
     }
