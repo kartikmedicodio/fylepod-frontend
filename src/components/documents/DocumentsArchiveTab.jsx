@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { PDFDocument, PageSizes } from 'pdf-lib';
 import { Loader2, Download, FileText, Check, AlertCircle, Mail, Plus, GripVertical } from 'lucide-react';
 import {
@@ -348,9 +348,37 @@ const DocumentsArchiveTab = ({ managementId }) => {
 
       if (response.data.status === 'success') {
         toast.success('Documents combined successfully');
-        // Optionally, you can redirect to a view where they can see all combined PDFs
-        // or provide a direct download link from the blob storage
-        window.open(response.data.data.combinedPdf.blobUrl, '_blank');
+        
+        // Get the blob URL from the response
+        const blobUrl = response.data.data.combinedPdf.blobUrl;
+        
+        try {
+          // Fetch the PDF content
+          const pdfResponse = await fetch(blobUrl);
+          if (!pdfResponse.ok) throw new Error('Failed to download PDF');
+          
+          const blob = await pdfResponse.blob();
+          
+          // Create a download link
+          const downloadUrl = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = downloadUrl;
+          link.download = `Combined_Documents_${new Date().toISOString().split('T')[0]}.pdf`;
+          
+          // Trigger download
+          document.body.appendChild(link);
+          link.click();
+          
+          // Cleanup
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(downloadUrl);
+        } catch (downloadError) {
+          console.error('Error downloading PDF:', downloadError);
+          toast.error('Failed to download the combined PDF');
+          
+          // Fallback to opening in new tab
+          window.open(blobUrl, '_blank');
+        }
       }
     } catch (error) {
       console.error('Error generating combined PDF:', error);

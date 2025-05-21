@@ -1,8 +1,27 @@
 import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { Mail, Search, ChevronDown, ExternalLink, Loader2, X } from 'lucide-react';
+import { Mail, Search, Loader2, X } from 'lucide-react';
 import api from '../utils/api';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+
+// Simple Dialog component
+const Dialog = ({ isOpen, onClose, children }) => {
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
+        {children}
+      </div>
+    </div>
+  );
+};
+
+Dialog.propTypes = {
+  isOpen: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  children: PropTypes.node.isRequired,
+};
 
 // Update the formatDate function to separate date and time
 const formatDate = (dateString) => {
@@ -21,7 +40,7 @@ const formatDate = (dateString) => {
 };
 
 const EmailListItem = ({ email, onClick, isSelected }) => {
-  const { dateStr, timeStr } = formatDate(email.date);
+  const { dateStr } = formatDate(email.date);
   
   return (
     <div
@@ -46,6 +65,20 @@ const EmailListItem = ({ email, onClick, isSelected }) => {
       </p>
     </div>
   );
+};
+
+EmailListItem.propTypes = {
+  email: PropTypes.shape({
+    id: PropTypes.string.isRequired,
+    date: PropTypes.string.isRequired,
+    status: PropTypes.string.isRequired,
+    type: PropTypes.string.isRequired,
+    from: PropTypes.string,
+    recipient: PropTypes.string.isRequired,
+    subject: PropTypes.string.isRequired,
+  }).isRequired,
+  onClick: PropTypes.func.isRequired,
+  isSelected: PropTypes.bool.isRequired,
 };
 
 const EmailContent = ({ email, onClose }) => {
@@ -102,6 +135,19 @@ const EmailContent = ({ email, onClose }) => {
   );
 };
 
+EmailContent.propTypes = {
+  email: PropTypes.shape({
+    date: PropTypes.string.isRequired,
+    subject: PropTypes.string.isRequired,
+    from: PropTypes.string,
+    recipient: PropTypes.string.isRequired,
+    cc: PropTypes.string,
+    status: PropTypes.string.isRequired,
+    htmlContent: PropTypes.string.isRequired,
+  }).isRequired,
+  onClose: PropTypes.func.isRequired,
+};
+
 const CommunicationsTab = ({ caseId }) => {
   const [emails, setEmails] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -110,9 +156,17 @@ const CommunicationsTab = ({ caseId }) => {
   const [error, setError] = useState(null);
   const [selectedEmail, setSelectedEmail] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
     fetchEmails();
+
+    // Add window resize listener
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [caseId]);
 
   const fetchEmails = async () => {
@@ -152,7 +206,10 @@ const CommunicationsTab = ({ caseId }) => {
 
   const handleEmailClick = (email) => {
     setSelectedEmail(email);
-    setIsModalOpen(true);
+    // Only open modal on mobile devices
+    if (isMobile) {
+      setIsModalOpen(true);
+    }
   };
 
   // Helper function to strip HTML tags from content
@@ -211,7 +268,7 @@ const CommunicationsTab = ({ caseId }) => {
       {/* Main Content */}
       <div className="flex-1 flex">
         {/* Email List Panel */}
-        <div className={`flex flex-col border-r border-gray-100 ${selectedEmail ? 'w-[400px]' : 'w-full'}`}>
+        <div className={`flex flex-col border-r border-gray-100 ${selectedEmail && !isMobile ? 'w-[400px]' : 'w-full'}`}>
           {/* Search and Filter */}
           <div className="p-4 border-b border-gray-100 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
             <div className="flex gap-2">
@@ -262,20 +319,20 @@ const CommunicationsTab = ({ caseId }) => {
           </div>
         </div>
 
-        {/* Email Content Panel */}
-        {selectedEmail && (
+        {/* Email Content Panel - Only show on desktop */}
+        {selectedEmail && !isMobile && (
           <div className="flex-1 hidden md:block">
             <EmailContent email={selectedEmail} onClose={() => setSelectedEmail(null)} />
           </div>
         )}
       </div>
 
-      {/* Mobile Email Content Modal */}
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen} className="relative z-50">
-        <DialogContent className="sm:max-w-[600px]">
+      {/* Mobile Email Content Modal - Only show on mobile */}
+      {isMobile && (
+        <Dialog isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
           {selectedEmail && <EmailContent email={selectedEmail} onClose={() => setIsModalOpen(false)} />}
-        </DialogContent>
-      </Dialog>
+        </Dialog>
+      )}
     </div>
   );
 };
