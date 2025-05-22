@@ -59,7 +59,7 @@ const ForgotPassword = () => {
           <div className="absolute top-1/2 right-1/4 translate-x-1/2 blur-3xl opacity-20 animate-pulse delay-700">
             <div className="aspect-[1155/678] w-[72.1875rem] bg-gradient-to-tr from-indigo-400 to-purple-500"></div>
           </div>
-          
+                                              
           {/* Content */}
           <div className="absolute inset-0 flex items-center justify-center p-8">
             <div className="text-center space-y-8 max-w-lg">
@@ -69,12 +69,12 @@ const ForgotPassword = () => {
                 transition={{ duration: 0.5, delay: 0.2 }}
                 className="space-y-3"
               >
-                <h1 className="text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 tracking-tight">
+                <h1 className="text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 tracking-tight pb-2">
                   FylePod
                 </h1>
                 <div className="h-1 w-20 mx-auto bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-full"></div>
               </motion.div>
-
+              
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}

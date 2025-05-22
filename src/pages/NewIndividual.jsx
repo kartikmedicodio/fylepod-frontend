@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User } from 'lucide-react';
 import api from '../utils/api';
-import { toast } from 'sonner';
+import toast from 'react-hot-toast';
 import PropTypes from 'prop-types';
 import { useAuth } from '../contexts/AuthContext';
 import Select from 'react-select';
@@ -167,7 +167,11 @@ const NewIndividual = () => {
         throw new Error(response.data.message || 'Failed to create individual');
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || error.message || 'Failed to create individual');
+      if (error.response?.data?.message?.includes('already exists')) {
+        toast.error('This email is already registered. Please use a different email address.');
+      } else {
+        toast.error(error.response?.data?.message || error.message || 'Failed to create individual');
+      }
     } finally {
       setIsSubmitting(false);
     }

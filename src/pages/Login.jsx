@@ -58,9 +58,9 @@ const Login = () => {
                 transition={{ duration: 0.5, delay: 0.2 }}
                 className="space-y-3"
               >
-                <h1 className="text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 tracking-tight">
-                  FylePod
-                </h1>
+                <h1 className="text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 tracking-tight" style={{paddingBottom: '0.2em'}}>
+                   FylePod
+                </h1>   
                 <div className="h-1 w-20 mx-auto bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-full"></div>
               </motion.div>
 
