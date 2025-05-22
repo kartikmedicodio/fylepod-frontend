@@ -2828,8 +2828,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               />
             );
           })();
-        case 'payment':
-          return <PaymentTab caseId={caseId} />;
         default:
           return null;
       }
