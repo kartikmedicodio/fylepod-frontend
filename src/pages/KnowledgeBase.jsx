@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, SlidersHorizontal, Clock, Edit2, CheckCircle, XCircle, FileText, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, SlidersHorizontal, Clock, Edit2, CheckCircle, XCircle, FileText, Plus, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import api from '../utils/api';
 import { usePage } from '../contexts/PageContext';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
@@ -14,6 +14,8 @@ const KnowledgeBase = () => {
   const [categories, setCategories] = useState([]);
   const [masterDocuments, setMasterDocuments] = useState([]);
   const [forms, setForms] = useState([]);
+  const [letterTemplates, setLetterTemplates] = useState([]);
+  const [retainerTemplates, setRetainerTemplates] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,13 +23,18 @@ const KnowledgeBase = () => {
   const [currentPages, setCurrentPages] = useState({
     'Process Template': 1,
     'Master Document List': 1,
-    'Master Forms List': 1
+    'Master Forms List': 1,
+    'Letter Templates': 1,
+    'Retainer Templates': 1
   });
   const itemsPerPage = 5;
   const { setPageTitle } = usePage();
   const { setCurrentBreadcrumb } = useBreadcrumb();
   const [editingDeadline, setEditingDeadline] = useState(null);
   const [deadlineValue, setDeadlineValue] = useState('');
+  const [showPromptModal, setShowPromptModal] = useState(false);
+  const [selectedPrompt, setSelectedPrompt] = useState('');
+  const [expandedPromptId, setExpandedPromptId] = useState(null);
 
   // Initial setup and data fetch
   useEffect(() => {
@@ -98,6 +105,18 @@ const KnowledgeBase = () => {
           response = await api.get('/forms');
           if (response.data.status === 'success') {
             setForms(response.data.data.forms);
+          }
+          break;
+        case 'Letter Templates':
+          response = await api.get('/letter-templates');
+          if (response.data.status === 'success') {
+            setLetterTemplates(response.data.data);
+          }
+          break;
+        case 'Retainer Templates':
+          response = await api.get('/retainer-templates');
+          if (response.data) {
+            setRetainerTemplates(response.data);
           }
           break;
       }
@@ -186,6 +205,16 @@ const KnowledgeBase = () => {
       ? masterDocuments.filter(doc =>
           doc.name.toLowerCase().includes(searchQuery.toLowerCase())
         )
+      : selectedCategory === 'Letter Templates'
+      ? letterTemplates.filter(template =>
+          template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          template.internalPrompt?.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      : selectedCategory === 'Retainer Templates'
+      ? retainerTemplates.filter(template =>
+          template.template_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (template.company_id?.company_name || '').toLowerCase().includes(searchQuery.toLowerCase())
+        )
       : forms.filter(form =>
           form.form_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           form.description?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -209,212 +238,338 @@ const KnowledgeBase = () => {
       <>
         <div className="bg-white rounded-lg border border-gray-200">
           <div className="min-w-full divide-y divide-gray-200">
-            <div className="bg-white">
-              <div className={`grid ${
-                selectedCategory === 'Process Template' 
-                  ? 'grid-cols-5' 
-                  : 'grid-cols-4'
-              } px-6 py-3 border-b border-gray-200`}>
-                {selectedCategory === 'Process Template' ? (
-                  <>
-                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Process Name
-                    </div>
-                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Process Description
-                    </div>
-                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </div>
-                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Deadline (days)
-                    </div>
-                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Usage
-                    </div>
-                  </>
-                ) : selectedCategory === 'Master Forms List' ? (
-                  <>
-                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      ID
-                    </div>
-                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Form Name
-                    </div>
-                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Description
-                    </div>
-                    <div className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Created At
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Document Name
-                    </div>
-                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Required
-                    </div>
-                    <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Validations
-                    </div>
-                    <div className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Created At
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-            <div className="bg-white divide-y divide-gray-200">
-              {currentItems.map((item) => (
-                <div 
-                  key={item._id} 
-                  className={`grid ${
-                    selectedCategory === 'Process Template' 
-                      ? 'grid-cols-5' 
-                      : 'grid-cols-4'
-                  } px-6 py-4 hover:bg-gray-50 ${selectedCategory === 'Process Template' ? 'cursor-pointer' : ''}`}
-                  onClick={() => {
-                    if (selectedCategory === 'Process Template') {
-                      // console.log('Row clicked:', item._id);
-                      handleCategoryClick(item._id);
-                    }
-                  }}
-                >
+            {selectedCategory !== 'Letter Templates' && selectedCategory !== 'Retainer Templates' && (
+              <div className="bg-white">
+                <div className={`grid ${
+                  selectedCategory === 'Process Template' 
+                    ? 'grid-cols-5' 
+                    : selectedCategory === 'Letter Templates' || selectedCategory === 'Retainer Templates'
+                    ? 'grid-cols-4'
+                    : 'grid-cols-4'
+                } px-6 py-3 border-b border-gray-200`}>
                   {selectedCategory === 'Process Template' ? (
                     <>
-                      <div className="text-sm text-gray-900">{item.name}</div>
-                      <div className="text-sm text-gray-500">{item.description}</div>
-                      <div>
-                        <span className="px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                          Active
-                        </span>
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Process Name
                       </div>
-                      <div className="text-sm text-gray-500 flex items-center">
-                        {editingDeadline === item._id ? (
-                          <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
-                            <input
-                              type="number"
-                              min="0"
-                              className="w-16 px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              value={deadlineValue}
-                              onChange={handleDeadlineChange}
-                              onKeyDown={(e) => handleDeadlineKeyDown(e, item._id)}
-                              autoFocus
-                            />
-                            <button 
-                              className="ml-2 p-1 text-green-600 hover:text-green-800"
-                              onClick={() => saveDeadline(item._id)}
-                            >
-                              ✓
-                            </button>
-                            <button 
-                              className="ml-1 p-1 text-red-600 hover:text-red-800"
-                              onClick={() => setEditingDeadline(null)}
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ) : (
-                          <>
-                            <Clock className="w-4 h-4 mr-1" />
-                            {item.deadline || 0} days
-                            <button 
-                              className="ml-2 text-blue-600 hover:text-blue-800"
-                              onClick={(e) => handleDeadlineEdit(e, item)}
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Process Description
                       </div>
-                      <div className="text-sm text-gray-500">
-                        {`${Math.floor(Math.random() * 5) + 1} cases in use`}
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </div>
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Deadline (days)
+                      </div>
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Usage
                       </div>
                     </>
                   ) : selectedCategory === 'Master Forms List' ? (
                     <>
-                      <div className="text-sm font-mono text-gray-900">{item._id.substring(0, 8)}</div>
-                      <div className="text-sm text-gray-900">
-                        {item.form_name}
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        ID
                       </div>
-                      <div className="text-sm text-gray-500">{item.description || "No description available"}</div>
-                      <div className="text-sm text-gray-500 text-right">
-                        {new Date(item.createdAt).toLocaleDateString()}
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Form Name
+                      </div>
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Description
+                      </div>
+                      <div className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Created At
                       </div>
                     </>
                   ) : (
                     <>
-                      <div className="text-sm text-gray-900">{item.name}</div>
-                      <div className="text-sm text-gray-500">
-                        {item.required ? (
-                          <span className="flex items-center text-green-600">
-                            <CheckCircle className="w-4 h-4 mr-1" />
-                            Required
-                          </span>
-                        ) : (
-                          <span className="flex items-center text-gray-500">
-                            <XCircle className="w-4 h-4 mr-1" />
-                            Optional
-                          </span>
-                        )}
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Document Name
                       </div>
-                      <div className="text-sm text-gray-500">
-                        <ul className="list-disc pl-4 space-y-1">
-                          {item.validations && item.validations.map((validation, index) => (
-                            <li key={index} className="whitespace-pre-wrap break-words">{validation}</li>
-                          ))}
-                        </ul>
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Required
                       </div>
-                      <div className="text-sm text-gray-500 text-right">
-                        {new Date(item.createdAt).toLocaleDateString()}
+                      <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Validations
+                      </div>
+                      <div className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Created At
                       </div>
                     </>
                   )}
                 </div>
-              ))}
+              </div>
+            )}
+            <div className="bg-white divide-y divide-gray-200">
+              {selectedCategory === 'Letter Templates' ? (
+                <>
+                  <div className="p-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-6">
+                      {currentItems.map((item) => {
+                        const isExpanded = expandedPromptId === item._id;
+                        return (
+                          <div
+                            key={item._id}
+                            className={`bg-white rounded-lg shadow border border-gray-200 p-5 flex flex-col justify-between hover:shadow-md transition-shadow duration-200 cursor-pointer ${isExpanded ? 'ring-2 ring-blue-300' : ''}`}
+                            onClick={() => setExpandedPromptId(isExpanded ? null : item._id)}
+                          >
+                            <div className="mb-2 text-base font-semibold text-gray-800">{item.name}</div>
+                            <div className="mb-2 text-sm text-gray-600">{item.description || 'No description'}</div>
+                            <div className="mb-2 text-sm text-gray-700">
+                              {isExpanded ? (
+                                <>
+                                  {item.internalPrompt}
+                                  <div className="mt-2">
+                                    <button
+                                      className="text-blue-500 hover:underline text-xs focus:outline-none"
+                                      onClick={e => { e.stopPropagation(); setExpandedPromptId(null); }}
+                                    >
+                                      Collapse
+                                    </button>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  {item.internalPrompt.length > 120
+                                    ? item.internalPrompt.slice(0, 120) + '...'
+                                    : item.internalPrompt}
+                                </>
+                              )}
+                            </div>
+                            <div className="mt-auto text-xs text-gray-400 text-right">{new Date(item.createdAt).toLocaleDateString()}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {/* Pagination */}
+                  <div className="flex items-center justify-between px-4 py-3 text-sm text-gray-500">
+                    <div>
+                      Showing {startIndex + 1} - {Math.min(endIndex, filteredItems.length)} of {filteredItems.length}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setCurrentPages(prev => ({
+                          ...prev,
+                          [selectedCategory]: Math.max(1, prev[selectedCategory] - 1)
+                        }))}
+                        disabled={currentPages[selectedCategory] === 1}
+                        className={`p-1 rounded-md ${
+                          currentPages[selectedCategory] === 1 
+                            ? 'text-gray-300 cursor-not-allowed' 
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <span>
+                        Page {currentPages[selectedCategory]} of {totalPages}
+                      </span>
+                      <button
+                        onClick={() => setCurrentPages(prev => ({
+                          ...prev,
+                          [selectedCategory]: Math.min(totalPages, prev[selectedCategory] + 1)
+                        }))}
+                        disabled={currentPages[selectedCategory] === totalPages}
+                        className={`p-1 rounded-md ${
+                          currentPages[selectedCategory] === totalPages 
+                            ? 'text-gray-300 cursor-not-allowed' 
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : selectedCategory === 'Retainer Templates' ? (
+                <>
+                  <div className="p-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-6">
+                      {currentItems.map((item) => (
+                        <div
+                          key={item._id}
+                          className="bg-white rounded-lg shadow border border-gray-200 p-5 flex flex-col justify-between hover:shadow-md transition-shadow duration-200"
+                        >
+                          <div className="mb-2 text-base font-semibold text-gray-800">{item.template_name}</div>
+                          <div className="mb-2 text-sm text-gray-600">{item.company_id?.company_name || 'No company'}</div>
+                          <div className="flex items-center justify-between mt-2">
+                            <div className="text-xs text-gray-400">{new Date(item.createdAt).toLocaleDateString()}</div>
+                            <button
+                              className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                              onClick={e => { e.stopPropagation(); window.open(item.pdf_url, '_blank'); }}
+                              disabled={!item.pdf_url}
+                            >
+                              View PDF
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Pagination */}
+                  <div className="flex items-center justify-between px-4 py-3 text-sm text-gray-500">
+                    <div>
+                      Showing {startIndex + 1} - {Math.min(endIndex, filteredItems.length)} of {filteredItems.length}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setCurrentPages(prev => ({
+                          ...prev,
+                          [selectedCategory]: Math.max(1, prev[selectedCategory] - 1)
+                        }))}
+                        disabled={currentPages[selectedCategory] === 1}
+                        className={`p-1 rounded-md ${
+                          currentPages[selectedCategory] === 1 
+                            ? 'text-gray-300 cursor-not-allowed' 
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <span>
+                        Page {currentPages[selectedCategory]} of {totalPages}
+                      </span>
+                      <button
+                        onClick={() => setCurrentPages(prev => ({
+                          ...prev,
+                          [selectedCategory]: Math.min(totalPages, prev[selectedCategory] + 1)
+                        }))}
+                        disabled={currentPages[selectedCategory] === totalPages}
+                        className={`p-1 rounded-md ${
+                          currentPages[selectedCategory] === totalPages 
+                            ? 'text-gray-300 cursor-not-allowed' 
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                currentItems.map((item) => (
+                  <div 
+                    key={item._id} 
+                    className={`grid ${
+                      selectedCategory === 'Process Template' 
+                        ? 'grid-cols-5' 
+                        : selectedCategory === 'Letter Templates'
+                        ? 'grid-cols-4'
+                        : 'grid-cols-4'
+                    } px-6 py-4 hover:bg-gray-50 ${selectedCategory === 'Process Template' ? 'cursor-pointer' : ''}`}
+                    onClick={() => {
+                      if (selectedCategory === 'Process Template') {
+                        handleCategoryClick(item._id);
+                      }
+                    }}
+                  >
+                    {selectedCategory === 'Process Template' ? (
+                      <>
+                        <div className="text-sm text-gray-900">{item.name}</div>
+                        <div className="text-sm text-gray-500">{item.description}</div>
+                        <div>
+                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                            Active
+                          </span>
+                        </div>
+                        <div className="text-sm text-gray-500 flex items-center">
+                          {editingDeadline === item._id ? (
+                            <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="number"
+                                min="0"
+                                className="w-16 px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                value={deadlineValue}
+                                onChange={handleDeadlineChange}
+                                onKeyDown={(e) => handleDeadlineKeyDown(e, item._id)}
+                                autoFocus
+                              />
+                              <button 
+                                className="ml-2 p-1 text-green-600 hover:text-green-800"
+                                onClick={() => saveDeadline(item._id)}
+                              >
+                                ✓
+                              </button>
+                              <button 
+                                className="ml-1 p-1 text-red-600 hover:text-red-800"
+                                onClick={() => setEditingDeadline(null)}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <Clock className="w-4 h-4 mr-1" />
+                              {item.deadline || 0} days
+                              <button 
+                                className="ml-2 text-blue-600 hover:text-blue-800"
+                                onClick={(e) => handleDeadlineEdit(e, item)}
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {`${Math.floor(Math.random() * 5) + 1} cases in use`}
+                        </div>
+                      </>
+                    ) : selectedCategory === 'Letter Templates' ? (
+                      <>
+                        <div className="text-sm text-gray-900">{item.name}</div>
+                        <div className="text-sm text-gray-500">{item.description || "No description"}</div>
+                        <div className="text-sm text-gray-700 mb-4">
+                          {item.internalPrompt.length > 100
+                            ? item.internalPrompt.slice(0, 100) + '...'
+                            : item.internalPrompt}
+                        </div>
+                        <div className="text-sm text-gray-500 text-right">
+                          {new Date(item.createdAt).toLocaleDateString()}
+                        </div>
+                      </>
+                    ) : selectedCategory === 'Master Forms List' ? (
+                      <>
+                        <div className="text-sm font-mono text-gray-900">{item._id.substring(0, 8)}</div>
+                        <div className="text-sm text-gray-900">
+                          {item.form_name}
+                        </div>
+                        <div className="text-sm text-gray-500">{item.description || "No description available"}</div>
+                        <div className="text-sm text-gray-500 text-right">
+                          {new Date(item.createdAt).toLocaleDateString()}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-sm text-gray-900">{item.name}</div>
+                        <div className="text-sm text-gray-500">
+                          {item.required ? (
+                            <span className="flex items-center text-green-600">
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                              Required
+                            </span>
+                          ) : (
+                            <span className="flex items-center text-gray-500">
+                              <XCircle className="w-4 h-4 mr-1" />
+                              Optional
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          <ul className="list-disc pl-4 space-y-1">
+                            {item.validations && item.validations.map((validation, index) => (
+                              <li key={index} className="whitespace-pre-wrap break-words">{validation}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div className="text-sm text-gray-500 text-right">
+                          {new Date(item.createdAt).toLocaleDateString()}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
-          </div>
-        </div>
-
-        {/* Pagination */}
-        <div className="flex items-center justify-between px-4 py-3 text-sm text-gray-500">
-          <div>
-            Showing {startIndex + 1} - {Math.min(endIndex, filteredItems.length)} of {filteredItems.length}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setCurrentPages(prev => ({
-                ...prev,
-                [selectedCategory]: Math.max(1, prev[selectedCategory] - 1)
-              }))}
-              disabled={currentPages[selectedCategory] === 1}
-              className={`p-1 rounded-md ${
-                currentPages[selectedCategory] === 1 
-                  ? 'text-gray-300 cursor-not-allowed' 
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <span>
-              Page {currentPages[selectedCategory]} of {totalPages}
-            </span>
-            <button
-              onClick={() => setCurrentPages(prev => ({
-                ...prev,
-                [selectedCategory]: Math.min(totalPages, prev[selectedCategory] + 1)
-              }))}
-              disabled={currentPages[selectedCategory] === totalPages}
-              className={`p-1 rounded-md ${
-                currentPages[selectedCategory] === totalPages 
-                  ? 'text-gray-300 cursor-not-allowed' 
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
           </div>
         </div>
       </>
