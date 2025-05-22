@@ -27,6 +27,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { createQuery } from '../services/queryService';
 import { getCalApi } from "@calcom/embed-react";
 import RetainerTab from '../components/RetainerTab';
+import FNPayments from './FNPayments';
 
 const getInitials = (name) => {
   return name
@@ -4387,12 +4388,7 @@ const FNCaseDetails = () => {
       {/* Tabs Navigation */}
       <div className="px-6 py-4">
         <div className="flex gap-2">
-          {['Retainers', 'Documents Checklist', 'Questionnaire'].map((tab) => {
-            const isQuestionnaire = tab === 'Questionnaire';
-            const hasUploadedDocuments = caseData?.documentTypes?.some(doc => 
-              doc.status === 'uploaded' || doc.status === 'approved'
-            );
-            const isDisabled = isQuestionnaire && !hasUploadedDocuments;
+          {['Retainers', 'Payments', 'Documents Checklist', 'Questionnaire'].map((tab) => {            const isQuestionnaire = tab === 'Questionnaire';            const hasUploadedDocuments = caseData?.documentTypes?.some(doc =>              doc.status === 'uploaded' || doc.status === 'approved'            );            const isDisabled = isQuestionnaire && !hasUploadedDocuments;
 
             return (
               <div key={tab} className="relative group">
@@ -4441,6 +4437,11 @@ const FNCaseDetails = () => {
                   caseManagerId={caseData?.caseManagerId?._id}
                   applicantId={caseData?.userId?._id}
                 />
+              </div>
+            )}
+            {activeTab === 'payments' && (
+              <div className="bg-white rounded-lg border border-gray-200">
+                <FNPayments />
               </div>
             )}
             {activeTab === 'documents-checklist' && (

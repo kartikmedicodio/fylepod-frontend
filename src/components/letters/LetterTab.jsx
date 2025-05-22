@@ -448,6 +448,33 @@ const LetterTab = ({ managementId }) => {
     }
   };
 
+  const loadSavedLetter = async (letterId) => {
+    try {
+      setLoading(true);
+      setError(null);
+      setShowError(false);
+
+      const response = await api.get(`/letters/${letterId}`);
+      
+      if (response.data.success) {
+        const letter = response.data.data;
+        setCurrentLetterId(letterId);
+        setSelectedTemplate(letter.templateId);
+        setPendingContent(letter.content);
+        setShowTemplateSelection(false);
+        setShowEditor(true);
+      } else {
+        throw new Error('Failed to load letter');
+      }
+    } catch (error) {
+      console.error('Error loading letter:', error);
+      setError('Failed to load letter');
+      setShowError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleNewLetter = () => {
     setShowTemplateSelection(true);
     setShowEditor(false);

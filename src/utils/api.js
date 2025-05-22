@@ -1,7 +1,8 @@
 import axios from 'axios';
-import { getStoredToken, removeStoredToken } from './auth';
+import { getStoredToken } from './auth';
 
 const API_URL = import.meta.env.VITE_API_URL;
+const isDevelopment = import.meta.env.MODE === 'development';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -19,18 +20,16 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 // Response interceptor
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    if (error.response?.status === 401) {
-      removeStoredToken();
-      window.location.href = '/login';
+  (error) => {
+    // Only log errors in development
+    if (isDevelopment && error.response?.status !== 404) {
+      console.error('API Error:', error.message);
     }
     return Promise.reject(error);
   }

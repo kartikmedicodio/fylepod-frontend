@@ -31,6 +31,7 @@ import Queries from './pages/Queries';
 import AiQueries from './pages/AiQueries';
 import { useEffect } from 'react';
 import { removeStoredToken, removeStoredUser } from './utils/auth';
+import FNPayments from './pages/FNPayments';
 
 // Update HomeRedirect component to redirect to dashboard
 const HomeRedirect = () => {
@@ -117,6 +118,9 @@ const App = () => {
                           {/* Knowledge Base Routes */}
                           <Route path="/knowledge" element={<KnowledgeBase />} />
                           <Route path="/knowledge/checklist/:id" element={<DocumentChecklist />} />
+                          
+                          {/* Add this new route inside the PrivateRoute section */}
+                          <Route path="/fn-payments" element={<FNPayments />} />
                         </Routes>
                       </Layout>
                     </PrivateRoute>

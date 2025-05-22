@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { PDFDocument, PageSizes } from 'pdf-lib';
 import { Loader2, Download, FileText, Check, AlertCircle, Mail, Plus, GripVertical } from 'lucide-react';
 import {
@@ -329,17 +329,57 @@ const DocumentsArchiveTab = ({ managementId }) => {
       }
 
       const mergedPdfBytes = await mergedPdf.save();
-      const blob = new Blob([mergedPdfBytes], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `combined_documents_${new Date().toISOString().split('T')[0]}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      
+      // Create form data with the PDF and metadata
+      const formData = new FormData();
+      formData.append('pdf', new Blob([mergedPdfBytes], { type: 'application/pdf' }), 'combined.pdf');
+      formData.append('name', `Combined Documents ${new Date().toISOString().split('T')[0]}`);
+      formData.append('managementId', managementId);
+      formData.append('documents', JSON.stringify(selectedItems.filter(item => item.type === 'document').map(item => item.id)));
+      formData.append('letters', JSON.stringify(selectedItems.filter(item => item.type === 'letter').map(item => item.id)));
+      formData.append('blankPages', JSON.stringify(selectedItems.map((item, index) => item.type === 'blank' ? index : null).filter(index => index !== null)));
 
-      toast.success('Documents combined successfully');
+      // Upload to backend
+      const response = await api.post('/combined-pdfs', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      if (response.data.status === 'success') {
+        toast.success('Documents combined successfully');
+        
+        // Get the blob URL from the response
+        const blobUrl = response.data.data.combinedPdf.blobUrl;
+        
+        try {
+          // Fetch the PDF content
+          const pdfResponse = await fetch(blobUrl);
+          if (!pdfResponse.ok) throw new Error('Failed to download PDF');
+          
+          const blob = await pdfResponse.blob();
+          
+          // Create a download link
+          const downloadUrl = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = downloadUrl;
+          link.download = `Combined_Documents_${new Date().toISOString().split('T')[0]}.pdf`;
+          
+          // Trigger download
+          document.body.appendChild(link);
+          link.click();
+          
+          // Cleanup
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(downloadUrl);
+        } catch (downloadError) {
+          console.error('Error downloading PDF:', downloadError);
+          toast.error('Failed to download the combined PDF');
+          
+          // Fallback to opening in new tab
+          window.open(blobUrl, '_blank');
+        }
+      }
     } catch (error) {
       console.error('Error generating combined PDF:', error);
       toast.error('Failed to combine documents');
