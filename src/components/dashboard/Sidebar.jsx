@@ -317,117 +317,174 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
         {showNewButton && (
           <div className="px-4 mt-2 relative" ref={newMenuRef}>
             <button 
-              className={`flex items-center justify-center w-full space-x-2 rounded-lg bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors duration-200 
-                ${collapsed ? 'px-2' : 'px-6'}`}
+              className={`flex items-center justify-center w-full space-x-2 rounded-lg 
+                bg-blue-600 hover:bg-blue-700 py-2.5 text-sm font-medium text-white
+                shadow-sm hover:shadow-md transition-all duration-200
+                ${collapsed ? 'px-2' : 'px-4'}`}
               onClick={() => {
                 setShowNewMenu(!showNewMenu);
-                // Clear any existing timeout
                 if (menuTimeoutRef.current) {
                   clearTimeout(menuTimeoutRef.current);
                   menuTimeoutRef.current = null;
                 }
               }}
-              onMouseEnter={() => {
-                // Only clear timeout on hover, don't open menu automatically
-                handleMenuMouseEnter();
-              }}
+              onMouseEnter={handleMenuMouseEnter}
               onMouseLeave={handleMenuMouseLeave}
             >
               <PlusCircle className="h-4 w-4" />
-              {!collapsed && <span>New</span>}
+              {!collapsed && (
+                <span>New</span>
+              )}
             </button>
 
             {showNewMenu && (
               <div 
-                className="absolute left-full ml-2 top-0 w-48 rounded-lg bg-white shadow-lg border border-gray-200 py-1 z-50"
+                className="absolute left-full ml-2 top-0 w-72 rounded-xl bg-white shadow-xl border border-gray-100 
+                         transform transition-all duration-200 z-50 p-2"
                 onMouseEnter={handleMenuMouseEnter}
                 onMouseLeave={handleMenuMouseLeave}
               >
-                <div 
-                  className="relative"
-                  onMouseEnter={handleMenuMouseEnter}
-                  onMouseLeave={handleMenuMouseLeave}
+                {/* New Customer Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowCustomerSubmenu(!showCustomerSubmenu);
+                  }}
+                  className="w-full flex items-start gap-3 p-3 hover:bg-blue-50 rounded-lg 
+                           transition-colors duration-150 group text-left mb-1"
                 >
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowCustomerSubmenu(!showCustomerSubmenu);
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center justify-between"
+                  <div className="flex-shrink-0 w-10 h-10 bg-blue-100 group-hover:bg-blue-200 
+                               rounded-lg flex items-center justify-center">
+                    <User className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900 group-hover:text-blue-600 
+                                 transition-colors duration-150">
+                      New Customer
+                    </div>
+                    <div className="text-sm text-gray-500">Add individual or company</div>
+                  </div>
+                  <div className="ml-auto self-center opacity-0 group-hover:opacity-100 
+                               transition-opacity duration-150">
+                    <ChevronRight className="w-5 h-5 text-blue-600" />
+                  </div>
+                </button>
+
+                {showCustomerSubmenu && (
+                  <div 
+                    ref={customerSubmenuRef}
+                    className="absolute left-full top-0 ml-1 w-72 rounded-xl bg-white shadow-xl 
+                             border border-gray-100 p-2 z-50"
                     onMouseEnter={handleMenuMouseEnter}
                     onMouseLeave={handleMenuMouseLeave}
                   >
-                    <div className="flex items-center space-x-2">
-                      <User className="h-4 w-4" />
-                      <span>New Customer</span>
-                    </div>
-                    <ChevronRightIcon className="h-4 w-4" />
-                  </button>
-                  
-                  {showCustomerSubmenu && (
-                    <div 
-                      ref={customerSubmenuRef}
-                      className="absolute left-full top-0 ml-1 w-48 rounded-lg bg-white shadow-lg border border-gray-200 py-1 z-50"
-                      onMouseEnter={handleMenuMouseEnter}
-                      onMouseLeave={handleMenuMouseLeave}
+                    {/* Company Button */}
+                    <button
+                      onClick={() => {
+                        navigate('/company/new');
+                        setShowNewMenu(false);
+                        setShowCustomerSubmenu(false);
+                      }}
+                      className="w-full flex items-start gap-3 p-3 hover:bg-blue-50 rounded-lg 
+                               transition-colors duration-150 group text-left mb-1"
                     >
-                      <button
-                        onClick={() => {
-                          console.log('Navigating to New Company page...');
-                          navigate('/company/new');
-                          setShowNewMenu(false);
-                          setShowCustomerSubmenu(false);
-                        }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
-                        onMouseEnter={handleMenuMouseEnter}
-                        onMouseLeave={handleMenuMouseLeave}
-                      >
-                        <Building className="h-4 w-4" />
-                        <span>New Company</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          console.log('Navigating to New Employee page...');
-                          navigate('/employee/new');
-                          setShowNewMenu(false);
-                          setShowCustomerSubmenu(false);
-                        }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
-                        onMouseEnter={handleMenuMouseEnter}
-                        onMouseLeave={handleMenuMouseLeave}
-                      >
-                        <Briefcase className="h-4 w-4" />
-                        <span>New Employee</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          console.log('Navigating to New Individual page...');
-                          navigate('/individual/new');
-                          setShowNewMenu(false);
-                          setShowCustomerSubmenu(false);
-                        }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
-                        onMouseEnter={handleMenuMouseEnter}
-                        onMouseLeave={handleMenuMouseLeave}
-                      >
-                        <UserPlus className="h-4 w-4" />
-                        <span>New Individual</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-                
+                      <div className="flex-shrink-0 w-10 h-10 bg-blue-100 group-hover:bg-blue-200 
+                                   rounded-lg flex items-center justify-center">
+                        <Building className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 group-hover:text-blue-600 
+                                     transition-colors duration-150">
+                          New Company
+                        </div>
+                        <div className="text-sm text-gray-500">Add a corporate client</div>
+                      </div>
+                      <div className="ml-auto self-center opacity-0 group-hover:opacity-100 
+                                   transition-opacity duration-150">
+                        <ChevronRight className="w-5 h-5 text-blue-600" />
+                      </div>
+                    </button>
+
+                    {/* Employee Button */}
+                    <button
+                      onClick={() => {
+                        navigate('/employee/new');
+                        setShowNewMenu(false);
+                        setShowCustomerSubmenu(false);
+                      }}
+                      className="w-full flex items-start gap-3 p-3 hover:bg-blue-50 rounded-lg 
+                               transition-colors duration-150 group text-left mb-1"
+                    >
+                      <div className="flex-shrink-0 w-10 h-10 bg-blue-100 group-hover:bg-blue-200 
+                                   rounded-lg flex items-center justify-center">
+                        <Briefcase className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 group-hover:text-blue-600 
+                                     transition-colors duration-150">
+                          New Employee
+                        </div>
+                        <div className="text-sm text-gray-500">Add a company employee</div>
+                      </div>
+                      <div className="ml-auto self-center opacity-0 group-hover:opacity-100 
+                                   transition-opacity duration-150">
+                        <ChevronRight className="w-5 h-5 text-blue-600" />
+                      </div>
+                    </button>
+
+                    {/* Individual Button */}
+                    <button
+                      onClick={() => {
+                        navigate('/individual/new');
+                        setShowNewMenu(false);
+                        setShowCustomerSubmenu(false);
+                      }}
+                      className="w-full flex items-start gap-3 p-3 hover:bg-blue-50 rounded-lg 
+                               transition-colors duration-150 group text-left"
+                    >
+                      <div className="flex-shrink-0 w-10 h-10 bg-blue-100 group-hover:bg-blue-200 
+                                   rounded-lg flex items-center justify-center">
+                        <UserPlus className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 group-hover:text-blue-600 
+                                     transition-colors duration-150">
+                          New Individual
+                        </div>
+                        <div className="text-sm text-gray-500">Add an individual client</div>
+                      </div>
+                      <div className="ml-auto self-center opacity-0 group-hover:opacity-100 
+                                   transition-opacity duration-150">
+                        <ChevronRight className="w-5 h-5 text-blue-600" />
+                      </div>
+                    </button>
+                  </div>
+                )}
+
+                {/* New Case Button */}
                 <button
                   onClick={() => {
                     navigate('/cases/new');
                     setShowNewMenu(false);
                   }}
-                  className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
-                  onMouseEnter={handleMenuMouseEnter}
-                  onMouseLeave={handleMenuMouseLeave}
+                  className="w-full flex items-start gap-3 p-3 hover:bg-blue-50 rounded-lg 
+                           transition-colors duration-150 group text-left"
                 >
-                  <BriefcaseBusiness className="h-4 w-4" />
-                  <span>New Case</span>
+                  <div className="flex-shrink-0 w-10 h-10 bg-blue-100 group-hover:bg-blue-200 
+                               rounded-lg flex items-center justify-center">
+                    <BriefcaseBusiness className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900 group-hover:text-blue-600 
+                                 transition-colors duration-150">
+                      New Case
+                    </div>
+                    <div className="text-sm text-gray-500">Create a new case file</div>
+                  </div>
+                  <div className="ml-auto self-center opacity-0 group-hover:opacity-100 
+                               transition-opacity duration-150">
+                    <ChevronRight className="w-5 h-5 text-blue-600" />
+                  </div>
                 </button>
               </div>
             )}
