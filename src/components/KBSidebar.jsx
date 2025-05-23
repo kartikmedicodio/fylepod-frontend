@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
+import { FileText, ClipboardList, File } from 'lucide-react';
 
 const Sidebar = ({ onCategorySelect }) => {
   const navigate = useNavigate();
@@ -10,17 +11,32 @@ const Sidebar = ({ onCategorySelect }) => {
     {
       id: 'pt',
       name: 'Process Template',
-      category: 'Process Template'
+      category: 'Process Template',
+      icon: FileText
     },
     {
       id: 'mdl',
       name: 'Master Document List',
-      category: 'Master Document List'
+      category: 'Master Document List',
+      icon: ClipboardList
     },
     {
       id: 'mfl',
       name: 'Master Forms List',
-      category: 'Master Forms List'
+      category: 'Master Forms List',
+      icon: File
+    },
+    {
+      id: 'lt',
+      name: 'Letter Prompts',
+      category: 'Letter Templates',
+      icon: FileText
+    },
+    {
+      id: 'rt',
+      name: 'Retainer Templates',
+      category: 'Retainer Templates',
+      icon: FileText
     }
   ];
 
