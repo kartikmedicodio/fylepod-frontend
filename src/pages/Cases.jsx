@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../utils/api';
-import { ChevronLeft, ChevronRight, Search, SlidersHorizontal } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, CirclePlus, Briefcase, Calendar, User, FileText, AlertCircle, X } from 'lucide-react';
 import CaseDetails from './CaseDetails';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getStoredUser } from '../utils/auth';
@@ -11,21 +11,23 @@ import { ChevronUpDownIcon } from '@heroicons/react/20/solid';
 
 // Components
 const SearchBar = ({ value, onChange, isSearching }) => (
-  <div className="flex-1 relative">
-    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-      <Search className="h-5 w-5 text-gray-400" />
+  <div className="relative group flex-1 max-w-md">
+    <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+      <Search size={20} className="text-gray-400 group-focus-within:text-indigo-500 transition-colors" />
     </div>
     <input
       type="text"
       placeholder="Search by Case ID or Individual Name"
       value={value}
       onChange={onChange}
-      className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+      className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm
+               focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100
+               transition-all duration-200"
       aria-label="Search cases"
     />
     {isSearching && (
       <div className="absolute right-3 top-1/2 -translate-y-1/2">
-        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>
       </div>
     )}
   </div>
@@ -166,7 +168,7 @@ const FiltersDropdown = ({
   handleApplyFilters, 
   clearAllFilters 
 }) => (
-  <div className="absolute right-0 top-12 w-64 bg-white rounded-lg shadow-lg border border-gray-200 p-4 z-10">
+  <div className="absolute right-0 top-12 w-64 bg-white rounded-xl shadow-lg border border-gray-200 p-4 z-10">
     <div className="space-y-4">
       {/* Status Filter */}
       <div>
@@ -176,21 +178,21 @@ const FiltersDropdown = ({
           onChange={value => handleFilterChange('status', value)}
         >
           <div className="relative">
-            <Listbox.Button className="w-full rounded-md border border-gray-300 py-2 px-3 text-sm text-left flex justify-between items-center">
+            <Listbox.Button className="w-full rounded-lg border border-gray-300 py-2 px-3 text-sm text-left flex justify-between items-center">
               <span>
                 {filterOptions.status.find(o => o.value === tempFilters.status)?.label || 'Select...'}
               </span>
               <ChevronUpDownIcon className="w-4 h-4 text-gray-400 ml-2" />
             </Listbox.Button>
-            <Listbox.Options className="absolute mt-1 w-full bg-white shadow-lg rounded-md z-10">
+            <Listbox.Options className="absolute mt-1 w-full bg-white shadow-lg rounded-lg z-10">
               {filterOptions.status.map((option) => (
                 <Listbox.Option
                   key={option.value}
                   value={option.value}
                   className={({ active, selected }) =>
                     `cursor-pointer select-none relative py-2 px-3
-                    ${selected ? 'bg-blue-600 text-white' : ''}
-                    ${active && !selected ? 'bg-blue-100' : ''}`
+                    ${selected ? 'bg-indigo-600 text-white' : ''}
+                    ${active && !selected ? 'bg-indigo-50' : ''}`
                   }
                 >
                   {option.label}
@@ -209,21 +211,21 @@ const FiltersDropdown = ({
           onChange={value => handleFilterChange('documentStatus', value)}
         >
           <div className="relative">
-            <Listbox.Button className="w-full rounded-md border border-gray-300 py-2 px-3 text-sm text-left flex justify-between items-center">
+            <Listbox.Button className="w-full rounded-lg border border-gray-300 py-2 px-3 text-sm text-left flex justify-between items-center">
               <span>
                 {filterOptions.documentStatus.find(o => o.value === tempFilters.documentStatus)?.label || 'Select...'}
               </span>
               <ChevronUpDownIcon className="w-4 h-4 text-gray-400 ml-2" />
             </Listbox.Button>
-            <Listbox.Options className="absolute mt-1 w-full bg-white shadow-lg rounded-md z-10">
+            <Listbox.Options className="absolute mt-1 w-full bg-white shadow-lg rounded-lg z-10">
               {filterOptions.documentStatus.map((option) => (
                 <Listbox.Option
                   key={option.value}
                   value={option.value}
                   className={({ active, selected }) =>
                     `cursor-pointer select-none relative py-2 px-3
-                    ${selected ? 'bg-blue-600 text-white' : ''}
-                    ${active && !selected ? 'bg-blue-100' : ''}`
+                    ${selected ? 'bg-indigo-600 text-white' : ''}
+                    ${active && !selected ? 'bg-indigo-50' : ''}`
                   }
                 >
                   {option.label}
@@ -242,21 +244,21 @@ const FiltersDropdown = ({
           onChange={value => handleFilterChange('deadline', value)}
         >
           <div className="relative">
-            <Listbox.Button className="w-full rounded-md border border-gray-300 py-2 px-3 text-sm text-left flex justify-between items-center">
+            <Listbox.Button className="w-full rounded-lg border border-gray-300 py-2 px-3 text-sm text-left flex justify-between items-center">
               <span>
                 {filterOptions.deadline.find(o => o.value === tempFilters.deadline)?.label || 'Select...'}
               </span>
               <ChevronUpDownIcon className="w-4 h-4 text-gray-400 ml-2" />
             </Listbox.Button>
-            <Listbox.Options className="absolute mt-1 w-full bg-white shadow-lg rounded-md z-10">
+            <Listbox.Options className="absolute mt-1 w-full bg-white shadow-lg rounded-lg z-10">
               {filterOptions.deadline.map((option) => (
                 <Listbox.Option
                   key={option.value}
                   value={option.value}
                   className={({ active, selected }) =>
                     `cursor-pointer select-none relative py-2 px-3
-                    ${selected ? 'bg-blue-600 text-white' : ''}
-                    ${active && !selected ? 'bg-blue-100' : ''}`
+                    ${selected ? 'bg-indigo-600 text-white' : ''}
+                    ${active && !selected ? 'bg-indigo-50' : ''}`
                   }
                 >
                   {option.label}
@@ -277,7 +279,7 @@ const FiltersDropdown = ({
         </button>
         <button
           onClick={handleApplyFilters}
-          className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+          className="px-4 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors"
         >
           Apply Filters
         </button>
@@ -670,50 +672,65 @@ const Cases = () => {
     <motion.div 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="p-6"
+      className="p-6 max-w-[1400px] mx-auto"
     >
-      {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-gray-900">Cases</h1>
+      {/* Enhanced Header Section */}
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-2">
+          <Briefcase className="w-8 h-8 text-indigo-600" />
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+            Cases
+          </h1>
+        </div>
+        <p className="text-gray-600">Manage and track all cases in your law firm</p>
+      </div>
+
+      {/* Enhanced Search and Actions Bar */}
+      <div className="flex items-center justify-between mb-6 gap-4">
+        <div className="flex items-center gap-3 flex-1">
+          <SearchBar value={searchTerm} onChange={handleSearch} isSearching={searching} />
+          
+          <div className="relative">
+            <button 
+              onClick={() => setShowFilters(!showFilters)}
+              className={`px-4 py-2.5 text-sm bg-white rounded-xl border transition-colors flex items-center gap-2 ${
+                Object.values(filters).some(v => v) 
+                  ? 'border-indigo-500 text-indigo-600 hover:bg-indigo-50' 
+                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              Filters
+              {Object.values(filters).some(v => v) && (
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-xs font-medium text-indigo-600">
+                  {Object.values(filters).filter(v => v).length}
+                </span>
+              )}
+            </button>
+            {showFilters && (
+              <FiltersDropdown
+                tempFilters={tempFilters}
+                filterOptions={filterOptions}
+                handleFilterChange={handleFilterChange}
+                handleApplyFilters={handleApplyFilters}
+                clearAllFilters={clearAllFilters}
+              />
+            )}
+          </div>
+        </div>
+
         <button 
           onClick={() => navigate('/cases/new')}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm
+                    hover:bg-indigo-700 transition-colors duration-200 focus:outline-none focus:ring-2 
+                    focus:ring-indigo-500 focus:ring-offset-2 shadow-sm"
         >
-          <span>+</span>
+          <CirclePlus size={18} />
           New Case
         </button>
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex items-center gap-4 mb-6">
-        <SearchBar value={searchTerm} onChange={handleSearch} isSearching={searching} />
-        
-        <div className="relative">
-          <button 
-            onClick={() => setShowFilters(!showFilters)}
-            className={`px-4 py-2 text-sm bg-white rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors flex items-center gap-2 ${
-              Object.values(filters).some(v => v) ? 'border-blue-500 text-blue-600' : ''
-            }`}
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-            Filters
-            {Object.values(filters).some(v => v) && (
-              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-            )}
-          </button>
-          {showFilters && (
-            <FiltersDropdown
-              tempFilters={tempFilters}
-              filterOptions={filterOptions}
-              handleFilterChange={handleFilterChange}
-              handleApplyFilters={handleApplyFilters}
-              clearAllFilters={clearAllFilters}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Table with integrated pagination */}
+      {/* Enhanced Table Section */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -723,14 +740,13 @@ const Cases = () => {
           <table className="min-w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                {[
-                  'Case Id', 'Individual Name', 'Case Manager', 'Process Name',
-                  'Deadline', 'Status', 'Documents Pending'
-                ].map((header) => (
-                  <th key={header} className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">
-                    {header}
-                  </th>
-                ))}
+                <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Case ID</th>
+                <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Individual Name</th>
+                <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Case Manager</th>
+                <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Process Name</th>
+                <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Deadline</th>
+                <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
+                <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Documents Pending</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -739,64 +755,89 @@ const Cases = () => {
                   <tr>
                     <td colSpan="7" className="px-6 py-8 text-center">
                       <div className="flex flex-col items-center justify-center space-y-2">
-                        <p className="text-gray-500 text-sm font-medium">No cases found</p>
-                        <p className="text-gray-400 text-sm">Try adjusting your search criteria</p>
+                        <AlertCircle className="h-12 w-12 text-gray-400" />
+                        <p className="text-gray-900 font-medium">No cases found</p>
+                        <p className="text-gray-500 text-sm">Try adjusting your search criteria</p>
                       </div>
                     </td>
                   </tr>
                 ) : (
-                  displayCases.map((caseItem) => {
-                    // Format deadline for this case
-                    const formattedDeadline = caseItem.deadline 
-                      ? new Date(caseItem.deadline).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric'
-                        })
-                      : '-';
-                      
-                    return (
-                      <motion.tr
-                        key={caseItem._id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="hover:bg-blue-50/50 cursor-pointer transition-colors duration-200"
-                        onClick={() => handleCaseClick(caseItem)}
-                      >
-                        <td className="px-6 py-4 text-sm text-gray-900">
-                          {caseItem._id?.substring(0, 6)}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{caseItem.userName}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{caseItem.createdBy?.name}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{caseItem.categoryName}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{formattedDeadline}</td>
-                        <td className="px-6 py-4">
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                            caseItem.categoryStatus === 'completed' 
-                              ? 'bg-green-50 text-green-700 ring-1 ring-green-600/20'
-                              : caseItem.categoryStatus === 'Reviewed'
-                                ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-600/20'
-                                : 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-600/20'
-                          }`}>
-                            {caseItem.categoryStatus}
+                  displayCases.map((caseItem) => (
+                    <motion.tr
+                      key={caseItem._id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="hover:bg-indigo-50/50 cursor-pointer transition-colors duration-200"
+                      onClick={() => handleCaseClick(caseItem)}
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <Briefcase className="w-5 h-5 text-gray-400" />
+                          <span className="text-sm font-medium text-gray-900">
+                            {caseItem._id?.substring(0, 6)}
                           </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">
-                          {caseItem.documentTypes ? (
-                            <span>
-                              {(() => {
-                                const pendingCount = caseItem.documentTypes.filter(doc => 
-                                  doc.status === 'pending'
-                                ).length;
-                                return pendingCount === 0 ? '0' : pendingCount;
-                              })()}
-                            </span>
-                          ) : '-'}
-                        </td>
-                      </motion.tr>
-                    );
-                  })
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm text-gray-600">{caseItem.userName}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-gray-600">{caseItem.createdBy?.name}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm text-gray-600">{caseItem.categoryName}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm text-gray-600">
+                            {caseItem.deadline 
+                              ? new Date(caseItem.deadline).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric'
+                                })
+                              : '-'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                          caseItem.categoryStatus === 'completed' 
+                            ? 'bg-green-50 text-green-700 ring-1 ring-green-600/20'
+                            : caseItem.categoryStatus === 'Reviewed'
+                              ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-600/20'
+                              : 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-600/20'
+                        }`}>
+                          {caseItem.categoryStatus}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-600">
+                            {caseItem.documentTypes ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                           bg-indigo-100 text-indigo-800">
+                                {(() => {
+                                  const pendingCount = caseItem.documentTypes.filter(doc => 
+                                    doc.status === 'pending'
+                                  ).length;
+                                  return pendingCount === 0 ? '0' : pendingCount;
+                                })()}
+                              </span>
+                            ) : '-'}
+                          </span>
+                        </div>
+                      </td>
+                    </motion.tr>
+                  ))
                 )}
               </AnimatePresence>
             </tbody>
@@ -805,31 +846,40 @@ const Cases = () => {
 
         {/* Enhanced Pagination */}
         {pagination && pagination.total > 0 && (
-          <div className="px-6 py-3 border-t border-gray-100 flex justify-between items-center bg-gray-50/80 backdrop-blur-sm">
-            <span className="text-sm text-gray-600">
-              Showing <span className="font-medium text-gray-900">{(currentPage - 1) * pagination.limit + 1}</span>
-              {' '}-{' '}
-              <span className="font-medium text-gray-900">{Math.min(currentPage * pagination.limit, pagination.total)}</span>
-              {' '}of{' '}
-              <span className="font-medium text-gray-900">{pagination.total}</span>
+          <div className="px-6 py-4 border-t border-gray-100 bg-white flex justify-between items-center">
+            <span className="text-sm text-gray-700">
+              Showing <span className="font-medium">{(currentPage - 1) * pagination.limit + 1}</span> to{' '}
+              <span className="font-medium">{Math.min(currentPage * pagination.limit, pagination.total)}</span> of{' '}
+              <span className="font-medium">{pagination.total}</span> cases
             </span>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={currentPage === 1}
                 className={`p-2 rounded-lg border transition-all duration-200 
                   ${currentPage === 1
                     ? 'text-gray-300 border-gray-200 cursor-not-allowed'
-                    : 'text-gray-600 border-gray-200 hover:bg-white hover:border-gray-300 hover:shadow-sm active:transform active:scale-95'
-                  }`}
+                    : 'text-gray-600 border-gray-200 hover:bg-gray-100 active:transform active:scale-95'}`}
               >
                 <ChevronLeft size={18} />
               </button>
 
-              <span className="text-sm font-medium text-gray-900">
-                Page {currentPage} of {pagination.totalPages}
-              </span>
+              {/* Page Numbers */}
+              <div className="flex items-center gap-1">
+                {[...Array(Math.min(5, pagination.totalPages))].map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handlePageChange(idx + 1)}
+                    className={`px-3 py-1 rounded-md text-sm font-medium transition-colors duration-200
+                      ${currentPage === idx + 1
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-gray-600 hover:bg-gray-100'}`}
+                  >
+                    {idx + 1}
+                  </button>
+                ))}
+              </div>
 
               <button
                 onClick={() => handlePageChange(currentPage + 1)}
@@ -837,8 +887,7 @@ const Cases = () => {
                 className={`p-2 rounded-lg border transition-all duration-200 
                   ${currentPage === pagination.totalPages
                     ? 'text-gray-300 border-gray-200 cursor-not-allowed'
-                    : 'text-gray-600 border-gray-200 hover:bg-white hover:border-gray-300 hover:shadow-sm active:transform active:scale-95'
-                  }`}
+                    : 'text-gray-600 border-gray-200 hover:bg-gray-100 active:transform active:scale-95'}`}
               >
                 <ChevronRight size={18} />
               </button>

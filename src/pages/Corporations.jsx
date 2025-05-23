@@ -1,12 +1,25 @@
 import { useState, useEffect, useRef } from 'react';
 import corporationService from '../services/corporationService';
 import { getStoredUser } from '../utils/auth';
-import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, CirclePlus } from 'lucide-react';
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  Search, 
+  SlidersHorizontal, 
+  CirclePlus,
+  Building2,
+  Users,
+  Phone,
+  Mail,
+  AlertCircle,
+  X
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import { Listbox } from '@headlessui/react';
 import { ChevronUpDownIcon } from '@heroicons/react/20/solid';
+import { toast } from 'react-hot-toast';
 
 const CorporationsSkeleton = () => (
   <div className="p-4">
@@ -59,6 +72,11 @@ const Corporations = () => {
   const navigate = useNavigate();
   const filterRef = useRef(null);
   const { setCurrentBreadcrumb } = useBreadcrumb();
+
+  // Add new states for enhanced features
+  const [selectedCorporation, setSelectedCorporation] = useState(null);
+  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
   useEffect(() => {
     setCurrentBreadcrumb([
@@ -201,6 +219,40 @@ const Corporations = () => {
     navigate(`/corporations/${corporationId}`);
   };
 
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortedCorporations = () => {
+    let sorted = getFilteredAndSortedCorporations();
+    if (sortConfig.key) {
+      sorted.sort((a, b) => {
+        if (sortConfig.key === 'employees') {
+          const aValue = Array.isArray(a.user_id) ? a.user_id.length : 0;
+          const bValue = Array.isArray(b.user_id) ? b.user_id.length : 0;
+          return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
+        }
+        
+        const aValue = a[sortConfig.key] || '';
+        const bValue = b[sortConfig.key] || '';
+        return sortConfig.direction === 'asc' 
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      });
+    }
+    return sorted;
+  };
+
+  const handleQuickView = (corp, e) => {
+    e.stopPropagation();
+    setSelectedCorporation(corp);
+    setIsQuickViewOpen(true);
+  };
+
   if (loading) {
     return <CorporationsSkeleton />;
   }
@@ -217,45 +269,53 @@ const Corporations = () => {
     <motion.div 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="p-4"
+      className="p-6 max-w-[1400px] mx-auto"
     >
-      {/* Header Section - Updated styling */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
-          Corporation
-        </h1>
+      {/* Enhanced Header Section */}
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-2">
+          <Building2 className="w-8 h-8 text-indigo-600" />
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+            Corporations
+          </h1>
+        </div>
+        <p className="text-gray-600">Manage and view all corporations in your law firm</p>
       </div>
       
-      {/* Search and Actions Bar - Enhanced styling */}
-      <div className="flex items-center justify-between mb-6">
+      {/* Enhanced Search and Actions Bar */}
+      <div className="flex items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-3 flex-1">
-          <div className="relative group">
+          <div className="relative group flex-1 max-w-md">
             <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-              <Search size={20} className="text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+              <Search size={20} className="text-gray-400 group-focus-within:text-indigo-500 transition-colors" />
             </div>
             <input
               type="text"
-              placeholder="Search corporations..."
-              className="w-[400px] pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm
-                       focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100
+              placeholder="Search by name, contact, or ID..."
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm
+                       focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100
                        transition-all duration-200"
               value={searchQuery}
               onChange={handleSearch}
             />
           </div>
 
-          {/* Enhanced Filter Button */}
           <div className="relative" ref={filterRef}>
             <button 
               onClick={() => setShowFilters(!showFilters)}
-              className={`px-4 py-2.5 border rounded-xl bg-gray-50 flex items-center gap-2 transition-all duration-200 ${
+              className={`px-4 py-2.5 border rounded-xl flex items-center gap-2 transition-all duration-200 ${
                 employeeFilter !== 'all'
-                  ? 'bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100'
-                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-100'
+                  ? 'bg-indigo-50 border-indigo-200 text-indigo-600 hover:bg-indigo-100'
+                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
               }`}
             >
               <SlidersHorizontal size={16} />
               <span>Filter</span>
+              {employeeFilter !== 'all' && (
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-xs font-medium text-indigo-600">
+                  1
+                </span>
+              )}
             </button>
 
             <AnimatePresence>
@@ -264,7 +324,7 @@ const Corporations = () => {
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="absolute top-full mt-2 left-0 w-56 bg-white border rounded-xl shadow-lg z-10 py-2
+                  className="absolute top-full mt-2 right-0 w-64 bg-white border rounded-xl shadow-lg z-10 py-2
                            backdrop-blur-sm bg-white/95"
                 >
                   <div className="px-3 py-2">
@@ -336,12 +396,11 @@ const Corporations = () => {
           </div>
         </div>
 
-        {/* Enhanced Add New Button */}
         <button 
           onClick={() => navigate('/company/new')}
           className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm
                     hover:bg-indigo-700 transition-colors duration-200 focus:outline-none focus:ring-2 
-                    focus:ring-indigo-500 focus:ring-offset-2"
+                    focus:ring-indigo-500 focus:ring-offset-2 shadow-sm"
         >
           <CirclePlus size={18} />
           Add new Corporation
@@ -357,57 +416,134 @@ const Corporations = () => {
         <table className="w-full">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Corporation ID</th>
-              <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Corporation name</th>
-              <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Contact Name</th>
-              <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">No. of Employees</th>
+              <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('_id')}>
+                <div className="flex items-center gap-2">
+                  Corporation ID
+                  {sortConfig.key === '_id' && (
+                    <ChevronUpDownIcon className={`w-4 h-4 ${sortConfig.direction === 'asc' ? 'transform rotate-180' : ''}`} />
+                  )}
+                </div>
+              </th>
+              <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('company_name')}>
+                <div className="flex items-center gap-2">
+                  Corporation name
+                  {sortConfig.key === 'company_name' && (
+                    <ChevronUpDownIcon className={`w-4 h-4 ${sortConfig.direction === 'asc' ? 'transform rotate-180' : ''}`} />
+                  )}
+                </div>
+              </th>
+              <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Contact Info</th>
+              <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('employees')}>
+                <div className="flex items-center gap-2">
+                  Employees
+                  {sortConfig.key === 'employees' && (
+                    <ChevronUpDownIcon className={`w-4 h-4 ${sortConfig.direction === 'asc' ? 'transform rotate-180' : ''}`} />
+                  )}
+                </div>
+              </th>
+              <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {getFilteredAndSortedCorporations()
+            {getSortedCorporations()
               .slice((pagination.currentPage - 1) * pagination.itemsPerPage, pagination.currentPage * pagination.itemsPerPage)
               .map((corp) => (
                 <motion.tr 
                   key={corp._id}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="border-b border-gray-100 hover:bg-blue-50/50 cursor-pointer
+                  className="border-b border-gray-100 hover:bg-indigo-50/50 cursor-pointer
                            transition-colors duration-200" 
                   onClick={() => handleRowClick(corp._id)}
                 >
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{truncateId(corp._id)}</td>
-                  <td className="px-6 py-4 text-sm text-gray-700">{corp.company_name}</td>
-                  <td className="px-6 py-4 text-sm text-gray-700">{corp.contact_name}</td>
-                  <td className="px-6 py-4 text-sm text-gray-700">
-                    {Array.isArray(corp.user_id) ? corp.user_id.length : 0}
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-5 h-5 text-gray-400" />
+                      <span className="text-sm font-medium text-gray-900">{truncateId(corp._id)}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-medium text-gray-900">{corp.company_name}</div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Users size={14} />
+                        <span>{corp.contact_name}</span>
+                      </div>
+                      {corp.contact_email && (
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <Mail size={14} />
+                          <span>{corp.contact_email}</span>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                  bg-indigo-100 text-indigo-800">
+                      {Array.isArray(corp.user_id) ? corp.user_id.length : 0} employees
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <button
+                      onClick={(e) => handleQuickView(corp, e)}
+                      className="text-indigo-600 hover:text-indigo-900 text-sm font-medium"
+                    >
+                      Quick view
+                    </button>
                   </td>
                 </motion.tr>
               ))}
           </tbody>
         </table>
 
-        {/* Enhanced Pagination Section */}
-        <div className="px-6 py-4 border-t border-gray-100 flex justify-between items-center bg-gray-50">
-          <span className="text-sm text-gray-600">
-            Showing {((pagination.currentPage - 1) * pagination.itemsPerPage) + 1} - {Math.min(pagination.currentPage * pagination.itemsPerPage, getFilteredAndSortedCorporations().length)} of {getFilteredAndSortedCorporations().length}
+        {/* Enhanced Pagination */}
+        <div className="px-6 py-4 border-t border-gray-100 bg-white flex justify-between items-center">
+          <span className="text-sm text-gray-700">
+            Showing <span className="font-medium">{((pagination.currentPage - 1) * pagination.itemsPerPage) + 1}</span> to{' '}
+            <span className="font-medium">{Math.min(pagination.currentPage * pagination.itemsPerPage, getSortedCorporations().length)}</span> of{' '}
+            <span className="font-medium">{getSortedCorporations().length}</span> corporations
           </span>
-          <div className="flex items-center gap-3">
+          
+          <div className="flex items-center gap-2">
             <button
               onClick={() => handlePageChange(pagination.currentPage - 1)}
               disabled={pagination.currentPage === 1}
-              className={`p-2 rounded-lg border transition-all duration-200 ${pagination.currentPage === 1 ? 'text-gray-300 border-gray-200 cursor-not-allowed' : 'text-gray-600 border-gray-200 hover:bg-gray-100 active:transform active:scale-95'}`}
+              className={`p-2 rounded-lg border transition-all duration-200 
+                ${pagination.currentPage === 1 
+                  ? 'text-gray-300 border-gray-200 cursor-not-allowed' 
+                  : 'text-gray-600 border-gray-200 hover:bg-gray-100 active:transform active:scale-95'}`}
             >
               <ChevronLeft size={18} />
             </button>
 
-            <span className="text-sm font-medium text-gray-700">
-              Page {pagination.currentPage} of {Math.ceil(getFilteredAndSortedCorporations().length / pagination.itemsPerPage)}
-            </span>
+            {/* Page Numbers */}
+            <div className="flex items-center gap-1">
+              {[...Array(Math.min(5, Math.ceil(getSortedCorporations().length / pagination.itemsPerPage)))].map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handlePageChange(idx + 1)}
+                  className={`px-3 py-1 rounded-md text-sm font-medium transition-colors duration-200
+                    ${pagination.currentPage === idx + 1
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-gray-600 hover:bg-gray-100'}`}
+                >
+                  {idx + 1}
+                </button>
+              ))}
+            </div>
 
             <button
               onClick={() => handlePageChange(pagination.currentPage + 1)}
-              disabled={pagination.currentPage === Math.ceil(getFilteredAndSortedCorporations().length / pagination.itemsPerPage)}
-              className={`p-2 rounded-lg border transition-all duration-200 ${pagination.currentPage === Math.ceil(getFilteredAndSortedCorporations().length / pagination.itemsPerPage) ? 'text-gray-300 border-gray-200 cursor-not-allowed' : 'text-gray-600 border-gray-200 hover:bg-gray-100 active:transform active:scale-95'}`}
+              disabled={pagination.currentPage === Math.ceil(getSortedCorporations().length / pagination.itemsPerPage)}
+              className={`p-2 rounded-lg border transition-all duration-200 
+                ${pagination.currentPage === Math.ceil(getSortedCorporations().length / pagination.itemsPerPage)
+                  ? 'text-gray-300 border-gray-200 cursor-not-allowed'
+                  : 'text-gray-600 border-gray-200 hover:bg-gray-100 active:transform active:scale-95'}`}
             >
               <ChevronRight size={18} />
             </button>
@@ -415,17 +551,118 @@ const Corporations = () => {
         </div>
       </motion.div>
 
-      {/* Enhanced No Results Message */}
+      {/* Quick View Modal */}
       <AnimatePresence>
-        {!loading && getFilteredAndSortedCorporations().length === 0 && (
+        {isQuickViewOpen && selectedCorporation && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
+            onClick={() => setIsQuickViewOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-xl shadow-xl p-6 max-w-lg w-full mx-4 transform"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {selectedCorporation.company_name}
+                  </h3>
+                  <p className="text-sm text-gray-500">ID: {truncateId(selectedCorporation._id)}</p>
+                </div>
+                <button
+                  onClick={() => setIsQuickViewOpen(false)}
+                  className="text-gray-400 hover:text-gray-500"
+                >
+                  <span className="sr-only">Close</span>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-sm font-medium text-gray-900">Contact Information</h4>
+                  <div className="mt-2 space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <Users size={16} className="text-gray-400" />
+                      <span>{selectedCorporation.contact_name}</span>
+                    </div>
+                    {selectedCorporation.contact_email && (
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Mail size={16} className="text-gray-400" />
+                        <span>{selectedCorporation.contact_email}</span>
+                      </div>
+                    )}
+                    {selectedCorporation.contact_phone && (
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Phone size={16} className="text-gray-400" />
+                        <span>{selectedCorporation.contact_phone}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-medium text-gray-900">Employee Count</h4>
+                  <div className="mt-2">
+                    <div className="text-2xl font-semibold text-indigo-600">
+                      {Array.isArray(selectedCorporation.user_id) ? selectedCorporation.user_id.length : 0}
+                    </div>
+                    <p className="text-sm text-gray-500">Total employees</p>
+                  </div>
+                </div>
+
+                <div className="pt-4 flex justify-end gap-2">
+                  <button
+                    onClick={() => {
+                      setIsQuickViewOpen(false);
+                      handleRowClick(selectedCorporation._id);
+                    }}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium
+                             hover:bg-indigo-700 transition-colors duration-200"
+                  >
+                    View Full Details
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Enhanced Empty State */}
+      <AnimatePresence>
+        {!loading && getSortedCorporations().length === 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl mt-4"
+            className="text-center py-12 bg-white rounded-xl mt-4 border border-gray-200"
           >
-            <p className="text-lg">No corporations found {searchQuery && `for "${searchQuery}"`}</p>
-            <p className="text-sm text-gray-400 mt-1">Try adjusting your search or filters</p>
+            <AlertCircle className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-semibold text-gray-900">No corporations found</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              {searchQuery 
+                ? `No results found for "${searchQuery}". Try adjusting your search terms.`
+                : "Get started by adding your first corporation."}
+            </p>
+            <div className="mt-6">
+              <button
+                onClick={() => navigate('/company/new')}
+                className="inline-flex items-center px-4 py-2 border border-transparent 
+                         shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 
+                         hover:bg-indigo-700 focus:outline-none focus:ring-2 
+                         focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                <CirclePlus className="-ml-1 mr-2 h-5 w-5" />
+                Add Corporation
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -437,11 +674,11 @@ const Corporations = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center"
+            className="absolute inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-40"
           >
-            <div className="flex flex-col items-center">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
-              <p className="text-sm text-gray-600 mt-2">Loading...</p>
+            <div className="flex flex-col items-center bg-white p-6 rounded-xl shadow-lg">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
+              <p className="mt-4 text-sm text-gray-600">Loading corporations...</p>
             </div>
           </motion.div>
         )}
