@@ -867,18 +867,64 @@ const Cases = () => {
 
               {/* Page Numbers */}
               <div className="flex items-center gap-1">
-                {[...Array(Math.min(5, pagination.totalPages))].map((_, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handlePageChange(idx + 1)}
-                    className={`px-3 py-1 rounded-md text-sm font-medium transition-colors duration-200
-                      ${currentPage === idx + 1
-                        ? 'bg-indigo-600 text-white'
-                        : 'text-gray-600 hover:bg-gray-100'}`}
-                  >
-                    {idx + 1}
-                  </button>
-                ))}
+                {(() => {
+                  const pages = [];
+                  const totalPages = pagination.totalPages;
+
+                  // Always show first page
+                  pages.push(1);
+
+                  // Calculate range around current page
+                  let start = Math.max(2, currentPage - 1);
+                  let end = Math.min(totalPages - 1, currentPage + 1);
+
+                  // Adjust range if at edges
+                  if (currentPage <= 3) {
+                    end = Math.min(4, totalPages - 1);
+                  }
+                  if (currentPage >= totalPages - 2) {
+                    start = Math.max(2, totalPages - 3);
+                  }
+
+                  // Add ellipsis and buffer numbers
+                  if (start > 2) {
+                    pages.push('...');
+                  }
+
+                  // Add middle pages
+                  for (let i = start; i <= end; i++) {
+                    pages.push(i);
+                  }
+
+                  // Add ending ellipsis
+                  if (end < totalPages - 1) {
+                    pages.push('...');
+                  }
+
+                  // Always show last page if there is more than one page
+                  if (totalPages > 1) {
+                    pages.push(totalPages);
+                  }
+
+                  return pages.map((page, idx) => (
+                    page === '...' ? (
+                      <span key={`ellipsis-${idx}`} className="px-2 text-gray-400">
+                        {page}
+                      </span>
+                    ) : (
+                      <button
+                        key={page}
+                        onClick={() => handlePageChange(page)}
+                        className={`min-w-[32px] h-8 flex items-center justify-center rounded-md text-sm font-medium transition-colors duration-200
+                          ${currentPage === page
+                            ? 'bg-indigo-600 text-white'
+                            : 'text-gray-600 hover:bg-gray-100'}`}
+                      >
+                        {page}
+                      </button>
+                    )
+                  ));
+                })()}
               </div>
 
               <button

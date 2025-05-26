@@ -277,7 +277,7 @@ const Corporations = () => {
           <Building2 className="w-8 h-8 text-indigo-600" />
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
             Corporations
-          </h1>
+        </h1>
         </div>
         <p className="text-gray-600">Manage and view all corporations in your law firm</p>
       </div>
@@ -523,18 +523,64 @@ const Corporations = () => {
 
             {/* Page Numbers */}
             <div className="flex items-center gap-1">
-              {[...Array(Math.min(5, Math.ceil(getSortedCorporations().length / pagination.itemsPerPage)))].map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handlePageChange(idx + 1)}
-                  className={`px-3 py-1 rounded-md text-sm font-medium transition-colors duration-200
-                    ${pagination.currentPage === idx + 1
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-gray-600 hover:bg-gray-100'}`}
-                >
-                  {idx + 1}
-                </button>
-              ))}
+              {(() => {
+                const pages = [];
+                const totalPages = Math.ceil(getSortedCorporations().length / pagination.itemsPerPage);
+
+                // Always show first page
+                pages.push(1);
+
+                // Calculate range around current page
+                let start = Math.max(2, pagination.currentPage - 1);
+                let end = Math.min(totalPages - 1, pagination.currentPage + 1);
+
+                // Adjust range if at edges
+                if (pagination.currentPage <= 3) {
+                  end = Math.min(4, totalPages - 1);
+                }
+                if (pagination.currentPage >= totalPages - 2) {
+                  start = Math.max(2, totalPages - 3);
+                }
+
+                // Add ellipsis and buffer numbers
+                if (start > 2) {
+                  pages.push('...');
+                }
+
+                // Add middle pages
+                for (let i = start; i <= end; i++) {
+                  pages.push(i);
+                }
+
+                // Add ending ellipsis
+                if (end < totalPages - 1) {
+                  pages.push('...');
+                }
+
+                // Always show last page if there is more than one page
+                if (totalPages > 1) {
+                  pages.push(totalPages);
+                }
+
+                return pages.map((page, idx) => (
+                  page === '...' ? (
+                    <span key={`ellipsis-${idx}`} className="px-2 text-gray-400">
+                      {page}
+                    </span>
+                  ) : (
+                    <button
+                      key={page}
+                      onClick={() => handlePageChange(page)}
+                      className={`min-w-[32px] h-8 flex items-center justify-center rounded-md text-sm font-medium transition-colors duration-200
+                        ${pagination.currentPage === page
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                      {page}
+                    </button>
+                  )
+                ));
+              })()}
             </div>
 
             <button

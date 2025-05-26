@@ -263,53 +263,101 @@ const Individuals = () => {
         </table>
 
         {/* Enhanced Pagination */}
-        <div className="px-6 py-4 border-t border-gray-100 bg-white flex justify-between items-center">
-          <span className="text-sm text-gray-700">
-            Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
-            <span className="font-medium">{Math.min(endIndex, filteredIndividuals.length)}</span> of{' '}
-            <span className="font-medium">{filteredIndividuals.length}</span> individuals
-          </span>
-          
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handlePageChange(pagination.currentPage - 1)}
-              disabled={pagination.currentPage === 1}
-              className={`p-2 rounded-lg border transition-all duration-200 
-                ${pagination.currentPage === 1 
-                  ? 'text-gray-300 border-gray-200 cursor-not-allowed' 
-                  : 'text-gray-600 border-gray-200 hover:bg-gray-100 active:transform active:scale-95'}`}
-            >
-              <ChevronLeft size={18} />
-            </button>
+        {pagination && pagination.totalItems > 0 && (
+          <div className="px-6 py-4 border-t border-gray-100 bg-white flex justify-between items-center">
+            <span className="text-sm text-gray-700">
+              Showing <span className="font-medium">{(pagination.currentPage - 1) * pagination.itemsPerPage + 1}</span> to{' '}
+              <span className="font-medium">{Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)}</span> of{' '}
+              <span className="font-medium">{pagination.totalItems}</span> individuals
+            </span>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handlePageChange(pagination.currentPage - 1)}
+                disabled={pagination.currentPage === 1}
+                className={`p-2 rounded-lg border transition-all duration-200 
+                  ${pagination.currentPage === 1
+                    ? 'text-gray-300 border-gray-200 cursor-not-allowed'
+                    : 'text-gray-600 border-gray-200 hover:bg-gray-100 active:transform active:scale-95'}`}
+              >
+                <ChevronLeft size={18} />
+              </button>
 
-            {/* Page Numbers */}
-            <div className="flex items-center gap-1">
-              {[...Array(Math.min(5, Math.ceil(filteredIndividuals.length / pagination.itemsPerPage)))].map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handlePageChange(idx + 1)}
-                  className={`px-3 py-1 rounded-md text-sm font-medium transition-colors duration-200
-                    ${pagination.currentPage === idx + 1
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-gray-600 hover:bg-gray-100'}`}
-                >
-                  {idx + 1}
-                </button>
-              ))}
+              {/* Page Numbers */}
+              <div className="flex items-center gap-1">
+                {(() => {
+                  const pages = [];
+                  const totalPages = pagination.totalPages;
+
+                  // Always show first page
+                  pages.push(1);
+
+                  // Calculate range around current page
+                  let start = Math.max(2, pagination.currentPage - 1);
+                  let end = Math.min(totalPages - 1, pagination.currentPage + 1);
+
+                  // Adjust range if at edges
+                  if (pagination.currentPage <= 3) {
+                    end = Math.min(4, totalPages - 1);
+                  }
+                  if (pagination.currentPage >= totalPages - 2) {
+                    start = Math.max(2, totalPages - 3);
+                  }
+
+                  // Add ellipsis and buffer numbers
+                  if (start > 2) {
+                    pages.push('...');
+                  }
+
+                  // Add middle pages
+                  for (let i = start; i <= end; i++) {
+                    pages.push(i);
+                  }
+
+                  // Add ending ellipsis
+                  if (end < totalPages - 1) {
+                    pages.push('...');
+                  }
+
+                  // Always show last page if there is more than one page
+                  if (totalPages > 1) {
+                    pages.push(totalPages);
+                  }
+
+                  return pages.map((page, idx) => (
+                    page === '...' ? (
+                      <span key={`ellipsis-${idx}`} className="px-2 text-gray-400">
+                        {page}
+                      </span>
+                    ) : (
+                      <button
+                        key={page}
+                        onClick={() => handlePageChange(page)}
+                        className={`min-w-[32px] h-8 flex items-center justify-center rounded-md text-sm font-medium transition-colors duration-200
+                          ${pagination.currentPage === page
+                            ? 'bg-indigo-600 text-white'
+                            : 'text-gray-600 hover:bg-gray-100'}`}
+                      >
+                        {page}
+                      </button>
+                    )
+                  ));
+                })()}
+              </div>
+
+              <button
+                onClick={() => handlePageChange(pagination.currentPage + 1)}
+                disabled={pagination.currentPage === pagination.totalPages}
+                className={`p-2 rounded-lg border transition-all duration-200 
+                  ${pagination.currentPage === pagination.totalPages
+                    ? 'text-gray-300 border-gray-200 cursor-not-allowed'
+                    : 'text-gray-600 border-gray-200 hover:bg-gray-100 active:transform active:scale-95'}`}
+              >
+                <ChevronRight size={18} />
+              </button>
             </div>
-
-            <button
-              onClick={() => handlePageChange(pagination.currentPage + 1)}
-              disabled={pagination.currentPage === Math.ceil(filteredIndividuals.length / pagination.itemsPerPage)}
-              className={`p-2 rounded-lg border transition-all duration-200 
-                ${pagination.currentPage === Math.ceil(filteredIndividuals.length / pagination.itemsPerPage)
-                  ? 'text-gray-300 border-gray-200 cursor-not-allowed'
-                  : 'text-gray-600 border-gray-200 hover:bg-gray-100 active:transform active:scale-95'}`}
-            >
-              <ChevronRight size={18} />
-            </button>
           </div>
-        </div>
+        )}
       </motion.div>
 
       {/* Enhanced Empty State */}
