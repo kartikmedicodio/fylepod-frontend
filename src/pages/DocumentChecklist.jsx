@@ -7,6 +7,7 @@ import PropTypes from 'prop-types';
 import { toast } from 'react-hot-toast';
 import Sidebar from '../components/KBSidebar';
 import EditChecklistModal from '../components/modals/EditChecklistModal';
+import WorkflowSteps from '../components/workflow/WorkflowSteps';
 
 const DocumentChecklist = () => {
   const { id } = useParams();
@@ -36,6 +37,10 @@ const DocumentChecklist = () => {
   const [isFormSelected, setIsFormSelected] = useState({});
   const [isAddingForms, setIsAddingForms] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [workflowSteps, setWorkflowSteps] = useState([]);
+  const [isLoadingWorkflow, setIsLoadingWorkflow] = useState(false);
+  const [workflowSummary, setWorkflowSummary] = useState("");
+  const [currentCaseId, setCurrentCaseId] = useState(null);
 
   const handleCategorySelect = (category) => {
     setSelectedCategory(category);
@@ -51,12 +56,14 @@ const DocumentChecklist = () => {
   // Tabs configuration
   const tabs = [
     'Document Checklist',
+    'Workflow',
     'Forms'
   ];
 
   useEffect(() => {
     if (id) {
       fetchCategoryDetails();
+      fetchWorkflowSteps();
     }
   }, [id]);
 
@@ -94,6 +101,37 @@ const DocumentChecklist = () => {
     }
   };
 
+  const fetchWorkflowSteps = async () => {
+    try {
+      setIsLoadingWorkflow(true);
+      const response = await api.get(`/steps/category/${id}/details`);
+      if (response.data.status === 'success') {
+        // Update to handle the new response structure
+        const { steps = [], summary } = response.data.data;
+        setWorkflowSteps(steps);
+        setWorkflowSummary(summary);
+        
+        // You can also store additional category info if needed
+        const { categoryName, categoryDescription, summary: workflowSummary } = response.data.data;
+        // Update category info if needed
+        setCategory(prev => ({
+          ...prev,
+          name: categoryName || prev.name,
+          description: categoryDescription || prev.description,
+          workflowSummary: workflowSummary
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching workflow steps:', error);
+      // Show more specific error message
+      const errorMessage = error.response?.data?.message || 'Failed to load workflow steps';
+      toast.error(errorMessage);
+      setWorkflowSteps([]); // Set empty array on error
+    } finally {
+      setIsLoadingWorkflow(false);
+    }
+  };
+
   const handleRemoveForm = async (formId) => {
     try {
       // Update UI immediately for better user experience
@@ -128,6 +166,25 @@ const DocumentChecklist = () => {
     }
   };
 
+  const handleStepsReorder = async (reorderedSteps) => {
+    try {
+      const response = await api.post('/case-steps', {
+        caseId: currentCaseId,
+        steps: reorderedSteps
+      });
+
+      if (response.data.status === 'success') {
+        setWorkflowSteps(reorderedSteps);
+        toast.success('Workflow steps reordered successfully');
+      } else {
+        toast.error(response.data.message || 'Failed to reorder workflow steps');
+      }
+    } catch (error) {
+      console.error('Error reordering workflow steps:', error);
+      toast.error('Failed to reorder workflow steps');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-full gap-4 mt-8">
@@ -151,6 +208,32 @@ const DocumentChecklist = () => {
       </div>
     );
   }
+
+  const renderWorkflowTab = () => (
+    <>
+      <div className="flex items-center justify-between mb-1">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900">Process Workflow</h2>
+          <p className="text-gray-500 mb-6">
+            Below is the step-by-step workflow for this process. Each step shows its requirements, dependencies, and estimated time.
+          </p>
+        </div>
+      </div>
+
+      {isLoadingWorkflow ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      ) : (
+        <WorkflowSteps 
+          steps={workflowSteps} 
+          summary={workflowSummary}
+          onStepsReorder={null}
+          isEditable={false}
+        />
+      )}
+    </>
+  );
 
   return (
     <div className="flex h-full gap-4 mt-8">
@@ -212,16 +295,8 @@ const DocumentChecklist = () => {
             <div className="flex items-center justify-between mb-1">
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">Document Checklist</h2>
-                <p className="text-gray-500 mb-6">Below is the list of required and optional documents for this process. Please review each document and its validations.</p>
+                <p className="text-gray-500 mb-6">Below is the list of required and optional documents for this process.</p>
               </div>
-              <button
-                className="ml-2 flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                onClick={() => setIsEditModalOpen(true)}
-                title="Edit Process"
-              >
-                <Edit2 className="h-4 w-4 inline" />
-                Edit
-              </button>
             </div>
           </>
         )}
@@ -269,6 +344,8 @@ const DocumentChecklist = () => {
             ))}
           </div>
         )}
+
+        {activeTab === 'Workflow' && renderWorkflowTab()}
 
         {activeTab === 'Forms' && (
           <>
