@@ -8,6 +8,7 @@ import api from '../utils/api';
 import toast from 'react-hot-toast';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import PropTypes from 'prop-types';
+import WorkflowSteps from '../components/workflow/WorkflowSteps';
 
 const FionaIcon = () => (
   <div className="w-6 h-6 rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 flex items-center justify-center text-white font-semibold text-sm">
@@ -80,6 +81,10 @@ const NewCase = () => {
   const [isCreatingCase, setIsCreatingCase] = useState(false);
   const [loggedInUserDetails, setLoggedInUserDetails] = useState(null);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [workflowSteps, setWorkflowSteps] = useState(null);
+  const [workflowSummary, setWorkflowSummary] = useState(null);
+  const [isLoadingWorkflow, setIsLoadingWorkflow] = useState(false);
+  const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
 
   const dropdownRefs = {
     template: useRef(null),
@@ -637,6 +642,127 @@ const NewCase = () => {
     );
   };
 
+  const fetchWorkflowSteps = async (categoryId) => {
+    try {
+      setIsLoadingWorkflow(true);
+      const response = await api.get(`/steps/category/${categoryId}`);
+      
+      if (!response.data || !response.data.data) {
+        throw new Error('Invalid workflow data received');
+      }
+
+      const { steps, summary } = response.data.data;
+      
+      setWorkflowSteps(steps);
+      setWorkflowSummary(summary);
+    } catch (error) {
+      console.error('Error fetching workflow:', error);
+      toast.error('Failed to load workflow steps');
+    } finally {
+      setIsLoadingWorkflow(false);
+    }
+  };
+
+  const handleTemplateSelect = (template) => {
+    setSelectedTemplate(template);
+    setSelectedDocuments(template.documentTypes);
+    handleDropdownOpen('template', isTemplateDropdownOpen, setIsTemplateDropdownOpen);
+  };
+
+  const handleWorkflowStepsReorder = (newSteps) => {
+    setWorkflowSteps(newSteps);
+    // Optionally save the new order to the backend
+    // api.put(`/steps/category/${selectedTemplate._id}/reorder`, { steps: newSteps });
+  };
+
+  const handleSaveWorkflowChanges = async () => {
+    try {
+      if (!selectedTemplate?._id || !selectedCustomer || !selectedAttorney) {
+        toast.error('Please fill in all required fields');
+        return;
+      }
+
+      // Show loading toast
+      const loadingToastId = toast.loading('Creating case and saving workflow...');
+
+      // Format steps for the API
+      const formattedSteps = workflowSteps.map((step, index) => ({
+        name: step.name,
+        key: step.key,
+        order: index + 1,
+        isRequired: step.isRequired || false,
+        estimatedHours: step.estimatedHours || 0,
+        description: step.description || '',
+        status: 'pending',
+        isDefault: true,
+        isVisible: true
+      }));
+
+      // Create case first
+      const caseResponse = await api.post('/management', {
+        userId: selectedCustomer._id,
+        categoryId: selectedTemplate._id,
+        createdBy: user.id,
+        lawfirmId: selectedAttorney.lawfirm_id._id,
+        userName: selectedCustomer.name,
+        categoryName: selectedTemplate.name,
+        caseManagerId: selectedAttorney._id,
+        caseManagerName: selectedAttorney.name,
+        documentTypes: selectedDocuments.map(doc => ({
+          documentTypeId: doc._id,
+          name: doc.name,
+          required: doc.required || false,
+          status: 'pending'
+        }))
+      });
+
+      if (caseResponse.data.status === 'success') {
+        const caseId = caseResponse.data.data.management._id;
+
+        // Save workflow steps with the new case ID
+        await api.post('/case-steps', {
+          caseId: caseId,
+          steps: formattedSteps
+        });
+
+        // Show success toast
+        toast.success('Case created and workflow saved successfully', {
+          id: loadingToastId
+        });
+
+        // Navigate to case details
+        setTimeout(() => {
+          navigate(`/cases/${caseId}`);
+        }, 1500);
+      }
+
+    } catch (error) {
+      console.error('Error creating case and saving workflow:', error);
+      toast.error(
+        error.response?.data?.message || 'Failed to create case and save workflow',
+        { id: loadingToastId }
+      );
+    }
+  };
+
+  const handleCheckWorkflow = async () => {
+    if (!selectedTemplate?._id) {
+      toast.error('Please select a template first');
+      return;
+    }
+    
+    try {
+      setIsLoadingWorkflow(true);
+      await fetchWorkflowSteps(selectedTemplate._id);
+      setIsWorkflowModalOpen(true);
+    } catch (error) {
+      console.error('Error loading workflow:', error);
+      toast.error('Failed to load workflow steps');
+    } finally {
+      setIsLoadingWorkflow(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex-1 p-8 flex items-center justify-center">
@@ -658,7 +784,7 @@ const NewCase = () => {
 
   return (
     <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-[800px] mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent mb-4">
@@ -672,9 +798,43 @@ const NewCase = () => {
           </div>
         </div>
 
-        {/* Form Card */}
+        {/* Progress Steps */}
+        <div className="mb-8">
+          <div className="flex items-center justify-center gap-4">
+            {/* Step 1: Select Template */}
+            <StepIndicator
+              isActive={!selectedTemplate}
+              isCompleted={!!selectedTemplate}
+              icon={FileText}
+              label="Select Template"
+            />
+
+            {/* Connector */}
+            <ProgressLine isCompleted={!!selectedTemplate} />
+
+            {/* Step 2: Select Customer */}
+            <StepIndicator
+              isActive={!!selectedTemplate && !selectedCustomer}
+              isCompleted={!!selectedCustomer}
+              icon={Users}
+              label="Select Customer"
+            />
+
+            {/* Connector */}
+            <ProgressLine isCompleted={!!selectedCustomer} />
+
+            {/* Step 3: Select Case Manager */}
+            <StepIndicator
+              isActive={!!selectedCustomer && !selectedAttorney}
+              isCompleted={!!selectedAttorney}
+              icon={UserCog}
+              label="Select Manager"
+            />
+          </div>
+        </div>
+
+        {/* Form Section - Now full width */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-          {/* Form Content */}
           <div className="p-8 space-y-8">
             {/* Template Selection */}
             <div className="space-y-4">
@@ -735,11 +895,7 @@ const NewCase = () => {
                         getFilteredCategories().map((category) => (
                           <button
                             key={category._id}
-                            onClick={() => {
-                              setSelectedTemplate(category);
-                              setSelectedDocuments(category.documentTypes);
-                              handleDropdownOpen('template', isTemplateDropdownOpen, setIsTemplateDropdownOpen);
-                            }}
+                            onClick={() => handleTemplateSelect(category)}
                             className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors duration-150"
                           >
                             <div className="flex items-center gap-3">
@@ -838,7 +994,7 @@ const NewCase = () => {
                             }}
                             className="w-full px-4 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors duration-150"
                           >
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-justify-between">
                               <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center flex-shrink-0">
                                   <span className="text-blue-600 text-sm font-medium">
@@ -865,7 +1021,7 @@ const NewCase = () => {
               </div>
             </div>
 
-            {/* Attorney/Case Manager Selection */}
+            {/* Attorney Selection */}
             <div className="space-y-4">
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                 <UserCog className="w-4 h-4 text-blue-500" />
@@ -973,126 +1129,166 @@ const NewCase = () => {
               </div>
             </div>
 
-            {/* Create Case Button */}
+            {/* Combined Check Workflow and Create Case Button */}
             <div className="pt-6">
               <button
                 type="button"
-                onClick={handleCreateCase}
-                disabled={!selectedTemplate || !selectedCustomer || !selectedAttorney || isCreatingCase}
-                className={`w-full h-12 rounded-lg text-sm font-medium transition-all duration-300 focus:outline-none focus:ring-offset-2 focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed relative overflow-hidden
-                  ${isCreatingCase 
-                    ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white' 
-                    : 'bg-blue-500 hover:bg-blue-600 text-white disabled:bg-gray-100 disabled:text-gray-400'
+                onClick={handleCheckWorkflow}
+                disabled={!selectedTemplate || !selectedCustomer || !selectedAttorney}
+                className={`w-full h-12 rounded-lg text-sm font-medium transition-all duration-300 
+                  focus:outline-none focus:ring-offset-2 focus:ring-2 focus:ring-blue-500 
+                  disabled:cursor-not-allowed relative overflow-hidden
+                  ${!selectedTemplate || !selectedCustomer || !selectedAttorney
+                    ? 'bg-gray-100 text-gray-400' 
+                    : 'bg-blue-500 hover:bg-blue-600 text-white'
                   }`}
               >
-                <div className={`absolute inset-0 ${isCreatingCase ? 'bg-black/10' : ''}`} />
                 <div className="relative flex items-center justify-center gap-3">
-                  {isCreatingCase ? (
+                  {isLoadingWorkflow ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Creating case...</span>
+                      <span>Loading workflow...</span>
                     </>
                   ) : (
-                    'Create Case'
+                    'Check Workflow & Create Case'
                   )}
                 </div>
               </button>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Edit Template Modal */}
-      {isEditModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100]">
-          <div className="bg-white rounded-xl w-[500px] max-h-[80vh] overflow-hidden shadow-xl transform transition-all animate-modal-enter">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-lg font-semibold text-gray-800">
-                  Edit document checklist
-                </h2>
+        {/* Edit Template Modal */}
+        {isEditModalOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100]">
+            <div className="bg-white rounded-xl w-[500px] max-h-[80vh] overflow-hidden shadow-xl transform transition-all animate-modal-enter">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-lg font-semibold text-gray-800">
+                    Edit document checklist
+                  </h2>
+                  <button
+                    onClick={handleModalClose}
+                    className="p-1 hover:bg-gray-100 rounded-full transition-colors duration-150"
+                  >
+                    <X className="h-5 w-5 text-gray-500" />
+                  </button>
+                </div>
+
+                {/* Search Box */}
+                <div className="mb-6">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search documents..."
+                      className="w-full px-4 py-2.5 pl-10 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all duration-200"
+                    />
+                    <FileText className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium text-gray-600">Files in progress</h3>
+                </div>
+
+                {/* Document List */}
+                <div className="space-y-2 mb-6 max-h-[320px] overflow-y-auto pr-2">
+                  {getFilteredDocuments().map((doc) => {
+                    const isSelected = tempSelectedDocuments.some(d => d.name === doc.name);
+                    return (
+                      <button
+                        key={doc._id}
+                        onClick={() => handleDocumentToggle(doc.name)}
+                        className="w-full flex items-center p-3 hover:bg-gray-50 rounded-lg transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                      >
+                        <div className="flex items-center gap-3 flex-1">
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200
+                            ${isSelected 
+                              ? 'border-blue-500 bg-blue-500 text-white' 
+                              : 'border-gray-300 hover:border-blue-400'
+                            }`}
+                          >
+                            {isSelected && (
+                              <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none">
+                                <path
+                                  d="M10 3L4.5 8.5L2 6"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            )}
+                          </div>
+                          <span className="text-sm font-medium text-gray-700">{doc.name}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                  
+                  {getFilteredDocuments().length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-8 text-center">
+                      <AlertCircle className="w-6 h-6 text-gray-400 mb-2" />
+                      <p className="text-sm text-gray-500">
+                        No documents found matching &ldquo;{searchQuery}&rdquo;
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Done Button */}
                 <button
-                  onClick={handleModalClose}
-                  className="p-1 hover:bg-gray-100 rounded-full transition-colors duration-150"
+                  onClick={handleDoneClick}
+                  className="w-full h-11 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                 >
-                  <X className="h-5 w-5 text-gray-500" />
+                  Done
                 </button>
               </div>
+            </div>
+          </div>
+        )}
 
-              {/* Search Box */}
-              <div className="mb-6">
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search documents..."
-                    className="w-full px-4 py-2.5 pl-10 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-all duration-200"
-                  />
-                  <FileText className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+        {/* Workflow Edit Modal */}
+        {isWorkflowModalOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100]">
+            <div className="bg-white w-full h-full max-w-[1400px] max-h-[90vh] rounded-xl shadow-xl flex flex-col">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Review Workflow Steps</h2>
+                  <p className="text-sm text-gray-500">Review and customize workflow steps before creating the case</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setIsWorkflowModalOpen(false)}
+                    className="inline-flex items-center px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveWorkflowChanges}
+                    className="inline-flex items-center px-4 py-2 rounded-lg bg-blue-600 text-sm font-medium text-white hover:bg-blue-700"
+                  >
+                    Create Case
+                  </button>
                 </div>
               </div>
 
-              <div className="mb-4">
-                <h3 className="text-sm font-medium text-gray-600">Files in progress</h3>
+              {/* Modal Content */}
+              <div className="flex-1 overflow-auto p-6">
+                <WorkflowSteps 
+                  steps={workflowSteps} 
+                  summary={workflowSummary}
+                  onStepsReorder={handleWorkflowStepsReorder}
+                  isEditable={true}
+                />
               </div>
-
-              {/* Document List */}
-              <div className="space-y-2 mb-6 max-h-[320px] overflow-y-auto pr-2">
-                {getFilteredDocuments().map((doc) => {
-                  const isSelected = tempSelectedDocuments.some(d => d.name === doc.name);
-                  return (
-                    <button
-                      key={doc._id}
-                      onClick={() => handleDocumentToggle(doc.name)}
-                      className="w-full flex items-center p-3 hover:bg-gray-50 rounded-lg transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                    >
-                      <div className="flex items-center gap-3 flex-1">
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200
-                          ${isSelected 
-                            ? 'border-blue-500 bg-blue-500 text-white' 
-                            : 'border-gray-300 hover:border-blue-400'
-                          }`}
-                        >
-                          {isSelected && (
-                            <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none">
-                              <path
-                                d="M10 3L4.5 8.5L2 6"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                          )}
-                        </div>
-                        <span className="text-sm font-medium text-gray-700">{doc.name}</span>
-                      </div>
-                    </button>
-                  );
-                })}
-                
-                {getFilteredDocuments().length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <AlertCircle className="w-6 h-6 text-gray-400 mb-2" />
-                    <p className="text-sm text-gray-500">
-                      No documents found matching &ldquo;{searchQuery}&rdquo;
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Done Button */}
-              <button
-                onClick={handleDoneClick}
-                className="w-full h-11 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                Done
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
