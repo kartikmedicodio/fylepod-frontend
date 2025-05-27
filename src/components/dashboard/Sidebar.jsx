@@ -497,12 +497,12 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
             item.section ? (
               <div key={index} className="space-y-1">
                 {!collapsed && (
-                  <div className="flex items-center justify-between px-3">
-                    <h3 className="text-xs font-semibold text-gray-500">
+                  <div className="flex items-center justify-between px-3 mb-4 mt-6 first:mt-2">
+                    <h3 className="text-[13px] font-semibold text-black uppercase tracking-wider">
                       {item.section}
                     </h3>
                     {item.expandable && (
-                      <button className="text-xs text-gray-500 hover:text-gray-700">
+                      <button className="text-xs text-black hover:text-black/80">
                         See More
                       </button>
                     )}
@@ -528,7 +528,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
                           <div className="ml-3 flex-1 overflow-hidden">
                             <span className="block truncate">{subItem.name}</span>
                             {subItem.relationshipType && (
-                              <span className="text-xs text-gray-400">{subItem.relationshipType}</span>
+                              <span className="text-xs text-black/70">{subItem.relationshipType}</span>
                             )}
                           </div>
                         )}
@@ -537,10 +537,10 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
                       <Link
                         key={subItem.name + (subItem.relationshipType || '')}
                         to={subItem.href}
-                        className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                          isActive(subItem.href)
-                            ? 'bg-white text-black'
-                            : 'text-gray-900 hover:bg-white hover:text-black'
+                        className={`flex items-center px-3 py-2.5 text-[14px] font-medium rounded-lg transition-all duration-200 relative
+                          ${isActive(subItem.href)
+                            ? 'bg-blue-50 text-black before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-8 before:w-0.5 before:bg-blue-600 before:rounded-r'
+                            : 'text-black hover:bg-gray-50'
                         } ${collapsed ? 'justify-center' : ''}`}
                         title={collapsed ? (subItem.relationshipType ? `${subItem.name} (${subItem.relationshipType})` : subItem.name) : ''}
                       >
@@ -553,13 +553,15 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
                             />
                           </div>
                         ) : (
-                          <subItem.icon className="h-5 w-5 flex-shrink-0" />
+                          <subItem.icon className={`h-5 w-5 flex-shrink-0 
+                            ${isActive(subItem.href) ? 'text-blue-600' : 'text-black/70'}`} 
+                          />
                         )}
                         {!collapsed && (
                           <div className="ml-3 flex-1 overflow-hidden">
                             <span className="block truncate">{subItem.name}</span>
                             {subItem.relationshipType && (
-                              <span className="text-xs text-gray-500">{subItem.relationshipType}</span>
+                              <span className="text-xs text-black/70">{subItem.relationshipType}</span>
                             )}
                           </div>
                         )}
@@ -577,7 +579,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
               item.disabled ? (
                 <div
                   key={item.name}
-                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg
+                  className={`flex items-center px-3 py-2 text-sm font-bold rounded-lg
                     text-gray-400 cursor-not-allowed ${collapsed ? 'justify-center' : ''}`}
                   title={collapsed ? item.name : ''}
                 >
@@ -586,7 +588,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
                     <>
                       <span className="ml-3">{item.name}</span>
                       {item.badge && (
-                        <span className="ml-auto bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full text-xs">
+                        <span className="ml-auto bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full text-xs font-bold">
                           {item.badge}
                         </span>
                       )}
@@ -597,14 +599,14 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
                 <Link
                   key={item.name}
                   to={item.href}
-                  className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    isActive(item.href)
-                      ? 'bg-white text-black'
-                      : 'text-gray-900 hover:bg-white hover:text-black'
-                  } ${collapsed ? 'justify-center' : ''}`}
+                  className={`flex items-center px-3 py-2.5 text-[14px] font-medium rounded-lg transition-all duration-200 relative group
+                    ${isActive(item.href)
+                      ? 'bg-blue-50 text-black before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-8 before:w-0.5 before:bg-blue-600 before:rounded-r'
+                      : 'text-black hover:bg-gray-50'
+                    } ${collapsed ? 'justify-center' : ''}`}
                   title={collapsed ? item.name : ''}
                 >
-                  <item.icon className="h-5 w-5 flex-shrink-0" />
+                  <item.icon className={`h-5 w-5 flex-shrink-0 ${isActive(item.href) ? 'text-blue-600' : 'text-black/70'}`} />
                   {!collapsed && (
                     <>
                       <span className="ml-3">{item.name}</span>

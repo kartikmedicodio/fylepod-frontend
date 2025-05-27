@@ -17,7 +17,9 @@ import {
   Bot,
   SendHorizontal,
   Eye,
-    ChevronDown,  LucideReceiptText,  CreditCard,  Package
+  ChevronDown,
+  LucideReceiptText,
+  Package
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
@@ -34,7 +36,6 @@ import { getStoredToken } from '../utils/auth';
 import LetterTab from '../components/letters/LetterTab';
 import ReceiptsTab from '../components/receipts/ReceiptsTab';
 import DocumentsArchiveTab from '../components/documents/DocumentsArchiveTab';
-import PaymentTab from '../components/payments/PaymentTab';
 import CommunicationsTab from '../components/CommunicationsTab';
 import RetainerTab from '../components/RetainerTab';
 
@@ -262,10 +263,10 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   // Add a function at the top of the component to load data from localStorage
   const loadDataFromLocalStorage = () => {
     try {
+      const validationDataString = localStorage.getItem('validationData');
       let validationDataFound = false;
       let verificationDataFound = false;
 
-      const validationDataString = localStorage.getItem('validationData');
       if (validationDataString) {
         const parsedData = JSON.parse(validationDataString);
         console.log('Found validation data in localStorage:', parsedData);
@@ -286,7 +287,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       } else {
         console.log('No cross-verification data found in localStorage');
       }
-
+      
       return {
         validationDataFound,
         verificationDataFound
@@ -1054,56 +1055,56 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
       // Log the request body for debugging
       console.log('Sending validation email request with data:', {
-        recipientEmail,
-        recipientName,
-        managementId: caseId,
-        userId: userId,
-        validationCount: validationData.data.mergedValidations?.length,
-        mismatchCount: crossVerifyData.data.verificationResults.mismatchErrors?.length,
-        missingCount: crossVerifyData.data.verificationResults.missingErrors?.length
+      recipientEmail,
+      recipientName,
+      managementId: caseId,
+      userId: userId,
+      validationCount: validationData.data.mergedValidations?.length,
+      mismatchCount: crossVerifyData.data.verificationResults.mismatchErrors?.length,
+      missingCount: crossVerifyData.data.verificationResults.missingErrors?.length
       });
 
-      // Generate the draft mail content
-      const draftResponse = await api.post('/mail/draft', requestBody);
+     // Generate the draft mail content
+     const draftResponse = await api.post('/mail/draft', requestBody);
       
-      if (draftResponse.data.status !== 'success') {
-        throw new Error('Failed to generate draft: ' + draftResponse.data.message);
-      }
+     if (draftResponse.data.status !== 'success') {
+       throw new Error('Failed to generate draft: ' + draftResponse.data.message);
+     }
 
-      const mailContent = draftResponse.data.data;
+     const mailContent = draftResponse.data.data;
 
-      // Send the email
-      const sendResponse = await api.post('/mail/send', {
-        subject: mailContent.subject,
-        body: mailContent.body,
-        recipientEmail: recipientEmail,
-        recipientName: recipientName,
-        managementId: caseId,
-        emailType: 'validation',
-        userId: userId // Use the case owner's userId
-      });
+     // Send the email
+     const sendResponse = await api.post('/mail/send', {
+       subject: mailContent.subject,
+       body: mailContent.body,
+       recipientEmail: recipientEmail,
+       recipientName: recipientName,
+       managementId: caseId,
+       emailType: 'validation',
+       userId: userId // Use the case owner's userId
+     });
 
-      if (sendResponse.data.status === 'success') {
-        setEmailSent(true);
-        toast.success('Validation report email sent successfully');
-        setMessages(prev => [...prev, {
-          type: 'system',
-          content: 'Validation email sent successfully.',
-          timestamp: new Date().toISOString()
-        }]);
-      } else {
-        throw new Error('Failed to send email: ' + sendResponse.data.message);
-      }
-    } catch (error) {
-      console.error('Error sending validation email:', error);
-      toast.error('Failed to send validation report email');
-      setMessages(prev => [...prev, {
-        type: 'error',
-        content: 'Failed to send validation email: ' + (error.response?.data?.message || error.message),
-        timestamp: new Date().toISOString()
-      }]);
-    }
-  };
+     if (sendResponse.data.status === 'success') {
+       setEmailSent(true);
+       toast.success('Validation report email sent successfully');
+       setMessages(prev => [...prev, {
+         type: 'system',
+         content: 'Validation email sent successfully.',
+         timestamp: new Date().toISOString()
+       }]);
+     } else {
+       throw new Error('Failed to send email: ' + sendResponse.data.message);
+     }
+   } catch (error) {
+     console.error('Error sending validation email:', error);
+     toast.error('Failed to send validation report email');
+     setMessages(prev => [...prev, {
+       type: 'error',
+       content: 'Failed to send validation email: ' + (error.response?.data?.message || error.message),
+       timestamp: new Date().toISOString()
+     }]);
+   }
+ };
 
   const handleFileUpload = async (files) => {
     if (!files.length) return;
@@ -1438,7 +1439,24 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     const fetchQuestionnaires = async () => {
       try {
-        const response = await api.get('/questionnaires');
+        setIsLoading(true);
+        
+        // Make sure we have caseData with categoryId before proceeding
+        if (!caseData || !caseData.categoryId) {
+          console.log('Waiting for case data with categoryId to be available');
+          return;
+        }
+        
+        // Handle both cases where categoryId could be an object or a string
+        const categoryId = typeof caseData.categoryId === 'object' 
+          ? caseData.categoryId._id 
+          : caseData.categoryId;
+        
+        console.log('Fetching questionnaires for categoryId:', categoryId);
+        
+        // Update the API endpoint to include categoryId as a query parameter
+        const response = await api.get(`/questionnaires?categoryId=${categoryId}`);
+        
         if (response.data.status === 'success') {
           const templates = response.data.data.templates;
           
@@ -1446,10 +1464,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           const dependentFields = templates.flatMap(template => 
             template.field_mappings.filter(field => field.isDependent === true)
           );
-          // console.log('Dependent fields from API:', dependentFields.map(field => ({
-          //   fieldName: field.fieldName,
-          //   dependentFields: field.dependentFields
-          // })));
           
           // Only process if there are templates
           if (templates && templates.length > 0) {
@@ -1463,7 +1477,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
               __v: 0,
-              categoryId: templates[0].categoryId
+              categoryId: categoryId // Use the case's categoryId
             };
             
             // Create a map to store fields by fieldName to prevent duplicates
@@ -1471,7 +1485,13 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             
             // Merge all field mappings from all templates
             templates.forEach(template => {
-              if (template.field_mappings && template.field_mappings.length > 0) {
+              // Extract template categoryId, handling both object and string cases
+              const templateCategoryId = typeof template.categoryId === 'object'
+                ? template.categoryId._id
+                : template.categoryId;
+                
+              // Only include templates that match the case's categoryId
+              if (templateCategoryId === categoryId && template.field_mappings && template.field_mappings.length > 0) {
                 // Check for duplicate fieldNames before adding
                 template.field_mappings.forEach(field => {
                   // Only log if field is dependent
@@ -1517,6 +1537,16 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 ...field,
                 value: null
               };
+              
+              // Special case for "Street Number and Name" field
+              if (field.fieldName === 'ste') {
+                initialFormData[field._id] = {
+                  ...initialFormData[field._id],
+                  fieldLabel: 'Street Number and Name',
+                  groupName: 'Residential Address History',
+                  fieldType: 'Text Field'
+                };
+              }
             });
             setFormData(initialFormData);
           } else {
@@ -1544,9 +1574,13 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     };
 
     fetchProfileData();
-    fetchQuestionnaires();
     fetchForms();
-  }, [caseId]); // Note: fetchValidationData is stable since it uses caseId from closure
+    
+    // Only fetch questionnaires if caseData is available
+    if (caseData && caseData.categoryId) {
+      fetchQuestionnaires();
+    }
+  }, [caseId, caseData]); // Added caseData as dependency since fetchQuestionnaires needs it
 
   const handleInputChange = (section, field, value) => {
     setFormData(prev => ({
@@ -1997,7 +2031,41 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     );
   };
 
-    const TabNavigation = () => {    const scrollContainerRef = useRef(null);    const [showLeftArrow, setShowLeftArrow] = useState(false);    const [showRightArrow, setShowRightArrow] = useState(false);    const checkForArrows = () => {      if (scrollContainerRef.current) {        const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;        setShowLeftArrow(scrollLeft > 0);        setShowRightArrow(scrollLeft < scrollWidth - clientWidth);      }    };    useEffect(() => {      checkForArrows();      window.addEventListener('resize', checkForArrows);      return () => window.removeEventListener('resize', checkForArrows);    }, []);    const scroll = (direction) => {      if (scrollContainerRef.current) {        const scrollAmount = 200;        scrollContainerRef.current.scrollBy({          left: direction === 'left' ? -scrollAmount : scrollAmount,          behavior: 'smooth'        });        setTimeout(checkForArrows, 100);      }    };    return (      <div className="border-b border-gray-200 px-6 relative">        {showLeftArrow && (          <button            onClick={() => scroll('left')}            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 p-1 rounded-full shadow-md hover:bg-gray-50 transition-colors"          >            <ChevronLeft className="w-5 h-5 text-gray-600" />          </button>        )}                {showRightArrow && (          <button            onClick={() => scroll('right')}            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 p-1 rounded-full shadow-md hover:bg-gray-50 transition-colors"          >            <ChevronRight className="w-5 h-5 text-gray-600" />          </button>        )}        <div           ref={scrollContainerRef}          className="flex -mb-px overflow-x-auto scrollbar-hide"          onScroll={checkForArrows}        >          {[            { name: 'Profile', icon: User },            { name: 'Payment', icon: CreditCard },            { name: 'Retainer', icon: FileText },            { name: 'Document Checklist', icon: ClipboardList },            { name: 'Questionnaire', icon: FileText },            { name: 'Forms', icon: File },            { name: 'Letters', icon: FileText },            { name: 'Receipts', icon: LucideReceiptText },            { name: 'Packaging', icon: Package },            { name: 'Communications', icon: Mail }          ].map(({ name, icon: Icon, disabled }) => (            <button              key={name}              disabled={disabled}              className={`flex items-center px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${                activeTab === name.toLowerCase().replace(' ', '-')                  ? 'border-blue-600 text-blue-600'                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'              } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}              onClick={() => !disabled && setActiveTab(name.toLowerCase().replace(' ', '-'))}            >              <Icon className="w-5 h-5 mr-2" />              {name}            </button>          ))}        </div>      </div>    );  };
+  // Enhanced tab navigation
+  const TabNavigation = () => (
+    <div className="border-b border-gray-200 px-6">
+      <div className="flex -mb-px">
+        {[
+          { name: 'Profile', icon: User },
+          { name: 'Retainer', icon: FileText },  // Moved up here
+          { name: 'Document Checklist', icon: ClipboardList },
+          { name: 'Questionnaire', icon: FileText },
+          { name: 'Forms', icon: File },
+          { name: 'Letters', icon: FileText },
+          { name: 'Receipts', icon: LucideReceiptText },
+          { name: 'Packaging', icon: Package },
+          // { name: 'Documents Archive', icon: FileText },
+          { name: 'Communications', icon: Mail },
+        ].map(({ name, icon: Icon, disabled }) => (
+          <button
+            key={name}
+            disabled={disabled}
+            className={`flex items-center px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === name.toLowerCase().replace(' ', '-')
+                ? 'border-blue-600 text-blue-600'
+                : disabled
+                ? 'border-transparent text-gray-400 cursor-not-allowed'
+                : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
+            }`}
+            onClick={() => !disabled && setActiveTab(name.toLowerCase().replace(' ', '-'))}
+          >
+            <Icon className={`w-4 h-4 mr-2 ${disabled ? 'opacity-50' : ''}`} />
+            {name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 
   const DocumentVerificationSection = ({ document, validations = [] }) => {
     const passedCount = validations.filter(v => v.passed).length;
@@ -2980,9 +3048,20 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           }
         });
         
-        // Special case: always start with Personal Information expanded
+        // Get ordered group names to determine which is first
+        const orderedGroupNames = Object.keys(groups).sort((a, b) => {
+          // Find the first field of each group to compare their order
+          const aFirstField = Object.values(localFormData).find(f => f.groupName === a);
+          const bFirstField = Object.values(localFormData).find(f => f.groupName === b);
+          const aIndex = aFirstField ? Object.values(localFormData).indexOf(aFirstField) : Infinity;
+          const bIndex = bFirstField ? Object.values(localFormData).indexOf(bFirstField) : Infinity;
+          return aIndex - bIndex;
+        });
+        
+        // Only expand the first group
         const initialState = Object.keys(groups).reduce((acc, groupName) => {
-          acc[groupName] = groupName === 'Personal Information';
+          // Only the first group in the ordered list is expanded
+          acc[groupName] = orderedGroupNames.length > 0 && groupName === orderedGroupNames[0];
           return acc;
         }, {});
         
@@ -3019,41 +3098,50 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     // Updated function to check if a field is empty - works with new response format
     const isFieldEmpty = (fieldKey) => {
       const field = localFormData?.[fieldKey];
-      return !field || field.value === undefined || field.value === null || field.value === '';
+      if (!field) return true;
+      // Special handling for radio button groups
+      if (field.fieldType && field.fieldType.toLowerCase().includes('radio')) {
+        // Find all fields with the same fieldLabel
+        const groupFields = Object.values(localFormData || {}).filter(f => f.fieldType && f.fieldType.toLowerCase().includes('radio') && f.fieldLabel === field.fieldLabel);
+        // If any radio in the group has a non-empty value, consider the group filled
+        return !groupFields.some(f => f.value !== undefined && f.value !== null && f.value !== '');
+      }
+      if (Array.isArray(field.value)) return field.value.length === 0;
+      if (typeof field.value === 'string') return field.value.trim() === '';
+      return field.value === undefined || field.value === null || field.value === '';
     };
 
-    // Updated input change handler to work with the new format
+    // Input change handler for form fields
     const handleLocalInputChange = (fieldKey, value) => {
-      // Log detailed field information when clicked/changed
-      console.log('Field Interaction:', {
+        console.log('Input change:', {
         fieldKey,
-        currentValue: value,
-        fieldDetails: localFormData[fieldKey],
-        timestamp: new Date().toISOString()
+          value,
+          fieldType: localFormData[fieldKey]?.fieldType
       });
 
       setLocalFormData(prevData => {
         const updatedData = { ...prevData };
         if (updatedData[fieldKey]) {
-          updatedData[fieldKey] = {
-            ...updatedData[fieldKey],
-            value: value
-          };
-        }
-        
-        // Debug logging after update
-        console.log('Form data after update:', {
-          changedField: fieldKey,
-          newValue: value,
-          allFields: Object.entries(updatedData).map(([key, field]) => ({
-            fieldKey: key,
+            const field = updatedData[fieldKey];
+            
+            // Handle radio button values consistently
+            if (field.fieldType?.toLowerCase().includes('radio')) {
+              console.log('Converting radio value:', {
             fieldName: field.fieldName,
-            value: field.value,
-            isDependent: field.isDependent,
-            visibilityConditions: field.visibilityConditions
-          }))
-        });
+                originalValue: value
+              });
+              // Do NOT convert 'Yes'/'No' to boolean; always store the string value
+              // console.log('Converted radio value:', {
+              //   fieldName: field.fieldName,
+              //   convertedValue: value
+              // });
+            }
         
+            updatedData[fieldKey] = {
+              ...field,
+              value: value
+            };
+          }
         return updatedData;
       });
     };
@@ -3102,11 +3190,12 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       }
     };
 
-    // Updated function to count filled fields
+    // Updated function to count filled fields (only visible fields)
     const getFilledFieldsCount = () => {
-      const allFields = Object.keys(localFormData || {});
-      const totalFields = allFields.length;
-      const filledFields = allFields.filter(fieldKey => !isFieldEmpty(fieldKey)).length;
+      const allFieldKeys = Object.keys(localFormData || {});
+      const visibleFields = allFieldKeys.filter(fieldKey => shouldShowField(fieldKey));
+      const totalFields = visibleFields.length;
+      const filledFields = visibleFields.filter(fieldKey => !isFieldEmpty(fieldKey)).length;
       return { filledFields, totalFields };
     };
 
@@ -3135,232 +3224,372 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       }
     };
 
-    const evaluateVisibilityCondition = (condition, allFields) => {
-      if (!condition || !condition.parentField) return true;
+    const evaluateVisibilityCondition = (conditions, allFields) => {
+      // Handle array of conditions (all must be satisfied - AND logic)
+      if (Array.isArray(conditions)) {
+        return conditions.every(condition => {
+          if (!condition || !condition.parentField || !Array.isArray(condition.showWhen)) {
+            return true;
+          }
 
-      const parentField = Object.values(allFields).find(f => f._id === condition.parentField);
-      
-      if (!parentField) return false;
-
-      // If no showWhen rules, default to showing the field
-      if (!condition.showWhen || condition.showWhen.length === 0) return true;
-
-      // All rules in showWhen must be satisfied
-      return condition.showWhen.every(rule => {
-        const parentValue = parentField.value;
-
-        switch (rule.operator) {
-          case 'equals':
-            return parentValue === rule.value;
-          case 'not_equals':
-            return parentValue !== rule.value;
-          case 'in':
-            return Array.isArray(rule.value) && rule.value.includes(parentValue);
-          case 'not_in':
-            return parentValue !== null && parentValue !== undefined && 
-                   Array.isArray(rule.value) && !rule.value.includes(parentValue);
-          case 'exists':
-            return parentValue !== null && parentValue !== undefined;
-          case 'not_exists':
-            return parentValue === null || parentValue === undefined;
-          case 'greater_than':
-            return typeof parentValue === 'number' && parentValue > rule.value;
-          case 'less_than':
-            return typeof parentValue === 'number' && parentValue < rule.value;
-          case 'greater_than_or_equal':
-            return typeof parentValue === 'number' && parentValue >= rule.value;
-          case 'less_than_or_equal':
-            return typeof parentValue === 'number' && parentValue <= rule.value;
-          default:
-            return false;
-        }
-      });
-    };
-
-    const shouldShowField = (fieldKey) => {
-      const field = localFormData[fieldKey];
-      
-      // If field doesn't exist in form data, don't show it
-      if (!field) return false;
-      
-      let shouldShow = true;
-
-      if (field.visibilityConditions?.length > 0) {
-        shouldShow = field.visibilityConditions.some(condition => {
-          if (!condition || !condition.parentField) return true;
-
-          const parentField = Object.values(localFormData).find(f => f._id === condition.parentField);
+          const parentField = Object.values(allFields).find(f => f._id === condition.parentField);
           
-          if (!parentField) return false;
+          if (!parentField) {
+            return false;
+          }
 
-          // If no showWhen rules, default to showing the field
-          if (!condition.showWhen || condition.showWhen.length === 0) return true;
-
-          // All rules in showWhen must be satisfied
           return condition.showWhen.every(rule => {
-            const parentValue = Number(parentField.value); // Convert to number for numeric comparisons
+            const parentValue = parentField.value;
+
+            // Only log the actual comparison being made
+            // console.log(`Checking ${parentField.fieldName}:`, {
+            //   expectedValue: rule.value,
+            //   actualValue: parentValue,
+            //   fieldType: parentField.fieldType
+            // });
 
             switch (rule.operator) {
               case 'equals':
-                return parentValue === rule.value;
+                result = parentValue === rule.value;
+                break;
               case 'not_equals':
-                return parentValue !== rule.value;
+                result = parentValue !== rule.value;
+                break;
               case 'in':
-                return Array.isArray(rule.value) && rule.value.includes(parentValue);
+                result = Array.isArray(rule.value) && rule.value.includes(parentValue);
+                break;
               case 'not_in':
-                return Array.isArray(rule.value) && !rule.value.includes(parentValue);
+                result = Array.isArray(rule.value) && !rule.value.includes(parentValue);
+                break;
               case 'exists':
-                return parentValue !== null && parentValue !== undefined;
+                result = parentValue !== null && parentValue !== undefined;
+                break;
               case 'not_exists':
-                return parentValue === null || parentValue === undefined;
+                result = parentValue === null || parentValue === undefined;
+                break;
               case 'greater_than':
-                return !isNaN(parentValue) && parentValue > rule.value;
+                result = !isNaN(parentValue) && parentValue > rule.value;
+                break;
               case 'less_than':
-                return !isNaN(parentValue) && parentValue < rule.value;
+                result = !isNaN(parentValue) && parentValue < rule.value;
+                break;
               case 'greater_than_or_equal':
-                return !isNaN(parentValue) && parentValue >= rule.value;
+                result = !isNaN(parentValue) && parentValue >= rule.value;
+                break;
               case 'less_than_or_equal':
-                return !isNaN(parentValue) && parentValue <= rule.value;
+                result = !isNaN(parentValue) && parentValue <= rule.value;
+                break;
               default:
-                return false;
+                result = false;
             }
+
+            // console.log('Rule evaluation:', {
+            //   fieldName: field.fieldName,
+            //   parentFieldName: parentField.fieldName,
+            //   operator: rule.operator,
+            //   expectedValue: rule.value,
+            //   actualValue: parentValue,
+            //   result
+            // });
+
+            return result;
           });
         });
       }
-      
-      if (shouldShow && field.dependencyRule) {
-        shouldShow = evaluateDependencyRule(field.dependencyRule, localFormData);
-      }
-      else if (shouldShow && field.isDependent === true && !field.visibilityConditions?.length) {
-        const parentField = Object.values(localFormData).find(f => 
-          f.dependentFields?.some(depField => {
-            if (typeof depField === 'string') {
-              return depField === field.fieldName || depField === field._id;
-            }
-            return false;
-          })
-        );
-        
-        // For radio buttons, check if the value is "Yes" or true
-        // For other fields, check if the value is truthy
-        const parentValue = parentField?.value;
-        const isParentActive = 
-          parentValue === true || 
-          parentValue === "Yes" || 
-          parentValue === "yes" ||
-          (typeof parentValue === 'string' && parentValue.toLowerCase() === 'yes');
-        
-        if (!parentField || !isParentActive) {
-          shouldShow = false;
-        }
-      }
-      
-      if (shouldShow && showOnlyEmpty) {
-        shouldShow = isFieldEmpty(fieldKey);
+
+      return true;
+    };
+
+    // Helper function to convert old format to new tree structure
+    const convertOldToNewFormat = (oldConditions) => {
+      if (!oldConditions || oldConditions.length === 0) return null;
+
+      // If there's only one condition, no need for logical operator
+      if (oldConditions.length === 1) {
+        return {
+          parentField: oldConditions[0].parentField,
+          showWhen: oldConditions[0].showWhen
+        };
       }
 
-      return shouldShow;
+      // Debug: Log old format conversion
+      // console.log('Converting old format to new:', {
+      //   oldConditions
+      // });
+
+      // Multiple conditions are combined with AND by default
+      const newFormat = {
+        operator: 'AND',
+        conditions: oldConditions.map(condition => ({
+          parentField: condition.parentField,
+          showWhen: condition.showWhen
+        }))
+      };
+
+      // Debug: Log new format
+      // console.log('Converted to new format:', {
+      //   newFormat
+      // });
+
+      return newFormat;
+    };
+
+    const evaluateCondition = (condition, allFields) => {
+      // Support array of conditions (AND logic)
+      if (Array.isArray(condition)) {
+        return condition.every(cond => evaluateCondition(cond, allFields));
+      }
+      // Handle null/undefined conditions
+      if (!condition) return true;
+
+      // Handle logical operator nodes (AND/OR/NOT)
+      if (condition.operator && condition.conditions) {
+        const results = condition.conditions.map(c => evaluateCondition(c, allFields));
+        switch (condition.operator) {
+          case 'AND':
+            return results.every(Boolean);
+          case 'OR':
+            return results.some(Boolean);
+          case 'NOT':
+            return results.length === 1 ? !results[0] : false;
+          default:
+            return false;
+        }
+      }
+
+      // Handle leaf nodes (simple field conditions)
+      if (condition.parentField && condition.showWhen) {
+        const parentField = allFields[condition.parentField];
+        if (!parentField) return false;
+        let parentValue = parentField.value;
+        return condition.showWhen.every(rule => {
+          let ruleValue = rule.value;
+          let fieldValue = parentValue;
+          if (typeof ruleValue === 'string' && typeof fieldValue === 'string') {
+            ruleValue = ruleValue.toLowerCase();
+            fieldValue = fieldValue.toLowerCase();
+          }
+          switch (rule.operator) {
+            case 'equals':
+              return fieldValue === ruleValue;
+            case 'not_equals':
+              // If fieldValue is empty/undefined/null, do not show the field
+              if (fieldValue === undefined || fieldValue === null || fieldValue === '') return false;
+              return fieldValue !== ruleValue;
+            case 'in':
+              return Array.isArray(ruleValue) && ruleValue.map(v => typeof v === 'string' ? v.toLowerCase() : v).includes(fieldValue);
+            case 'not_in':
+              return Array.isArray(ruleValue) && !ruleValue.map(v => typeof v === 'string' ? v.toLowerCase() : v).includes(fieldValue);
+            case 'exists':
+              return fieldValue !== undefined && fieldValue !== null && fieldValue !== '';
+            case 'not_exists':
+              return fieldValue === undefined || fieldValue === null || fieldValue === '';
+            case 'greater_than':
+              return Number(fieldValue) > Number(ruleValue);
+            case 'less_than':
+              return Number(fieldValue) < Number(ruleValue);
+            case 'greater_than_or_equal':
+              return Number(fieldValue) >= Number(ruleValue);
+            case 'less_than_or_equal':
+              return Number(fieldValue) <= Number(ruleValue);
+            default:
+              return false;
+          }
+        });
+      }
+      // Invalid condition structure
+      console.warn('Invalid condition structure:', condition);
+      return false;
+    };
+
+    const validateVisibilityConditions = (condition) => {
+      if (!condition) return true;
+      // Support array of conditions (AND logic)
+      if (Array.isArray(condition)) {
+        return condition.every(validateVisibilityConditions);
+      }
+      // Case 1: Logical operator node
+      if (condition.operator && condition.conditions) {
+        // Validate operator
+        if (!['AND', 'OR', 'NOT'].includes(condition.operator)) {
+          console.error('Invalid logical operator:', condition.operator);
+          return false;
+        }
+
+        // Validate conditions array
+        if (!Array.isArray(condition.conditions)) {
+          console.error('Conditions must be an array');
+          return false;
+        }
+
+        // NOT operator must have exactly one condition
+        if (condition.operator === 'NOT' && condition.conditions.length !== 1) {
+          console.error('NOT operator must have exactly one condition');
+          return false;
+        }
+
+        // Recursively validate all conditions
+        return condition.conditions.every(c => validateVisibilityConditions(c));
+      }
+
+      // Case 2: Leaf node (field condition)
+      if (condition.parentField && condition.showWhen) {
+        // Validate showWhen array
+        if (!Array.isArray(condition.showWhen)) {
+          console.error('showWhen must be an array');
+          return false;
+        }
+
+        // Validate each rule
+        return condition.showWhen.every(rule => {
+          const validOperators = [
+            'equals', 'not_equals', 'in', 'not_in', 'exists', 'not_exists',
+            'greater_than', 'less_than', 'greater_than_or_equal', 'less_than_or_equal'
+          ];
+
+          if (!validOperators.includes(rule.operator)) {
+            console.error('Invalid operator:', rule.operator);
+            return false;
+          }
+
+          // Validate value for operators that require it
+          if (!['exists', 'not_exists'].includes(rule.operator)) {
+            if (rule.value === undefined) {
+              console.error('Value required for operator:', rule.operator);
+              return false;
+            }
+
+            // Validate numeric operators have numeric values
+            if (['greater_than', 'less_than', 'greater_than_or_equal', 'less_than_or_equal'].includes(rule.operator)) {
+              if (typeof rule.value !== 'number' && !Number.isFinite(Number(rule.value))) {
+                console.error('Numeric value required for operator:', rule.operator);
+                return false;
+              }
+            }
+          }
+
+          return true;
+        });
+      }
+
+      // Invalid condition structure
+      console.error('Invalid condition structure:', condition);
+      return false;
+    };
+
+        // Updated function to get fields from the new structure
+        const getFields = () => {
+          // If we have form data, return the actual field data
+          if (localFormData && Object.keys(localFormData).length > 0) {
+            return localFormData;
+          }
+          
+          // Otherwise return empty object
+          return {};
+        };
+    
+        const allFields = getFields();
+
+    const shouldShowField = (fieldKey) => {
+      const field = allFields[fieldKey];
+
+      if (!field) return false;
+      
+      // Skip "flr" fields but allow "ste" fields (Street Number and Name)
+      if (fieldKey === 'flr' || field.fieldName === 'flr') {
+        return false;
+      }
+
+      // If field has no visibilityConditions, show it by default
+      const isVisible = !field.visibilityConditions || (
+        validateVisibilityConditions(field.visibilityConditions) &&
+        evaluateCondition(field.visibilityConditions, allFields)
+      );
+
+      // If "Show Only Empty Fields" is enabled, only show empty and visible fields
+      if (showOnlyEmpty) {
+        return isVisible && isFieldEmpty(fieldKey);
+      }
+      
+      return isVisible;
     };
 
     const { filledFields, totalFields } = getFilledFieldsCount();
 
-    // Updated function to get fields from the new structure
-    const getFields = () => {
-      // If we have form data, get fields from it
-      if (localFormData && Object.keys(localFormData).length > 0) {
-        return Object.keys(localFormData);
-      }
-      
-      // Otherwise return empty array
-      return [];
-    };
-
-    const allFields = getFields();
 
     // Group fields by their groupName and then subgroup by fieldLabel
+    // Store the original order of all keys as they come from MongoDB
+    const allKeys = useMemo(() => Object.keys(localFormData || {}), [localFormData]);
+    
     const groupedFields = useMemo(() => {
       const groups = {};
       
-      // First pass: organize fields by their main group
-      Object.entries(localFormData || {}).forEach(([fieldKey, field]) => {
+      // First pass: organize fields by their main group and sort by position in array
+      // Create a map to store fields with their metadata for sorting
+      const fieldSortingMap = new Map();
+      
+      // First pass to collect all field metadata for sorting
+      Object.entries(localFormData || {}).forEach(([fieldKey, field], index) => {
         const groupName = field?.groupName || 'Ungrouped';
+        const subGroup = field?.subGroup || null;
         
+        fieldSortingMap.set(fieldKey, {
+          subGroup: subGroup,
+          originalIndex: index,
+          groupName: groupName
+        });
+        
+        // Initialize group if it doesn't exist
         if (!groups[groupName]) {
           groups[groupName] = {
             _subgroups: {}, // For fields that can be subgrouped by fieldLabel
             _individual: [] // For fields that don't share fieldLabel with others
           };
         }
-        
-        // Add the field key to the appropriate group
-        groups[groupName]._individual.push(fieldKey);
       });
       
-      // Second pass: identify fields that share the same fieldLabel within each group
-      Object.keys(groups).forEach(groupName => {
-        const groupData = groups[groupName];
-        const fieldLabelCounts = {};
+      // Get all field keys in their original MongoDB order
+      const allFieldKeys = Array.from(fieldSortingMap.keys());
+      
+      // Add fields to their groups in the original order from MongoDB
+      allFieldKeys.forEach(fieldKey => {
+        const field = localFormData[fieldKey];
+        const sortingData = fieldSortingMap.get(fieldKey);
+        const groupName = sortingData.groupName;
         
-        // Count occurrences of each fieldLabel
-        groupData._individual.forEach(fieldKey => {
-          const field = localFormData[fieldKey];
-          const fieldLabel = field?.fieldLabel || '';
-          
-          if (fieldLabel) {
-            fieldLabelCounts[fieldLabel] = (fieldLabelCounts[fieldLabel] || 0) + 1;
+        // If the field has a subGroup, add it to that subgroup
+        if (field?.subGroup) {
+          if (!groups[groupName]._subgroups[field.subGroup]) {
+            groups[groupName]._subgroups[field.subGroup] = [];
           }
-        });
-        
-        // Create subgroups for fieldLabels that appear more than once
-        const fieldsToMove = [];
-        
-        Object.entries(fieldLabelCounts).forEach(([fieldLabel, count]) => {
-          if (count > 1) {
-            // Create a subgroup for this fieldLabel
-            groupData._subgroups[fieldLabel] = [];
-            
-            // Find all fields with this label
-            groupData._individual.forEach(fieldKey => {
-              const field = localFormData[fieldKey];
-              if (field?.fieldLabel === fieldLabel) {
-                // Add to the subgroup
-                groupData._subgroups[fieldLabel].push(fieldKey);
-                // Mark for removal from individual list
-                fieldsToMove.push(fieldKey);
-              }
-            });
-          }
-        });
-        
-        // Remove fields that were moved to subgroups
-        groupData._individual = groupData._individual.filter(
-          fieldKey => !fieldsToMove.includes(fieldKey)
-        );
+          groups[groupName]._subgroups[field.subGroup].push(fieldKey);
+        } else {
+          // Add the field key to the individual list if it doesn't have a subGroup
+          groups[groupName]._individual.push(fieldKey);
+        }
       });
       
-      // Sort the groups alphabetically but put some important groups first
+      // Preserve the order from MongoDB by tracking the order fields appear in the response
+      const groupOrderMap = new Map();
+      let orderIndex = 0;
+      
+      // First pass: record the order in which each group first appears
+      Object.entries(localFormData || {}).forEach(([fieldKey, field]) => {
+        const groupName = field?.groupName || 'Ungrouped';
+        if (!groupOrderMap.has(groupName)) {
+          groupOrderMap.set(groupName, orderIndex++);
+        }
+      });
+      
+      // Sort groups based on their first appearance in the data
       const sortedGroups = {};
-      const priorityGroups = [
-        'Personal Information', 
-        'Contact Information', 
-        'Birth Information',
-        'Identity Documents',
-        'Citizenship(s)'
-      ];
-      
-      // First add priority groups in order (if they exist)
-      priorityGroups.forEach(groupName => {
-        if (groups[groupName]) {
-          sortedGroups[groupName] = groups[groupName];
-        }
-      });
-      
-      // Then add the rest of the groups alphabetically
-      Object.keys(groups).sort().forEach(groupName => {
-        if (!priorityGroups.includes(groupName)) {
-          sortedGroups[groupName] = groups[groupName];
-        }
-      });
+      Array.from(groupOrderMap.keys())
+        .sort((a, b) => groupOrderMap.get(a) - groupOrderMap.get(b))
+        .forEach(groupName => {
+          if (groups[groupName]) {
+            sortedGroups[groupName] = groups[groupName];
+          }
+        });
       
       return sortedGroups;
     }, [localFormData]);
@@ -3398,16 +3627,66 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     const renderField = (fieldKey, hideLabel = false) => {
       // Get the field object
-      const field = localFormData[fieldKey];
+      let field = localFormData[fieldKey];
       
       // Use the fieldLabel from the response - prefer field.label, fallback to fieldKey
-      const fieldLabel = field?.fieldLabel || field?.label || fieldKey;
+      let fieldLabel = field?.fieldLabel || field?.label || fieldKey;
+      
+      // Special handling for fields that should not be grouped despite having the same label
+      const isSpecialField = (
+        // Residential Address History date fields
+        (field?.groupName === 'Residential Address History' && 
+         (field?.fieldType || '').toLowerCase().includes('date') &&
+         field?.fieldName && 
+         (field?.fieldName.includes('residence_from') || field?.fieldName.includes('residence_to')))
+        ||
+        // Personal Information name fields that need to be separated
+        (field?.groupName === 'Personal Information' &&
+         (field?.fieldLabel === 'Family name (Last name)' || field?.fieldLabel === 'Given name (First name)') &&
+         field?.fieldName && 
+         (field?.fieldName.includes('other_name') || field?.fieldName.includes('current_name') || 
+          field?.fieldName.includes('change_name')))
+      );
+      
+      if (isSpecialField && !hideLabel) {
+        // For Residential Address History date fields
+        if (field.groupName === 'Residential Address History') {
+          // Add specific address details to date fields when not in a subgroup
+          if (field.fieldName.includes('residence_from_1') || field.fieldName.includes('residence_to_1')) {
+            fieldLabel += ' (Address 1)';
+          } else if (field.fieldName.includes('residence_from_2') || field.fieldName.includes('residence_to_2')) {
+            fieldLabel += ' (Address 2)';
+          } else if (field.fieldName.includes('residence_from_3') || field.fieldName.includes('residence_to_3')) {
+            fieldLabel += ' (Address 3)';
+          } else if (field.fieldName.includes('residence_from_date') || field.fieldName.includes('residence_to_date')) {
+            fieldLabel += ' (Current Address)';
+          }
+        }
+        
+        // For Personal Information name fields
+        if (field.groupName === 'Personal Information' && 
+            (field.fieldLabel === 'Family name (Last name)' || field.fieldLabel === 'Given name (First name)')) {
+          if (field.fieldName.includes('current_name')) {
+            fieldLabel += ' (Current)';
+          } else if (field.fieldName.includes('other_name')) {
+            fieldLabel += ' (Previous)';
+          } else if (field.fieldName.includes('change_name')) {
+            fieldLabel += ' (Changed)';
+          }
+        }
+      }
       
       // Get the fieldName for reference
       const fieldName = field?.fieldName || '';
       
       // Get field type from the response
       const fieldType = field?.fieldType || 'Text Field';
+      
+      // Ensure the Street Number field is properly labeled
+      if (fieldKey === 'ste' && field) {
+        field.fieldLabel = 'Street Number and Name';
+        field.fieldType = 'Text Field';
+      }
       
       // Get field values if available (for dropdowns, radio buttons, checkboxes)
       const fieldValues = field?.values;
@@ -3447,6 +3726,11 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           
           // If it's explicitly labeled as a text field
           if (type.includes('text')) return isTextareaField ? 'textarea' : 'text';
+        }
+        
+        // Special case for "ste" field in Residential Address History
+        if (fieldName === 'ste' || fieldKey === 'ste') {
+          return 'text';
         }
         
         // Fallback detection based on field name and value format
@@ -3668,7 +3952,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         
         // For radio buttons
         if (inputType === 'radio button') {
-          return field.value === true;
+          return field.value === optionValue;
         }
         
         // For regular fields
@@ -3679,32 +3963,20 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       const handleChange = (value, optionValue) => {
         if (inputType === 'radio button') {
           // For radio buttons
-          
-          // Check if this radio is already selected - if so, unselect it (toggle behavior)
-          if (field.value === true) {
-            // Unselect this radio button
-            handleLocalInputChange(fieldKey, false);
-            return;
-          }
-          
           // Get the fieldLabel for grouping
           const currentFieldLabel = field?.fieldLabel || '';
-          
           // Find all related radio fields with the same fieldLabel
           const relatedFields = Object.entries(localFormData).filter(([key, val]) => {
             if (!val.fieldLabel) return false;
-            
             // Match if they share the same fieldLabel
             return val.fieldLabel === currentFieldLabel && key !== fieldKey;
           });
-          
-          // Set all related fields to false
+          // Set all related fields to empty string
           relatedFields.forEach(([key, _]) => {
-            handleLocalInputChange(key, false);
+            handleLocalInputChange(key, "");
           });
-          
-          // Set this field to true
-          handleLocalInputChange(fieldKey, true);
+          // Set this field to the actual option value
+          handleLocalInputChange(fieldKey, fieldValues || radioValue || optionValue);
         } else if (inputType === 'checkbox') {
           // For checkboxes, toggle the value in an array
           if (options.length <= 1) {
@@ -3713,13 +3985,11 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           } else {
             // For multiple options checkboxes, manage array of values
             let newValue = Array.isArray(field.value) ? [...field.value] : [];
-            
             if (newValue.includes(optionValue)) {
               newValue = newValue.filter(val => val !== optionValue);
             } else {
               newValue.push(optionValue);
             }
-            
             handleLocalInputChange(fieldKey, newValue);
           }
         } else {
@@ -3733,8 +4003,9 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
       return (
         <div key={fieldKey} className="mb-4">
-          {!hideLabel && (
-            <label className="block text-xs text-gray-500 mb-1">
+          {/* Only show label for non-radio fields */}
+          {!hideLabel && inputType !== 'radio button' && (
+            <label htmlFor={fieldId} className="block text-sm font-medium text-gray-700 mb-1">
               {fieldLabel}
               {field?.required && <span className="text-red-500 ml-1">*</span>}
             </label>
@@ -3807,14 +4078,21 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 >
                   {fieldValues || radioValue || 'Yes'}
                 </label>
-                
-                {/* Add a small X button to clear selection */}
                 {field.value && (
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleLocalInputChange(fieldKey, false);
+                      // Clear all radios in the group
+                      Object.entries(localFormData).forEach(([key, val]) => {
+                        if (
+                          val.fieldType &&
+                          val.fieldType.toLowerCase().includes('radio') &&
+                          val.fieldLabel === field.fieldLabel
+                        ) {
+                          handleLocalInputChange(key, "");
+                        }
+                      });
                     }}
                     className="ml-2 text-xs text-gray-400 hover:text-red-500 focus:outline-none"
                     title="Unselect this option"
@@ -3860,28 +4138,14 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       });
       
       const visibleFields = allFields.filter(shouldShowField);
-      
-      // If no fields are visible (when showing only empty fields), don't render this group
       if (visibleFields.length === 0) return null;
       
       // Get completion stats for this group
       const { completed, total, percentage } = getGroupCompletionStats(groupData);
       const isExpanded = expandedGroups[groupName] || false;
       
-      // Function to render a subgroup
-      const renderSubgroup = (label, fields) => {
-        const visibleSubgroupFields = fields.filter(shouldShowField);
-        if (visibleSubgroupFields.length === 0) return null;
-        
-        return (
-          <div key={`subgroup-${label}`} className="mb-4 border border-gray-100 rounded p-3 bg-gray-50">
-            <div className="font-medium text-sm text-gray-700 mb-2">{label}</div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {visibleSubgroupFields.map(fieldKey => renderField(fieldKey, true))}
-            </div>
-          </div>
-        );
-      };
+      // Track which subgroups have been rendered
+      const renderedSubgroups = new Set();
       
       return (
         <div key={groupName} className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
@@ -3909,7 +4173,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 {groupName}
               </h3>
             </div>
-            
             <div className="flex items-center gap-3">
               {/* Completion status */}
               <div className="flex items-center gap-2">
@@ -3932,21 +4195,167 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               </div>
             </div>
           </div>
-          
           {/* Accordion Content */}
           {isExpanded && (
             <div className="p-4 bg-white border-t border-gray-200">
-              {/* Render subgroups first */}
-              {Object.entries(groupData._subgroups || {}).map(([label, fields]) => 
-                renderSubgroup(label, fields)
-              )}
-              
-              {/* Render individual fields */}
-              {groupData._individual.filter(shouldShowField).length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {groupData._individual.filter(shouldShowField).map(fieldKey => renderField(fieldKey))}
-                </div>
-              )}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {(() => {
+                  const elements = [];
+                  const keys = allKeys.filter(key => {
+                    const field = localFormData[key];
+                    return field?.groupName === groupName && shouldShowField(key);
+                  });
+                  let i = 0;
+                  while (i < keys.length) {
+                    const fieldKey = keys[i];
+                    const field = localFormData[fieldKey];
+                    // Handle subgroups
+                    if (field?.subGroup && groupData._subgroups[field.subGroup] && !renderedSubgroups.has(field.subGroup)) {
+                      renderedSubgroups.add(field.subGroup);
+                      const subgroupFields = groupData._subgroups[field.subGroup].filter(shouldShowField);
+                      // Render radio/checkbox groups inside subgroups
+                      let j = 0;
+                      const subgroupElements = [];
+                      while (j < subgroupFields.length) {
+                        const subFieldKey = subgroupFields[j];
+                        const subField = localFormData[subFieldKey];
+                        // Group radio buttons
+                        if (subField.fieldType === 'Radio Button') {
+                          const radioLabel = subField.fieldLabel;
+                          const radioFields = [];
+                          let k = j;
+                          while (
+                            k < subgroupFields.length &&
+                            localFormData[subgroupFields[k]].fieldType === 'Radio Button' &&
+                            localFormData[subgroupFields[k]].fieldLabel === radioLabel
+                          ) {
+                            radioFields.push(subgroupFields[k]);
+                            k++;
+                          }
+                          subgroupElements.push(
+                            <div key={`radio-group-${field.subGroup}-${radioLabel}`} className="mb-2 col-span-full md:col-span-3">
+                              <div className="text-sm font-medium text-gray-700 mb-1">{radioLabel}</div>
+                              <div className={radioFields.length > 2 ? "grid grid-cols-1 md:grid-cols-3 gap-4" : "flex flex-row gap-6"}>
+                                {radioFields.map(radioKey => renderField(radioKey, true))}
+                              </div>
+                            </div>
+                          );
+                          j = k;
+                          continue;
+                        }
+                        // Group checkboxes
+                        if (subField.fieldType === 'Checkbox') {
+                          const checkboxLabel = subField.fieldLabel;
+                          const checkboxFields = [];
+                          let k = j;
+                          while (
+                            k < subgroupFields.length &&
+                            localFormData[subgroupFields[k]].fieldType === 'Checkbox' &&
+                            localFormData[subgroupFields[k]].fieldLabel === checkboxLabel
+                          ) {
+                            checkboxFields.push(subgroupFields[k]);
+                            k++;
+                          }
+                          subgroupElements.push(
+                            <div key={`checkbox-group-${field.subGroup}-${checkboxLabel}`} className="mb-2 col-span-full md:col-span-3">
+                              <div className="text-sm font-medium text-gray-700 mb-1">{checkboxLabel}</div>
+                              <div className={checkboxFields.length > 2 ? "grid grid-cols-1 md:grid-cols-3 gap-4" : "flex flex-row gap-6"}>
+                                {checkboxFields.map(checkboxKey => renderField(checkboxKey, true))}
+                              </div>
+                            </div>
+                          );
+                          j = k;
+                          continue;
+                        }
+                        // Render normal field
+                        subgroupElements.push(
+                          <div key={subFieldKey}>{renderField(subFieldKey, false)}</div>
+                        );
+                        j++;
+                      }
+                      elements.push(
+                        <div key={`subgroup-${field.subGroup}`} className="mb-4 col-span-full">
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="h-4 w-1 bg-blue-500 rounded-full"></div>
+                              <div className="font-medium text-sm text-gray-700">{field.subGroup}</div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              {subgroupElements}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                      i += subgroupFields.length;
+                      continue;
+                    }
+                    // Handle radio button groups outside subgroups
+                    if (field.fieldType === 'Radio Button') {
+                      const radioLabel = field.fieldLabel;
+                      const radioFields = [];
+                      let j = i;
+                      while (
+                        j < keys.length &&
+                        localFormData[keys[j]].fieldType === 'Radio Button' &&
+                        localFormData[keys[j]].fieldLabel === radioLabel
+                      ) {
+                        radioFields.push(keys[j]);
+                        j++;
+                      }
+                      elements.push(
+                        <div key={`radio-group-${groupName}-${radioLabel}-${i}`} className="mb-4 col-span-full">
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="h-4 w-1 bg-blue-500 rounded-full"></div>
+                              <div className="text-sm font-medium text-gray-700">{radioLabel}</div>
+                            </div>
+                            <div className={radioFields.length > 2 ? "grid grid-cols-1 md:grid-cols-3 gap-4" : "flex flex-row gap-6"}>
+                              {radioFields.map(radioKey => renderField(radioKey, true))}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                      i = j;
+                      continue;
+                    }
+                    // Handle checkbox groups outside subgroups
+                    if (field.fieldType === 'Checkbox') {
+                      const checkboxLabel = field.fieldLabel;
+                      const checkboxFields = [];
+                      let j = i;
+                      while (
+                        j < keys.length &&
+                        localFormData[keys[j]].fieldType === 'Checkbox' &&
+                        localFormData[keys[j]].fieldLabel === checkboxLabel
+                      ) {
+                        checkboxFields.push(keys[j]);
+                        j++;
+                      }
+                      elements.push(
+                        <div key={`checkbox-group-${groupName}-${checkboxLabel}-${i}`} className="mb-4 col-span-full">
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="h-4 w-1 bg-blue-500 rounded-full"></div>
+                              <div className="text-sm font-medium text-gray-700">{checkboxLabel}</div>
+                            </div>
+                            <div className={checkboxFields.length > 2 ? "grid grid-cols-1 md:grid-cols-3 gap-4" : "flex flex-row gap-6"}>
+                              {checkboxFields.map(checkboxKey => renderField(checkboxKey, true))}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                      i = j;
+                      continue;
+                    }
+                    // Render normal field
+                    elements.push(
+                      <div key={fieldKey}>{renderField(fieldKey, false)}</div>
+                    );
+                    i++;
+                  }
+                  return elements;
+                })()}
+              </div>
             </div>
           )}
         </div>
@@ -4639,15 +5048,13 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         const formData = new FormData();
         formData.append('file', blob, `${selectedForm.form_name}.pdf`);
         formData.append('managementId', caseId);
-
         // Send the file to backend
         await api.post('/management/upload-form', formData, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
         });
-
-        // // Update case status to completed
+        // Update case status to completed
         // await api.patch(`/management/${caseId}/status`, {
         //   status: 'completed'
         // });
@@ -4655,7 +5062,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         // Show success message
         toast.success('Form downloaded and uploaded successfully');
         
-        // // Refresh case data to update UI
+        // Refresh case data to update UI
         // const response = await api.get(`/management/${caseId}`);
         // if (response.data.status === 'success') {
         //   const updatedCaseData = response.data.data.entry;
@@ -4708,38 +5115,38 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
     return (
       <div className="p-6">
-        <div className="space-y-6">
+       <div className="space-y-6">
          
 
-          {/* New Forms Section */}
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Available Forms</h2>
-            <div className="space-y-3">
-              {forms.map((form) => (
-                <div 
-                  key={form._id}
-                  onClick={() => handleFormClick(form)}
-                  className="bg-white rounded-lg border border-gray-200 p-4 hover:bg-gray-50 transition-all cursor-pointer"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-sm font-medium text-gray-900">{form.form_name}</h3>
-                    </div>
-                    <div>
-                      {loadingFormId === form._id ? (
-                        <div className="flex items-center text-gray-400">
-                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                          Processing...
-                        </div>
-                      ) : (
-                        <Download className="w-4 h-4 text-gray-400" />
-                      )}
-                    </div>
-                  </div>
+         {/* New Forms Section */}
+         <div>
+           <h2 className="text-lg font-semibold text-gray-900 mb-4">Available Forms</h2>
+          <div className="space-y-3">
+          {forms.map((form) => (
+            <div 
+              key={form._id}
+              onClick={() => handleFormClick(form)}
+              className="bg-white rounded-lg border border-gray-200 p-4 hover:bg-gray-50 transition-all cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <h3 className="text-sm font-medium text-gray-900">{form.form_name}</h3>
                 </div>
-              ))}
+                <div>
+                  {loadingFormId === form._id ? (
+                    <div className="flex items-center text-gray-400">
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Processing...
+                    </div>
+                  ) : (
+                    <Download className="w-4 h-4 text-gray-400" />
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
+          ))}
+           </div>
+           </div>
 
            {/* Existing Forms Section */}
            <div>
@@ -5206,8 +5613,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       const crossVerifyResponse = await api.get(`/management/${caseId}/cross-verify`);
       const crossVerifyData = crossVerifyResponse.data;
 
-      // Get recipient name from profile data or use a default
-      const recipientName = profileData?.name || 'Sir/Madam';
+      // Get the case owner's userId from caseData
+      const userId = caseData?.userId;
 
       // Structure the request body correctly
       const requestBody = {
@@ -5309,7 +5716,18 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           
           <div className="flex-1 overflow-auto"> {/* This will scroll independently */}
             <div className="max-w-7xl mx-auto">
-                            {activeTab === 'profile' && <ProfileTab profileData={caseData.userId} />}              {activeTab === 'payment' && <PaymentTab caseId={caseId} />}              {activeTab === 'retainer' &&                 <RetainerTab                   companyId={profileData.company_id._id}                   profileData={profileData}                  caseId={caseId}                  caseManagerId={caseData?.caseManagerId?._id}                  applicantId={caseData.userId?._id}                  caseData={caseData}                />              }
+              {activeTab === 'profile' && <ProfileTab profileData={caseData.userId} />}
+              {activeTab === 'payment' && <PaymentTab caseId={caseId} />}
+              {activeTab === 'retainer' && (
+                <RetainerTab
+                  companyId={profileData.company_id._id}
+                  profileData={profileData}
+                  caseId={caseId}
+                  caseManagerId={caseData?.caseManagerId?._id}
+                  applicantId={caseData.userId?._id}
+                  caseData={caseData}
+                />
+              )}
               {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}

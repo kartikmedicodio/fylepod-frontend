@@ -2152,7 +2152,7 @@ const FNCaseDetails = () => {
 
   // Update the ValidationAccordion component's loading state
   const ValidationAccordion = ({ isLoading, validationData, caseData }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(true); // Changed to true
 
     if (isLoading) {
       return <AccordionSkeleton title="Document Verification Results" />;
