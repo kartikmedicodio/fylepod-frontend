@@ -38,6 +38,7 @@ import ReceiptsTab from '../components/receipts/ReceiptsTab';
 import DocumentsArchiveTab from '../components/documents/DocumentsArchiveTab';
 import CommunicationsTab from '../components/CommunicationsTab';
 import RetainerTab from '../components/RetainerTab';
+import PaymentTab from '../components/payments/PaymentTab';
 
 // Add a new status type to track document states
 const DOCUMENT_STATUS = {
@@ -2037,14 +2038,14 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       <div className="flex -mb-px">
         {[
           { name: 'Profile', icon: User },
-          { name: 'Retainer', icon: FileText },  // Moved up here
+          { name: 'Retainer', icon: FileText },
+          { name: 'Payment', icon: FileText }, // Moved here, right after Retainer
           { name: 'Document Checklist', icon: ClipboardList },
           { name: 'Questionnaire', icon: FileText },
           { name: 'Forms', icon: File },
           { name: 'Letters', icon: FileText },
           { name: 'Receipts', icon: LucideReceiptText },
           { name: 'Packaging', icon: Package },
-          // { name: 'Documents Archive', icon: FileText },
           { name: 'Communications', icon: Mail },
         ].map(({ name, icon: Icon, disabled }) => (
           <button
