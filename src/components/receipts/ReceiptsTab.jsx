@@ -173,7 +173,13 @@ const ReceiptsTab = ({ managementId }) => {
         managementId,
         emailType: 'receipt_upload',
         userId,
-        recipientName: userName
+        recipientName: userName,
+        metadata: {
+          fileName: file.name,
+          fileUrl,
+          receiptType: extractedData.approvalDetails?.value || 'Government Notice',
+          receiptId: latestReceipt?._id
+        }
       });
 
       console.log('Email response:', emailResponse.data);
