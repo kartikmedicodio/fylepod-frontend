@@ -653,7 +653,13 @@ const NewCase = () => {
 
       const { steps, summary } = response.data.data;
       
-      setWorkflowSteps(steps);
+      // Ensure each step has a unique identifier
+      const stepsWithIds = steps.map((step, index) => ({
+        ...step,
+        _id: step._id || `step-${Date.now()}-${index}` // Add unique _id if not present
+      }));
+      
+      setWorkflowSteps(stepsWithIds);
       setWorkflowSummary(summary);
     } catch (error) {
       console.error('Error fetching workflow:', error);
@@ -687,6 +693,7 @@ const NewCase = () => {
 
       // Format steps for the API
       const formattedSteps = workflowSteps.map((step, index) => ({
+        _id: step._id || `step-${Date.now()}-${index}`,
         name: step.name,
         key: step.key,
         order: index + 1,

@@ -37,7 +37,9 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, availableKeys }) 
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: step.key });
+  } = useSortable({ 
+    id: `${step._id}-${index}` // Use consistent unique ID
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -444,13 +446,21 @@ const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditabl
     }
   };
 
+  // Add a function to generate a unique key for each step
+  const getUniqueStepKey = (step, index) => {
+    // Use a combination of _id, key, and index to ensure uniqueness
+    return step._id 
+      ? `${step._id}-${index}` 
+      : `step-${step.key}-${index}-${Date.now()}`;
+  };
+
   // If not editable, just render the steps without DnD context
   if (!isEditable) {
     return (
       <div className="space-y-3">
         {steps.map((step, index) => (
           <SortableStep
-            key={step.key}
+            key={getUniqueStepKey(step, index)}
             step={step}
             index={index}
             isEditable={false}
@@ -491,88 +501,62 @@ const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditabl
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Summary Section */}
       {summary && (
-        <div className="grid grid-cols-4 gap-4 mb-8">
-          <div className="bg-white p-4 rounded-lg border border-gray-200">
-            <div className="text-sm text-gray-500">Total Steps</div>
-            <div className="text-2xl font-semibold text-gray-900">{summary.totalSteps}</div>
-          </div>
-          <div className="bg-white p-4 rounded-lg border border-gray-200">
-            <div className="text-sm text-gray-500">Estimated Hours</div>
-            <div className="text-2xl font-semibold text-gray-900">{summary.totalEstimatedHours}</div>
-          </div>
-          <div className="bg-white p-4 rounded-lg border border-gray-200">
-            <div className="text-sm text-gray-500">Required Steps</div>
-            <div className="text-2xl font-semibold text-gray-900">{summary.requiredSteps}</div>
-          </div>
-          <div className="bg-white p-4 rounded-lg border border-gray-200">
-            <div className="text-sm text-gray-500">Optional Steps</div>
-            <div className="text-2xl font-semibold text-gray-900">{summary.optionalSteps}</div>
-          </div>
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="text-sm text-gray-500">Total Steps</div>
+          <div className="text-2xl font-semibold text-gray-900">{summary.totalSteps}</div>
+          <div className="text-sm text-gray-500">Estimated Hours</div>
+          <div className="text-2xl font-semibold text-gray-900">{summary.totalEstimatedHours}</div>
+          <div className="text-sm text-gray-500">Required Steps</div>
+          <div className="text-2xl font-semibold text-gray-900">{summary.requiredSteps}</div>
+          <div className="text-sm text-gray-500">Optional Steps</div>
+          <div className="text-2xl font-semibold text-gray-900">{summary.optionalSteps}</div>
         </div>
       )}
 
-      {/* Column Headers */}
-      <div className={`grid grid-cols-12 items-center gap-6 px-4 ${isEditable ? 'pl-16' : 'pl-4'} pb-2 border-b border-gray-200`}>
-        <div className="col-span-1">
-          <span className="text-xs font-medium text-gray-500">Step</span>
-                </div>
-        <div className="col-span-3">
-          <span className="text-xs font-medium text-gray-500">Name</span>
-                  </div>
-        <div className="col-span-4">
-          <span className="text-xs font-medium text-gray-500">Description</span>
-                    </div>
-        <div className="col-span-2">
-          <span className="text-xs font-medium text-gray-500">Time Estimate</span>
-                  </div>
-        <div className="col-span-2">
-          <span className="text-xs font-medium text-gray-500">Key</span>
-              </div>
-            </div>
-
-      {/* Steps Flow */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        modifiers={[restrictToVerticalAxis]}
-      >
-        <SortableContext
-          items={steps.map(step => step.key)}
-          strategy={verticalListSortingStrategy}
+      {/* Steps section */}
+      <div className="space-y-4">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          modifiers={[restrictToVerticalAxis]}
         >
-          <div className="space-y-3">
+          <SortableContext
+            items={steps.map(step => getUniqueStepKey(step, steps.indexOf(step)))}
+            strategy={verticalListSortingStrategy}
+          >
             {steps.map((step, index) => (
-              <SortableStep
-                key={step.key}
-                step={step}
-                index={index}
-                isEditable={isEditable}
-                onUpdateStep={handleUpdateStep}
-                availableKeys={availableKeys}
-              />
+              <div key={getUniqueStepKey(step, index)}>
+                <SortableStep
+                  step={step}
+                  index={index}
+                  isEditable={isEditable}
+                  onUpdateStep={handleUpdateStep}
+                  availableKeys={availableKeys}
+                />
+              </div>
             ))}
-          </div>
-        </SortableContext>
+          </SortableContext>
 
-        <DragOverlay>
-          {activeId ? (
-            <div className="bg-white rounded-lg border border-gray-100 shadow-xl">
-              <SortableStep
-                step={steps.find(step => step.key === activeId)}
-                index={steps.findIndex(step => step.key === activeId)}
-                isEditable={isEditable}
-                onUpdateStep={handleUpdateStep}
-                availableKeys={availableKeys}
-              />
+          <DragOverlay>
+            {activeId ? (
+              <div className="bg-white rounded-lg border border-gray-100 shadow-xl">
+                <SortableStep
+                  step={steps.find((step, idx) => getUniqueStepKey(step, idx) === activeId)}
+                  index={steps.findIndex((step, idx) => getUniqueStepKey(step, idx) === activeId)}
+                  isEditable={isEditable}
+                  onUpdateStep={handleUpdateStep}
+                  availableKeys={availableKeys}
+                />
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
       </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
     </div>
   );
 };
