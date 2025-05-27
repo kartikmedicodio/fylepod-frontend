@@ -4436,6 +4436,7 @@ const FNCaseDetails = () => {
                   caseId={caseId}
                   caseManagerId={caseData?.caseManagerId?._id}
                   applicantId={caseData?.userId?._id}
+                  caseData={caseData}
                 />
               </div>
             )}
