@@ -2893,6 +2893,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 caseId={caseId}
                 caseManagerId={managerId}
                 applicantId={caseData.userId?._id}
+                caseData={caseData}
               />
             );
           })();
@@ -5716,15 +5717,17 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           <div className="flex-1 overflow-auto"> {/* This will scroll independently */}
             <div className="max-w-7xl mx-auto">
               {activeTab === 'profile' && <ProfileTab profileData={caseData.userId} />}
-              {activeTab === 'retainer' && 
-                <RetainerTab 
-                  companyId={profileData.company_id._id} 
+              {activeTab === 'payment' && <PaymentTab caseId={caseId} />}
+              {activeTab === 'retainer' && (
+                <RetainerTab
+                  companyId={profileData.company_id._id}
                   profileData={profileData}
                   caseId={caseId}
                   caseManagerId={caseData?.caseManagerId?._id}
                   applicantId={caseData.userId?._id}
+                  caseData={caseData}
                 />
-              }
+              )}
               {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
