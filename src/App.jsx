@@ -32,6 +32,7 @@ import AiQueries from './pages/AiQueries';
 import { useEffect } from 'react';
 import { removeStoredToken, removeStoredUser } from './utils/auth';
 import FNPayments from './pages/FNPayments';
+import PaymentCancelled from './pages/PaymentCancelled';
 
 // Update HomeRedirect component to redirect to dashboard
 const HomeRedirect = () => {
@@ -121,6 +122,7 @@ const App = () => {
                           
                           {/* Add this new route inside the PrivateRoute section */}
                           <Route path="/fn-payments" element={<FNPayments />} />
+                          <Route path="/payment-cancelled" element={<PaymentCancelled />} />
                         </Routes>
                       </Layout>
                     </PrivateRoute>
