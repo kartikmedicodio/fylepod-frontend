@@ -56,21 +56,7 @@ const PaymentStatus = ({ status, amount, paymentUrl }) => {
         </div>
       </div>
 
-      {/* Amount Card */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="bg-blue-100 rounded-full p-2">
-              <DollarSign className="w-6 h-6 text-blue-600" />
-            </div>
-            <div>
-              <h3 className="text-gray-900 font-medium">Payment Amount</h3>
-              <p className="text-gray-500 text-sm">Total amount to be paid</p>
-            </div>
-          </div>
-          <div className="text-2xl font-bold text-gray-900">${amount}</div>
-        </div>
-      </div>
+     
 
       {/* Payment Link Button */}
       {status === 'link_sent' && (
