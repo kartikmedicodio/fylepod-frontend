@@ -141,7 +141,11 @@ const DocumentsArchiveTab = ({ managementId }) => {
     try {
       const response = await api.get(`/letters/management/${managementId}?status=final`);
       if (response.data.success) {
-        setLetters(response.data.data);
+        // Filter out any letters that might still be in draft status
+        const nonDraftLetters = response.data.data.filter(letter => 
+          letter.status === 'final' || letter.status === 'approved'
+        );
+        setLetters(nonDraftLetters);
       }
     } catch (error) {
       console.error('Error fetching letters:', error);

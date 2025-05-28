@@ -507,35 +507,27 @@ const ProfileCard = ({ cases, pendingCase, onCaseClick, setCurrentBreadcrumb, na
   );
 };
 
-const ProcessState = ({ state, status, onClick, validationErrors }) => {
+const ProcessState = ({ state, status, validationErrors }) => {
   const [showErrors, setShowErrors] = useState(false);
   const popupRef = useRef(null);
   const timeoutRef = useRef(null);
   const containerRef = useRef(null);
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (popupRef.current && !popupRef.current.contains(event.target) && 
-          containerRef.current && !containerRef.current.contains(event.target)) {
-        setShowErrors(false);
-      }
-    };
-
-    if (showErrors) {
-      document.addEventListener('mousedown', handleClickOutside);
-      // Auto-close after 5 seconds
-      timeoutRef.current = setTimeout(() => {
-        setShowErrors(false);
-      }, 5000);
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
     }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
   }, [showErrors]);
+
+  const handleMouseEnter = () => {
+    if (status === 'error' && validationErrors?.length > 0) {
+      setShowErrors(true);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setShowErrors(false);
+  };
 
   const getStateStyles = () => {
     switch (status) {
@@ -559,31 +551,25 @@ const ProcessState = ({ state, status, onClick, validationErrors }) => {
     }
   };
 
-  const handleClick = () => {
-    if (status === 'error' && validationErrors?.length > 0) {
-      setShowErrors(!showErrors);
-      onClick?.();
-    }
-  };
-
   return (
-    <div ref={containerRef} className="relative flex flex-col items-center gap-1.5">
+    <div 
+      ref={containerRef} 
+      className="relative flex flex-col items-center gap-1.5"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       {/* State Label */}
       <div 
         className={`text-[11px] font-medium whitespace-nowrap transition-colors ${
-          status === 'error' ? 'text-rose-600 cursor-pointer hover:text-rose-700' : 'text-slate-600'
+          status === 'error' ? 'text-rose-600' : 'text-slate-600'
         }`}
-        onClick={handleClick}
       >
         {state}
       </div>
       
       {/* Progress Bar Container */}
       <div 
-        className={`w-16 h-2 rounded-full border ${getStateStyles()} group-hover:brightness-95 transition-all ${
-          status === 'error' ? 'cursor-pointer' : ''
-        }`}
-        onClick={handleClick}
+        className={`w-16 h-2 rounded-full border ${getStateStyles()} group-hover:brightness-95 transition-all`}
       >
         {/* Progress Bar Fill */}
         <div 
@@ -597,7 +583,10 @@ const ProcessState = ({ state, status, onClick, validationErrors }) => {
 
       {/* Verification Errors Popup */}
       {showErrors && validationErrors?.length > 0 && (
-        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 p-3 z-10">
+        <div 
+          ref={popupRef}
+          className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 p-3 z-10"
+        >
           <div className="text-xs font-medium text-rose-700 mb-2">Verification Errors:</div>
           <div className="space-y-1.5">
             {validationErrors.map((error, index) => (

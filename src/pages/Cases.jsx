@@ -297,11 +297,11 @@ const Cases = () => {
     total: 0,
     currentPage: 1,
     limit: 10,
-    totalPages: 0
+    totalPages: 0,
+    hasNextPage: false,
+    hasPrevPage: false
   });
   const [searchTerm, setSearchTerm] = useState('');
-  const [filteredCases, setFilteredCases] = useState([]);
-  const [selectedCase, setSelectedCase] = useState(null);
   const [error, setError] = useState(null);
   const [loggedInUserDetails, setLoggedInUserDetails] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -353,6 +353,70 @@ const Cases = () => {
     ]
   };
 
+  // Fetch cases with pagination
+  const fetchCases = async (page = 1, searchQuery = '', status = '') => {
+    try {
+      setLoading(true);
+      console.log('Fetching cases with pagination:', { page, searchQuery, status });
+
+      const userDetails = getStoredUser();
+      if (!userDetails) {
+        throw new Error('No user data found in localStorage');
+      }
+
+      setLoggedInUserDetails(userDetails);
+
+      if (userDetails.lawfirm_id?._id) {
+        const queryParams = new URLSearchParams({
+          page,
+          limit: pagination.limit,
+          sortBy: 'createdAt',
+          order: 'desc',
+          ...(searchQuery && { search: searchQuery }),
+          ...(status && { status })
+        });
+
+        const response = await api.get(`/management/paginated?${queryParams}`);
+        
+        if (response.data.status === 'success') {
+          const { managements, pagination: paginationData } = response.data.data;
+          
+          // Filter cases by lawfirm ID
+          const filteredCases = managements.filter(caseItem => 
+            caseItem.lawfirmId === userDetails.lawfirm_id._id ||
+            caseItem.createdBy?.lawfirm_id?._id === userDetails.lawfirm_id._id
+          );
+
+          setCases(filteredCases);
+          setDisplayCases(filteredCases);
+          setPagination(paginationData);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching cases:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchCases(currentPage, searchTerm, filters.status);
+  }, [currentPage, filters.status]);
+
+  // Handle search with debounce
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      if (searchTerm !== undefined) {
+        setCurrentPage(1);
+        fetchCases(1, searchTerm, filters.status);
+      }
+    }, 500);
+
+    return () => clearTimeout(debounceTimer);
+  }, [searchTerm]);
+
   // Handler functions
   const handleFilterChange = (filterType, value) => {
     setTempFilters(prev => ({
@@ -365,6 +429,7 @@ const Cases = () => {
     setFilters(tempFilters);
     setShowFilters(false);
     setCurrentPage(1);
+    fetchCases(1, searchTerm, tempFilters.status);
   };
 
   const clearAllFilters = () => {
@@ -377,253 +442,24 @@ const Cases = () => {
     setFilters(emptyFilters);
     setShowFilters(false);
     setCurrentPage(1);
+    fetchCases(1, searchTerm);
   };
 
-  const applyFilters = (cases) => {
-    return cases.filter(caseItem => {
-      if (filters.status && caseItem.categoryStatus !== filters.status) {
-        return false;
-      }
-
-      if (filters.documentStatus) {
-        const pendingDocs = caseItem.documentTypes?.filter(
-          doc => doc.status === 'pending'
-        ).length;
-        
-        if (filters.documentStatus === 'pending' && pendingDocs === 0) {
-          return false;
-        }
-        if (filters.documentStatus === 'complete' && pendingDocs > 0) {
-          return false;
-        }
-      }
-
-      if (filters.deadline) {
-        const deadline = new Date(caseItem.deadline);
-        const today = new Date();
-        const weekEnd = new Date(today);
-        weekEnd.setDate(today.getDate() + 7);
-        const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0);
-
-        switch (filters.deadline) {
-          case 'thisWeek':
-            return deadline <= weekEnd;
-          case 'thisMonth':
-            return deadline <= monthEnd;
-          case 'nextMonth':
-            return deadline > monthEnd && deadline <= nextMonthEnd;
-          default:
-            return true;
-        }
-      }
-
-      return true;
-    });
-  };
-
-  // Combined initial data fetch
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchInitialData = async () => {
-      try {
-        setLoading(true);
-        console.log('Starting initial data fetch');
-        
-        // Get user data from localStorage instead of API call
-        const userDetails = getStoredUser();
-        console.log('User details from localStorage:', userDetails);
-        
-        if (!isMounted) return;
-
-        if (!userDetails) {
-          throw new Error('No user data found in localStorage');
-        }
-
-        if (!isMounted) return;
-        
-        // Set logged in user details first
-        setLoggedInUserDetails(userDetails);
-
-        if (userDetails.lawfirm_id?._id) {
-          console.log('Fetching cases for lawfirm:', userDetails.lawfirm_id._id);
-          const response = await api.get('/management/all-managements');
-          
-          if (response.data.status === 'success') {
-            console.log('Received cases from API:', response.data.data.managements);
-            // Filter cases by lawfirm ID
-            const allCases = response.data.data.managements.filter(caseItem => {
-              return caseItem.lawfirmId === userDetails.lawfirm_id._id ||
-                     caseItem.createdBy?.lawfirm_id?._id === userDetails.lawfirm_id._id;
-            });
-            
-            console.log('Filtered cases by lawfirm:', allCases);
-            if (isMounted) {
-              setCases(allCases);
-              processCases(allCases);
-            }
-          }
-        } else {
-          console.log('No lawfirm ID in user details');
-        }
-      } catch (error) {
-        if (isMounted) {
-          console.error('Error fetching initial data:', error);
-          setError(error.message);
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchInitialData();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []); // Remove currentPage dependency since we're handling pagination in frontend
-
-  // Process cases with filtering, sorting, and pagination
-  const processCases = (casesToProcess) => {
-    console.log('Processing cases with filters:', filters);
-    
-    // Step 1: Filter by search term
-    let filtered = searchTerm 
-      ? casesToProcess.filter(c => 
-          c.userName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          c.categoryName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          c._id?.toLowerCase().includes(searchTerm.toLowerCase())
-        )
-      : casesToProcess;
-      
-    // Step 2: Apply status filter first (since this is our primary filter from dashboard)
-    if (filters.status) {
-      console.log('Applying status filter:', filters.status);
-      filtered = filtered.filter(c => c.categoryStatus === filters.status);
-    }
-    
-    // Step 3: Apply other filters
-    if (filters.documentStatus) {
-      filtered = filtered.filter(c => {
-        const pendingCount = c.documentTypes?.filter(doc => 
-          doc.status === 'pending'
-        ).length || 0;
-        
-        if (filters.documentStatus === 'pending') {
-          return pendingCount > 0;
-        } else if (filters.documentStatus === 'complete') {
-          return pendingCount === 0;
-        }
-        return true;
-      });
-    }
-    
-    if (filters.deadline) {
-      const today = new Date();
-      const weekEnd = new Date(today);
-      weekEnd.setDate(today.getDate() + 7);
-      const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-      const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0);
-      
-      filtered = filtered.filter(c => {
-        const deadline = new Date(c.deadline);
-        switch (filters.deadline) {
-          case 'thisWeek':
-            return deadline <= weekEnd;
-          case 'thisMonth':
-            return deadline <= monthEnd;
-          case 'nextMonth':
-            return deadline > monthEnd && deadline <= nextMonthEnd;
-          default:
-            return true;
-        }
-      });
-    }
-    
-    // Step 4: Update pagination
-    const total = filtered.length;
-    const totalPages = Math.ceil(total / pagination.limit);
-    const startIndex = (currentPage - 1) * pagination.limit;
-    const endIndex = startIndex + pagination.limit;
-    const currentPageCases = filtered.slice(startIndex, endIndex);
-    
-    console.log('Filtered cases:', filtered.length);
-    console.log('Current page cases:', currentPageCases.length);
-    
-    // Update state
-    setDisplayCases(currentPageCases);
-    setPagination(prev => ({
-      ...prev,
-      total,
-      totalPages,
-      currentPage: Math.min(currentPage, totalPages)
-    }));
-  };
-
-  // Update handleSearch to use frontend filtering
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
     setSearching(true);
-    setCurrentPage(1);
     
-    // Simulate search delay
+    // Searching state will be handled by the debounced effect
     setTimeout(() => {
       setSearching(false);
     }, 500);
   };
 
-  // Update handlePageChange to use frontend pagination
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
       setCurrentPage(newPage);
     }
   };
-
-  // Add useEffect to reprocess cases when filters, search, or page changes
-  useEffect(() => {
-    console.log('Reprocessing cases due to changes:', { searchTerm, filters, currentPage });
-    if (cases.length > 0) {
-      processCases(cases);
-    } else {
-      console.log('No cases to process');
-    }
-  }, [searchTerm, filters, currentPage]);
-
-  // Add useEffect to monitor displayCases changes
-  useEffect(() => {
-    console.log('Display cases updated:', displayCases);
-  }, [displayCases]);
-
-  // Add useEffect to monitor cases changes
-  useEffect(() => {
-    console.log('Cases state updated:', cases);
-  }, [cases]);
-
-  // Add this useEffect to handle incoming state and apply filter immediately
-  useEffect(() => {
-    if (location.state?.applyFilter) {
-      // Apply the filter that was passed from Dashboard
-      const newFilters = {
-        ...filters,
-        [location.state.filterType]: location.state.filterValue
-      };
-      
-      // Update both temp and active filters
-      setTempFilters(newFilters);
-      setFilters(newFilters);
-      
-      // Force reprocess cases with new filter
-      if (cases.length > 0) {
-        processCases(cases.map(c => ({...c}))); // Create new array to force update
-      }
-
-      // Clear the location state to prevent re-applying filter on page refresh
-      window.history.replaceState({}, document.title);
-    }
-  }, [location, cases]); // Add cases as dependency
 
   const handleCaseClick = (caseItem) => {
     setCurrentBreadcrumb([
@@ -633,16 +469,11 @@ const Cases = () => {
     ]);
 
     navigate(`/cases/${caseItem._id}`);
-    setSelectedCase(caseItem._id);
   };
 
   const handleBackToCases = () => {
-    setSelectedCase(null);
+    navigate('/cases');
   };
-
-  if (selectedCase) {
-    return <CaseDetails caseId={selectedCase} onBack={handleBackToCases} />;
-  }
 
   if (loading) {
     return <CasesSkeleton />;
@@ -656,7 +487,7 @@ const Cases = () => {
           onClick={() => {
             setError(null);
             setLoading(true);
-            fetchInitialData();
+            fetchCases(currentPage, searchTerm, filters.status);
           }}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
