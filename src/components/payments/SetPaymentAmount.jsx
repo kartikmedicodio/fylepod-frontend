@@ -37,9 +37,21 @@ const SetPaymentAmount = ({ caseId, onAmountSet }) => {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Set Payment Details</h3>
+    <div className="flex flex-col items-center max-w-xl mx-auto">
+      {/* Icon and Title */}
+      <div className="mb-8 text-center">
+        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <DollarSign className="w-8 h-8 text-blue-600" />
+        </div>
+        <h2 className="text-2xl font-semibold text-gray-900 mb-2">Set Up Payment</h2>
+        <p className="text-gray-600 max-w-md mx-auto">
+          No payment has been configured for this case yet. Please set up the payment details to proceed.
+        </p>
+      </div>
+
+      {/* Form Card */}
+      <div className="w-full bg-white rounded-xl border border-gray-200 p-8">
+        <h3 className="text-lg font-semibold text-gray-900 mb-6">Set Payment Details</h3>
         
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Amount Input */}
@@ -47,22 +59,22 @@ const SetPaymentAmount = ({ caseId, onAmountSet }) => {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Payment Amount
             </label>
-            <div className="relative rounded-md shadow-sm">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <DollarSign className="h-5 w-5 text-gray-400" />
+            <div className="relative rounded-lg">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <span className="text-gray-500 sm:text-lg">$</span>
               </div>
               <input
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 pr-12 sm:text-sm border-gray-300 rounded-md"
+                className="block w-full pl-8 pr-20 py-3 text-lg border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
                 placeholder="0.00"
                 min="0"
                 step="0.01"
                 required
               />
-              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                <span className="text-gray-500 sm:text-sm">USD</span>
+              <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                <span className="text-gray-500 text-lg">USD</span>
               </div>
             </div>
           </div>
@@ -72,15 +84,15 @@ const SetPaymentAmount = ({ caseId, onAmountSet }) => {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Customer Email
             </label>
-            <div className="relative rounded-md shadow-sm">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <div className="relative rounded-lg">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                 <Mail className="h-5 w-5 text-gray-400" />
               </div>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 pr-3 sm:text-sm border-gray-300 rounded-md"
+                className="block w-full pl-12 pr-4 py-3 text-lg border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
                 placeholder="customer@example.com"
                 required
               />
@@ -91,12 +103,15 @@ const SetPaymentAmount = ({ caseId, onAmountSet }) => {
           <button
             type="submit"
             disabled={loading}
-            className={`w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
+            className={`w-full inline-flex items-center justify-center px-6 py-3 text-base font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors mt-8 ${
               loading ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
             {loading ? (
-              'Processing...'
+              <div className="flex items-center">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                Processing...
+              </div>
             ) : (
               <>
                 Set Payment Amount
@@ -109,20 +124,27 @@ const SetPaymentAmount = ({ caseId, onAmountSet }) => {
 
       {/* Payment Link Display */}
       {paymentLink && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <h4 className="text-sm font-medium text-blue-900 mb-3">Payment Link Generated</h4>
-          <p className="text-sm text-blue-700 mb-4">
-            Share this link with the customer to complete the payment:
-          </p>
-          <div className="bg-white p-3 rounded-md break-all border border-blue-200">
-            <a 
-              href={paymentLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:text-blue-800 text-sm"
-            >
-              {paymentLink}
-            </a>
+        <div className="w-full mt-8 bg-blue-50 border border-blue-100 rounded-xl p-6">
+          <div className="flex items-start gap-4">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Link className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h4 className="font-medium text-blue-900 mb-2">Payment Link Generated</h4>
+              <p className="text-sm text-blue-700 mb-4">
+                Share this link with the customer to complete the payment:
+              </p>
+              <div className="bg-white p-4 rounded-lg break-all border border-blue-100">
+                <a 
+                  href={paymentLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-800 text-sm"
+                >
+                  {paymentLink}
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       )}
