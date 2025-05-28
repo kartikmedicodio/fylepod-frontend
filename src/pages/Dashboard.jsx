@@ -124,9 +124,8 @@ function Dashboard() {
           </div>
         </div>
 
-        {/* Pending Review - Warning Card - Full Width */}
+        {/* Pending Review - Enhanced Card */}
         <div 
-          className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all group relative"
           onClick={() => {
             navigate('/cases', { 
               state: { 
@@ -136,24 +135,36 @@ function Dashboard() {
               } 
             });
           }}
+          className="bg-white rounded-lg shadow-sm p-4 cursor-pointer relative group
+            transition-all duration-200 ease-in-out
+            hover:shadow-lg hover:border-blue-100 hover:scale-[1.02]
+            active:scale-[0.98]
+            before:content-['Click_to_view_detailed_review_status']
+            before:absolute before:-top-10 before:left-1/2 before:-translate-x-1/2
+            before:bg-gray-800 before:text-white before:px-3 before:py-1.5
+            before:rounded-lg before:text-sm
+            before:opacity-0 before:invisible
+            hover:before:opacity-100 hover:before:visible
+            before:transition-all before:duration-200
+            before:whitespace-nowrap"
         >
           <div>
-            <h3 className="text-gray-800 font-medium mb-2 group-hover:text-blue-600 flex items-center">
+            <h3 className="text-gray-800 font-medium mb-2 group-hover:text-blue-600 transition-colors">
               Pending Review
-              <span className="ml-2 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">
-              </span>
             </h3>
             <div className="text-xl font-bold text-gray-900">
               {dashboardData?.pendingReviewCount ?? 'Loading...'}
             </div>
-            <div className="bg-amber-50 rounded p-2 mt-1">
+            <div className="bg-amber-50 rounded p-2 mt-1 w-1/4">
               <p className="text-sm text-gray-700">Cases requires your attention</p>
             </div>
           </div>
 
-          {/* Custom Tooltip */}
-          <div className="absolute invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 text-white text-sm rounded px-2 py-1 left-1/2 -translate-x-1/2 -top-8 whitespace-nowrap">
-            Click to view cases with pending review
+          {/* Permanent View Details text */}
+          <div className="absolute bottom-3 right-3">
+            <div className="text-s text-blue-500">
+              View details
+            </div>
           </div>
         </div>
       </div>
@@ -217,7 +228,18 @@ function Dashboard() {
 
           {/* Pending Review */}
           <div 
-            className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all group relative"
+            className="bg-white rounded-lg shadow-sm p-4 cursor-pointer relative group
+              transition-all duration-200 ease-in-out
+              hover:shadow-lg hover:border-blue-100 hover:scale-[1.02]
+              active:scale-[0.98]
+              before:content-['Click_to_view_detailed_review_status']
+              before:absolute before:-top-10 before:left-1/2 before:-translate-x-1/2
+              before:bg-gray-800 before:text-white before:px-3 before:py-1.5
+              before:rounded-lg before:text-sm
+              before:opacity-0 before:invisible
+              hover:before:opacity-100 hover:before:visible
+              before:transition-all before:duration-200
+              before:whitespace-nowrap"
             onClick={() => {
               navigate('/cases', { 
                 state: { 
@@ -238,15 +260,28 @@ function Dashboard() {
               <p className="text-sm text-gray-600">cases have undergone review</p>
             </div>
 
-            {/* Custom Tooltip */}
-            <div className="absolute invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 text-white text-sm rounded px-2 py-1 left-1/2 -translate-x-1/2 -top-8 whitespace-nowrap">
-              Click to view cases that have been reviewed
+            {/* Permanent View Details text */}
+            <div className="absolute bottom-3 right-3">
+              <div className="text-s text-blue-500">
+                View details
+              </div>
             </div>
           </div>
 
           {/* Preparation for Filing */}
           <div 
-            className="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-all group relative"
+            className="bg-white rounded-lg shadow-sm p-4 cursor-pointer relative group
+              transition-all duration-200 ease-in-out
+              hover:shadow-lg hover:border-blue-100 hover:scale-[1.02]
+              active:scale-[0.98]
+              before:content-['Click_to_view_cases_ready_for_filing']
+              before:absolute before:-top-10 before:left-1/2 before:-translate-x-1/2
+              before:bg-gray-800 before:text-white before:px-3 before:py-1.5
+              before:rounded-lg before:text-sm
+              before:opacity-0 before:invisible
+              hover:before:opacity-100 hover:before:visible
+              before:transition-all before:duration-200
+              before:whitespace-nowrap"
             onClick={() => {
               navigate('/cases', { 
                 state: { 
@@ -267,9 +302,11 @@ function Dashboard() {
               <p className="text-sm text-gray-600">cases have forms ready for submission</p>
             </div>
 
-            {/* Custom Tooltip */}
-            <div className="absolute invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 text-white text-sm rounded px-2 py-1 left-1/2 -translate-x-1/2 -top-8 whitespace-nowrap">
-              Click to view cases ready for filing
+            {/* Permanent View Details text */}
+            <div className="absolute bottom-3 right-3">
+              <div className="text-s text-blue-500">
+                View details
+              </div>
             </div>
           </div>
         </div>
