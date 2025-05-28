@@ -86,6 +86,125 @@ const ReceiptsTab = ({ managementId }) => {
     return allowedTypes.includes(file.type);
   };
 
+  const sendUploadNotificationEmails = async (file) => {
+    try {
+      console.log('Fetching case details for email notification:', { managementId });
+      
+      // Get case details to get user and attorney emails
+      const caseResponse = await api.get(`/management/${managementId}`);
+      console.log('Case response:', caseResponse.data); // Debug log
+
+      if (caseResponse.data.status !== 'success') {
+        throw new Error('Failed to fetch case details');
+      }
+
+      // Access the management data correctly from the response
+      const caseData = caseResponse.data.data.entry;
+      console.log('Case data:', caseData); // Debug log
+
+      // Extract user and attorney information
+      const userEmail = caseData?.userId?.email;
+      const attorneyEmail = caseData?.caseManagerId?.email; // Use case manager's email as attorney email
+      const userName = caseData?.userId?.name || 'User';
+      const userId = caseData?.userId?._id;
+
+      if (!userEmail || !attorneyEmail) {
+        console.error('Missing email information:', { userEmail, attorneyEmail, caseData });
+        throw new Error('User or attorney email not found');
+      }
+
+      // Get the receipt data to include in the email
+      const receiptResponse = await api.get(`/receipts/by-management/${managementId}`);
+      const latestReceipt = receiptResponse.data.data.receipts[0]; // Get the most recent receipt
+      const extractedData = latestReceipt?.extractedData || {};
+      const additionalInfo = latestReceipt?.additionalInformation?.additionalInfo || {};
+      const fileUrl = latestReceipt?.fileUrl; // Get the file URL from the receipt
+
+      if (!fileUrl) {
+        console.error('File URL not found in receipt data');
+        throw new Error('File URL not found');
+      }
+
+      // Send the email directly
+      const emailResponse = await api.post('/mail/send', {
+        subject: `✅ ${extractedData.approvalDetails?.value || 'Government Notice'} Successfully Uploaded`,
+        body: `
+          <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #4F46E5;">✅ ${extractedData.approvalDetails?.value || 'Government Notice'} Successfully Uploaded</h2>
+            
+            <p>Hi ${userName},</p>
+            
+            <p>This is Diana and Fiona from your support team – we're happy to inform you that your ${extractedData.approvalDetails?.value || 'Government Notice'} has been successfully uploaded to your profile. 🎉</p>
+            
+            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="color: #4F46E5; margin-top: 0;">📄 Notice Details:</h3>
+              
+              ${extractedData.approvalDetails?.value ? `<p><strong>Notice Type:</strong> ✅ ${extractedData.approvalDetails.value}</p>` : ''}
+              ${extractedData.receiptNumber?.value ? `<p><strong>Receipt Number:</strong> ${extractedData.receiptNumber.value}</p>` : ''}
+              ${extractedData.formType?.value ? `<p><strong>Form Type:</strong> ${extractedData.formType.value}</p>` : ''}
+              ${extractedData.caseType?.value ? `<p><strong>Case Type:</strong> ${extractedData.caseType.value}</p>` : ''}
+              ${extractedData.applicantName?.value ? `<p><strong>Applicant/Beneficiary Name:</strong> ${extractedData.applicantName.value}</p>` : ''}
+              ${extractedData.noticeDate?.value ? `<p><strong>Notice Date:</strong> ${extractedData.noticeDate.value}</p>` : ''}
+              ${extractedData.filingDate?.value ? `<p><strong>Filing Date:</strong> ${extractedData.filingDate.value}</p>` : ''}
+              ${extractedData.priorityDate?.value ? `<p><strong>Priority Date:</strong> ${extractedData.priorityDate.value}</p>` : ''}
+              ${extractedData.validityDates?.value ? `<p><strong>Validity Period:</strong> ${extractedData.validityDates.value}</p>` : ''}
+              ${additionalInfo.otherDetails ? `<p><strong>Address on File:</strong><br>${additionalInfo.otherDetails}</p>` : ''}
+            </div>
+
+            <p>You can view or download the full document by clicking the button below:</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${fileUrl}" 
+                 style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"
+                 target="_blank">
+                View Document
+              </a>
+            </div>
+
+            <p>If you have any questions or need assistance, just reply to this email — we're here to help!</p>
+
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 14px; color: #666;">
+              <p>Warm regards,<br>Diana & Fiona<br>Your Support Agents</p>
+            </div>
+          </div>
+        `,
+        recipientEmail: userEmail,
+        ccEmail: [attorneyEmail],
+        managementId,
+        emailType: 'receipt_upload',
+        userId,
+        recipientName: userName,
+        metadata: {
+          fileName: file.name,
+          fileUrl,
+          receiptType: extractedData.approvalDetails?.value || 'Government Notice',
+          receiptId: latestReceipt?._id
+        }
+      });
+
+      console.log('Email response:', emailResponse.data);
+
+      if (emailResponse.data.status !== 'success') {
+        throw new Error('Failed to send notification email');
+      }
+
+      console.log('Receipt upload notification emails sent successfully:', {
+        managementId,
+        fileName: file.name,
+        userEmail,
+        attorneyEmail,
+        fileUrl
+      });
+    } catch (error) {
+      console.error('Error sending receipt upload notification emails:', {
+        error: error.message,
+        managementId,
+        fileName: file.name
+      });
+      // Don't show error toast to user since this is a background operation
+    }
+  };
+
   const uploadFiles = async (filesToUpload) => {
     setIsUploading(true);
     setUploadProgress(0);
@@ -106,7 +225,10 @@ const ReceiptsTab = ({ managementId }) => {
             setUploadProgress(progress);
           },
         });
-        console.log("response", response);
+        console.log("File upload response:", response.data);
+
+        // Send notification emails after successful upload
+        await sendUploadNotificationEmails(file);
       }
       
       toast.success('Government Notice uploaded successfully');

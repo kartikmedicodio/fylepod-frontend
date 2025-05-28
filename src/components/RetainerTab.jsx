@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import api from "../utils/api";
-import { Loader2, Eye, Download, Plus, ArrowLeft, FileText, Calendar, ChevronDown } from 'lucide-react';
+import { Loader2, Eye, Download, Plus, ArrowLeft, FileText, Calendar, ChevronDown, CheckCircle, XCircle, Mail, Clock } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { PDFDocument } from 'pdf-lib';
 import PropTypes from 'prop-types';
 import { getStoredUser } from '../utils/auth';
 
-const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantId }) => {
+const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantId ,caseData}) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [templates, setTemplates] = useState([]);
@@ -19,6 +19,7 @@ const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantI
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [userRole, setUserRole] = useState(null);
+  const [isEscalating, setIsEscalating] = useState(false);
 
   useEffect(() => {
     // Get user role from localStorage
@@ -245,6 +246,69 @@ const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantI
     }
   };
 
+  const handleEscalateToSignature = async (retainerId) => {
+    try {
+      setIsEscalating(true);
+      
+      // Find the retainer details
+      const retainer = retainers.find(r => r._id === retainerId);
+      if (!retainer) {
+        throw new Error('Retainer not found');
+      }
+
+      console.log('Attempting to fetch PDF from URL:', retainer.pdf_url);
+      console.log("retainerId", retainerId);
+      console.log("caseData", caseData);
+
+      // Download the PDF from Azure URL
+      const pdfResponse = await fetch(retainer.pdf_url);
+      if (!pdfResponse.ok) {
+        throw new Error(`Failed to fetch PDF: ${pdfResponse.status} ${pdfResponse.statusText}`);
+      }
+      const pdfBlob = await pdfResponse.blob();
+      console.log('PDF blob size:', pdfBlob.size);
+      
+      if (pdfBlob.size === 0) {
+        throw new Error('Downloaded PDF is empty');
+      }
+
+      // Create form data
+      const formData = new FormData();
+      console.log("profileData", profileData);
+      console.log("caseId", caseId);
+      formData.append('file', pdfBlob, 'retainer.pdf');
+      formData.append('name', caseData.userId.name);
+      formData.append('email', caseData.userId.email);
+      formData.append('managementId', caseId);
+      formData.append('retainerId', retainerId);
+
+      // Log form data contents for debugging
+      for (let pair of formData.entries()) {
+        console.log('FormData entry:', pair[0], pair[1]);
+      }
+
+      // Make API call to Zoho signature endpoint
+      const response = await api.post('/zoho-signature/send-retainer', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      if (response.data.status === 'success') {
+        toast.success('Retainer successfully sent for signature');
+        // Refresh the retainers list to update status
+        await fetchExistingRetainers();
+      } else {
+        throw new Error(response.data.message || 'Failed to send retainer for signature');
+      }
+    } catch (err) {
+      console.error('Error escalating retainer to signature:', err);
+      toast.error(err.message || 'Failed to send retainer for signature');
+    } finally {
+      setIsEscalating(false);
+    }
+  };
+
   if (!companyId) {
     return (
       <div className="text-gray-500 text-center p-8 bg-white rounded-lg shadow">
@@ -309,26 +373,65 @@ const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantI
                             <Calendar className="w-4 h-4 mr-1" />
                             <span>Created: {new Date(retainer.createdAt).toLocaleDateString()}</span>
                           </div>
-                          <span>Case: {retainer.case_id?.case_number}</span>
-                          <span>Status: {retainer.sign_status}</span>
+                          {/* <span>Case: {retainer.case_id?.case_number}</span> */}
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        retainer.sign_status === 'signed' ? 'bg-green-100 text-green-800' :
-                        retainer.sign_status === 'rejected' ? 'bg-red-100 text-red-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {retainer.sign_status.charAt(0).toUpperCase() + retainer.sign_status.slice(1)}
-                      </span>
-                      <button
-                        onClick={() => handleViewDocument(retainer.pdf_url)}
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-                      >
-                        <Eye className="w-4 h-4 mr-2" />
-                        View Document
-                      </button>
+                    <div className="flex flex-col items-end gap-2 w-full mt-2">
+                      {/* Status and Actions Row */}
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span
+                          className={`
+                            px-3 py-1 rounded-full text-xs font-semibold border
+                            ${retainer.sign_status === 'signed' ? 'bg-green-100 text-green-700 border-green-200' :
+                              retainer.sign_status === 'rejected' ? 'bg-red-100 text-red-700 border-red-200' :
+                              retainer.sign_status === 'sent' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                              'bg-yellow-100 text-yellow-700 border-yellow-200'
+                            }
+                          `}
+                        >
+                          {retainer.sign_status.charAt(0).toUpperCase() + retainer.sign_status.slice(1)}
+                        </span>
+                        <button
+                          onClick={() => handleViewDocument(retainer.pdf_url)}
+                          className="inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 shadow transition"
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          View
+                        </button>
+                        {userRole === 'attorney' && retainer.sign_status !== 'signed' && (
+                          <button
+                            onClick={() => handleEscalateToSignature(retainer._id)}
+                            disabled={isEscalating}
+                            className="inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 shadow transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isEscalating ? (
+                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                            ) : (
+                              <FileText className="w-4 h-4 mr-1" />
+                            )}
+                            {isEscalating ? 'Sending...' : 'Escalate to Signature'}
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Info Banners */}
+                      {retainer.sign_status === 'sent' && userRole !== 'attorney' && (
+                        <div className="w-full mt-2 flex items-center gap-2 bg-blue-50 border-l-4 border-blue-400 rounded-md px-4 py-3 text-sm font-medium text-blue-900 shadow-sm animate-fadeIn">
+                          <Mail className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                          <span>
+                            <span className="font-semibold">Action Required:</span> Please check your email for the signature request.
+                          </span>
+                        </div>
+                      )}
+                      {retainer.sign_status === 'pending' && userRole !== 'attorney' && (
+                        <div className="w-full mt-2 flex items-center gap-2 bg-green-50 border-l-4 border-green-400 rounded-md px-4 py-3 text-sm font-medium text-green-900 shadow-sm animate-fadeIn">
+                          <Clock className="w-5 h-5 text-green-500 flex-shrink-0" />
+                          <span>
+                            <span className="font-semibold">No Action Needed:</span> Please wait for your attorney to escalate this retainer for signature.
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

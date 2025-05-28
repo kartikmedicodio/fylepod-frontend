@@ -711,6 +711,11 @@ const FNCaseDetails = () => {
       if (caseResponse.data.status === 'success') {
         setCaseData(caseResponse.data.data.entry);
         console.log('Case data refreshed successfully');
+        // Restore breadcrumb setup
+        setCurrentBreadcrumb([
+          { name: 'All Cases', path: '/individual-cases' },
+          { name: caseData.categoryName || 'Case Details', path: `/individuals/case/${caseId}` }
+        ]);
       }
     } catch (error) {
       console.error('Error refreshing data:', error);
@@ -826,36 +831,27 @@ const FNCaseDetails = () => {
 
     const fetchData = async () => {
       try {
-        // First, load any data we have in localStorage
-        const { validationDataFound, verificationDataFound } = loadDataFromLocalStorage();
-        console.log(`Initial localStorage load complete. Validation data found: ${validationDataFound}, Cross-verification data found: ${verificationDataFound}`);
-        
         setIsLoading(true);
-        
-        // Fetch case details first
-        const caseResponse = await api.get(`/management/${caseId}`);
-
-        if (caseResponse.data.status === 'success') {
-          const caseData = caseResponse.data.data.entry;
+        // Ensure validationDataFound and verificationDataFound are defined
+        const { validationDataFound, verificationDataFound } = loadDataFromLocalStorage();
+        const response = await api.get(`/management/${caseId}`);
+        if (response.data.status === 'success') {
+          const caseData = response.data.data.entry;
           setCaseData(caseData);
-          
           // Set breadcrumb
           setCurrentBreadcrumb([
             { name: 'All Cases', path: '/individual-cases' },
             { name: caseData.categoryName || 'Case Details', path: `/individuals/case/${caseId}` }
           ]);
-
           // Check if there are any uploaded documents
           const hasUploadedDocs = caseData.documentTypes.some(doc => 
             doc.status === 'uploaded' || doc.status === 'approved'
           );
-
           // If we have uploaded docs and no validation data yet, fetch it
           if (hasUploadedDocs && !validationDataFound) {
             // Wait for validation data to be fetched
             await fetchValidationData();
           }
-
           // If we have a userId, fetch the complete profile
           if (caseData.userId?._id) {
             const profileResponse = await api.get(`/auth/users/${caseData.userId._id}`);
@@ -865,70 +861,135 @@ const FNCaseDetails = () => {
           }
         }
       } catch (error) {
-        console.error('Error fetching data:', error);
-        toast.error('Failed to load case details');
+        console.error('Error fetching case data:', error);
+        toast.error('Failed to load case data');
       } finally {
         setIsLoading(false);
       }
     };
 
-    if (caseId) {
       fetchData();
-    }
+  }, [caseId]); // Only depend on caseId
 
     // Cleanup breadcrumb on unmount
-    return () => {
+  useEffect(() => {
       setCurrentBreadcrumb([]);
-    };
-  }, [caseId, setCurrentBreadcrumb]);
+  }, [setCurrentBreadcrumb]);
 
   // Add separate useEffect for questionnaires
   useEffect(() => {
     const fetchQuestionnaires = async () => {
       try {
         setIsLoadingQuestionnaires(true);
-        const response = await api.get(`/questionnaires`);
+        
+        // Make sure we have caseData with categoryId before proceeding
+        if (!caseData || !caseData.categoryId) {
+          console.log('Waiting for case data with categoryId to be available');
+          return;
+        }
+        
+        // Handle both cases where categoryId could be an object or a string
+        const categoryId = typeof caseData.categoryId === 'object' 
+          ? caseData.categoryId._id 
+          : caseData.categoryId;
+        
+        console.log('Fetching questionnaires for categoryId:', categoryId);
+        
+        // Update the API endpoint to include categoryId as a query parameter
+        const response = await api.get(`/questionnaires?categoryId=${categoryId}`);
         
         if (response.data.status === 'success') {
           const templates = response.data.data.templates;
           
+          // Log only fields with isDependent: true from the API response
+          const dependentFields = templates.flatMap(template => 
+            template.field_mappings.filter(field => field.isDependent === true)
+          );
+          
+          // Only process if there are templates
           if (templates && templates.length > 0) {
-            // Create a combined questionnaire from all templates
+            // Create a combined questionnaire by merging all field mappings
             const combinedQuestionnaire = {
-              _id: templates[0]._id, // Use the first template's ID
-              questionnaire_name: 'Combined Questionnaire',
-              description: 'Combined questionnaire for all required information',
+              _id: "combined-questionnaire-id",
+              questionnaire_name: "Combined Questionnaire",
+              description: "Combination of all available questionnaires",
               field_mappings: [],
+              createdBy: templates[0].createdBy,
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
               __v: 0,
-              categoryId: templates[0].categoryId
+              categoryId: categoryId // Use the case's categoryId
             };
+            
+            // Create a map to store fields by fieldName to prevent duplicates
+            const fieldMap = new Map();
             
             // Merge all field mappings from all templates
             templates.forEach(template => {
-              if (template.field_mappings && template.field_mappings.length > 0) {
+              // Extract template categoryId, handling both object and string cases
+              const templateCategoryId = typeof template.categoryId === 'object'
+                ? template.categoryId._id
+                : template.categoryId;
+              
+              // Only include templates that match the case's categoryId
+              if (templateCategoryId === categoryId && template.field_mappings && template.field_mappings.length > 0) {
                 // Check for duplicate fieldNames before adding
                 template.field_mappings.forEach(field => {
-                  const isDuplicate = combinedQuestionnaire.field_mappings.some(
-                    existingField => existingField.fieldName === field.fieldName
-                  );
+                  // Only log if field is dependent
+                  if (field.isDependent === true) {
+                    console.log('Processing dependent field:', {
+                      fieldName: field.fieldName,
+                      dependentFields: field.dependentFields
+                    });
+                  }
                   
-                  if (!isDuplicate) {
-                    combinedQuestionnaire.field_mappings.push({
+                  // Use fieldName as the key to prevent duplicates
+                  if (!fieldMap.has(field.fieldName)) {
+                    fieldMap.set(field.fieldName, {
                       ...field,
-                      _id: field._id // Preserve the original field ID
+                      isDependent: field.isDependent || false,
+                      dependentFields: field.dependentFields || [],
+                      sourceDocument: field.sourceDocument || null,
+                      required: field.required || false,
+                      value: null
                     });
                   }
                 });
               }
             });
             
+            // Convert the map values to array and set as field_mappings
+            combinedQuestionnaire.field_mappings = Array.from(fieldMap.values());
+            
+            // Log only dependent fields in final combined questionnaire
+            const finalDependentFields = combinedQuestionnaire.field_mappings.filter(field => field.isDependent === true);
+            // console.log('Dependent fields in combined questionnaire:', finalDependentFields.map(field => ({
+            //   fieldName: field.fieldName,
+            //   dependentFields: field.dependentFields
+            // })));
+            
             // Set the combined questionnaire as the only one available
             setQuestionnaires([combinedQuestionnaire]);
             
-            // Log the total number of fields in the combined questionnaire
-            console.log(`Combined questionnaire created with ${combinedQuestionnaire.field_mappings.length} fields`);
+            // Initialize formData with all field properties
+            const initialFormData = {};
+            combinedQuestionnaire.field_mappings.forEach(field => {
+              initialFormData[field._id] = {
+                ...field,
+                value: null
+              };
+              
+              // Special case for "Street Number and Name" field
+              if (field.fieldName === 'ste') {
+                initialFormData[field._id] = {
+                  ...initialFormData[field._id],
+                  fieldLabel: 'Street Number and Name',
+                  groupName: 'Residential Address History',
+                  fieldType: 'Text Field'
+                };
+              }
+            });
+            setFormData(initialFormData);
           } else {
             setQuestionnaires([]);
           }
@@ -943,7 +1004,7 @@ const FNCaseDetails = () => {
 
     // Fetch questionnaires when component mounts
     fetchQuestionnaires();
-  }, []); // Empty dependency array means this runs once when component mounts
+  }, [caseData]); // Add caseData as a dependency
 
   useEffect(() => {
     if (questionnaireData?.responses?.[0]?.processedInformation && selectedQuestionnaire) {
@@ -2449,12 +2510,16 @@ const FNCaseDetails = () => {
   };
 
   const QuestionnaireDetailView = ({ questionnaire, onBack }) => {
+    // Add state for empty fields toggle
     const [showOnlyEmpty, setShowOnlyEmpty] = useState(false);
+    // Add local state for form data
     const [localFormData, setLocalFormData] = useState(formData);
+    // Add loading state for save action
     const [isSaving, setIsSaving] = useState(false);
-    const [editingFields, setEditingFields] = useState({});
+    // Add state to track expanded accordion groups
     const [expandedGroups, setExpandedGroups] = useState({});
 
+    // Update local form data when parent form data changes
     useEffect(() => {
       setLocalFormData(formData);
     }, [formData]);
@@ -2469,13 +2534,20 @@ const FNCaseDetails = () => {
             groups[field.groupName] = true;
           }
         });
-        
-        // Special case: always start with Personal Information expanded
+        // Get ordered group names to determine which is first
+        const orderedGroupNames = Object.keys(groups).sort((a, b) => {
+          // Find the first field of each group to compare their order
+          const aFirstField = Object.values(localFormData).find(f => f.groupName === a);
+          const bFirstField = Object.values(localFormData).find(f => f.groupName === b);
+          const aIndex = aFirstField ? Object.values(localFormData).indexOf(aFirstField) : Infinity;
+          const bIndex = bFirstField ? Object.values(localFormData).indexOf(bFirstField) : Infinity;
+          return aIndex - bIndex;
+        });
+        // Only expand the first group
         const initialState = Object.keys(groups).reduce((acc, groupName) => {
-          acc[groupName] = groupName === 'Personal Information';
+          acc[groupName] = orderedGroupNames.length > 0 && groupName === orderedGroupNames[0];
           return acc;
         }, {});
-        
         setExpandedGroups(initialState);
       }
     }, [localFormData]);
@@ -2509,40 +2581,26 @@ const FNCaseDetails = () => {
     // Updated function to check if a field is empty - works with new response format
     const isFieldEmpty = (fieldKey) => {
       const field = localFormData?.[fieldKey];
-      return !field || field.value === undefined || field.value === null || field.value === '';
+      if (!field) return true;
+      if (field.fieldType && field.fieldType.toLowerCase().includes('radio')) {
+        const groupFields = Object.values(localFormData || {}).filter(f => f.fieldType && f.fieldType.toLowerCase().includes('radio') && f.fieldLabel === field.fieldLabel);
+        return !groupFields.some(f => f.value !== undefined && f.value !== null && f.value !== '');
+      }
+      return field.value === undefined || field.value === null || field.value === '';
     };
-
-    // Updated input change handler to work with the new format
     const handleLocalInputChange = (fieldKey, value) => {
-      // Log the field change
-      // console.log('Field Change:', {
-      //   fieldKey,
-      //   newValue: value,
-      //   field: localFormData[fieldKey],
-      //   isDependentField: localFormData[fieldKey]?.isDependent,
-      //   dependentFields: localFormData[fieldKey]?.dependentFields
-      // });
-
-      setLocalFormData(prev => {
-        const updatedData = {
-          ...prev,
-          [fieldKey]: {
-            ...prev[fieldKey],
-            value: value
+      setLocalFormData(prevData => {
+        const updatedData = { ...prevData };
+        if (updatedData[fieldKey]) {
+          const field = updatedData[fieldKey];
+          if (field.fieldType?.toLowerCase().includes('radio')) {
+            // Always store the string value
           }
-        };
-
-        // Log the state after update
-        // console.log('Form Data After Change:', {
-        //   changedField: fieldKey,
-        //   allFields: Object.entries(updatedData).map(([key, field]) => ({
-        //     fieldName: field.fieldName,
-        //     value: field.value,
-        //     isDependent: field.isDependent,
-        //     dependentFields: field.dependentFields
-        //   }))
-        // });
-
+          updatedData[fieldKey] = {
+            ...field,
+            value: value
+          };
+        }
         return updatedData;
       });
     };
@@ -2571,17 +2629,10 @@ const FNCaseDetails = () => {
           templateId: selectedQuestionnaire?._id,
           processedInformation: trimmedFormData
         };
-        
-        console.log('Saving questionnaire with trimmed data:', payload);
-        
         const response = await api.put(`/questionnaire-responses/management/${caseId}`, payload);
-
         if (response.data.status === 'success') {
           toast.success('Changes saved successfully');
           setIsQuestionnaireCompleted(true);
-          
-          // Optionally navigate to the next tab
-          // setActiveTab('forms');
         }
       } catch (error) {
         console.error('Error saving questionnaire:', error);
@@ -2590,145 +2641,284 @@ const FNCaseDetails = () => {
         setIsSaving(false);
       }
     };
-
-    // Updated function to count filled fields
     const getFilledFieldsCount = () => {
       const allFields = Object.keys(localFormData || {});
       const totalFields = allFields.length;
       const filledFields = allFields.filter(fieldKey => !isFieldEmpty(fieldKey)).length;
       return { filledFields, totalFields };
     };
-
-    // Update function to check if field should be visible
-    const shouldShowField = (fieldKey) => {
-      const field = localFormData[fieldKey];
-      
-      // If field doesn't exist in form data, don't show it
-      if (!field) return false;
-      
-      // If field is dependent
-      if (field.isDependent === true) {
-        // Find parent field that has this field's ID in its dependentFields array
-        const parentField = Object.values(localFormData).find(f => 
-          f.dependentFields?.includes(field._id)
-        );
-        
-        // Don't show if:
-        // 1. No parent found, or
-        // 2. Parent's value is not true
-        if (!parentField || parentField.value !== true) {
+    // --- Visibility/Dependency Logic ---
+    const evaluateDependencyRule = (rule, allFields) => {
+      if (!rule) return true;
+      const targetField = Object.values(allFields).find(f => f._id === rule.targetFieldId || f.fieldName === rule.targetField);
+      if (!targetField) return false;
+      switch (rule.type) {
+        case 'NOT_EQUALS':
+          return targetField.value !== rule.targetValue;
+        case 'EQUALS':
+          return targetField.value === rule.targetValue;
+        case 'IN':
+          return Array.isArray(rule.targetValue) && rule.targetValue.includes(targetField.value);
+        case 'NOT_IN':
+          return Array.isArray(rule.targetValue) && !rule.targetValue.includes(targetField.value);
+        default:
           return false;
-        }
       }
-      
-      // Handle empty fields filter
-      if (showOnlyEmpty) {
-        return isFieldEmpty(fieldKey);
+    };
+    const evaluateVisibilityCondition = (conditions, allFields) => {
+      if (Array.isArray(conditions)) {
+        return conditions.every(condition => {
+          if (!condition || !condition.parentField || !Array.isArray(condition.showWhen)) {
+            return true;
+          }
+          const parentField = Object.values(allFields).find(f => f._id === condition.parentField);
+          if (!parentField) {
+            return false;
+          }
+          return condition.showWhen.every(rule => {
+            const parentValue = parentField.value;
+            let result;
+            switch (rule.operator) {
+              case 'equals':
+                result = parentValue === rule.value;
+                break;
+              case 'not_equals':
+                result = parentValue !== rule.value;
+                break;
+              case 'in':
+                result = Array.isArray(rule.value) && rule.value.includes(parentValue);
+                break;
+              case 'not_in':
+                result = Array.isArray(rule.value) && !rule.value.includes(parentValue);
+                break;
+              case 'exists':
+                result = parentValue !== null && parentValue !== undefined;
+                break;
+              case 'not_exists':
+                result = parentValue === null || parentValue === undefined;
+                break;
+              case 'greater_than':
+                result = !isNaN(parentValue) && parentValue > rule.value;
+                break;
+              case 'less_than':
+                result = !isNaN(parentValue) && parentValue < rule.value;
+                break;
+              case 'greater_than_or_equal':
+                result = !isNaN(parentValue) && parentValue >= rule.value;
+                break;
+              case 'less_than_or_equal':
+                result = !isNaN(parentValue) && parentValue <= rule.value;
+                break;
+              default:
+                result = false;
+            }
+            return result;
+          });
+        });
       }
-      
       return true;
     };
-
+    const convertOldToNewFormat = (oldConditions) => {
+      if (!oldConditions || oldConditions.length === 0) return null;
+      if (oldConditions.length === 1) {
+        return {
+          parentField: oldConditions[0].parentField,
+          showWhen: oldConditions[0].showWhen
+        };
+      }
+      const newFormat = {
+        operator: 'AND',
+        conditions: oldConditions.map(condition => ({
+          parentField: condition.parentField,
+          showWhen: condition.showWhen
+        }))
+      };
+      return newFormat;
+    };
+    const evaluateCondition = (condition, allFields) => {
+      if (Array.isArray(condition)) {
+        return condition.every(cond => evaluateCondition(cond, allFields));
+      }
+      if (!condition) return true;
+      if (condition.operator && condition.conditions) {
+        const results = condition.conditions.map(c => evaluateCondition(c, allFields));
+        switch (condition.operator) {
+          case 'AND':
+            return results.every(Boolean);
+          case 'OR':
+            return results.some(Boolean);
+          case 'NOT':
+            return results.length === 1 ? !results[0] : false;
+          default:
+            return false;
+        }
+      }
+      if (condition.parentField && condition.showWhen) {
+        const parentField = allFields[condition.parentField];
+        if (!parentField) return false;
+        let parentValue = parentField.value;
+        return condition.showWhen.every(rule => {
+          let ruleValue = rule.value;
+          let fieldValue = parentValue;
+          if (typeof ruleValue === 'string' && typeof fieldValue === 'string') {
+            ruleValue = ruleValue.toLowerCase();
+            fieldValue = fieldValue.toLowerCase();
+          }
+          switch (rule.operator) {
+            case 'equals':
+              return fieldValue === ruleValue;
+            case 'not_equals':
+              if (fieldValue === undefined || fieldValue === null || fieldValue === '') return false;
+              return fieldValue !== ruleValue;
+            case 'in':
+              return Array.isArray(ruleValue) && ruleValue.map(v => typeof v === 'string' ? v.toLowerCase() : v).includes(fieldValue);
+            case 'not_in':
+              return Array.isArray(ruleValue) && !ruleValue.map(v => typeof v === 'string' ? v.toLowerCase() : v).includes(fieldValue);
+            case 'exists':
+              return fieldValue !== undefined && fieldValue !== null && fieldValue !== '';
+            case 'not_exists':
+              return fieldValue === undefined || fieldValue === null || fieldValue === '';
+            case 'greater_than':
+              return Number(fieldValue) > Number(ruleValue);
+            case 'less_than':
+              return Number(fieldValue) < Number(ruleValue);
+            case 'greater_than_or_equal':
+              return Number(fieldValue) >= Number(ruleValue);
+            case 'less_than_or_equal':
+              return Number(fieldValue) <= Number(ruleValue);
+            default:
+              return false;
+          }
+        });
+      }
+      console.warn('Invalid condition structure:', condition);
+      return false;
+    };
+    const validateVisibilityConditions = (condition) => {
+      if (!condition) return true;
+      if (Array.isArray(condition)) {
+        return condition.every(validateVisibilityConditions);
+      }
+      if (condition.operator && condition.conditions) {
+        if (!['AND', 'OR', 'NOT'].includes(condition.operator)) {
+          console.error('Invalid logical operator:', condition.operator);
+          return false;
+        }
+        if (!Array.isArray(condition.conditions)) {
+          console.error('Conditions must be an array');
+          return false;
+        }
+        if (condition.operator === 'NOT' && condition.conditions.length !== 1) {
+          console.error('NOT operator must have exactly one condition');
+          return false;
+        }
+        return condition.conditions.every(c => validateVisibilityConditions(c));
+      }
+      if (condition.parentField && condition.showWhen) {
+        if (!Array.isArray(condition.showWhen)) {
+          console.error('showWhen must be an array');
+          return false;
+        }
+        return condition.showWhen.every(rule => {
+          const validOperators = [
+            'equals', 'not_equals', 'in', 'not_in', 'exists', 'not_exists',
+            'greater_than', 'less_than', 'greater_than_or_equal', 'less_than_or_equal'
+          ];
+          if (!validOperators.includes(rule.operator)) {
+            console.error('Invalid operator:', rule.operator);
+            return false;
+          }
+          if (!['exists', 'not_exists'].includes(rule.operator)) {
+            if (rule.value === undefined) {
+              console.error('Value required for operator:', rule.operator);
+              return false;
+            }
+            if (['greater_than', 'less_than', 'greater_than_or_equal', 'less_than_or_equal'].includes(rule.operator)) {
+              if (typeof rule.value !== 'number' && !Number.isFinite(Number(rule.value))) {
+                console.error('Numeric value required for operator:', rule.operator);
+                return false;
+              }
+            }
+          }
+          return true;
+        });
+      }
+      console.error('Invalid condition structure:', condition);
+      return false;
+    };
+    const shouldShowField = (fieldKey) => {
+      const field = allFields[fieldKey];
+      if (!field) return false;
+      if (fieldKey === 'flr' || field.fieldName === 'flr') {
+          return false;
+        }
+      const isVisible = !field.visibilityConditions || (
+        validateVisibilityConditions(field.visibilityConditions) &&
+        evaluateCondition(field.visibilityConditions, allFields)
+      );
+      if (showOnlyEmpty) {
+        return isVisible && isFieldEmpty(fieldKey);
+      }
+      return isVisible;
+    };
     const { filledFields, totalFields } = getFilledFieldsCount();
-
-    // Updated function to get fields from the new structure
     const getFields = () => {
       // If we have form data, get fields from it
       if (localFormData && Object.keys(localFormData).length > 0) {
-        return Object.keys(localFormData);
+        return localFormData;
       }
-      
-      // Otherwise return empty array
-      return [];
+      return {};
     };
-
     const allFields = getFields();
-
-    // Group fields by their groupName and then subgroup by fieldLabel
+    const allKeys = useMemo(() => Object.keys(localFormData || {}), [localFormData]);
     const groupedFields = useMemo(() => {
       const groups = {};
-      
-      // First pass: organize fields by their main group
-      Object.entries(localFormData || {}).forEach(([fieldKey, field]) => {
+      const fieldSortingMap = new Map();
+      Object.entries(localFormData || {}).forEach(([fieldKey, field], index) => {
         const groupName = field?.groupName || 'Ungrouped';
-        
+        const subGroup = field?.subGroup || null;
+        fieldSortingMap.set(fieldKey, {
+          subGroup: subGroup,
+          originalIndex: index,
+          groupName: groupName
+        });
         if (!groups[groupName]) {
           groups[groupName] = {
             _subgroups: {}, // For fields that can be subgrouped by fieldLabel
             _individual: [] // For fields that don't share fieldLabel with others
           };
         }
-        
-        // Add the field key to the appropriate group
-        groups[groupName]._individual.push(fieldKey);
       });
-      
-      // Second pass: identify fields that share the same fieldLabel within each group
-      Object.keys(groups).forEach(groupName => {
-        const groupData = groups[groupName];
-        const fieldLabelCounts = {};
-        
-        // Count occurrences of each fieldLabel
-        groupData._individual.forEach(fieldKey => {
+      const allFieldKeys = Array.from(fieldSortingMap.keys());
+      allFieldKeys.forEach(fieldKey => {
           const field = localFormData[fieldKey];
-          const fieldLabel = field?.fieldLabel || '';
-          
-          if (fieldLabel) {
-            fieldLabelCounts[fieldLabel] = (fieldLabelCounts[fieldLabel] || 0) + 1;
+        const sortingData = fieldSortingMap.get(fieldKey);
+        const groupName = sortingData.groupName;
+        if (field?.subGroup) {
+          if (!groups[groupName]._subgroups[field.subGroup]) {
+            groups[groupName]._subgroups[field.subGroup] = [];
           }
-        });
-        
-        // Create subgroups for fieldLabels that appear more than once
-        const fieldsToMove = [];
-        
-        Object.entries(fieldLabelCounts).forEach(([fieldLabel, count]) => {
-          if (count > 1) {
-            // Create a subgroup for this fieldLabel
-            groupData._subgroups[fieldLabel] = [];
-            
-            // Find all fields with this label
-            groupData._individual.forEach(fieldKey => {
-              const field = localFormData[fieldKey];
-              if (field?.fieldLabel === fieldLabel) {
-                // Add to the subgroup
-                groupData._subgroups[fieldLabel].push(fieldKey);
-                // Mark for removal from individual list
-                fieldsToMove.push(fieldKey);
-              }
-            });
-          }
-        });
-        
-        // Remove fields that were moved to subgroups
-        groupData._individual = groupData._individual.filter(
-          fieldKey => !fieldsToMove.includes(fieldKey)
-        );
+          groups[groupName]._subgroups[field.subGroup].push(fieldKey);
+        } else {
+          groups[groupName]._individual.push(fieldKey);
+        }
       });
-      
-      // Sort the groups alphabetically but put some important groups first
+      const groupOrderMap = new Map();
+      let orderIndex = 0;
+      Object.entries(localFormData || {}).forEach(([fieldKey, field]) => {
+        const groupName = field?.groupName || 'Ungrouped';
+        if (!groupOrderMap.has(groupName)) {
+          groupOrderMap.set(groupName, orderIndex++);
+        }
+      });
       const sortedGroups = {};
-      const priorityGroups = [
-        'Personal Information', 
-        'Contact Information', 
-        'Birth Information',
-        'Identity Documents',
-        'Citizenship(s)'
-      ];
-      
-      // First add priority groups in order (if they exist)
-      priorityGroups.forEach(groupName => {
+      Array.from(groupOrderMap.keys())
+        .sort((a, b) => groupOrderMap.get(a) - groupOrderMap.get(b))
+        .forEach(groupName => {
         if (groups[groupName]) {
           sortedGroups[groupName] = groups[groupName];
         }
       });
-      
-      // Then add the rest of the groups alphabetically
-      Object.keys(groups).sort().forEach(groupName => {
-        if (!priorityGroups.includes(groupName)) {
-          sortedGroups[groupName] = groups[groupName];
-        }
-      });
-      
       return sortedGroups;
     }, [localFormData]);
 
@@ -2763,12 +2953,248 @@ const FNCaseDetails = () => {
       return { completed, total, percentage };
     };
 
+    // Render a single group of fields as an accordion
+    const renderGroup = (groupName, groupData) => {
+      // Define renderSubgroup inside renderGroup so it is in scope
+      const renderSubgroup = (label, fields) => {
+        const visibleSubgroupFields = fields.filter(shouldShowField);
+        if (visibleSubgroupFields.length === 0) return null;
+        // Render all fields inside a single card for the subgroup
+        const elements = [];
+        let i = 0;
+        while (i < visibleSubgroupFields.length) {
+          const fieldKey = visibleSubgroupFields[i];
+          const field = localFormData[fieldKey];
+          if (field.fieldType === 'Radio Button') {
+            const radioLabel = field.fieldLabel;
+            const radioFields = [];
+            let j = i;
+            while (
+              j < visibleSubgroupFields.length &&
+              localFormData[visibleSubgroupFields[j]].fieldType === 'Radio Button' &&
+              localFormData[visibleSubgroupFields[j]].fieldLabel === radioLabel &&
+              shouldShowField(visibleSubgroupFields[j])
+            ) {
+              radioFields.push(visibleSubgroupFields[j]);
+              j++;
+            }
+            elements.push(
+              <div key={`radio-group-subgroup-${label}-${radioLabel}-${i}`} className="mb-4 col-span-full">
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-4 w-1 bg-blue-500 rounded-full"></div>
+                    <div className="text-sm font-medium text-gray-700">{radioLabel}</div>
+                  </div>
+                  <div className={radioFields.length > 2 ? "grid grid-cols-1 md:grid-cols-3 gap-4" : "flex flex-row gap-6"}>
+                    {radioFields.map(radioKey => renderField(radioKey, true))}
+                  </div>
+                </div>
+              </div>
+            );
+            i = j;
+            continue;
+          }
+          // Render normal field
+          elements.push(
+            <div key={fieldKey}>{renderField(fieldKey, false)}</div>
+          );
+          i++;
+        }
+        return (
+          <div key={`subgroup-${label}`} className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg shadow-sm w-full">
+            <div className="font-semibold text-base text-blue-800 mb-4">{label}</div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {elements}
+            </div>
+          </div>
+        );
+      };
+      // Strictly preserve MongoDB order by iterating through the original order
+      // and rendering subgroups/individuals in place
+      const allFieldKeys = [
+        ...groupData._individual,
+        ...Object.values(groupData._subgroups || {}).flat()
+      ];
+      // But we want the order as in the original formData
+      const orderedKeys = Object.keys(localFormData).filter(
+        key => localFormData[key]?.groupName === groupName
+      );
+      const renderedSubgroups = new Set();
+      const elements = [];
+      let i = 0;
+      while (i < orderedKeys.length) {
+        const fieldKey = orderedKeys[i];
+        const field = localFormData[fieldKey];
+        // If this is the first field of a subgroup, render the subgroup (once)
+        if (field?.subGroup && groupData._subgroups?.[field.subGroup] && !renderedSubgroups.has(field.subGroup)) {
+          // Only render subgroup if at least one field in it should be shown
+          const subgroupFields = groupData._subgroups[field.subGroup];
+          if (subgroupFields.some(shouldShowField)) {
+            renderedSubgroups.add(field.subGroup);
+            elements.push(renderSubgroup(field.subGroup, subgroupFields));
+          }
+          // Skip the rest of the fields in this subgroup
+          i += subgroupFields.length;
+          continue;
+        }
+        // If not in a subgroup, render as individual (with radio/checkbox grouping)
+        if (!field?.subGroup && shouldShowField(fieldKey)) {
+          // Use the same grouping logic as renderIndividualFields, but inline
+          // Group consecutive radio/checkboxes with the same label
+          if (field.fieldType === 'Radio Button') {
+            const radioLabel = field.fieldLabel;
+            const radioFields = [];
+            let j = i;
+            while (
+              j < orderedKeys.length &&
+              localFormData[orderedKeys[j]].fieldType === 'Radio Button' &&
+              localFormData[orderedKeys[j]].fieldLabel === radioLabel &&
+              !localFormData[orderedKeys[j]].subGroup &&
+              shouldShowField(orderedKeys[j])
+            ) {
+              radioFields.push(orderedKeys[j]);
+              j++;
+            }
+            elements.push(
+              <div key={`radio-group-individual-${groupName}-${radioLabel}-${i}`} className="mb-4 col-span-full">
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-4 w-1 bg-blue-500 rounded-full"></div>
+                    <div className="text-sm font-medium text-gray-700">{radioLabel}</div>
+                  </div>
+                  <div className={radioFields.length > 2 ? "grid grid-cols-1 md:grid-cols-3 gap-4" : "flex flex-row gap-6"}>
+                    {radioFields.map(radioKey => renderField(radioKey, true))}
+                  </div>
+                </div>
+              </div>
+            );
+            i = j;
+            continue;
+          }
+          if (field.fieldType === 'Checkbox') {
+            const checkboxLabel = field.fieldLabel;
+            const checkboxFields = [];
+            let j = i;
+            while (
+              j < orderedKeys.length &&
+              localFormData[orderedKeys[j]].fieldType === 'Checkbox' &&
+              localFormData[orderedKeys[j]].fieldLabel === checkboxLabel &&
+              !localFormData[orderedKeys[j]].subGroup &&
+              shouldShowField(orderedKeys[j])
+            ) {
+              checkboxFields.push(orderedKeys[j]);
+              j++;
+            }
+            elements.push(
+              <div key={`checkbox-group-individual-${groupName}-${checkboxLabel}-${i}`} className="mb-4 col-span-full">
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-4 w-1 bg-blue-500 rounded-full"></div>
+                    <div className="text-sm font-medium text-gray-700">{checkboxLabel}</div>
+                  </div>
+                  <div className={checkboxFields.length > 2 ? "grid grid-cols-1 md:grid-cols-3 gap-4" : "flex flex-row gap-6"}>
+                    {checkboxFields.map(checkboxKey => renderField(checkboxKey, true))}
+                  </div>
+                </div>
+              </div>
+            );
+            i = j;
+            continue;
+          }
+          // Render normal field
+          elements.push(
+            <div key={fieldKey}>{renderField(fieldKey, false)}</div>
+          );
+        }
+        i++;
+      }
+      const { completed, total, percentage } = getGroupCompletionStats(groupData);
+      const isExpanded = expandedGroups[groupName] || false;
+      const hasSubgroups = Object.keys(groupData._subgroups || {}).length > 0;
+      return (
+        <div key={groupName} className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
+          {/* Accordion Header */}
+          <div 
+            className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors
+              ${isExpanded 
+                ? 'bg-blue-50 hover:bg-blue-100' 
+                : 'bg-gray-50 hover:bg-gray-100'}`}
+            onClick={() => toggleGroup(groupName)}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`
+                p-2 rounded-full 
+                ${isExpanded ? 'bg-blue-100' : 'bg-gray-200'}
+              `}>
+                {isExpanded 
+                  ? <ChevronDown className="w-4 h-4 text-blue-600" />
+                  : <ChevronRight className="w-4 h-4 text-gray-600" />
+                }
+              </div>
+              <h3 className={`text-lg font-medium 
+                ${isExpanded ? 'text-blue-800' : 'text-gray-800'}`}
+              >
+                {groupName}
+              </h3>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* Completion status */}
+              <div className="flex items-center gap-2">
+                <div className="text-xs text-gray-600 whitespace-nowrap">
+                  {completed} of {total} completed
+                </div>
+                {/* Progress bar */}
+                <div className="w-20 h-1.5 bg-gray-200 rounded overflow-hidden">
+                  <div 
+                    className={`h-full transition-all duration-300 
+                      ${percentage === 100 
+                        ? 'bg-green-500' 
+                        : percentage > 50 
+                          ? 'bg-blue-500' 
+                          : 'bg-amber-500'}`
+                      }
+                    style={{ width: `${percentage}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* Accordion Content */}
+          {isExpanded && (
+            <div className="p-4 bg-white border-t border-gray-200">
+              {hasSubgroups ? (
+                <div className="flex flex-col gap-6">
+                  {elements}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {elements}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    };
+
     const renderField = (fieldKey, hideLabel = false) => {
       // Get the field object
-      const field = localFormData[fieldKey];
+      let field = localFormData[fieldKey];
       
       // Use the fieldLabel from the response - prefer field.label, fallback to fieldKey
-      const fieldLabel = field?.fieldLabel || field?.label || fieldKey;
+      let fieldLabel = field?.fieldLabel || field?.label || fieldKey;
+      
+      // --- Dynamic label logic using subGroup and fieldName ---
+      // If the field has a subGroup, append it to the label (unless already present)
+      if (field?.subGroup) {
+        // Only append if not already in the label
+        if (!fieldLabel.includes(field.subGroup)) {
+          fieldLabel += ` (${field.subGroup})`;
+        }
+      }
+      // If no subGroup, just use the label as is
+      // (No special handling for fieldName required unless you want to customize further)
+      // --------------------------------------------------------
       
       // Get the fieldName for reference
       const fieldName = field?.fieldName || '';
@@ -2776,29 +3202,14 @@ const FNCaseDetails = () => {
       // Get field type from the response
       const fieldType = field?.fieldType || 'Text Field';
       
+      // Ensure the Street Number field is properly labeled
+      if (fieldKey === 'ste' && field) {
+        field.fieldLabel = 'Street Number and Name';
+        field.fieldType = 'Text Field';
+      }
+      
       // Get field values if available (for dropdowns, radio buttons, checkboxes)
       const fieldValues = field?.values;
-      
-      // Extract the base question name for radio buttons 
-      // Group radio buttons by their fieldLabel instead of field name pattern
-      const getBaseQuestionName = () => {
-        // If no input type or not a radio button, return fieldName
-        if (!inputType || inputType !== 'radio button') return fieldName;
-        
-        // Use field label as the group identifier - normalize it to create a consistent key
-        return (field?.fieldLabel || '').toLowerCase().replace(/\s+/g, '_');
-      };
-      
-      // Determine if it's a textarea field based on fieldName or label
-      const isTextareaField = 
-        fieldName.includes('note') || 
-        fieldName.includes('brief') || 
-        fieldName.includes('details') || 
-        fieldName.includes('plan') ||
-        fieldKey.toLowerCase().includes('note') || 
-        fieldKey.toLowerCase().includes('brief') || 
-        fieldKey.toLowerCase().includes('details') || 
-        fieldKey.toLowerCase().includes('plan');
 
       // Determine input type based on fieldType
       const getInputType = () => {
@@ -2814,6 +3225,11 @@ const FNCaseDetails = () => {
           
           // If it's explicitly labeled as a text field
           if (type.includes('text')) return isTextareaField ? 'textarea' : 'text';
+        }
+        
+        // Special case for "ste" field in Residential Address History
+        if (fieldName === 'ste' || fieldKey === 'ste') {
+          return 'text';
         }
         
         // Fallback detection based on field name and value format
@@ -2836,127 +3252,45 @@ const FNCaseDetails = () => {
           lowerFieldName.includes(term) || lowerFieldLabel.includes(term)
         );
         
-        if (isDateField || (fieldValue && typeof fieldValue === 'string')) {
-          // Check common date formats in the value
-          if (fieldValue) {
-            // ISO format: YYYY-MM-DD
-            if (/^\d{4}-\d{2}-\d{2}$/.test(fieldValue)) return 'date';
-            
-            // Common formats with slashes: MM/DD/YYYY or DD/MM/YYYY
-            if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(fieldValue)) return 'date';
-            
-            // Format with text month: DD/MMM/YYYY like 05/JAN/2021
-            if (/^\d{1,2}\/[A-Za-z]{3}\/\d{4}$/.test(fieldValue)) return 'date';
-            
-            // Another common format: MM-DD-YYYY or DD-MM-YYYY
-            if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(fieldValue)) return 'date';
-            
-            // Try parsing with Date object as last resort
-            if (isDateField) {
-              try {
-                const date = new Date(fieldValue);
-                if (!isNaN(date.getTime())) return 'date';
-              } catch (error) {
-                // If parsing fails, it's not a date
-              }
-            }
-          } else if (isDateField) {
-            // If it has a date-related name but no value yet, still use date input
-            return 'date';
-          }
-        }
+        if (isDateField) return 'date';
         
-        return isTextareaField ? 'textarea' : 'text';
-      };
-
-      const inputType = getInputType();
-
-      // Format date value for input field
-      const formatDateValue = (value) => {
-        if (!value || inputType !== 'date') return value || '';
-        
-        // Try to parse the date string
-        try {
-          // If it's already in YYYY-MM-DD format, return as is
-          if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-          
-          // Handle DD/MMM/YYYY format (like 05/FEB/1965)
-          const dateMatch1 = value.match(/(\d{1,2})\/([A-Za-z]{3})\/(\d{4})/);
-          if (dateMatch1) {
-            const [_, day, monthStr, year] = dateMatch1;
-            const months = {
-              'JAN': '01', 'FEB': '02', 'MAR': '03', 'APR': '04', 'MAY': '05', 'JUN': '06',
-              'JUL': '07', 'AUG': '08', 'SEP': '09', 'OCT': '10', 'NOV': '11', 'DEC': '12'
-            };
-            const month = months[monthStr.toUpperCase()];
-            if (month) {
-              return `${year}-${month}-${day.padStart(2, '0')}`;
-            }
-          }
-          
-          // Handle MM/DD/YYYY or DD/MM/YYYY format
-          const dateMatch2 = value.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-          if (dateMatch2) {
-            const [_, part1, part2, year] = dateMatch2;
-            
-            // Handle both formats conservatively by assuming MM/DD for US format 
-            // and DD/MM for other formats - we'll use MM/DD as it's more common in the system
-            // If month is > 12, swap parts
-            let month = part1;
-            let day = part2;
-            
-            if (parseInt(part1) > 12) {
-              month = part2;
-              day = part1;
-            }
-            
-            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-          }
-          
-          // Handle DD-MM-YYYY or MM-DD-YYYY format
-          const dateMatch3 = value.match(/(\d{1,2})-(\d{1,2})-(\d{4})/);
-          if (dateMatch3) {
-            const [_, part1, part2, year] = dateMatch3;
-            
-            // Handle both formats conservatively by assuming MM/DD for US format
-            // and DD/MM for other formats - we'll use MM/DD as it's more common in the system
-            // If month is > 12, swap parts
-            let month = part1;
-            let day = part2;
-            
-            if (parseInt(part1) > 12) {
-              month = part2;
-              day = part1;
-            }
-            
-            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-          }
-          
-          // Try parsing with Date object as fallback
-          const date = new Date(value);
-          if (!isNaN(date.getTime())) {
-            const year = date.getFullYear();
-            // JavaScript months are 0-indexed, so we add 1 and pad
-            const month = (date.getMonth() + 1).toString().padStart(2, '0');
-            const day = date.getDate().toString().padStart(2, '0');
-            return `${year}-${month}-${day}`;
-          }
-        } catch (error) {
-          console.warn('Error formatting date value:', error);
-        }
-        
-        // Return original value if parsing fails
-        return value;
+        // Default to text
+        return 'text';
       };
       
-      // Parse options for dropdown, radio buttons, or checkboxes
+      // Determine if it's a textarea field based on fieldName or label
+      const isTextareaField = 
+        fieldName.includes('note') || 
+        fieldName.includes('brief') || 
+        fieldName.includes('details') || 
+        fieldName.includes('plan') ||
+        fieldKey.toLowerCase().includes('note') || 
+        fieldKey.toLowerCase().includes('brief') || 
+        fieldKey.toLowerCase().includes('details') || 
+        fieldKey.toLowerCase().includes('plan');
+      
+      const inputType = getInputType();
+
+      // Format date value for input
+      const formatDateValue = (value) => {
+        if (!value) return '';
+        try {
+          const date = new Date(value);
+          if (isNaN(date.getTime())) return '';
+          return date.toISOString().split('T')[0];
+        } catch (error) {
+          return '';
+        }
+      };
+      
+      // Get options for dropdown/radio/checkbox
       const getOptions = () => {
         if (!fieldValues) return [];
         
         // If fieldValues is a string containing "Country List" or "State List"
         if (typeof fieldValues === 'string') {
           if (fieldValues.includes('Country List')) {
-            // Return a common list of countries (simplified for example)
+            // Return a common list of countries
             return [
               'United States', 'Canada', 'Mexico', 'United Kingdom', 'China', 'India', 
               'Australia', 'Germany', 'France', 'Japan', 'Brazil', 'Russia'
@@ -2965,7 +3299,7 @@ const FNCaseDetails = () => {
           }
           
           if (fieldValues.includes('State List')) {
-            // Return a list of US states (simplified for example)
+            // Return a list of US states
             return [
               'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado',
               'Connecticut', 'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho', 
@@ -2997,14 +3331,7 @@ const FNCaseDetails = () => {
         return [];
       };
       
-      // Generate a unique ID for the field
-      const fieldId = `field-${fieldName.replace(/\s+/g, '-').toLowerCase()}`;
-      
-      // Get the base question name for radio groups
-      const baseQuestionName = getBaseQuestionName();
-      
-      // Create radio group name - this groups related radio options together
-      const radioGroupName = `radio-group-${baseQuestionName}`;
+      const options = getOptions();
       
       // For radio buttons, get the value from the option
       const getRadioValue = () => {
@@ -3035,73 +3362,62 @@ const FNCaseDetails = () => {
         
         // For radio buttons
         if (inputType === 'radio button') {
-          return field.value === true;
+          return field.value === optionValue;
         }
         
         // For regular fields
         return field.value === optionValue;
       };
       
-      // Handle change for different input types
+      // Handle value changes
       const handleChange = (value, optionValue) => {
         if (inputType === 'radio button') {
           // For radio buttons
-          
-          // Check if this radio is already selected - if so, unselect it (toggle behavior)
-          if (field.value === true) {
-            // Unselect this radio button
-            handleLocalInputChange(fieldKey, false);
-            return;
-          }
-          
           // Get the fieldLabel for grouping
           const currentFieldLabel = field?.fieldLabel || '';
-          
           // Find all related radio fields with the same fieldLabel
           const relatedFields = Object.entries(localFormData).filter(([key, val]) => {
             if (!val.fieldLabel) return false;
-            
             // Match if they share the same fieldLabel
             return val.fieldLabel === currentFieldLabel && key !== fieldKey;
           });
-          
-          // Set all related fields to false
+          // Set all related fields to empty string
           relatedFields.forEach(([key, _]) => {
-            handleLocalInputChange(key, false);
+            handleLocalInputChange(key, "");
           });
-          
-          // Set this field to true
-          handleLocalInputChange(fieldKey, true);
+          // Set this field to the actual option value
+          handleLocalInputChange(fieldKey, fieldValues || radioValue || optionValue);
         } else if (inputType === 'checkbox') {
-          // For checkboxes, toggle the value in an array
-          if (options.length <= 1) {
-            // For single checkboxes, toggle boolean value
-            handleLocalInputChange(fieldKey, !field.value);
-          } else {
-            // For multiple options checkboxes, manage array of values
-            let newValue = Array.isArray(field.value) ? [...field.value] : [];
-            
-            if (newValue.includes(optionValue)) {
-              newValue = newValue.filter(val => val !== optionValue);
-            } else {
-              newValue.push(optionValue);
-            }
-            
+          if (Array.isArray(field.value)) {
+            // For multiple checkboxes, toggle the value in the array
+            const newValue = field.value.includes(optionValue)
+              ? field.value.filter(v => v !== optionValue)
+              : [...field.value, optionValue];
             handleLocalInputChange(fieldKey, newValue);
+          } else {
+            // For single checkbox, toggle boolean value
+            handleLocalInputChange(fieldKey, value);
           }
         } else {
-          // For all other field types
+          // For other input types, just set the value
           handleLocalInputChange(fieldKey, value);
         }
       };
       
-      // Parse options if needed
-      const options = ['dropdown', 'radio button', 'checkbox'].includes(inputType) ? getOptions() : [];
+      // Generate a unique ID for the field
+      const fieldId = `field-${fieldName.replace(/\s+/g, '-').toLowerCase()}`;
+      
+      // Get the base question name for radio groups
+      const baseQuestionName = field?.fieldLabel || fieldName;
+      
+      // Create radio group name - this groups related radio options together
+      const radioGroupName = `radio-group-${baseQuestionName.toLowerCase().replace(/\s+/g, '-')}`;
 
       return (
         <div key={fieldKey} className="mb-4">
-          {!hideLabel && (
-            <label className="block text-xs text-gray-500 mb-1">
+          {/* Only show label for non-radio fields */}
+          {!hideLabel && inputType !== 'radio button' && (
+            <label htmlFor={fieldId} className="block text-sm font-medium text-gray-700 mb-1">
               {fieldLabel}
               {field?.required && <span className="text-red-500 ml-1">*</span>}
             </label>
@@ -3165,7 +3481,7 @@ const FNCaseDetails = () => {
                   name={radioGroupName}
                   checked={!!field.value}
                   onChange={() => handleChange(true)}
-                  className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500"
+                  className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
                 />
                 <label 
                   htmlFor={fieldId} 
@@ -3174,14 +3490,21 @@ const FNCaseDetails = () => {
                 >
                   {fieldValues || radioValue || 'Yes'}
                 </label>
-                
-                {/* Add a small X button to clear selection */}
                 {field.value && (
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleLocalInputChange(fieldKey, false);
+                      // Clear all radios in the group
+                      Object.entries(localFormData).forEach(([key, val]) => {
+                        if (
+                          val.fieldType &&
+                          val.fieldType.toLowerCase().includes('radio') &&
+                          val.fieldLabel === field.fieldLabel
+                        ) {
+                          handleLocalInputChange(key, "");
+                        }
+                      });
                     }}
                     className="ml-2 text-xs text-gray-400 hover:text-red-500 focus:outline-none"
                     title="Unselect this option"
@@ -3212,108 +3535,6 @@ const FNCaseDetails = () => {
                   </label>
                 </div>
               ))}
-            </div>
-          )}
-        </div>
-      );
-    };
-    
-    // Render a single group of fields as an accordion
-    const renderGroup = (groupName, groupData) => {
-      // Check if there are visible fields in this group
-      const allFields = [...groupData._individual];
-      Object.values(groupData._subgroups || {}).forEach(subgroupFields => {
-        allFields.push(...subgroupFields);
-      });
-      
-      const visibleFields = allFields.filter(shouldShowField);
-      
-      // If no fields are visible (when showing only empty fields), don't render this group
-      if (visibleFields.length === 0) return null;
-      
-      // Get completion stats for this group
-      const { completed, total, percentage } = getGroupCompletionStats(groupData);
-      const isExpanded = expandedGroups[groupName] || false;
-      
-      // Function to render a subgroup
-      const renderSubgroup = (label, fields) => {
-        const visibleSubgroupFields = fields.filter(shouldShowField);
-        if (visibleSubgroupFields.length === 0) return null;
-        
-        return (
-          <div key={`subgroup-${label}`} className="mb-4 border border-gray-100 rounded p-3 bg-gray-50">
-            <div className="font-medium text-sm text-gray-700 mb-2">{label}</div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {visibleSubgroupFields.map(fieldKey => renderField(fieldKey, true))}
-            </div>
-          </div>
-        );
-      };
-      
-      return (
-        <div key={groupName} className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
-          {/* Accordion Header */}
-          <div 
-            className={`flex items-center justify-between px-4 py-3 cursor-pointer transition-colors
-              ${isExpanded 
-                ? 'bg-blue-50 hover:bg-blue-100' 
-                : 'bg-gray-50 hover:bg-gray-100'}`}
-            onClick={() => toggleGroup(groupName)}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`
-                p-2 rounded-full 
-                ${isExpanded ? 'bg-blue-100' : 'bg-gray-200'}
-              `}>
-                {isExpanded 
-                  ? <ChevronDown className="w-4 h-4 text-blue-600" />
-                  : <ChevronRight className="w-4 h-4 text-gray-600" />
-                }
-              </div>
-              <h3 className={`text-lg font-medium 
-                ${isExpanded ? 'text-blue-800' : 'text-gray-800'}`}
-              >
-                {groupName}
-              </h3>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              {/* Completion status */}
-              <div className="flex items-center gap-2">
-                <div className="text-xs text-gray-600 whitespace-nowrap">
-                  {completed} of {total} completed
-                </div>
-                {/* Progress bar */}
-                <div className="w-20 h-1.5 bg-gray-200 rounded overflow-hidden">
-                  <div 
-                    className={`h-full transition-all duration-300 
-                      ${percentage === 100 
-                        ? 'bg-green-500' 
-                        : percentage > 50 
-                          ? 'bg-blue-500' 
-                          : 'bg-amber-500'}`
-                      }
-                    style={{ width: `${percentage}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Accordion Content */}
-          {isExpanded && (
-            <div className="p-4 bg-white border-t border-gray-200">
-              {/* Render subgroups first */}
-              {Object.entries(groupData._subgroups || {}).map(([label, fields]) => 
-                renderSubgroup(label, fields)
-              )}
-              
-              {/* Render individual fields */}
-              {groupData._individual.filter(shouldShowField).length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {groupData._individual.filter(shouldShowField).map(fieldKey => renderField(fieldKey))}
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -4388,7 +4609,12 @@ const FNCaseDetails = () => {
       {/* Tabs Navigation */}
       <div className="px-6 py-4">
         <div className="flex gap-2">
-          {['Retainers', 'Payments', 'Documents Checklist', 'Questionnaire'].map((tab) => {            const isQuestionnaire = tab === 'Questionnaire';            const hasUploadedDocuments = caseData?.documentTypes?.some(doc =>              doc.status === 'uploaded' || doc.status === 'approved'            );            const isDisabled = isQuestionnaire && !hasUploadedDocuments;
+          {['Retainers','Payments', 'Documents Checklist', 'Questionnaire'].map((tab) => {
+            const isQuestionnaire = tab === 'Questionnaire';
+            const hasUploadedDocuments = caseData?.documentTypes?.some(doc => 
+              doc.status === 'uploaded' || doc.status === 'approved'
+            );
+            const isDisabled = isQuestionnaire && !hasUploadedDocuments;
 
             return (
               <div key={tab} className="relative group">
@@ -4436,6 +4662,7 @@ const FNCaseDetails = () => {
                   caseId={caseId}
                   caseManagerId={caseData?.caseManagerId?._id}
                   applicantId={caseData?.userId?._id}
+                  caseData={caseData}
                 />
               </div>
             )}

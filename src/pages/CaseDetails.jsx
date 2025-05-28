@@ -38,6 +38,7 @@ import ReceiptsTab from '../components/receipts/ReceiptsTab';
 import DocumentsArchiveTab from '../components/documents/DocumentsArchiveTab';
 import CommunicationsTab from '../components/CommunicationsTab';
 import RetainerTab from '../components/RetainerTab';
+import PaymentTab from '../components/payments/PaymentTab';
 
 // Add a new status type to track document states
 const DOCUMENT_STATUS = {
@@ -2037,14 +2038,14 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       <div className="flex -mb-px">
         {[
           { name: 'Profile', icon: User },
-          { name: 'Retainer', icon: FileText },  // Moved up here
+          { name: 'Retainer', icon: FileText },
+          { name: 'Payment', icon: FileText }, // Moved here, right after Retainer
           { name: 'Document Checklist', icon: ClipboardList },
           { name: 'Questionnaire', icon: FileText },
           { name: 'Forms', icon: File },
           { name: 'Letters', icon: FileText },
           { name: 'Receipts', icon: LucideReceiptText },
           { name: 'Packaging', icon: Package },
-          // { name: 'Documents Archive', icon: FileText },
           { name: 'Communications', icon: Mail },
         ].map(({ name, icon: Icon, disabled }) => (
           <button
@@ -2893,6 +2894,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 caseId={caseId}
                 caseManagerId={managerId}
                 applicantId={caseData.userId?._id}
+                caseData={caseData}
               />
             );
           })();
@@ -5716,15 +5718,17 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           <div className="flex-1 overflow-auto"> {/* This will scroll independently */}
             <div className="max-w-7xl mx-auto">
               {activeTab === 'profile' && <ProfileTab profileData={caseData.userId} />}
-              {activeTab === 'retainer' && 
-                <RetainerTab 
-                  companyId={profileData.company_id._id} 
+              {activeTab === 'payment' && <PaymentTab caseId={caseId} />}
+              {activeTab === 'retainer' && (
+                <RetainerTab
+                  companyId={profileData.company_id._id}
                   profileData={profileData}
                   caseId={caseId}
                   caseManagerId={caseData?.caseManagerId?._id}
                   applicantId={caseData.userId?._id}
+                  caseData={caseData}
                 />
-              }
+              )}
               {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
