@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
 import { useNavigate } from 'react-router-dom';
-import { FileText, ClipboardList, File } from 'lucide-react';
+import { FileText, ClipboardList, File, Mail } from 'lucide-react';
 
 const Sidebar = ({ onCategorySelect }) => {
   const navigate = useNavigate();
@@ -37,6 +37,12 @@ const Sidebar = ({ onCategorySelect }) => {
       name: 'Retainer Templates',
       category: 'Retainer Templates',
       icon: FileText
+    },
+    {
+      id: 'et',
+      name: 'Email Templates',
+      category: 'Email Templates',
+      icon: Mail
     }
   ];
 
