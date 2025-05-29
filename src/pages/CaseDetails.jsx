@@ -205,15 +205,22 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const [processingDocuments, setProcessingDocuments] = useState({});
 
   // Add new state variables for chat functionality
-  const [messages, setMessages] = useState([{
-    role: 'assistant',
-    content: "Hello! I'm Sophia from support. I'm here to assist you with your case and answer any questions you might have. How can I help you today?"
-  }]);
+  const [messages, setMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef(null);
   const [currentChat, setCurrentChat] = useState(null);
   const [showChatPopup, setShowChatPopup] = useState(false);
+
+  // Add useEffect for initial chat message
+  useEffect(() => {
+    if (caseData?.userName && messages.length === 0) {
+      setMessages([{
+        role: 'assistant',
+        content: `Hello! I'm Sophia from support. I'm here to assist you with your case, ${caseData.userName}. How can I help you today?`
+      }]);
+    }
+  }, [caseData, messages.length]);
 
   const [verificationData, setVerificationData] = useState(null);
   const [isLoadingVerification, setIsLoadingVerification] = useState(false);
