@@ -455,7 +455,7 @@ const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantI
                         </div>
                       )}
                       
-                      {retainer.sign_status === 'pending' && userRole !== 'attorney' && (
+                      {/* {retainer.sign_status === 'pending' && userRole !== 'attorney' && (
                         <div className="absolute bottom-0 left-0 right-0 mt-4 mx-6 mb-4">
                           <div className="flex items-center gap-2 bg-amber-50 rounded-lg px-4 py-3 text-sm">
                             <Clock className="w-5 h-5 text-amber-500 flex-shrink-0" />
@@ -464,7 +464,7 @@ const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantI
                             </span>
                           </div>
                         </div>
-                      )}
+                      )} */}
                     </div>
                   </div>
                 ))}
