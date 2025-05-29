@@ -376,149 +376,116 @@ const KnowledgeBase = () => {
       <>
         {selectedCategory === 'Letter Templates' || selectedCategory === 'Retainer Templates' || selectedCategory === 'Email Templates' ? (
           <>
-            <div className="bg-white rounded-lg border border-gray-200">
-              <div className="min-w-full divide-y divide-gray-200">
-                {/* Header */}
-                <div className="bg-white">
-                  <div className={`grid ${
-                    selectedCategory === 'Process Template' 
-                      ? 'grid-cols-5' 
-                      : 'grid-cols-4'
-                  } px-6 py-3 border-b border-gray-200`}>
-                    {selectedCategory === 'Process Template' ? (
-                      <>
-                        <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Process Name</div>
-                        <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Process Description</div>
-                        <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</div>
-                        <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deadline (days)</div>
-                        <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usage</div>
-                      </>
-                    ) : selectedCategory === 'Master Forms List' ? (
-                      <>
-                        <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</div>
-                        <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Form Name</div>
-                        <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</div>
-                        <div className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Document Name</div>
-                        <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Required</div>
-                        <div className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Validations</div>
-                        <div className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</div>
-                      </>
-                    )}
-                  </div>
-                </div>
-                {/* Content */}
-                <div className="bg-white divide-y divide-gray-200">
-                  {currentItems.map((item) => (
-                    <div 
-                      key={item._id} 
-                      className={`grid ${
-                        selectedCategory === 'Process Template' 
-                          ? 'grid-cols-5' 
-                          : 'grid-cols-4'
-                      } px-6 py-4 hover:bg-gray-50 ${selectedCategory === 'Process Template' ? 'cursor-pointer' : ''}`}
-                      onClick={() => {
-                        if (selectedCategory === 'Process Template') {
-                          handleCategoryClick(item._id);
-                        }
-                      }}
-                    >
-                      {selectedCategory === 'Process Template' ? (
-                        <>
-                          <div className="text-sm text-gray-900">{item.name}</div>
-                          <div className="text-sm text-gray-500">{item.description}</div>
-                          <div>
-                            <span className="px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                              Active
-                            </span>
-                          </div>
-                          <div className="text-sm text-gray-500 flex items-center">
-                            {editingDeadline === item._id ? (
-                              <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  className="w-16 px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                  value={deadlineValue}
-                                  onChange={handleDeadlineChange}
-                                  onKeyDown={(e) => handleDeadlineKeyDown(e, item._id)}
-                                  autoFocus
-                                />
-                                <button 
-                                  className="ml-2 p-1 text-green-600 hover:text-green-800"
-                                  onClick={() => saveDeadline(item._id)}
-                                >
-                                  ✓
-                                </button>
-                                <button 
-                                  className="ml-1 p-1 text-red-600 hover:text-red-800"
-                                  onClick={() => setEditingDeadline(null)}
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            ) : (
-                              <>
-                                <Clock className="w-4 h-4 mr-1" />
-                                {item.deadline || 0} days
-                                <button 
-                                  className="ml-2 text-blue-600 hover:text-blue-800"
-                                  onClick={(e) => handleDeadlineEdit(e, item)}
-                                >
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {`${Math.floor(Math.random() * 5) + 1} cases in use`}
-                          </div>
-                        </>
-                      ) : selectedCategory === 'Master Forms List' ? (
-                        <>
-                          <div className="text-sm font-mono text-gray-900">{item._id.substring(0, 8)}</div>
-                          <div className="text-sm text-gray-900">{item.form_name}</div>
-                          <div className="text-sm text-gray-500">{item.description || "No description available"}</div>
-                          <div className="text-sm text-gray-500 text-right">
-                            {new Date(item.createdAt).toLocaleDateString()}
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="text-sm text-gray-900">{item.name}</div>
-                          <div className="text-sm text-gray-500">
-                            {item.required ? (
-                              <span className="flex items-center text-green-600">
-                                <CheckCircle className="w-4 h-4 mr-1" />
-                                Required
-                              </span>
-                            ) : (
-                              <span className="flex items-center text-gray-500">
-                                <XCircle className="w-4 h-4 mr-1" />
-                                Optional
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            <ul className="list-disc pl-4 space-y-1">
-                              {item.validations && item.validations.map((validation, index) => (
-                                <li key={index} className="whitespace-pre-wrap break-words">{validation}</li>
-                              ))}
-                            </ul>
-                          </div>
-                          <div className="text-sm text-gray-500 text-right">
-                            {new Date(item.createdAt).toLocaleDateString()}
-                          </div>
-                        </>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {currentItems.map((item) => (
+                <div
+                  key={item._id}
+                  className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200"
+                  onClick={() => {
+                    if (selectedCategory === 'Email Templates') {
+                      if (expandedPromptId === item._id) {
+                        setExpandedPromptId(null);
+                      } else {
+                        setSelectedPrompt(item.content || item.body || '');
+                        setExpandedPromptId(item._id);
+                      }
+                    }
+                  }}
+                >
+                  <div className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-medium text-gray-900 mb-1">
+                          {selectedCategory === 'Retainer Templates' ? item.template_name : (item.name || item.template_name)}
+                        </h3>
+                        {selectedCategory === 'Email Templates' && item.subject && (
+                          <p className="text-sm text-blue-600 mb-2">
+                            Subject: {item.subject}
+                          </p>
+                        )}
+                        {item.company_id?.company_name && (
+                          <p className="text-sm text-gray-600 mb-2">
+                            {item.company_id.company_name}
+                          </p>
+                        )}
+                      </div>
+                      {selectedCategory === 'Retainer Templates' && item.pdf_url && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(item.pdf_url, '_blank');
+                          }}
+                          className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full flex items-center gap-1"
+                          title="View Retainer Template"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
                       )}
                     </div>
-                  ))}
+                    
+                    {item.description && (
+                      <p className="text-sm text-gray-600 mt-2">
+                        {item.description}
+                      </p>
+                    )}
+                    
+                    {/* Show Letter Template prompts openly */}
+                    {selectedCategory === 'Letter Templates' && item.internalPrompt && (
+                      <div className="mt-3 p-3 bg-gray-50 rounded-md">
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                          {item.internalPrompt}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Show Email Template content when expanded */}
+                    {selectedCategory === 'Email Templates' && expandedPromptId === item._id && (
+                      <div className="mt-3 p-3 bg-gray-50 rounded-md">
+                        <div 
+                          className="text-sm text-gray-700 prose prose-sm max-w-none"
+                          dangerouslySetInnerHTML={{ 
+                            __html: selectedPrompt
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    <div className="mt-4 flex items-center justify-between text-sm">
+                      <div className="text-gray-500">
+                        {new Date(item.createdAt).toLocaleDateString()}
+                      </div>
+                      {selectedCategory === 'Email Templates' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewModal({
+                              isOpen: true,
+                              subject: item.subject || '',
+                              content: item.content || item.body || ''
+                            });
+                          }}
+                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        >
+                          Preview Full Email
+                        </button>
+                      )}
+                      {selectedCategory === 'Retainer Templates' && item.pdf_url && (
+                        <a
+                          href={item.pdf_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        >
+                          View Template
+                        </a>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
+            
             {/* Pagination Controls */}
             {filteredItems.length > itemsPerPage && (
               <div className="flex items-center justify-between px-4 py-3 mt-4 bg-white rounded-lg border border-gray-200 text-sm text-gray-500">
