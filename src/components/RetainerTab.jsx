@@ -235,6 +235,24 @@ const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantI
 
         // Refresh the retainers list
         await fetchExistingRetainers();
+        
+        // Reset form and redirect to retainers list
+        setShowCreateForm(false);
+        setSelectedTemplate('');
+        setPreviewUrl(null);
+        
+        // Show success message with animation
+        toast.success('Retainer created and saved successfully!', {
+          duration: 3000,
+          icon: '✅',
+          style: {
+            borderRadius: '10px',
+            background: '#fff',
+            color: '#333',
+            boxShadow: '0 3px 10px rgba(0,0,0,0.1)',
+            border: '1px solid #4CAF50',
+          },
+        });
       } else {
         throw new Error('Upload failed');
       }
@@ -360,76 +378,91 @@ const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantI
                 {retainers.map((retainer) => (
                   <div 
                     key={retainer._id} 
-                    className="flex items-center justify-between pl-6 pr-6 pt-4 pb-4 bg-gray-50 rounded-lg border border-gray-200"
+                    className="flex items-center justify-between p-6 bg-white rounded-lg border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md"
                   >
                     <div className="flex items-center space-x-4">
-                      <div className="p-3 bg-blue-100 rounded-lg">
+                      <div className="p-3 bg-blue-50 rounded-lg">
                         <FileText className="w-6 h-6 text-blue-600" />
                       </div>
                       <div>
-                        <p className="font-medium text-gray-900">{retainer.template_id.template_name}</p>
-                        <div className="flex flex-col text-sm text-gray-500 mt-1">
-                          <div className="flex items-center">
-                            <Calendar className="w-4 h-4 mr-1" />
+                        <p className="text-lg font-semibold text-gray-900">{retainer.template_id.template_name}</p>
+                        <div className="flex items-center space-x-4 mt-1">
+                          <div className="flex items-center text-sm text-gray-600">
+                            <Calendar className="w-4 h-4 mr-1.5" />
                             <span>Created: {new Date(retainer.createdAt).toLocaleDateString()}</span>
                           </div>
-                          {/* <span>Case: {retainer.case_id?.case_number}</span> */}
+                          <span
+                            className={`
+                              px-3 py-1 rounded-full text-xs font-medium
+                              ${retainer.sign_status === 'signed' ? 'bg-emerald-50 text-emerald-700' :
+                                retainer.sign_status === 'rejected' ? 'bg-red-50 text-red-700' :
+                                retainer.sign_status === 'sent' ? 'bg-blue-50 text-blue-700' :
+                                'bg-amber-50 text-amber-700'
+                              }
+                            `}
+                          >
+                            {retainer.sign_status.charAt(0).toUpperCase() + retainer.sign_status.slice(1)}
+                          </span>
                         </div>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-2 w-full mt-2">
-                      {/* Status and Actions Row */}
-                      <div className="flex flex-wrap items-center gap-3">
-                        <span
+
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={() => handleViewDocument(retainer.pdf_url)}
+                        className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
+                      >
+                        <Eye className="w-4 h-4 mr-2 text-gray-500" />
+                        View
+                      </button>
+
+                      {userRole === 'attorney' && retainer.sign_status !== 'signed' && (
+                        <button
+                          onClick={() => handleEscalateToSignature(retainer._id)}
+                          disabled={isEscalating}
                           className={`
-                            px-3 py-1 rounded-full text-xs font-semibold border
-                            ${retainer.sign_status === 'signed' ? 'bg-green-100 text-green-700 border-green-200' :
-                              retainer.sign_status === 'rejected' ? 'bg-red-100 text-red-700 border-red-200' :
-                              retainer.sign_status === 'sent' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                              'bg-yellow-100 text-yellow-700 border-yellow-200'
+                            inline-flex items-center px-4 py-2 text-sm font-medium rounded-md
+                            ${isEscalating 
+                              ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                              : 'text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
                             }
+                            transition-all duration-200 shadow-sm
                           `}
                         >
-                          {retainer.sign_status.charAt(0).toUpperCase() + retainer.sign_status.slice(1)}
-                        </span>
-                        <button
-                          onClick={() => handleViewDocument(retainer.pdf_url)}
-                          className="inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 shadow transition"
-                        >
-                          <Eye className="w-4 h-4 mr-1" />
-                          View
+                          {isEscalating ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Sending...
+                            </>
+                          ) : (
+                            <>
+                              <FileText className="w-4 h-4 mr-2" />
+                              Request Signature
+                            </>
+                          )}
                         </button>
-                        {userRole === 'attorney' && retainer.sign_status !== 'signed' && (
-                          <button
-                            onClick={() => handleEscalateToSignature(retainer._id)}
-                            disabled={isEscalating}
-                            className="inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 shadow transition disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {isEscalating ? (
-                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                            ) : (
-                              <FileText className="w-4 h-4 mr-1" />
-                            )}
-                            {isEscalating ? 'Sending...' : 'Escalate to Signature'}
-                          </button>
-                        )}
-                      </div>
+                      )}
 
-                      {/* Info Banners */}
+                      {/* Info Banners with improved styling */}
                       {retainer.sign_status === 'sent' && userRole !== 'attorney' && (
-                        <div className="w-full mt-2 flex items-center gap-2 bg-blue-50 border-l-4 border-blue-400 rounded-md px-4 py-3 text-sm font-medium text-blue-900 shadow-sm animate-fadeIn">
-                          <Mail className="w-5 h-5 text-blue-500 flex-shrink-0" />
-                          <span>
-                            <span className="font-semibold">Action Required:</span> Please check your email for the signature request.
-                          </span>
+                        <div className="absolute bottom-0 left-0 right-0 mt-4 mx-6 mb-4">
+                          <div className="flex items-center gap-2 bg-blue-50 rounded-lg px-4 py-3 text-sm">
+                            <Mail className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                            <span className="text-blue-700">
+                              <span className="font-medium">Action Required:</span> Please check your email for the signature request.
+                            </span>
+                          </div>
                         </div>
                       )}
+                      
                       {retainer.sign_status === 'pending' && userRole !== 'attorney' && (
-                        <div className="w-full mt-2 flex items-center gap-2 bg-green-50 border-l-4 border-green-400 rounded-md px-4 py-3 text-sm font-medium text-green-900 shadow-sm animate-fadeIn">
-                          <Clock className="w-5 h-5 text-green-500 flex-shrink-0" />
-                          <span>
-                            <span className="font-semibold">No Action Needed:</span> Please wait for your attorney to escalate this retainer for signature.
-                          </span>
+                        <div className="absolute bottom-0 left-0 right-0 mt-4 mx-6 mb-4">
+                          <div className="flex items-center gap-2 bg-amber-50 rounded-lg px-4 py-3 text-sm">
+                            <Clock className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                            <span className="text-amber-700">
+                              <span className="font-medium">Pending Review:</span> Your attorney will send this for signature soon.
+                            </span>
+                          </div>
                         </div>
                       )}
                     </div>
