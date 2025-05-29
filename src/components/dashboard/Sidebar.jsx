@@ -144,6 +144,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
         section: 'Setup',
         items: [
           { name: 'Knowledge Base', href: '/knowledge', icon: TableOfContents },
+          { name: 'Case Managers', href: '/case-managers', icon: Users },
         ]
       },
     ];
