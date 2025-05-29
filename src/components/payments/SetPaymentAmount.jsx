@@ -1,13 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { DollarSign, Mail, ArrowRight } from 'lucide-react';
 import api from '../../utils/api';
 
-const SetPaymentAmount = ({ caseId, onAmountSet }) => {
+const SetPaymentAmount = ({ caseId, onAmountSet, customerEmail }) => {
   const [amount, setAmount] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [paymentLink, setPaymentLink] = useState('');
+
+  useEffect(() => {
+    if (customerEmail) {
+      setEmail(customerEmail);
+    }
+  }, [customerEmail]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
