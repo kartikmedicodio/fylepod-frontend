@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
-import { Mail, Phone, MapPin, Briefcase, Star } from 'lucide-react';
+import { Mail, Phone, MapPin, Briefcase, Star, Bot, User } from 'lucide-react';
 
-// Agent case managers with gradient avatars and descriptions
+// Agent case managers with enhanced gradients and descriptions
 const agentManagers = [
   {
     id: 'diana',
     name: 'Diana',
     role: 'AI Agent',
     avatarType: 'gradient',
-    gradient: 'from-blue-400 to-purple-400',
+    gradient: 'from-blue-400 via-purple-400 to-blue-500',
+    glowColor: 'blue',
     initial: 'D',
     email: 'diana@fylepod.com',
     phone: '-',
     location: 'Virtual',
-    experience: 'AI-powered',
+    experience: 'AI-powered experience',
     specialization: 'Document Automation',
     bio: 'Diana is your intelligent document specialist. She can automatically identify and extract information from a wide variety of documents, ensuring accuracy and efficiency. With advanced validation and cross-verification capabilities, Diana helps reduce manual errors and speeds up your workflow.',
     achievements: [
@@ -30,12 +31,13 @@ const agentManagers = [
     name: 'Fiona',
     role: 'AI Agent',
     avatarType: 'gradient',
-    gradient: 'from-purple-400 to-pink-400',
+    gradient: 'from-purple-400 via-pink-400 to-purple-500',
+    glowColor: 'purple',
     initial: 'F',
     email: 'fiona@fylepod.com',
     phone: '-',
     location: 'Virtual',
-    experience: 'AI-powered',
+    experience: 'AI-powered experience',
     specialization: 'Case Initiation & Automation',
     bio: 'Fiona is your process automation expert. She initiates new cases, creates tailored document checklists, and analyzes requirements to ensure nothing is missed. Fiona streamlines complex processes, making onboarding and case management smooth and hassle-free.',
     achievements: [
@@ -52,12 +54,13 @@ const agentManagers = [
     name: 'Sophia',
     role: 'AI Agent',
     avatarType: 'gradient',
-    gradient: 'from-slate-600 to-zinc-700',
+    gradient: 'from-slate-600 via-zinc-600 to-slate-700',
+    glowColor: 'slate',
     initial: 'S',
     email: 'sophia@fylepod.com',
     phone: '-',
     location: 'Virtual',
-    experience: 'AI-powered',
+    experience: 'AI-powered experience',
     specialization: 'Case Support & Assistance',
     bio: 'Sophia is your real-time support agent. She answers your case-related questions, provides instant status updates, and guides you through every step of the process. Sophia ensures you always have the information and assistance you need, right when you need it.',
     achievements: [
@@ -76,7 +79,7 @@ const caseManagers = [
   {
     id: 1,
     name: 'Sarah Johnson',
-    role: 'Senior Case Manager',
+    role: 'Attorney',
     avatar: 'https://ui-avatars.com/api/?name=SJ&background=808080&color=fff',
     avatarType: 'image',
     email: 'sarah.johnson@fylepod.com',
@@ -84,7 +87,7 @@ const caseManagers = [
     location: 'New York, NY',
     experience: '8 years',
     specialization: 'Corporate Immigration',
-    bio: 'Sarah is a seasoned case manager with extensive experience in corporate immigration law. She has successfully managed over 500 cases and maintains a 98% success rate.',
+    bio: 'Sarah is a seasoned immigration attorney with extensive experience in corporate immigration law. She has successfully managed over 500 cases and maintains a 98% success rate.',
     achievements: [
       'Top Performer 2023',
       'Excellence in Client Service Award',
@@ -116,7 +119,7 @@ const caseManagers = [
   {
     id: 3,
     name: 'Emily Rodriguez',
-    role: 'Senior Case Manager',
+    role: 'Attorney',
     avatar: 'https://ui-avatars.com/api/?name=ER&background=808080&color=fff',
     avatarType: 'image',
     email: 'emily.rodriguez@fylepod.com',
@@ -124,7 +127,7 @@ const caseManagers = [
     location: 'Miami, FL',
     experience: '7 years',
     specialization: 'Business Immigration',
-    bio: 'Emily is an expert in business immigration cases, particularly focusing on investor visas and business expansion cases. She has a strong track record of successful EB-5 applications.',
+    bio: 'Emily is an expert attorney in business immigration cases, particularly focusing on investor visas and business expansion cases. She has a strong track record of successful EB-5 applications.',
     achievements: [
       'Business Immigration Expert',
       'Top Revenue Generator 2023',
@@ -162,34 +165,43 @@ const CaseManagers = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Case Managers</h1>
+      <h1 className="text-2xl font-bold mb-6 text-gray-900">Case Managers</h1>
       <div className="flex gap-6">
         {/* Left side - Case Manager Profiles */}
-        <div className="w-[40%] bg-white rounded-lg shadow">
+        <div className="w-[40%] bg-white rounded-lg shadow-lg backdrop-blur-sm">
           <div className="p-4 border-b">
-            <h2 className="text-lg font-semibold">Case Manager Profiles</h2>
+            <h2 className="text-lg font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Case Manager Profiles
+            </h2>
           </div>
           <div className="divide-y">
             {/* AI Agents Section */}
-            <div className="pt-4 pb-2 px-4 bg-blue-50/40">
-              <h3 className="text-xs font-bold text-blue-700 uppercase tracking-wider mb-2">AI Agents</h3>
+            <div className="pt-4 pb-2 px-4 bg-gradient-to-r from-blue-50 to-purple-50">
+              <h3 className="text-xs font-bold text-blue-700 uppercase tracking-wider mb-2 flex items-center">
+                <Bot className="w-4 h-4 mr-1" /> AI Agents
+              </h3>
             </div>
             {agentManagers.map((manager) => (
               <div
                 key={manager.id}
-                className={`p-4 cursor-pointer transition-colors duration-200 hover:bg-blue-50 ${
-                  selectedManager.id === manager.id ? 'bg-blue-100' : ''
+                className={`p-4 cursor-pointer transition-all duration-300 hover:bg-gradient-to-r hover:from-${manager.glowColor}-50 hover:to-purple-50 transform hover:scale-[1.02] ${
+                  selectedManager.id === manager.id ? `bg-gradient-to-r from-${manager.glowColor}-100 to-purple-100` : ''
                 }`}
                 onClick={() => setSelectedManager(manager)}
               >
                 <div className="flex items-center space-x-4">
                   <div
-                    className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white bg-gradient-to-r ${manager.gradient}`}
+                    className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white bg-gradient-to-r ${manager.gradient} shadow-lg transform hover:scale-105 transition-transform duration-200 hover:shadow-${manager.glowColor}-200`}
                   >
                     {manager.initial}
                   </div>
                   <div>
-                    <h3 className="font-medium text-gray-900">{manager.name}</h3>
+                    <h3 className="font-medium text-gray-900 flex items-center">
+                      {manager.name}
+                      <span className="ml-2 px-2 py-0.5 text-xs bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 rounded-full">
+                        AI
+                      </span>
+                    </h3>
                     <p className="text-sm text-gray-500">{manager.role}</p>
                   </div>
                 </div>
@@ -197,12 +209,14 @@ const CaseManagers = () => {
             ))}
             {/* Human Case Managers Section */}
             <div className="pt-4 pb-2 px-4 bg-gray-50/60 border-t border-gray-200">
-              <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Human Case Managers</h3>
+              <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 flex items-center">
+                <User className="w-4 h-4 mr-1" /> Case Managers
+              </h3>
             </div>
             {caseManagers.map((manager) => (
               <div
                 key={manager.id}
-                className={`p-4 cursor-pointer transition-colors duration-200 hover:bg-gray-50 ${
+                className={`p-4 cursor-pointer transition-all duration-300 hover:bg-gray-50 transform hover:scale-[1.02] ${
                   selectedManager.id === manager.id ? 'bg-gray-100' : ''
                 }`}
                 onClick={() => setSelectedManager(manager)}
@@ -211,7 +225,7 @@ const CaseManagers = () => {
                   <img
                     src={manager.avatar}
                     alt={manager.name}
-                    className="w-12 h-12 rounded-full"
+                    className="w-12 h-12 rounded-full shadow-md transition-transform duration-200 hover:scale-105"
                   />
                   <div>
                     <h3 className="font-medium text-gray-900">{manager.name}</h3>
@@ -224,24 +238,36 @@ const CaseManagers = () => {
         </div>
 
         {/* Right side - Case Manager Details */}
-        <div className="flex-1 bg-white rounded-lg shadow">
+        <div className="flex-1 bg-white rounded-lg shadow-lg backdrop-blur-sm transform transition-all duration-300">
           <div className="p-6">
             <div className="flex items-start space-x-6">
               {selectedManager.avatarType === 'gradient' ? (
-                <div
-                  className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold text-white bg-gradient-to-r ${selectedManager.gradient}`}
-                >
-                  {selectedManager.initial}
+                <div className="relative group">
+                  <div
+                    className={`absolute inset-0 rounded-full bg-gradient-to-r ${selectedManager.gradient} blur-lg opacity-40 group-hover:opacity-60 transition-opacity duration-300`}
+                  ></div>
+                  <div
+                    className={`relative w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold text-white bg-gradient-to-r ${selectedManager.gradient} transform hover:scale-105 transition-transform duration-300 shadow-xl`}
+                  >
+                    {selectedManager.initial}
+                  </div>
                 </div>
               ) : (
                 <img
                   src={selectedManager.avatar}
                   alt={selectedManager.name}
-                  className="w-24 h-24 rounded-full"
+                  className="w-24 h-24 rounded-full shadow-lg transform hover:scale-105 transition-transform duration-300"
                 />
               )}
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">{selectedManager.name}</h2>
+                <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                  {selectedManager.name}
+                  {selectedManager.avatarType === 'gradient' && (
+                    <span className="text-sm px-3 py-1 bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 rounded-full flex items-center">
+                      <Bot className="w-4 h-4 mr-1" /> AI Agent
+                    </span>
+                  )}
+                </h2>
                 <p className="text-lg text-gray-600">{selectedManager.role}</p>
                 <div className="mt-2 flex items-center space-x-4">
                   <div className="flex items-center text-gray-500">
@@ -250,7 +276,7 @@ const CaseManagers = () => {
                   </div>
                   <div className="flex items-center text-gray-500">
                     <Briefcase className="w-4 h-4 mr-1" />
-                    <span>{selectedManager.experience} experience</span>
+                    <span>{selectedManager.experience}</span>
                   </div>
                 </div>
               </div>
@@ -258,44 +284,47 @@ const CaseManagers = () => {
 
             <div className="mt-8 grid grid-cols-2 gap-6">
               <div className="space-y-4">
-                <div className="flex items-center text-gray-600">
+                <div className="flex items-center text-gray-600 hover:text-blue-600 transition-colors duration-200">
                   <Mail className="w-5 h-5 mr-2" />
                   <span>{selectedManager.email}</span>
                 </div>
                 {selectedManager.avatarType !== 'gradient' && (
-                  <div className="flex items-center text-gray-600">
+                  <div className="flex items-center text-gray-600 hover:text-blue-600 transition-colors duration-200">
                     <Phone className="w-5 h-5 mr-2" />
                     <span>{selectedManager.phone}</span>
                   </div>
                 )}
               </div>
               <div className="space-y-4">
-                <div className="bg-blue-50 p-4 rounded-lg">
+                <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg transform hover:scale-105 transition-all duration-300">
                   <h4 className="font-medium text-blue-900">Active Cases</h4>
                   <p className="text-2xl font-bold text-blue-600">{selectedManager.activeCases}</p>
                 </div>
-                <div className="bg-green-50 p-4 rounded-lg">
+                <div className="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg transform hover:scale-105 transition-all duration-300">
                   <h4 className="font-medium text-green-900">Completed Cases</h4>
                   <p className="text-2xl font-bold text-green-600">{selectedManager.completedCases}</p>
                 </div>
               </div>
             </div>
 
-            <div className="mt-8">
-              <h3 className="text-lg font-semibold mb-4">About</h3>
+            <div className="mt-8 transform transition-all duration-300 hover:translate-x-2">
+              <h3 className="text-lg font-semibold mb-4 bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">About</h3>
               <p className="text-gray-600">{selectedManager.bio}</p>
             </div>
 
-            <div className="mt-8">
-              <h3 className="text-lg font-semibold mb-4">Specialization</h3>
+            <div className="mt-8 transform transition-all duration-300 hover:translate-x-2">
+              <h3 className="text-lg font-semibold mb-4 bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">Specialization</h3>
               <p className="text-gray-600">{selectedManager.specialization}</p>
             </div>
 
             <div className="mt-8">
-              <h3 className="text-lg font-semibold mb-4">Skills</h3>
+              <h3 className="text-lg font-semibold mb-4 bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">Skills</h3>
               <div className="space-y-2">
                 {selectedManager.achievements.map((achievement, index) => (
-                  <div key={index} className="flex items-center text-gray-600">
+                  <div 
+                    key={index} 
+                    className="flex items-center text-gray-600 p-2 rounded-lg hover:bg-gray-50 transform transition-all duration-300 hover:translate-x-2"
+                  >
                     <Star className="w-4 h-4 mr-2 text-yellow-400" />
                     <span>{achievement}</span>
                   </div>
