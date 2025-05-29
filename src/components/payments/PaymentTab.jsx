@@ -38,12 +38,26 @@ const PaymentTab = ({ caseId }) => {
   const [paymentDetails, setPaymentDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [customerEmail, setCustomerEmail] = useState('');
 
   useEffect(() => {
     if (caseId) {
       fetchPaymentDetails();
+      fetchCaseDetails();
     }
   }, [caseId]);
+
+  const fetchCaseDetails = async () => {
+    try {
+      const response = await api.get(`/management/${caseId}`);
+      if (response.data.status === 'success') {
+        const caseData = response.data.data.entry;
+        setCustomerEmail(caseData.userId?.email || '');
+      }
+    } catch (error) {
+      console.error('Error fetching case details:', error);
+    }
+  };
 
   const fetchPaymentDetails = async () => {
     try {
@@ -117,7 +131,8 @@ const PaymentTab = ({ caseId }) => {
               <div className="p-8">
                 <SetPaymentAmount 
                   caseId={caseId} 
-                  onAmountSet={fetchPaymentDetails} 
+                  onAmountSet={fetchPaymentDetails}
+                  customerEmail={customerEmail}
                 />
               </div>
             ) : (
@@ -145,7 +160,6 @@ const PaymentTab = ({ caseId }) => {
                       <p className="text-sm text-gray-500">Payment Status</p>
                       <div className="flex items-center gap-2">
                         <p className="text-lg font-semibold text-gray-900">{formatStatus(paymentDetails.status)}</p>
-                        
                       </div>
                       <p className="text-sm text-gray-500 mt-1">Last updated {new Date(paymentDetails.updatedAt).toLocaleDateString()}</p>
                     </div>
