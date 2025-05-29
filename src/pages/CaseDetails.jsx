@@ -217,7 +217,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     if (caseData?.userName && messages.length === 0) {
       setMessages([{
         role: 'assistant',
-        content: `Hello! I'm Sophia from support. I'm here to assist you with your case, ${caseData.userName}. How can I help you today?`
+        content: `Hello! I'm Sophia from support. I'm here to assist you with ${caseData.userName}'s case. How can I help you today?`
       }]);
     }
   }, [caseData, messages.length]);
