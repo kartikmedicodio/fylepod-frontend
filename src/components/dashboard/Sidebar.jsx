@@ -497,16 +497,19 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
             item.section ? (
               <div key={index} className="space-y-1">
                 {!collapsed && (
-                  <div className="flex items-center justify-between px-3 mb-4 mt-6 first:mt-2">
-                    <h3 className="text-[13px] font-semibold text-black uppercase tracking-wider">
-                      {item.section}
-                    </h3>
-                    {item.expandable && (
-                      <button className="text-xs text-black hover:text-black/80">
-                        See More
-                      </button>
-                    )}
-                  </div>
+                  <>
+                    <div className="flex items-center justify-between px-3 mb-2 mt-6 first:mt-2">
+                      <h3 className="text-[11px] font-semibold text-black-500 uppercase tracking-widest py-1">
+                        {item.section}
+                      </h3>
+                      {item.expandable && (
+                        <button className="text-xs text-gray-400 hover:text-black/80">
+                          See More
+                        </button>
+                      )}
+                    </div>
+                    <div className="border-b border-gray-200 mb-2" />
+                  </>
                 )}
                 {loadingRelationships && item.section === 'All Profiles' ? (
                   // Show loading state for relationships
@@ -515,64 +518,66 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
                     <div className="h-5 bg-gray-200 rounded animate-pulse w-full"></div>
                   </div>
                 ) : (
-                  item.items.map((subItem) => (
-                    subItem.disabled ? (
-                      <div
-                        key={subItem.name + (subItem.relationshipType || '')}
-                        className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg 
-                          text-gray-400 cursor-not-allowed ${collapsed ? 'justify-center' : ''}`}
-                        title={collapsed ? subItem.name : ''}
-                      >
-                        <subItem.icon className="h-5 w-5 flex-shrink-0" />
-                        {!collapsed && (
-                          <div className="ml-3 flex-1 overflow-hidden">
-                            <span className="block truncate">{subItem.name}</span>
-                            {subItem.relationshipType && (
-                              <span className="text-xs text-black/70">{subItem.relationshipType}</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <Link
-                        key={subItem.name + (subItem.relationshipType || '')}
-                        to={subItem.href}
-                        className={`flex items-center px-3 py-2.5 text-[14px] font-medium rounded-lg transition-all duration-200 relative
-                          ${isActive(subItem.href)
-                            ? 'bg-blue-50 text-black before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-8 before:w-0.5 before:bg-blue-600 before:rounded-r'
-                            : 'text-black hover:bg-gray-50'
-                        } ${collapsed ? 'justify-center' : ''}`}
-                        title={collapsed ? (subItem.relationshipType ? `${subItem.name} (${subItem.relationshipType})` : subItem.name) : ''}
-                      >
-                        {subItem.icon === CircleUserIcon ? (
-                          <div className="h-8 w-8 rounded-full overflow-hidden flex-shrink-0">
-                            <img 
-                              src={`https://ui-avatars.com/api/?name=${encodeURIComponent(subItem.name || 'U')}&background=random`}
-                              alt={subItem.name || 'User'}
-                              className="h-full w-full object-cover"
+                  <div className="pl-4">
+                    {item.items.map((subItem) => (
+                      subItem.disabled ? (
+                        <div
+                          key={subItem.name + (subItem.relationshipType || '')}
+                          className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg 
+                            text-gray-400 cursor-not-allowed ${collapsed ? 'justify-center' : ''}`}
+                          title={collapsed ? subItem.name : ''}
+                        >
+                          <subItem.icon className="h-5 w-5 flex-shrink-0" />
+                          {!collapsed && (
+                            <div className="ml-3 flex-1 overflow-hidden">
+                              <span className="block truncate">{subItem.name}</span>
+                              {subItem.relationshipType && (
+                                <span className="text-xs text-black/70">{subItem.relationshipType}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <Link
+                          key={subItem.name + (subItem.relationshipType || '')}
+                          to={subItem.href}
+                          className={`flex items-center px-3 py-2.5 text-[14px] font-medium rounded-lg transition-all duration-200 relative
+                            ${isActive(subItem.href)
+                              ? 'bg-blue-50 text-black before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-8 before:w-0.5 before:bg-blue-600 before:rounded-r'
+                              : 'text-black hover:bg-gray-50'
+                          } ${collapsed ? 'justify-center' : ''}`}
+                          title={collapsed ? (subItem.relationshipType ? `${subItem.name} (${subItem.relationshipType})` : subItem.name) : ''}
+                        >
+                          {subItem.icon === CircleUserIcon ? (
+                            <div className="h-8 w-8 rounded-full overflow-hidden flex-shrink-0">
+                              <img 
+                                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(subItem.name || 'U')}&background=random`}
+                                alt={subItem.name || 'User'}
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <subItem.icon className={`h-5 w-5 flex-shrink-0 
+                              ${isActive(subItem.href) ? 'text-blue-600' : 'text-black/70'}`} 
                             />
-                          </div>
-                        ) : (
-                          <subItem.icon className={`h-5 w-5 flex-shrink-0 
-                            ${isActive(subItem.href) ? 'text-blue-600' : 'text-black/70'}`} 
-                          />
-                        )}
-                        {!collapsed && (
-                          <div className="ml-3 flex-1 overflow-hidden">
-                            <span className="block truncate">{subItem.name}</span>
-                            {subItem.relationshipType && (
-                              <span className="text-xs text-black/70">{subItem.relationshipType}</span>
-                            )}
-                          </div>
-                        )}
-                        {!collapsed && subItem.badge && (
-                          <span className="ml-auto bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-xs">
-                            {subItem.badge}
-                          </span>
-                        )}
-                      </Link>
-                    )
-                  ))
+                          )}
+                          {!collapsed && (
+                            <div className="ml-3 flex-1 overflow-hidden">
+                              <span className="block truncate">{subItem.name}</span>
+                              {subItem.relationshipType && (
+                                <span className="text-xs text-black/70">{subItem.relationshipType}</span>
+                              )}
+                            </div>
+                          )}
+                          {!collapsed && subItem.badge && (
+                            <span className="ml-auto bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-xs">
+                              {subItem.badge}
+                            </span>
+                          )}
+                        </Link>
+                      )
+                    ))}
+                  </div>
                 )}
               </div>
             ) : (
