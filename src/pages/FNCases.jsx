@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../utils/api';
 import { ChevronLeft, ChevronRight, ListFilter, ChevronDown, ChevronUp, Search, ArrowUpDown, SlidersHorizontal } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -108,6 +108,9 @@ const FNCases = () => {
 
   const navigate = useNavigate();
 
+  // Add searchTimeout ref at the top with other state declarations
+  const searchTimeout = useRef(null);
+
   // Fetch related users
   const fetchRelatedUsers = async () => {
     try {
@@ -135,26 +138,30 @@ const FNCases = () => {
   // Fetch all cases without any backend filtering or sorting
   const fetchAllUsersCases = async (userIds) => {
     try {
-      setLoading(true);
-      
       if (!userIds.length) {
         console.log('No user IDs available');
         return;
       }
 
-      // Only pass userIds to backend - everything else will be handled in frontend
-      const response = await api.get('/management/users', {
-        params: {
-          userIds: userIds.join(',')
-        }
-      });
+      const params = {
+        userIds: userIds.join(','),
+        page: currentPage,
+        limit: pagination.limit,
+        sortBy: sortField,
+        order: sortDirection
+      };
+
+      // Only add search param if there's a search term
+      if (searchTerm && searchTerm.trim()) {
+        params.search = searchTerm.trim();
+      }
+
+      const response = await api.get('/management/users', { params });
 
       if (response.data.status === 'success') {
-        const cases = response.data.data.entries || [];
-        setAllCases(cases); // Store all cases
-        
-        // Process all filtering and sorting here
-        processCases(cases);
+        const { entries, pagination: paginationData } = response.data.data;
+        setDisplayCases(entries);
+        setPagination(paginationData);
       }
     } catch (error) {
       console.error('Error fetching cases:', error);
@@ -162,105 +169,6 @@ const FNCases = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Process cases with filtering, sorting, and pagination
-  const processCases = (cases) => {
-    // Step 1: Filter by search term
-    const searchFiltered = searchTerm 
-      ? cases.filter(c => 
-          c.userName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          c.categoryName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          c._id?.toLowerCase().includes(searchTerm.toLowerCase())
-        )
-      : cases;
-      
-    // Step 2: Apply filters
-    let filtered = [...searchFiltered];
-    
-    if (filters.status) {
-      filtered = filtered.filter(c => c.categoryStatus === filters.status);
-    }
-    
-    if (filters.documentStatus) {
-      filtered = filtered.filter(c => {
-        const pendingCount = c.documentTypes?.filter(doc => 
-          doc.status === 'pending'
-        ).length || 0;
-        
-        if (filters.documentStatus === 'pending') {
-          return pendingCount > 0;
-        } else if (filters.documentStatus === 'complete') {
-          return pendingCount === 0;
-        }
-        return true;
-      });
-    }
-    
-    if (filters.deadline) {
-      const today = new Date();
-      const weekEnd = new Date(today);
-      weekEnd.setDate(today.getDate() + 7);
-      const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-      const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0);
-      
-      filtered = filtered.filter(c => {
-        const deadline = new Date(c.deadline);
-        switch (filters.deadline) {
-          case 'thisWeek':
-            return deadline <= weekEnd;
-          case 'thisMonth':
-            return deadline <= monthEnd;
-          case 'nextMonth':
-            return deadline > monthEnd && deadline <= nextMonthEnd;
-          default:
-            return true;
-        }
-      });
-    }
-    
-    // Step 3: Sort the filtered data
-    const sorted = [...filtered].sort((a, b) => {
-      let aValue = a[sortField];
-      let bValue = b[sortField];
-      
-      // Handle nested fields (e.g., createdBy.name)
-      if (sortField.includes('.')) {
-        const parts = sortField.split('.');
-        aValue = parts.reduce((obj, key) => obj?.[key], a);
-        bValue = parts.reduce((obj, key) => obj?.[key], b);
-      }
-      
-      // Handle null/undefined values
-      if (aValue === undefined || aValue === null) return sortDirection === 'asc' ? -1 : 1;
-      if (bValue === undefined || bValue === null) return sortDirection === 'asc' ? 1 : -1;
-      
-      // Compare strings
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return sortDirection === 'asc' 
-          ? aValue.localeCompare(bValue)
-          : bValue.localeCompare(aValue);
-      }
-      
-      // Compare numbers/dates
-      return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
-    });
-    
-    // Step 4: Paginate the sorted data
-    const total = sorted.length;
-    const totalPages = Math.ceil(total / pagination.limit);
-    const startIndex = (currentPage - 1) * pagination.limit;
-    const endIndex = startIndex + pagination.limit;
-    const currentPageCases = sorted.slice(startIndex, endIndex);
-    
-    // Update state with processed data
-    setDisplayCases(currentPageCases);
-    setPagination({
-      total,
-      currentPage,
-      limit: pagination.limit,
-      totalPages
-    });
   };
 
   // Set breadcrumb immediately when component mounts
@@ -279,7 +187,7 @@ const FNCases = () => {
       };
       loadData();
     }
-  }, [user?.id]);
+  }, [currentPage, sortField, sortDirection, filters]); // Remove searchTerm from dependencies
 
   useEffect(() => {
     // Cleanup breadcrumb on unmount
@@ -288,13 +196,6 @@ const FNCases = () => {
     };
   }, [setCurrentBreadcrumb]);
 
-  // Reprocess cases when filtering, sorting, or pagination changes
-  useEffect(() => {
-    if (allCases.length > 0) {
-      processCases(allCases);
-    }
-  }, [searchTerm, filters, sortField, sortDirection, currentPage]);
-
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
       setCurrentPage(newPage);
@@ -302,13 +203,20 @@ const FNCases = () => {
   };
 
   const handleSearch = (e) => {
-    setSearchTerm(e.target.value);
+    const value = e.target.value;
+    setSearchTerm(value);
     setSearching(true);
-    setCurrentPage(1);
+    setCurrentPage(1); // Reset to first page when searching
     
-    // Simulate search delay
-    setTimeout(() => {
-      setSearching(false);
+    // Debounce the API call
+    clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(() => {
+      const loadData = async () => {
+        const userIds = await fetchRelatedUsers();
+        await fetchAllUsersCases(userIds);
+        setSearching(false);
+      };
+      loadData();
     }, 500);
   };
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../utils/api';
 import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, CirclePlus, Briefcase, Calendar, User, FileText, AlertCircle, X } from 'lucide-react';
 import CaseDetails from './CaseDetails';
@@ -289,6 +289,9 @@ const FiltersDropdown = ({
 );
 
 const Cases = () => {
+  // Add searchTimeout ref
+  const searchTimeout = useRef(null);
+
   // All useState hooks
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -355,7 +358,7 @@ const Cases = () => {
     ]
   };
 
-  // Fetch cases with pagination
+  // Update the fetchCases function to properly handle search
   const fetchCases = async (page = 1, searchQuery = '', status = '') => {
     try {
       setLoading(true);
@@ -369,16 +372,26 @@ const Cases = () => {
       setLoggedInUserDetails(userDetails);
 
       if (userDetails.lawfirm_id?._id) {
-        const queryParams = new URLSearchParams({
+        // Build query parameters
+        const params = {
           page,
           limit: pagination.limit,
           sortBy: 'createdAt',
-          order: 'desc',
-          ...(searchQuery && { search: searchQuery }),
-          ...(status && { status })
-        });
+          order: 'desc'
+        };
 
-        const response = await api.get(`/management/paginated?${queryParams}`);
+        // Only add search if it's not empty
+        if (searchQuery?.trim()) {
+          params.search = searchQuery.trim();
+        }
+
+        // Only add status if it's not empty
+        if (status) {
+          params.status = status;
+        }
+
+        const queryString = new URLSearchParams(params).toString();
+        const response = await api.get(`/management/paginated?${queryString}`);
         
         if (response.data.status === 'success') {
           const { managements, pagination: paginationData } = response.data.data;
@@ -399,25 +412,41 @@ const Cases = () => {
       setError(error.message);
     } finally {
       setLoading(false);
+      setSearching(false);
     }
   };
 
-  // Initial data fetch
+  // Update the search handler with better debouncing
+  const handleSearch = (e) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    setSearching(true);
+    
+    // Clear any existing timeout
+    if (searchTimeout.current) {
+      clearTimeout(searchTimeout.current);
+    }
+    
+    // Set new timeout
+    searchTimeout.current = setTimeout(() => {
+      setCurrentPage(1); // Reset to first page when searching
+      fetchCases(1, value, filters.status);
+    }, 500);
+  };
+
+  // Clean up the timeout on component unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeout.current) {
+        clearTimeout(searchTimeout.current);
+      }
+    };
+  }, []);
+
+  // Update the initial data fetch effect to not include searchTerm dependency
   useEffect(() => {
     fetchCases(currentPage, searchTerm, filters.status);
-  }, [currentPage, filters.status]);
-
-  // Handle search with debounce
-  useEffect(() => {
-    const debounceTimer = setTimeout(() => {
-      if (searchTerm !== undefined) {
-        setCurrentPage(1);
-        fetchCases(1, searchTerm, filters.status);
-      }
-    }, 500);
-
-    return () => clearTimeout(debounceTimer);
-  }, [searchTerm]);
+  }, [currentPage, filters.status]); // Remove searchTerm from dependencies
 
   // Handler functions
   const handleFilterChange = (filterType, value) => {
@@ -445,16 +474,6 @@ const Cases = () => {
     setShowFilters(false);
     setCurrentPage(1);
     fetchCases(1, searchTerm);
-  };
-
-  const handleSearch = (e) => {
-    setSearchTerm(e.target.value);
-    setSearching(true);
-    
-    // Searching state will be handled by the debounced effect
-    setTimeout(() => {
-      setSearching(false);
-    }, 500);
   };
 
   const handlePageChange = (newPage) => {
