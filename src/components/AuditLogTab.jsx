@@ -412,13 +412,13 @@ const AuditLogTab = ({ caseId }) => {
           <History className="w-5 h-5" />
           Workflow Timeline
         </h2>
-        <button
+        {/* <button
           onClick={handleExport}
           className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
         >
           <Download className="w-4 h-4" />
           Export
-        </button>
+        </button> */}
       </div>
 
       {/* Search and Filters */}
