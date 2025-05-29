@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, X, Loader2, Eye, Edit, Check } from 'lucide-react';
+import { Upload, X, Loader2, Eye, Edit, Check, Sparkles, FileSearch, FileCheck } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import api from "../../utils/api"
 
@@ -12,6 +13,14 @@ const ReceiptsTab = ({ managementId }) => {
   const [receipts, setReceipts] = useState([]);
   const [loading, setLoading] = useState(true);
   const fileInputRef = useRef(null);
+  const [showDianaAnimation, setShowDianaAnimation] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [processingSteps] = useState([
+    { message: "Hi! I'm Diana, analyzing your document... 📄", icon: FileSearch, emoji: "📄" },
+    { message: "Extracting important information...", icon: Sparkles, emoji: "✨" },
+    { message: "Processing dates and details...", icon: FileSearch, emoji: "🔍" },
+    { message: "Almost done! Final touches...", icon: FileCheck, emoji: "⚡" },
+  ]);
 
   useEffect(() => {
     fetchReceipts();
@@ -208,6 +217,8 @@ const ReceiptsTab = ({ managementId }) => {
   const uploadFiles = async (filesToUpload) => {
     setIsUploading(true);
     setUploadProgress(0);
+    setShowDianaAnimation(true);
+    setCurrentStep(0);
 
     try {
       for (const file of filesToUpload) {
@@ -215,6 +226,11 @@ const ReceiptsTab = ({ managementId }) => {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('managementId', managementId);
+
+        // Animate through processing steps
+        const stepInterval = setInterval(() => {
+          setCurrentStep(prev => (prev + 1) % processingSteps.length);
+        }, 2500);
 
         const response = await api.post('/receipts', formData, {
           headers: {
@@ -225,11 +241,17 @@ const ReceiptsTab = ({ managementId }) => {
             setUploadProgress(progress);
           },
         });
+        
+        clearInterval(stepInterval);
         console.log("File upload response:", response.data);
 
         // Send notification emails after successful upload
         await sendUploadNotificationEmails(file);
       }
+      
+      // Show success animation before hiding Diana
+      setCurrentStep(processingSteps.length - 1);
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       toast.success('Government Notice uploaded successfully');
       setFiles([]);
@@ -239,8 +261,12 @@ const ReceiptsTab = ({ managementId }) => {
       toast.error(errorMessage);
       console.error('Error uploading file:', error);
     } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
+      setTimeout(() => {
+        setShowDianaAnimation(false);
+        setCurrentStep(0);
+        setIsUploading(false);
+        setUploadProgress(0);
+      }, 1500);
     }
   };
 
@@ -264,6 +290,14 @@ const ReceiptsTab = ({ managementId }) => {
   const ReceiptCard = ({ receipt }) => {
     const extractedData = receipt.extractedData || {};
     const additionalInfo = receipt.additionalInformation?.additionalInfo?.otherDetails || '';
+
+    // Format the receipt type with proper null checks
+    const formatReceiptType = (type) => {
+      if (!type) return 'Unknown Type';
+      return type.split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+    };
 
     // Function to render a field
     const renderField = (fieldKey, fieldData) => {
@@ -315,7 +349,7 @@ const ReceiptsTab = ({ managementId }) => {
           groups.required[key] = data;
         }
         // Check if it's type-specific (based on field name pattern)
-        else if (key.toLowerCase().includes(receipt.type.toLowerCase())) {
+        else if (receipt.type && key.toLowerCase().includes(receipt.type.toLowerCase())) {
           groups.typeSpecific[key] = data;
         }
         // All other fields go to additional
@@ -353,7 +387,7 @@ const ReceiptsTab = ({ managementId }) => {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-medium">
-                {receipt.type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                {formatReceiptType(receipt.type)}
               </h3>
               {extractedData.noticeDate?.value && (
                 <span className="text-sm text-gray-500">
@@ -370,13 +404,12 @@ const ReceiptsTab = ({ managementId }) => {
               {receipt.fileUrl && (
                 <button
                   onClick={() => handleViewDocument(receipt.fileUrl)}
-                  className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm border border-blue-200 rounded-md px-3 py-1"
+                  className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm border border-blue-200 rounded-md px-3 py-1 hover:bg-blue-50 transition-colors"
                 >
                   <Eye className="w-4 h-4" />
                   View document
                 </button>
               )}
-              
             </div>
           </div>
 
@@ -436,27 +469,122 @@ const ReceiptsTab = ({ managementId }) => {
           Upload Government Notices
         </h3>
 
-        {/* Drag & Drop Zone */}
-        <div
-          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-            ${isDragOver 
-              ? 'border-blue-500 bg-blue-50' 
-              : 'border-gray-300 hover:border-gray-400'
-            }`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <div className="flex flex-col items-center justify-center">
-            <Upload className="w-10 h-10 text-gray-400 mb-3" />
-            <p className="text-gray-600 mb-1">
-              Drag & drop or <span className="text-blue-600">Choose file</span> to upload Government Notices
-            </p>
-            <p className="text-sm text-gray-500">
-              Supported formats: PDF, JPG, PNG
-            </p>
+        {/* Container for both upload zone and animation */}
+        <div className="relative h-[300px]"> {/* Fixed height container */}
+          {/* Diana Animation */}
+          <AnimatePresence>
+            {showDianaAnimation && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-white z-10 flex flex-col items-center justify-center"
+              >
+                {/* Diana's Avatar */}
+                <motion.div
+                  className="w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center relative mb-8"
+                  animate={{
+                    scale: [1, 1.05, 1],
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    repeatType: "reverse",
+                  }}
+                >
+                  <span className="text-xl font-bold text-white">D</span>
+                  <motion.div
+                    className="absolute -right-1 -top-1 w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center"
+                    animate={{
+                      rotate: [0, 360],
+                    }}
+                    transition={{
+                      duration: 3,
+                      repeat: Infinity,
+                      ease: "linear",
+                    }}
+                  >
+                    <Sparkles className="w-3 h-3 text-white" />
+                  </motion.div>
+                </motion.div>
+
+                {/* Processing Steps */}
+                <div className="w-full max-w-sm space-y-3">
+                  {processingSteps.map((step, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{
+                        opacity: currentStep >= index ? 1 : 0.4,
+                        x: 0,
+                      }}
+                      className={`flex items-center gap-3 ${
+                        currentStep >= index ? 'text-blue-600' : 'text-gray-400'
+                      }`}
+                    >
+                      <step.icon className="w-4 h-4 flex-shrink-0" />
+                      <span className="text-sm font-medium flex-grow">{step.message}</span>
+                      {currentStep === index && (
+                        <motion.div
+                          className="w-1.5 h-1.5 bg-blue-600 rounded-full"
+                          animate={{
+                            scale: [1, 1.5, 1],
+                            opacity: [1, 0.5, 1],
+                          }}
+                          transition={{
+                            duration: 1,
+                            repeat: Infinity,
+                          }}
+                        />
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
+
+                {/* Progress Bar */}
+                <div className="w-full max-w-sm mt-6">
+                  <div className="bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full bg-blue-600"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${uploadProgress}%` }}
+                      transition={{ duration: 0.5 }}
+                    />
+                  </div>
+                  <div className="flex justify-between mt-2">
+                    <span className="text-xs text-gray-500">Progress</span>
+                    <span className="text-xs text-gray-500">{uploadProgress}%</span>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Upload Zone */}
+          <div
+            className={`h-full border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
+              ${isDragOver 
+                ? 'border-blue-500 bg-blue-50' 
+                : 'border-gray-300 hover:border-gray-400'
+              }
+              ${showDianaAnimation ? 'invisible' : 'visible'}
+            `}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <div className="flex flex-col items-center justify-center h-full">
+              <Upload className="w-10 h-10 text-gray-400 mb-3" />
+              <p className="text-gray-600 mb-1">
+                Drag & drop or <span className="text-blue-600">Choose file</span> to upload Government Notices
+              </p>
+              <p className="text-sm text-gray-500">
+                Supported formats: PDF, JPG, PNG
+              </p>
+            </div>
           </div>
+
           <input
             ref={fileInputRef}
             type="file"
@@ -466,22 +594,6 @@ const ReceiptsTab = ({ managementId }) => {
             onChange={handleFileSelect}
           />
         </div>
-
-        {/* Upload Progress */}
-        {isUploading && (
-          <div className="mt-4">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-sm text-gray-600">Uploading...</span>
-              <span className="text-sm text-gray-600">{uploadProgress}%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${uploadProgress}%` }}
-              />
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Receipts List */}

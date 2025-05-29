@@ -72,6 +72,25 @@ const LetterTab = ({ managementId }) => {
   const [showEditor, setShowEditor] = useState(false);
   const [isEditorReady, setIsEditorReady] = useState(false);
   const [pendingContent, setPendingContent] = useState(null);
+  const [dianaMessages, setDianaMessages] = useState([]);
+  const [showDiana, setShowDiana] = useState(false);
+
+  // Add Diana's messages
+  const dianaSteps = [
+    "Hi! I'm Diana, your letter assistant! 📝",
+    "Analyzing your requirements...",
+    "Crafting the perfect letter format...",
+    "Adding professional touches...",
+    "Almost done! Final review..."
+  ];
+
+  const animateDiana = async () => {
+    setShowDiana(true);
+    for (const msg of dianaSteps) {
+      setDianaMessages(prev => [...prev, msg]);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+  };
 
   useEffect(() => {
     if (!managementId) {
@@ -187,6 +206,10 @@ const LetterTab = ({ managementId }) => {
       setIsGenerating(true);
       setError(null);
       setShowError(false);
+      setDianaMessages([]);
+      
+      // Start Diana's animation
+      animateDiana();
 
       const generateResponse = await api.post('/letters/generate', {
         content: prompt,
@@ -203,15 +226,9 @@ const LetterTab = ({ managementId }) => {
         }
 
         setCurrentLetterId(letterData.letterId);
-        
-        // Set the content as pending before showing editor
         setPendingContent(letterData.content);
-        
-        // Update UI state
         setShowTemplateSelection(false);
         setShowEditor(true);
-
-        // Fetch updated letters list
         await fetchSavedLetters();
         
         setError('Letter generated successfully');
@@ -227,6 +244,8 @@ const LetterTab = ({ managementId }) => {
       setShowError(true);
     } finally {
       setIsGenerating(false);
+      setShowDiana(false);
+      setDianaMessages([]);
     }
   };
 
@@ -665,30 +684,78 @@ const LetterTab = ({ managementId }) => {
                     />
                   </div>
 
-                  <div className="flex justify-end space-x-3">
-                    <button
-                      onClick={() => {
-                        setShowTemplateSelection(false);
-                        setSelectedTemplate(null);
-                      }}
-                      className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleGenerate}
-                      disabled={isGenerating}
-                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {isGenerating ? (
-                        <>
-                          <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                          Generating...
-                        </>
-                      ) : (
-                        'Generate Letter'
+                  <div className="flex justify-between items-start">
+                    <AnimatePresence>
+                      {showDiana && (
+                        <motion.div
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -20 }}
+                          className="w-64 bg-blue-50 rounded-lg p-4"
+                        >
+                          <div className="flex items-center space-x-3 mb-3">
+                            <motion.div
+                              animate={{
+                                scale: [1, 1.1, 1],
+                                rotate: [0, 5, -5, 0],
+                              }}
+                              transition={{
+                                duration: 2,
+                                repeat: Infinity,
+                                repeatType: "reverse",
+                              }}
+                              className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center"
+                            >
+                              <span className="text-white text-lg font-bold">D</span>
+                            </motion.div>
+                            <span className="font-medium text-blue-700">Diana</span>
+                          </div>
+                          <div className="space-y-2">
+                            <AnimatePresence>
+                              {dianaMessages.map((msg, index) => (
+                                <motion.div
+                                  key={index}
+                                  initial={{ opacity: 0, y: 10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, y: -10 }}
+                                  className="text-sm text-blue-600"
+                                >
+                                  {msg}
+                                </motion.div>
+                              ))}
+                            </AnimatePresence>
+                          </div>
+                        </motion.div>
                       )}
-                    </button>
+                    </AnimatePresence>
+
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={() => {
+                          setShowTemplateSelection(false);
+                          setSelectedTemplate(null);
+                        }}
+                        className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <motion.button
+                        onClick={handleGenerate}
+                        disabled={isGenerating}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {isGenerating ? (
+                          <>
+                            <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                            Generating...
+                          </>
+                        ) : (
+                          'Generate Letter'
+                        )}
+                      </motion.button>
+                    </div>
                   </div>
                 </motion.div>
               )}

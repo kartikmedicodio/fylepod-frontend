@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { PDFDocument, PageSizes } from 'pdf-lib';
-import { Loader2, Download, FileText, Check, AlertCircle, Mail, Plus, GripVertical } from 'lucide-react';
+import { Loader2, Download, FileText, Check, AlertCircle, Mail, Plus, GripVertical, Package2, Sparkles } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   DndContext,
   closestCenter,
@@ -109,6 +110,17 @@ const DocumentsArchiveTab = ({ managementId }) => {
   const [selectedItems, setSelectedItems] = useState([]);
   const [selectedDocuments, setSelectedDocuments] = useState([]);
   const [selectedLetters, setSelectedLetters] = useState([]);
+  const [showPackageAnimation, setShowPackageAnimation] = useState(false);
+  const [currentPackageStep, setCurrentPackageStep] = useState(0);
+  
+  const packageSteps = [
+    "Creating your package...",
+    "Organizing documents...",
+    "Combining files...",
+    "Adding page numbers...",
+    "Optimizing file size...",
+    "Almost ready...",
+  ];
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -240,6 +252,13 @@ const DocumentsArchiveTab = ({ managementId }) => {
 
     try {
       setIsGenerating(true);
+      setShowPackageAnimation(true);
+      
+      // Start cycling through package steps
+      const stepInterval = setInterval(() => {
+        setCurrentPackageStep(prev => (prev + 1) % packageSteps.length);
+      }, 2000);
+
       const mergedPdf = await PDFDocument.create();
       let hasAddedPages = false;
 
@@ -389,6 +408,11 @@ const DocumentsArchiveTab = ({ managementId }) => {
       toast.error('Failed to combine documents');
     } finally {
       setIsGenerating(false);
+      // Add a small delay before hiding the animation
+      setTimeout(() => {
+        setShowPackageAnimation(false);
+        setCurrentPackageStep(0);
+      }, 1000);
     }
   };
 
@@ -409,7 +433,7 @@ const DocumentsArchiveTab = ({ managementId }) => {
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Packaging</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Select documents and letters to combine into a single PDF file
+            Select documents and letters to combine into a single package
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -419,23 +443,65 @@ const DocumentsArchiveTab = ({ managementId }) => {
           >
             {selectedItems.length === allItems.length ? 'Deselect All' : 'Select All'}
           </button>
-          <button
-            onClick={generateCombinedPDF}
-            disabled={selectedItems.length === 0 || isGenerating}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4 mr-2" />
-                Download Combined PDF
-              </>
-            )}
-          </button>
+          
+          {/* Create Package Button with Animation */}
+          <div className="relative">
+            <button
+              onClick={generateCombinedPDF}
+              disabled={selectedItems.length === 0 || isGenerating}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Creating Package...
+                </>
+              ) : (
+                <>
+                  <Package2 className="w-4 h-4 mr-2" />
+                  Create Package
+                </>
+              )}
+            </button>
+
+            {/* Diana Mini Animation */}
+            <AnimatePresence>
+              {showPackageAnimation && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="absolute left-0 top-full mt-2 bg-white rounded-lg shadow-lg py-2 px-3 border border-gray-100 flex items-center gap-3 whitespace-nowrap z-10 min-w-[250px]"
+                >
+                  <motion.div
+                    className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center"
+                    animate={{
+                      scale: [1, 1.05, 1],
+                    }}
+                    transition={{
+                      duration: 1.5,
+                      repeat: Infinity,
+                      repeatType: "reverse",
+                    }}
+                  >
+                    <span className="text-sm font-bold text-white">D</span>
+                  </motion.div>
+                  <AnimatePresence mode="wait">
+                    <motion.span 
+                      key={currentPackageStep}
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -5 }}
+                      transition={{ duration: 0.2 }}
+                      className="text-sm text-blue-500 font-medium"
+                    >
+                      {packageSteps[currentPackageStep]}
+                    </motion.span>
+                  </AnimatePresence>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
