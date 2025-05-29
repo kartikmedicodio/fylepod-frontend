@@ -525,7 +525,7 @@ const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantI
                     ) : (
                       <Download className="w-4 h-4 mr-2" />
                     )}
-                    {isUploading ? 'Uploading...' : 'Download & Save'}
+                    {isUploading ? 'Uploading...' : 'Save'}
                   </button>
                 </div>
               </div>
