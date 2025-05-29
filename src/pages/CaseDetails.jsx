@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Check, 
   Loader2,
@@ -19,7 +19,12 @@ import {
   Eye,
   ChevronDown,
   LucideReceiptText,
-  Package
+  Package,
+  Clock,
+  Search,
+  Filter,
+  History,
+  MessageSquare
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
@@ -39,6 +44,7 @@ import DocumentsArchiveTab from '../components/documents/DocumentsArchiveTab';
 import CommunicationsTab from '../components/CommunicationsTab';
 import RetainerTab from '../components/RetainerTab';
 import PaymentTab from '../components/payments/PaymentTab';
+import AuditLogTab from '../components/AuditLogTab';
 
 // Add a new status type to track document states
 const DOCUMENT_STATUS = {
@@ -2138,7 +2144,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             <ChevronLeft className="w-4 h-4 text-gray-600" />
           </button>
         )}
-
+        
         {/* Right scroll button */}
         {showRightArrow && (
           <button
@@ -2168,6 +2174,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               { name: 'Receipts', icon: LucideReceiptText },
               { name: 'Packaging', icon: Package },
               { name: 'Communications', icon: Mail },
+              { name: 'Audit Logs', icon: History }, // Added Audit Logs tab
             ].map(({ name, icon: Icon, disabled }) => (
               <button
                 key={name}
@@ -5859,6 +5866,9 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               {activeTab === 'receipts' && <ReceiptsTab managementId={caseId} />}
               {activeTab === 'packaging' && <DocumentsArchiveTab managementId={caseId} />}
               {activeTab === 'communications' && <CommunicationsTab caseId={caseId} />}
+              {activeTab === 'audit-logs' && (
+                <AuditLogTab caseId={caseId} />
+              )}
             </div>
           </div>
         </div>

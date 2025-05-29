@@ -473,7 +473,7 @@ const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantI
               <div className="text-center py-12">
                 <FileText className="w-12 h-12 mx-auto mb-4 text-gray-400" />
                 <p className="text-gray-500 text-lg">No retainers found</p>
-                <p className="text-gray-400 mt-2">Click the Create Retainer button to get started</p>
+                
               </div>
             )}
           </div>
