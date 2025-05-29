@@ -505,18 +505,36 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             
             // Only proceed with tab switching if this was the last document being processed
             if (newProcessingIds.length === 0) {
-              // Check if we have validation results but no cross-verification
-              const hasValidations = data.validationResults && 
-                data.validationResults.validations && 
-                data.validationResults.validations.length > 0;
-              
-              const hasCrossVerification = data.crossVerificationData && 
-                Object.keys(data.crossVerificationData).length > 0;
-              
-              // Switch to validation tab only if we have validations but no cross-verification
-              if (hasValidations && !hasCrossVerification) {
-                setSelectedSubTab('validation');
-              }
+              // Fetch latest case data
+              api.get(`/management/${caseId}`)
+                .then(response => {
+                  if (response.data.status === 'success') {
+                    const updatedCaseData = response.data.data.entry;
+                    setCaseData(updatedCaseData);
+                    
+                    // Check if all documents are uploaded and validated
+                    const allUploaded = updatedCaseData.documentTypes.every(
+                      doc => doc.status === 'uploaded' || doc.status === 'approved'
+                    );
+
+                    if (allUploaded) {
+                      // Fetch validation data
+                      return fetchValidationData()
+                        .then(() => {
+                          // Switch to validation tab
+                          setActiveTab('document-checklist');
+                          setSelectedSubTab('validation');
+                          
+                          // Send validation email only if it hasn't been sent yet
+                          return handleSendValidationEmail();
+                        });
+                    }
+                  }
+                })
+                .catch(error => {
+                  console.error('Error updating data after processing:', error);
+                  toast.error('Failed to load validation results');
+                });
             }
             
             return newProcessingIds;
@@ -1224,21 +1242,35 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             // Check if this was the last document to be processed
             if (processingDocsRef.current.size === 0 && !emailSent) {
               // Fetch latest case data
-              const response = await api.get(`/management/${caseId}`);
-              if (response.data.status === 'success') {
-                const updatedCaseData = response.data.data.entry;
-                setCaseData(updatedCaseData);
-                
-                // Check if all documents are uploaded and validated
-                const allUploaded = updatedCaseData.documentTypes.every(
-                  doc => doc.status === 'uploaded' || doc.status === 'approved'
-                );
+              api.get(`/management/${caseId}`)
+                .then(response => {
+                  if (response.data.status === 'success') {
+                    const updatedCaseData = response.data.data.entry;
+                    setCaseData(updatedCaseData);
+                    
+                    // Check if all documents are uploaded and validated
+                    const allUploaded = updatedCaseData.documentTypes.every(
+                      doc => doc.status === 'uploaded' || doc.status === 'approved'
+                    );
 
-                if (allUploaded) {
-                  // Send validation email only if it hasn't been sent yet
-                  await handleSendValidationEmail();
-                }
-              }
+                    if (allUploaded) {
+                      // Fetch validation data
+                      return fetchValidationData()
+                        .then(() => {
+                          // Switch to validation tab
+                          setActiveTab('document-checklist');
+                          setSelectedSubTab('validation');
+                          
+                          // Send validation email only if it hasn't been sent yet
+                          return handleSendValidationEmail();
+                        });
+                    }
+                  }
+                })
+                .catch(error => {
+                  console.error('Error updating data after processing:', error);
+                  toast.error('Failed to load validation results');
+                });
             }
           });
           
@@ -1268,7 +1300,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   };
 
   // Update fetchValidationData to be more robust
-  const fetchValidationData = async () => {
+  const fetchValidationData = async (retryCount = 0, maxRetries = 3) => {
     // Prevent multiple simultaneous calls
     if (isLoadingValidation) return;
     
@@ -1277,6 +1309,14 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       const response = await api.get(`/documents/management/${caseId}/validations`);
       if (response.data.status === 'success') {
         const newValidationData = response.data.data;
+        
+        // If we got empty validation data and haven't exceeded retries, retry after a delay
+        if ((!newValidationData || Object.keys(newValidationData).length === 0) && retryCount < maxRetries) {
+          console.log(`No validation data yet, retrying in 2 seconds (attempt ${retryCount + 1}/${maxRetries})`);
+          setIsLoadingValidation(false);
+          return new Promise(resolve => setTimeout(resolve, 2000))
+            .then(() => fetchValidationData(retryCount + 1, maxRetries));
+        }
         
         // Update both state and ref
         setValidationData(newValidationData);
@@ -1296,6 +1336,15 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       }
     } catch (error) {
       console.error('Error fetching validation data:', error);
+      
+      // If we haven't exceeded retries, retry after a delay
+      if (retryCount < maxRetries) {
+        console.log(`Error fetching validation data, retrying in 2 seconds (attempt ${retryCount + 1}/${maxRetries})`);
+        setIsLoadingValidation(false);
+        return new Promise(resolve => setTimeout(resolve, 2000))
+          .then(() => fetchValidationData(retryCount + 1, maxRetries));
+      }
+      
       toast.error('Failed to load validation data');
     } finally {
       setIsLoadingValidation(false);
