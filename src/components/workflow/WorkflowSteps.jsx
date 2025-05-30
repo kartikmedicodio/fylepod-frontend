@@ -19,6 +19,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { useAuth } from '../../contexts/AuthContext';
+import { toast } from 'react-hot-toast';
 
 const SortableStep = ({ step, index, isEditable, onUpdateStep, availableKeys }) => {
   const [isEditing, setIsEditing] = React.useState(false);
@@ -29,6 +30,13 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, availableKeys }) 
   const [editedKey, setEditedKey] = React.useState(step.key);
   const inputRef = React.useRef(null);
   const timeInputRef = React.useRef(null);
+
+  // Reset edited values when step changes
+  React.useEffect(() => {
+    setEditedName(step.name);
+    setEditedTime(step.estimatedHours);
+    setEditedKey(step.key);
+  }, [step]);
 
   const {
     attributes,
@@ -119,9 +127,14 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, availableKeys }) 
   };
 
   const handleKeySave = () => {
+    if (!editedKey.trim()) {
+      toast.error('Key cannot be empty');
+      return;
+    }
+
     onUpdateStep(step.key, {
       ...step,
-      key: editedKey
+      key: editedKey.trim()
     });
     setIsEditingKey(false);
   };
@@ -130,6 +143,12 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, availableKeys }) 
     setEditedKey(step.key);
     setIsEditingKey(false);
   };
+
+  // Filter out the current step's key from available keys when editing
+  const filteredAvailableKeys = React.useMemo(() => {
+    if (!availableKeys) return [];
+    return availableKeys.filter(k => k.key !== step.key);
+  }, [availableKeys, step.key]);
 
   // In the SortableStep component, add console log for availableKeys
   console.log('Available keys in render:', availableKeys);
@@ -399,13 +418,18 @@ const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditabl
     })
   );
 
-  // Add handler for updating step details
+  // Update handler for updating step details to allow duplicate keys
   const handleUpdateStep = (stepKey, updatedStep) => {
-    const newSteps = steps.map(step => 
-      step.key === stepKey ? updatedStep : step
-    );
+    const newSteps = steps.map(step => {
+      // Match the step by its unique _id instead of key
+      if (step._id === updatedStep._id) {
+        return updatedStep;
+      }
+      return step;
+    });
+
     setSteps(newSteps);
-    onStepsReorder?.(newSteps); // Use the same handler to save updates
+    onStepsReorder?.(newSteps);
   };
 
   const handleSaveChanges = async () => {
@@ -446,12 +470,10 @@ const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditabl
     }
   };
 
-  // Add a function to generate a unique key for each step
+  // Update the getUniqueStepKey function to use _id as primary identifier
   const getUniqueStepKey = (step, index) => {
-    // Use a combination of _id, key, and index to ensure uniqueness
-    return step._id 
-      ? `${step._id}-${index}` 
-      : `step-${step.key}-${index}-${Date.now()}`;
+    // Use _id as the primary unique identifier, fallback to timestamp+index if no _id
+    return step._id || `step-${index}-${Date.now()}`;
   };
 
   // If not editable, just render the steps without DnD context
