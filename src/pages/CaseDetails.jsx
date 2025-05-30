@@ -217,7 +217,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     if (caseData?.userName && messages.length === 0) {
       setMessages([{
         role: 'assistant',
-        content: `Hello! I'm Sophia from support. I'm here to assist you with ${caseData.userName}'s case. How can I help you today?`
+        content: `Hello! I'm Sophia from support. I'm here to assist you with <strong>${caseData.userName}</strong>'s case. How can I help you today?`
       }]);
     }
   }, [caseData, messages.length]);
@@ -5421,7 +5421,11 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                       ? 'bg-gradient-to-r from-slate-700 to-zinc-800 text-white shadow-sm' 
                       : 'bg-white border border-slate-200/50 shadow-sm text-slate-700'
                   }`}>
-                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                    {message.role === 'assistant' ? (
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed" dangerouslySetInnerHTML={{ __html: message.content }} />
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                    )}
                   </div>
 
                   {message.role === 'user' && (
