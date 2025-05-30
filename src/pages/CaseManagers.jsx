@@ -7,7 +7,8 @@ const agentManagers = [
     id: 'diana',
     name: 'Diana',
     role: 'AI Agent',
-    avatarType: 'gradient',
+    avatarType: 'image',
+    avatar: '/assets/diana-avatar.png',
     gradient: 'from-blue-400 via-purple-400 to-blue-500',
     glowColor: 'blue',
     initial: 'D',
@@ -30,7 +31,8 @@ const agentManagers = [
     id: 'fiona',
     name: 'Fiona',
     role: 'AI Agent',
-    avatarType: 'gradient',
+    avatarType: 'image',
+    avatar: '/assets/fiona-avatar.png',
     gradient: 'from-purple-400 via-pink-400 to-purple-500',
     glowColor: 'purple',
     initial: 'F',
@@ -176,11 +178,11 @@ const CaseManagers = () => {
           </div>
           <div className="divide-y">
             {/* AI Agents Section */}
-            <div className="pt-4 pb-2 px-4 bg-gradient-to-r from-blue-50 to-purple-50">
+            {/* <div className="pt-4 pb-2 px-4 bg-gradient-to-r from-blue-50 to-purple-50">
               <h3 className="text-xs font-bold text-blue-700 uppercase tracking-wider mb-2 flex items-center">
                 <Bot className="w-4 h-4 mr-1" /> AI Agents
               </h3>
-            </div>
+            </div> */}
             {agentManagers.map((manager) => (
               <div
                 key={manager.id}
@@ -190,11 +192,19 @@ const CaseManagers = () => {
                 onClick={() => setSelectedManager(manager)}
               >
                 <div className="flex items-center space-x-4">
-                  <div
-                    className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white bg-gradient-to-r ${manager.gradient} shadow-lg transform hover:scale-105 transition-transform duration-200 hover:shadow-${manager.glowColor}-200`}
-                  >
-                    {manager.initial}
-                  </div>
+                  {manager.avatarType === 'image' ? (
+                    <img
+                      src={manager.avatar}
+                      alt={manager.name}
+                      className="w-12 h-12 rounded-full shadow-lg transform hover:scale-105 transition-transform duration-200"
+                    />
+                  ) : (
+                    <div
+                      className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white bg-gradient-to-r ${manager.gradient} shadow-lg transform hover:scale-105 transition-transform duration-200 hover:shadow-${manager.glowColor}-200`}
+                    >
+                      {manager.initial}
+                    </div>
+                  )}
                   <div>
                     <h3 className="font-medium text-gray-900 flex items-center">
                       {manager.name}
@@ -208,11 +218,11 @@ const CaseManagers = () => {
               </div>
             ))}
             {/* Human Case Managers Section */}
-            <div className="pt-4 pb-2 px-4 bg-gray-50/60 border-t border-gray-200">
+            {/* <div className="pt-4 pb-2 px-4 bg-gray-50/60 border-t border-gray-200">
               <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 flex items-center">
                 <User className="w-4 h-4 mr-1" /> Case Managers
               </h3>
-            </div>
+            </div> */}
             {caseManagers.map((manager) => (
               <div
                 key={manager.id}
@@ -241,7 +251,16 @@ const CaseManagers = () => {
         <div className="flex-1 bg-white rounded-lg shadow-lg backdrop-blur-sm transform transition-all duration-300">
           <div className="p-6">
             <div className="flex items-start space-x-6">
-              {selectedManager.avatarType === 'gradient' ? (
+              {selectedManager.avatarType === 'image' ? (
+                <div className="relative group">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-400 via-purple-400 to-blue-500 blur-lg opacity-40 group-hover:opacity-60 transition-opacity duration-300"></div>
+                  <img
+                    src={selectedManager.avatar}
+                    alt={selectedManager.name}
+                    className="relative w-24 h-24 rounded-full shadow-xl transform hover:scale-105 transition-transform duration-300 object-cover"
+                  />
+                </div>
+              ) : (
                 <div className="relative group">
                   <div
                     className={`absolute inset-0 rounded-full bg-gradient-to-r ${selectedManager.gradient} blur-lg opacity-40 group-hover:opacity-60 transition-opacity duration-300`}
@@ -252,12 +271,6 @@ const CaseManagers = () => {
                     {selectedManager.initial}
                   </div>
                 </div>
-              ) : (
-                <img
-                  src={selectedManager.avatar}
-                  alt={selectedManager.name}
-                  className="w-24 h-24 rounded-full shadow-lg transform hover:scale-105 transition-transform duration-300"
-                />
               )}
               <div>
                 <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
