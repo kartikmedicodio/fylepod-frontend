@@ -34,18 +34,19 @@ const getStatusStyles = (status) => {
   return styleMap[status] || styleMap.pending;
 };
 
-const PaymentTab = ({ caseId }) => {
+const PaymentTab = ({ caseId, stepId }) => {
   const [paymentDetails, setPaymentDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [customerEmail, setCustomerEmail] = useState('');
 
   useEffect(() => {
+    console.log('PaymentTab mounted with:', { caseId, stepId });
     if (caseId) {
       fetchPaymentDetails();
       fetchCaseDetails();
     }
-  }, [caseId]);
+  }, [caseId, stepId]);
 
   const fetchCaseDetails = async () => {
     try {
@@ -62,7 +63,7 @@ const PaymentTab = ({ caseId }) => {
   const fetchPaymentDetails = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/payments/case/${caseId}`);
+      const response = await api.get(`/payments/case/${caseId}?stepId=${stepId}`);
       
       if (response.data.status === 'no_payment') {
         setPaymentDetails(null);
@@ -131,6 +132,7 @@ const PaymentTab = ({ caseId }) => {
               <div className="p-8">
                 <SetPaymentAmount 
                   caseId={caseId} 
+                  stepId={stepId}
                   onAmountSet={fetchPaymentDetails}
                   customerEmail={customerEmail}
                 />

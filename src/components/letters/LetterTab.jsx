@@ -54,7 +54,7 @@ body {
 }
 `;
 
-const LetterTab = ({ managementId }) => {
+const LetterTab = ({ managementId, stepId }) => {
   const editorRef = useRef(null);
   const [letterTemplates, setLetterTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -126,7 +126,7 @@ const LetterTab = ({ managementId }) => {
 
   const fetchSavedLetters = async () => {
     try {
-      const response = await api.get(`/letters/management/${managementId}`);
+      const response = await api.get(`/letters/management/${managementId}?stepId=${stepId}`);
       if (response.data.success) {
         setSavedLetters(response.data.data);
       }
@@ -215,6 +215,7 @@ const LetterTab = ({ managementId }) => {
         content: prompt,
         managementId: managementId,
         templateId: selectedTemplate._id,
+        stepId: stepId,
         save: true
       });
 
@@ -308,6 +309,7 @@ const LetterTab = ({ managementId }) => {
       const response = await api({
         url: `/letters/${letterId}/download`,
         method: 'GET',
+        params: { stepId },
         responseType: 'blob'
       });
 
@@ -510,14 +512,21 @@ const LetterTab = ({ managementId }) => {
         const saveResponse = await api.put(`/letters/${letterId}`, {
           status: 'final',
           content: letter.content,
-          isHtml: letter.isHtml || false
+          isHtml: letter.isHtml || false,
+          stepId: stepId
         });
         if (saveResponse.data.success) {
           await fetchSavedLetters();
-          window.open(saveResponse.data.data.pdfUrl, '_blank');
+          // Add stepId to the PDF URL
+          const pdfUrl = new URL(saveResponse.data.data.pdfUrl);
+          pdfUrl.searchParams.append('stepId', stepId);
+          window.open(pdfUrl.toString(), '_blank');
         }
       } else {
-        window.open(letter.pdfUrl, '_blank');
+        // Add stepId to the existing PDF URL
+        const pdfUrl = new URL(letter.pdfUrl);
+        pdfUrl.searchParams.append('stepId', stepId);
+        window.open(pdfUrl.toString(), '_blank');
       }
     } catch (error) {
       console.error('Error viewing PDF:', error);
@@ -893,7 +902,8 @@ const LetterTab = ({ managementId }) => {
 };
 
 LetterTab.propTypes = {
-  managementId: PropTypes.string.isRequired
+  managementId: PropTypes.string.isRequired,
+  stepId: PropTypes.string.isRequired
 };
 
 export default LetterTab; 

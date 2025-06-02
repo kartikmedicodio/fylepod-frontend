@@ -3,7 +3,7 @@ import { toast } from 'react-hot-toast';
 import { DollarSign, Mail, ArrowRight } from 'lucide-react';
 import api from '../../utils/api';
 
-const SetPaymentAmount = ({ caseId, onAmountSet, customerEmail }) => {
+const SetPaymentAmount = ({ caseId, stepId, onAmountSet, customerEmail }) => {
   const [amount, setAmount] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,8 +20,16 @@ const SetPaymentAmount = ({ caseId, onAmountSet, customerEmail }) => {
     setLoading(true);
 
     try {
+      console.log('Sending payment request with:', {
+        caseId,
+        stepId,
+        amount: parseFloat(amount),
+        customerEmail: email
+      });
+
       const response = await api.post('/payments/set-amount', {
         caseId,
+        stepId,
         amount: parseFloat(amount),
         customerEmail: email
       });

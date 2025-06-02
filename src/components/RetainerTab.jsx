@@ -8,7 +8,7 @@ import { PDFDocument } from 'pdf-lib';
 import PropTypes from 'prop-types';
 import { getStoredUser } from '../utils/auth';
 
-const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantId ,caseData}) => {
+const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantId, caseData, stepId }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [templates, setTemplates] = useState([]);
@@ -39,7 +39,8 @@ const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantI
       caseId,
       caseManagerId,
       applicantId,
-      hasProfileData: !!profileData
+      hasProfileData: !!profileData,
+      stepId
     });
     
     const missingProps = [];
@@ -47,16 +48,17 @@ const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantI
     if (!caseId) missingProps.push('caseId');
     if (!caseManagerId) missingProps.push('caseManagerId');
     if (!applicantId) missingProps.push('applicantId');
+    if (!stepId) missingProps.push('stepId');
     
     if (missingProps.length > 0) {
       console.warn('RetainerTab initialized with missing required props:', missingProps);
     }
-  }, [companyId, caseId, caseManagerId, applicantId]);
+  }, [companyId, caseId, caseManagerId, applicantId, stepId]);
 
   const fetchExistingRetainers = async () => {
     try {
-      console.log('Fetching retainers for case:', caseId);
-      const response = await api.get(`/retainer/case/${caseId}`);
+      console.log('Fetching retainers for case:', caseId, 'and step:', stepId);
+      const response = await api.get(`/retainer/case/${caseId}?stepId=${stepId}`);
       console.log('Retainers response:', response.data);
       
       if (response.data && response.data.status === 'success') {
@@ -154,7 +156,8 @@ const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantI
         caseId,
         caseManagerId,
         applicantId,
-        companyId
+        companyId,
+        stepId
       });
 
       // Validate required IDs before proceeding
@@ -163,10 +166,11 @@ const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantI
       if (!caseManagerId) missingIds.push('caseManagerId');
       if (!applicantId) missingIds.push('applicantId');
       if (!companyId) missingIds.push('companyId');
+      if (!stepId) missingIds.push('stepId');
 
       if (missingIds.length > 0) {
         console.error('Missing IDs:', missingIds);
-        console.error('Current props:', { caseId, caseManagerId, applicantId, companyId });
+        console.error('Current props:', { caseId, caseManagerId, applicantId, companyId, stepId });
         throw new Error(`Missing required IDs: ${missingIds.join(', ')}`);
       }
 
@@ -206,6 +210,7 @@ const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantI
       formData.append('caseId', caseId);
       formData.append('caseManagerId', caseManagerId);
       formData.append('applicantId', applicantId);
+      formData.append('stepId', stepId);
 
       // Log FormData contents
       for (let pair of formData.entries()) {
@@ -558,7 +563,9 @@ RetainerTab.propTypes = {
   profileData: PropTypes.object.isRequired,
   caseId: PropTypes.string.isRequired,
   caseManagerId: PropTypes.string.isRequired, 
-  applicantId: PropTypes.string.isRequired
+  applicantId: PropTypes.string.isRequired,
+  caseData: PropTypes.object.isRequired,
+  stepId: PropTypes.string.isRequired
 };
 
 export default RetainerTab; 

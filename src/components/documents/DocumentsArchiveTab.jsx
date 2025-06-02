@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { PDFDocument, PageSizes } from 'pdf-lib';
-import { Loader2, Download, FileText, Check, AlertCircle, Mail, Plus, GripVertical, Package2, Sparkles } from 'lucide-react';
+import { Loader2, Download, FileText, Check, AlertCircle, Mail, Plus, GripVertical, Package2, Sparkles, FileCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   DndContext,
@@ -71,6 +71,13 @@ const SortableItem = ({ id, item, documents, letters, onRemove, onAddBlank }) =>
                 ? (documents.find(d => d._id === item.id)?.originalName || 'Document')
                 : (letters.find(l => l._id === item.id)?.templateId?.name || 'Custom Letter')}
             </h3>
+            {item.type === 'letter' && (
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs text-gray-600">
+                  From: <span className="text-blue-600 font-medium">{letters.find(l => l._id === item.id)?.stepName || 'Letters Tab'}</span>
+                </span>
+              </div>
+            )}
           </div>
           <button
             onClick={() => onRemove(id)}
@@ -106,10 +113,12 @@ const DocumentsArchiveTab = ({ managementId }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [documents, setDocuments] = useState([]);
   const [letters, setLetters] = useState([]);
+  const [retainers, setRetainers] = useState([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedItems, setSelectedItems] = useState([]);
   const [selectedDocuments, setSelectedDocuments] = useState([]);
   const [selectedLetters, setSelectedLetters] = useState([]);
+  const [selectedRetainers, setSelectedRetainers] = useState([]);
   const [showPackageAnimation, setShowPackageAnimation] = useState(false);
   const [currentPackageStep, setCurrentPackageStep] = useState(0);
   
@@ -131,8 +140,102 @@ const DocumentsArchiveTab = ({ managementId }) => {
 
   useEffect(() => {
     fetchDocuments();
-    fetchLetters();
+    fetchStepsAndData();
   }, [managementId]);
+
+  const fetchStepsAndData = async () => {
+    try {
+      // Get all steps in one call
+      const stepsResponse = await api.get(`/case-steps/${managementId}`);
+      if (stepsResponse.data.status === 'success') {
+        const steps = stepsResponse.data.data.steps;
+        
+        // Process letters
+        const letterSteps = steps.filter(step => step.key === 'letters');
+        await fetchLettersForSteps(letterSteps);
+        
+        // Process retainers - get all retainers in one call
+        const retainerSteps = steps.filter(step => step.key === 'retainer');
+        if (retainerSteps.length > 0) {
+          await fetchRetainersForSteps(retainerSteps);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching steps:', error);
+      toast.error('Failed to load data');
+    }
+  };
+
+  const fetchLettersForSteps = async (letterSteps) => {
+    try {
+      // Fetch letters for each step
+      const allLettersPromises = letterSteps.map(step => 
+        api.get(`/letters/management/${managementId}?stepId=${step._id}&status=final`)
+          .then(response => ({
+            response,
+            stepId: step._id,
+            stepName: step.name || step.displayName || 'Letter'
+          }))
+      );
+      
+      const responses = await Promise.all(allLettersPromises);
+      
+      // Combine all letters from different steps
+      const allLetters = responses.reduce((acc, { response, stepId, stepName }) => {
+        if (response.data.success) {
+          const nonDraftLetters = response.data.data.filter(letter => 
+            letter.status === 'final' || letter.status === 'approved'
+          ).map(letter => ({
+            ...letter,
+            stepId,
+            stepName
+          }));
+          return [...acc, ...nonDraftLetters];
+        }
+        return acc;
+      }, []);
+      
+      setLetters(allLetters);
+    } catch (error) {
+      console.error('Error fetching letters:', error);
+      toast.error('Failed to load letters');
+    }
+  };
+
+  const fetchRetainersForSteps = async (retainerSteps) => {
+    try {
+      // Fetch retainers for each step in parallel
+      const retainerPromises = retainerSteps.map(step => 
+        api.get(`/retainer/case/${managementId}`, {
+          params: { stepId: step._id }
+        }).then(response => ({
+          response,
+          stepId: step._id,
+          stepName: step.name || step.displayName || 'Retainer'
+        }))
+      );
+
+      const responses = await Promise.all(retainerPromises);
+      
+      // Combine all retainers from different steps
+      const allRetainers = responses.reduce((acc, { response, stepId, stepName }) => {
+        if (response.data.status === 'success') {
+          const retainerDocs = response.data.data.map(retainer => ({
+            ...retainer,
+            stepId,
+            stepName
+          }));
+          return [...acc, ...retainerDocs];
+        }
+        return acc;
+      }, []);
+      
+      setRetainers(allRetainers);
+    } catch (error) {
+      console.error('Error fetching retainers:', error);
+      toast.error('Failed to load retainers');
+    }
+  };
 
   const fetchDocuments = async () => {
     try {
@@ -149,22 +252,6 @@ const DocumentsArchiveTab = ({ managementId }) => {
     }
   };
 
-  const fetchLetters = async () => {
-    try {
-      const response = await api.get(`/letters/management/${managementId}?status=final`);
-      if (response.data.success) {
-        // Filter out any letters that might still be in draft status
-        const nonDraftLetters = response.data.data.filter(letter => 
-          letter.status === 'final' || letter.status === 'approved'
-        );
-        setLetters(nonDraftLetters);
-      }
-    } catch (error) {
-      console.error('Error fetching letters:', error);
-      toast.error('Failed to load letters');
-    }
-  };
-
   const handleDocumentSelect = (documentId) => {
     setSelectedDocuments(prev => {
       const newSelection = prev.includes(documentId)
@@ -172,7 +259,7 @@ const DocumentsArchiveTab = ({ managementId }) => {
         : [...prev, documentId];
       
       // Update selectedItems accordingly
-      updateSelectedItems(newSelection, selectedLetters);
+      updateSelectedItems(newSelection, selectedLetters, selectedRetainers);
       return newSelection;
     });
   };
@@ -184,15 +271,28 @@ const DocumentsArchiveTab = ({ managementId }) => {
         : [...prev, letterId];
       
       // Update selectedItems accordingly
-      updateSelectedItems(selectedDocuments, newSelection);
+      updateSelectedItems(selectedDocuments, newSelection, selectedRetainers);
       return newSelection;
     });
   };
 
-  const updateSelectedItems = (docs, letters) => {
+  const handleRetainerSelect = (retainerId) => {
+    setSelectedRetainers(prev => {
+      const newSelection = prev.includes(retainerId)
+        ? prev.filter(id => id !== retainerId)
+        : [...prev, retainerId];
+      
+      // Update selectedItems accordingly
+      updateSelectedItems(selectedDocuments, selectedLetters, newSelection);
+      return newSelection;
+    });
+  };
+
+  const updateSelectedItems = (docs, letters, retainers) => {
     const items = [
       ...docs.map(id => ({ id, type: 'document' })),
-      ...letters.map(id => ({ id, type: 'letter' }))
+      ...letters.map(id => ({ id, type: 'letter' })),
+      ...retainers.map(id => ({ id, type: 'retainer' }))
     ];
     setSelectedItems(items);
   };
@@ -200,16 +300,20 @@ const DocumentsArchiveTab = ({ managementId }) => {
   const handleSelectAll = () => {
     const allDocs = documents.map(doc => doc._id);
     const allLetters = letters.map(letter => letter._id);
-    const allSelected = selectedDocuments.length + selectedLetters.length === allDocs.length + allLetters.length;
+    const allRetainers = retainers.map(retainer => retainer._id);
+    const allSelected = selectedDocuments.length + selectedLetters.length + selectedRetainers.length === 
+                       allDocs.length + allLetters.length + allRetainers.length;
     
     if (allSelected) {
       setSelectedDocuments([]);
       setSelectedLetters([]);
+      setSelectedRetainers([]);
       setSelectedItems([]);
     } else {
       setSelectedDocuments(allDocs);
       setSelectedLetters(allLetters);
-      updateSelectedItems(allDocs, allLetters);
+      setSelectedRetainers(allRetainers);
+      updateSelectedItems(allDocs, allLetters, allRetainers);
     }
   };
 
@@ -234,6 +338,8 @@ const DocumentsArchiveTab = ({ managementId }) => {
       setSelectedDocuments(prev => prev.filter(docId => docId !== id));
     } else if (type === 'letter') {
       setSelectedLetters(prev => prev.filter(letterId => letterId !== id));
+    } else if (type === 'retainer') {
+      setSelectedRetainers(prev => prev.filter(retainerId => retainerId !== id));
     }
   };
 
@@ -246,7 +352,7 @@ const DocumentsArchiveTab = ({ managementId }) => {
 
   const generateCombinedPDF = async () => {
     if (selectedItems.length === 0) {
-      toast.error('Please select at least one document or letter');
+      toast.error('Please select at least one document, letter, or retainer');
       return;
     }
 
@@ -331,11 +437,29 @@ const DocumentsArchiveTab = ({ managementId }) => {
               }
             }
           } else if (item.type === 'letter') {
-            const response = await api.get(`/letters/${item.id}/download`, {
+            const letter = letters.find(l => l._id === item.id);
+            if (!letter) {
+              console.error(`Letter not found: ${item.id}`);
+              continue;
+            }
+            const response = await api.get(`/letters/${item.id}/download?stepId=${letter.stepId}`, {
               responseType: 'arraybuffer'
             });
             const letterPdf = await PDFDocument.load(response.data);
             const pages = await mergedPdf.copyPages(letterPdf, letterPdf.getPageIndices());
+            pages.forEach(page => mergedPdf.addPage(page));
+            hasAddedPages = true;
+          } else if (item.type === 'retainer') {
+            const retainer = retainers.find(r => r._id === item.id);
+            if (!retainer) {
+              console.error(`Retainer not found: ${item.id}`);
+              continue;
+            }
+            const response = await api.get(`/retainer/${item.id}/download?stepId=${retainer.stepId}`, {
+              responseType: 'arraybuffer'
+            });
+            const retainerPdf = await PDFDocument.load(response.data);
+            const pages = await mergedPdf.copyPages(retainerPdf, retainerPdf.getPageIndices());
             pages.forEach(page => mergedPdf.addPage(page));
             hasAddedPages = true;
           }
@@ -347,7 +471,7 @@ const DocumentsArchiveTab = ({ managementId }) => {
       }
 
       if (!hasAddedPages) {
-        toast.error('No valid documents or letters were found to combine');
+        toast.error('No valid documents, letters, or retainers were found to combine');
         return;
       }
 
@@ -360,6 +484,7 @@ const DocumentsArchiveTab = ({ managementId }) => {
       formData.append('managementId', managementId);
       formData.append('documents', JSON.stringify(selectedItems.filter(item => item.type === 'document').map(item => item.id)));
       formData.append('letters', JSON.stringify(selectedItems.filter(item => item.type === 'letter').map(item => item.id)));
+      formData.append('retainers', JSON.stringify(selectedItems.filter(item => item.type === 'retainer').map(item => item.id)));
       formData.append('blankPages', JSON.stringify(selectedItems.map((item, index) => item.type === 'blank' ? index : null).filter(index => index !== null)));
 
       // Upload to backend
@@ -424,7 +549,7 @@ const DocumentsArchiveTab = ({ managementId }) => {
     );
   }
 
-  const allItems = [...documents, ...letters];
+  const allItems = [...documents, ...letters, ...retainers];
   const hasItems = allItems.length > 0;
 
   return (
@@ -433,7 +558,7 @@ const DocumentsArchiveTab = ({ managementId }) => {
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Packaging</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Select documents and letters to combine into a single package
+            Select documents, letters, and retainers to combine into a single package
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -508,7 +633,7 @@ const DocumentsArchiveTab = ({ managementId }) => {
       {!hasItems ? (
         <div className="text-center py-8">
           <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-500">No documents or letters available</p>
+          <p className="text-gray-500">No documents, letters, or retainers available</p>
         </div>
       ) : (
         <>
@@ -609,12 +734,64 @@ const DocumentsArchiveTab = ({ managementId }) => {
                         <h3 className="text-sm font-medium text-gray-900">
                           {letter.templateId?.name || 'Custom Letter'}
                         </h3>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Created on {new Date(letter.createdAt).toLocaleDateString()}
-                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-gray-600">
+                            From: <span className="text-blue-600 font-medium">{letter.stepName || 'Letters Tab'}</span>
+                          </span>
+                          <span className="text-xs text-gray-500">•</span>
+                          <span className="text-xs text-gray-500">
+                            Created on {new Date(letter.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
                         <p className="text-sm text-gray-500 mt-1 line-clamp-1">
                           {letter.content.substring(0, 100)}...
                         </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Retainers Section */}
+            {retainers.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-3">Retainers</h3>
+                <div className="space-y-3">
+                  {retainers.map((retainer) => (
+                    <div
+                      key={retainer._id}
+                      className={`flex items-center p-4 rounded-lg border transition-colors cursor-pointer ${
+                        selectedRetainers.includes(retainer._id)
+                          ? 'bg-blue-50 border-blue-200'
+                          : 'bg-white border-gray-200 hover:bg-gray-50'
+                      }`}
+                      onClick={() => handleRetainerSelect(retainer._id)}
+                    >
+                      <div className={`p-2 rounded-lg mr-4 ${
+                        selectedRetainers.includes(retainer._id)
+                          ? 'bg-blue-100'
+                          : 'bg-gray-100'
+                      }`}>
+                        {selectedRetainers.includes(retainer._id) ? (
+                          <Check className="w-5 h-5 text-blue-600" />
+                        ) : (
+                          <FileCheck className="w-5 h-5 text-gray-600" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-sm font-medium text-gray-900">
+                          {retainer.name || 'Retainer Document'}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-gray-600">
+                            From: <span className="text-blue-600 font-medium">{retainer.stepName || 'Retainer Tab'}</span>
+                          </span>
+                          <span className="text-xs text-gray-500">•</span>
+                          <span className="text-xs text-gray-500">
+                            Created on {new Date(retainer.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   ))}

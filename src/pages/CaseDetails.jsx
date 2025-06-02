@@ -20,6 +20,7 @@ import {
   ChevronDown,
   LucideReceiptText,
   Package,
+  CreditCard,
   Clock,
   Search,
   Filter,
@@ -273,6 +274,44 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     processedDocuments: [], // Track all processed documents
     validationFailuresByDocument: {} // Track validation failures by document
   });
+
+  // Add this to the existing state declarations at the top of the component
+  const [caseSteps, setCaseSteps] = useState([]);
+  const [loadingCaseSteps, setLoadingCaseSteps] = useState(true);
+
+  // Move processedSteps to component level
+  const processedSteps = useMemo(() => {
+    const stepsByKey = {};
+    const steps = caseSteps.sort((a, b) => a.order - b.order).map((step) => {
+      if (!stepsByKey[step.key]) {
+        stepsByKey[step.key] = 1;
+        return {
+          ...step,
+          displayKey: step.key,
+          displayName: step.name // Keep original name
+        };
+      } else {
+        stepsByKey[step.key]++;
+        return {
+          ...step,
+          displayKey: `${step.key}-${stepsByKey[step.key]}`,
+          displayName: `${step.name} ${stepsByKey[step.key]}` // Add number to name for uniqueness
+        };
+      }
+    });
+
+    // Always add the Audit Log tab
+    const auditLogTab = {
+      _id: 'audit-logs',
+      key: 'audit-logs',
+      displayKey: 'audit-logs',
+      displayName: 'Audit Logs',
+      disabled: false,
+      order: steps.length + 1
+    };
+
+    return [...steps, auditLogTab];
+  }, [caseSteps]);
 
   // Add a function at the top of the component to load data from localStorage
   const loadDataFromLocalStorage = () => {
@@ -1422,14 +1461,20 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         loadDataFromLocalStorage();
         console.log('Initial localStorage load complete');
         
-        // Now fetch the case data from API
         setIsLoading(true);
-        const response = await api.get(`/management/${caseId}`);
-        if (response.data.status === 'success') {
-          const caseData = response.data.data.entry;
+        
+        // Fetch case details and case steps in parallel
+        const [caseResponse, stepsResponse] = await Promise.all([
+          api.get(`/management/${caseId}`),
+          api.get(`/case-steps/${caseId}`)
+        ]);
+
+        // Handle case details response
+        if (caseResponse.data.status === 'success') {
+          const caseData = caseResponse.data.data.entry;
           console.log('Fetched Case Data:', caseData);
           
-          // If case_manager_id is a string or object ID, fetch the full case manager details
+          // Handle case manager details
           if (caseData?.case_manager_id) {
             try {
               const managerId = typeof caseData.case_manager_id === 'object' 
@@ -1443,7 +1488,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               }
             } catch (err) {
               console.error('Error fetching case manager details:', err);
-              // Keep the original ID if fetch fails
               caseData.case_manager_id = managerId;
             }
           }
@@ -1451,32 +1495,35 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           console.log('Case Manager ID (after):', caseData?.case_manager_id);
           setCaseData(caseData);
           
-          // Check if there are any uploaded documents
+          // Handle document validation and verification
           const hasUploadedDocs = caseData.documentTypes.some(doc => 
             doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED
           );
 
-          // If there are uploaded documents, fetch validation data
           if (hasUploadedDocs) {
             await fetchValidationData();
-            
-            // DO NOT fetch cross-verification data on mount - it will be fetched
-            // only when the user explicitly clicks on the cross-verification tab
-            // (if it's not already in localStorage)
           }
           
-          // Set breadcrumb with process name
+          // Set breadcrumb
           setCurrentBreadcrumb([
             { name: 'Home', path: '/dashboard' },
             { name: 'Cases', path: '/cases' },
             { name: caseData.categoryName || `Case ${caseId.substring(0, 6)}`, path: `/cases/${caseId}` }
           ]);
         }
+
+        // Handle case steps response
+        if (stepsResponse.data.status === 'success') {
+          console.log('Fetched Case Steps:', stepsResponse.data.data);
+          setCaseSteps(stepsResponse.data.data.steps);
+        }
+
       } catch (error) {
         console.error('Error fetching case details:', error);
         setError('Failed to load case details');
       } finally {
         setIsLoading(false);
+        setLoadingCaseSteps(false);
       }
     };
 
@@ -1559,10 +1606,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 template.field_mappings.forEach(field => {
                   // Only log if field is dependent
                   if (field.isDependent === true) {
-                    console.log('Processing dependent field:', {
-                      fieldName: field.fieldName,
-                      dependentFields: field.dependentFields
-                    });
+                    // Remove console.log statement
                   }
                   
                   // Use fieldName as the key to prevent duplicates
@@ -2094,111 +2138,98 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     );
   };
 
-  // Enhanced tab navigation
   const TabNavigation = () => {
-    const scrollContainerRef = useRef(null);
-    const [showLeftArrow, setShowLeftArrow] = useState(false);
-    const [showRightArrow, setShowRightArrow] = useState(false);
+    const tabsContainerRef = useRef(null);
+    const [showLeftScroll, setShowLeftScroll] = useState(false);
+    const [showRightScroll, setShowRightScroll] = useState(false);
 
-    // Check if scrolling is possible
-    const checkScroll = () => {
-      if (scrollContainerRef.current) {
-        const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
-        setShowLeftArrow(scrollLeft > 0);
-        setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 5); // 5px threshold
-      }
-    };
-
-    // Handle scroll buttons
-    const handleScroll = (direction) => {
-      if (scrollContainerRef.current) {
-        const scrollAmount = 200; // Adjust scroll amount as needed
-        scrollContainerRef.current.scrollBy({
-          left: direction === 'left' ? -scrollAmount : scrollAmount,
-          behavior: 'smooth'
-        });
-      }
-    };
-
-    // Add scroll event listener
     useEffect(() => {
-      const scrollContainer = scrollContainerRef.current;
-      if (scrollContainer) {
-        checkScroll();
-        scrollContainer.addEventListener('scroll', checkScroll);
-        window.addEventListener('resize', checkScroll);
-
-        return () => {
-          scrollContainer.removeEventListener('scroll', checkScroll);
-          window.removeEventListener('resize', checkScroll);
-        };
-      }
+      checkScroll();
+      window.addEventListener('resize', checkScroll);
+      return () => window.removeEventListener('resize', checkScroll);
     }, []);
 
+    const checkScroll = () => {
+      if (tabsContainerRef.current) {
+        const { scrollWidth, clientWidth, scrollLeft } = tabsContainerRef.current;
+        setShowLeftScroll(scrollLeft > 0);
+        setShowRightScroll(scrollLeft < scrollWidth - clientWidth);
+      }
+    };
+
+    const handleScroll = (direction) => {
+      if (tabsContainerRef.current) {
+        const scrollAmount = direction === 'left' ? -200 : 200;
+        tabsContainerRef.current.scrollLeft += scrollAmount;
+        checkScroll();
+      }
+    };
+
+    const stepIcons = {
+      'document-checklist': FileText,
+      'questionnaire': ClipboardList,
+      'forms': FileText,
+      'letters': Mail,
+      'receipts': LucideReceiptText,
+      'packaging': Package,
+      'payment': CreditCard,
+      'communications': MessageSquare,
+      'retainer': FileText,
+      'audit-logs': History
+    };
+
     return (
-      <div className="border-b border-gray-200 relative">
-        {/* Gradient fades for scroll indication */}
-        <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none"></div>
-        <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none"></div>
-        
+      <div className="relative">
         {/* Left scroll button */}
-        {showLeftArrow && (
+        {showLeftScroll && (
           <button
             onClick={() => handleScroll('left')}
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-20 p-1.5 bg-white rounded-full shadow-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-            aria-label="Scroll left"
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-1 bg-white shadow-md rounded-full"
           >
             <ChevronLeft className="w-4 h-4 text-gray-600" />
           </button>
         )}
-        
+
         {/* Right scroll button */}
-        {showRightArrow && (
+        {showRightScroll && (
           <button
             onClick={() => handleScroll('right')}
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-20 p-1.5 bg-white rounded-full shadow-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-            aria-label="Scroll right"
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-1 bg-white shadow-md rounded-full"
           >
             <ChevronRight className="w-4 h-4 text-gray-600" />
           </button>
         )}
-        
-        {/* Scrollable container */}
-        <div 
-          ref={scrollContainerRef}
+
+        {/* Tabs container */}
+        <div
+          ref={tabsContainerRef}
           className="overflow-x-auto scrollbar-hide"
           onScroll={checkScroll}
         >
           <div className="flex -mb-px min-w-max px-6">
-            {[
-              { name: 'Profile', icon: User },
-              { name: 'Retainer', icon: FileText },
-              { name: 'Payment', icon: FileText },
-              { name: 'Document Checklist', icon: ClipboardList },
-              { name: 'Questionnaire', icon: FileText },
-              { name: 'Forms', icon: File },
-              { name: 'Letters', icon: FileText },
-              { name: 'Receipts', icon: LucideReceiptText },
-              { name: 'Packaging', icon: Package },
-              { name: 'Communications', icon: Mail },
-              { name: 'Audit Logs', icon: History }, // Added Audit Logs tab
-            ].map(({ name, icon: Icon, disabled }) => (
-              <button
-                key={name}
-                disabled={disabled}
-                className={`flex items-center px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  activeTab === name.toLowerCase().replace(' ', '-')
-                    ? 'border-blue-600 text-blue-600'
-                    : disabled
-                    ? 'border-transparent text-gray-400 cursor-not-allowed'
-                    : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
-                }`}
-                onClick={() => !disabled && setActiveTab(name.toLowerCase().replace(' ', '-'))}
-              >
-                <Icon className={`w-4 h-4 mr-2 ${disabled ? 'opacity-50' : ''}`} />
-                {name}
-              </button>
-            ))}
+            {processedSteps.map((step) => {
+              const Icon = stepIcons[step.key] || FileText;
+              return (
+                <button
+                  key={step._id}
+                  disabled={step.disabled}
+                  className={`flex items-center px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                    activeTab === step.displayKey
+                      ? 'border-blue-600 text-blue-600'
+                      : step.disabled
+                      ? 'border-transparent text-gray-400 cursor-not-allowed'
+                      : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
+                  }`}
+                  onClick={() => !step.disabled && setActiveTab(step.displayKey)}
+                >
+                  <Icon className="w-5 h-5 mr-2" />
+                  <span>{step.displayName}</span>
+                  {step.status === 'completed' && (
+                    <Check className="w-4 h-4 ml-2 text-green-500" />
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -3000,7 +3031,10 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         case 'letters':
           return <LetterTab managementId={caseId} />;
         case 'receipts':
-          return <ReceiptsTab managementId={caseId} />;
+          return <ReceiptsTab 
+            managementId={caseId} 
+            stepId={processedSteps.find(step => step.key === 'receipts')?._id}
+          />;
         case 'payment':
           return <PaymentTab caseId={caseId} />;
         case 'communications':
@@ -3032,6 +3066,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 caseManagerId={managerId}
                 applicantId={caseData.userId?._id}
                 caseData={caseData}
+                stepId={processedSteps.find(step => step.key === 'retainer')?._id}
               />
             );
           })();
@@ -3341,25 +3376,15 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     const evaluateDependencyRule = (rule, allFields) => {
       if (!rule) return true;
 
-      // Find target field by ID or field name
-      const targetField = Object.values(allFields).find(f => 
-        f._id === rule.targetFieldId || f.fieldName === rule.targetField
-      );
-      
-      if (!targetField) return false;
-
-      switch (rule.type) {
-        case 'NOT_EQUALS':
-          return targetField.value !== rule.targetValue;
-        case 'EQUALS':
-          return targetField.value === rule.targetValue;
-        case 'IN':
-          return Array.isArray(rule.targetValue) && rule.targetValue.includes(targetField.value);
-        case 'NOT_IN':
-          return Array.isArray(rule.targetValue) && !rule.targetValue.includes(targetField.value);
-        default:
-          return false;
+      const dependentField = rule.field;
+      if (dependentField.dependsOn) {
+        const dependencyValue = allFields[dependentField.dependsOn];
+        const dependencyRule = dependentField.dependencyRule;
+        return evaluateDependencyRule(dependencyRule, allFields);
       }
+
+      const fieldValue = allFields[rule.field];
+      return rule.condition === 'equals' ? fieldValue === rule.value : true;
     };
 
     const evaluateVisibilityCondition = (conditions, allFields) => {
@@ -5858,28 +5883,81 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           
           <div className="flex-1 overflow-auto"> {/* This will scroll independently */}
             <div className="max-w-7xl mx-auto">
-              {activeTab === 'profile' && <ProfileTab profileData={caseData.userId} />}
-              {activeTab === 'payment' && <PaymentTab caseId={caseId} />}
-              {activeTab === 'retainer' && (
-                <RetainerTab
-                  companyId={profileData.company_id._id}
-                  profileData={profileData}
-                  caseId={caseId}
-                  caseManagerId={caseData?.caseManagerId?._id}
-                  applicantId={caseData.userId?._id}
-                  caseData={caseData}
-                />
-              )}
+              {processedSteps.map(step => {
+                if (step.key === 'profile' && activeTab === step.displayKey) {
+                  return (
+                    <ProfileTab
+                      key={step._id}
+                      profileData={caseData.userId}
+                      stepId={step._id}
+                    />
+                  );
+                }
+                if (step.key === 'payment' && activeTab === step.displayKey) {
+                  return (
+                    <PaymentTab 
+                      key={step._id}
+                      caseId={caseId} 
+                      stepId={step._id}
+                    />
+                  );
+                }
+                if (step.key === 'retainer' && activeTab === step.displayKey) {
+                  return (
+                    <RetainerTab
+                      key={step._id}
+                      companyId={profileData.company_id._id}
+                      profileData={profileData}
+                      caseId={caseId}
+                      caseManagerId={caseData?.caseManagerId?._id}
+                      applicantId={caseData.userId?._id}
+                      caseData={caseData}
+                      stepId={step._id}
+                    />
+                  );
+                }
+                if (step.key === 'receipts' && activeTab === step.displayKey) {
+                  return (
+                    <ReceiptsTab
+                      key={step._id}
+                      managementId={caseId}
+                      stepId={step._id}
+                    />
+                  );
+                }
+                if (step.key === 'letters' && activeTab === step.displayKey) {
+                  return (
+                    <LetterTab
+                      key={step._id}
+                      managementId={caseId}
+                      stepId={step._id}
+                    />
+                  );
+                }
+                if (step.key === 'communications' && activeTab === step.displayKey) {
+                  return (
+                    <CommunicationsTab
+                      key={step._id}
+                      caseId={caseId}
+                      stepId={step._id}
+                    />
+                  );
+                }
+                if (step.key === 'packaging' && activeTab === step.displayKey) {
+                  return (
+                    <DocumentsArchiveTab
+                      key={step._id}
+                      managementId={caseId}
+                      stepId={step._id}
+                    />
+                  );
+                }
+                return null;
+              })}
               {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
-              {activeTab === 'letters' && <LetterTab managementId={caseId} />}
-              {activeTab === 'receipts' && <ReceiptsTab managementId={caseId} />}
-              {activeTab === 'packaging' && <DocumentsArchiveTab managementId={caseId} />}
-              {activeTab === 'communications' && <CommunicationsTab caseId={caseId} />}
-              {activeTab === 'audit-logs' && (
-                <AuditLogTab caseId={caseId} />
-              )}
+              {activeTab === 'audit-logs' && <AuditLogTab caseId={caseId} />}
             </div>
           </div>
         </div>
