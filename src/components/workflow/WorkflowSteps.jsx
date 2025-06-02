@@ -121,38 +121,36 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, availableKeys }) 
       ref={setNodeRef}
       style={style}
       className={`relative bg-white hover:bg-gray-50 transition-all duration-200 ${
-        isDragging ? 'z-50 shadow-lg rounded-lg border border-blue-200 bg-blue-50' : ''
+        isDragging ? 'z-50 shadow-lg rounded-xl border border-blue-200 bg-blue-50' : ''
       }`}
       {...(isEditable ? attributes : {})}
     >
       {isEditable && (
         <div
           {...listeners}
-          className="absolute left-2 top-1/2 -translate-y-1/2 cursor-move p-2 rounded-md hover:bg-gray-100 group transition-colors"
+          className="absolute left-4 top-1/2 -translate-y-1/2 cursor-move p-3 rounded-lg hover:bg-gray-100 group transition-colors"
           title="Drag to reorder"
         >
-          <div className="flex flex-col gap-1 group-hover:gap-1.5 transition-all">
-            <div className="w-4 h-0.5 bg-gray-400 group-hover:bg-blue-500 rounded-full transition-colors" />
-            <div className="w-4 h-0.5 bg-gray-400 group-hover:bg-blue-500 rounded-full transition-colors" />
-            <div className="w-4 h-0.5 bg-gray-400 group-hover:bg-blue-500 rounded-full transition-colors" />
+          <div className="flex flex-col gap-1.5 group-hover:gap-2 transition-all">
+            <div className="w-5 h-0.5 bg-gray-400 group-hover:bg-blue-500 rounded-full transition-colors" />
+            <div className="w-5 h-0.5 bg-gray-400 group-hover:bg-blue-500 rounded-full transition-colors" />
+            <div className="w-5 h-0.5 bg-gray-400 group-hover:bg-blue-500 rounded-full transition-colors" />
           </div>
         </div>
       )}
 
-      <div className={`flex items-center min-h-[60px] ${isEditable ? 'pl-12' : 'pl-4'} pr-4 border-b border-gray-100 ${
-        isDragging ? 'opacity-100' : ''
-      }`}>
+      <div className={`flex items-center min-h-[80px] ${isEditable ? 'pl-16' : 'pl-6'} pr-6 border-b border-gray-100`}>
         {/* Step Number */}
-        <div className="w-[80px] flex-shrink-0">
-          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 font-medium">
+        <div className="w-[80px] flex-shrink-0 mr-8">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-100 text-blue-600 font-medium text-lg">
             {step.order || index + 1}
           </div>
         </div>
 
         {/* Name */}
-        <div className="w-[400px] flex-shrink-0">
+        <div className="w-[300px] flex-shrink-0 mr-8">
           {isEditing ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 flex-1">
                 <input
                   ref={inputRef}
@@ -160,19 +158,19 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, availableKeys }) 
                   value={editedName}
                   onChange={(e) => setEditedName(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  className="w-full px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 text-base border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Step name..."
                 />
-                <button onClick={handleSave} className="p-1 text-green-600 hover:bg-green-50 rounded">
-                  <Check className="w-4 h-4" />
+                <button onClick={handleSave} className="p-2 text-green-600 hover:bg-green-50 rounded-lg">
+                  <Check className="w-5 h-5" />
                 </button>
-                <button onClick={handleCancel} className="p-1 text-red-600 hover:bg-red-50 rounded">
-                  <X className="w-4 h-4" />
+                <button onClick={handleCancel} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
+                  <X className="w-5 h-5" />
                 </button>
               </div>
               <button
                 onClick={toggleRequired}
-                className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium transition-colors cursor-pointer hover:opacity-80 ${
+                className={`shrink-0 inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer hover:opacity-80 ${
                   step.isRequired 
                     ? 'bg-green-50 text-green-700 border border-green-200' 
                     : 'bg-gray-50 text-gray-600 border border-gray-200'
@@ -182,43 +180,32 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, availableKeys }) 
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-gray-900">{step.name}</span>
+            <div className="flex items-center gap-3">
+              <div>
+                <span className="font-medium text-gray-900 text-base block">{step.name}</span>
+                {step.isRequired && (
+                  <span className="text-sm text-green-600 font-medium mt-1">Required</span>
+                )}
+              </div>
               {isEditable && (
-                <button onClick={handleEditClick} className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100">
-                  <Edit2 className="w-3 h-3" />
+                <button onClick={handleEditClick} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
+                  <Edit2 className="w-4 h-4" />
                 </button>
               )}
-              {isEditable ? (
-                <button
-                  onClick={toggleRequired}
-                  className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium transition-colors cursor-pointer hover:opacity-80 ${
-                    step.isRequired 
-                      ? 'bg-green-50 text-green-700 border border-green-200' 
-                      : 'bg-gray-50 text-gray-600 border border-gray-200'
-                  }`}
-                >
-                  {step.isRequired ? 'Required' : 'Optional'}
-                </button>
-              ) : step.isRequired ? (
-                <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">
-                  Required
-                </span>
-              ) : null}
             </div>
           )}
         </div>
 
         {/* Time */}
-        <div className="w-[150px] flex-shrink-0">
-          <div className="flex items-center text-sm text-gray-600">
-            <Clock className="h-4 w-4 mr-1.5 text-gray-400" />
+        <div className="w-[100px] flex-shrink-0 mr-8">
+          <div className="flex items-center text-base text-gray-700">
+            <Clock className="h-5 w-5 mr-2 text-gray-400" />
             <span>{step.estimatedHours}h</span>
           </div>
         </div>
 
         {/* Key */}
-        <div className="w-[200px] flex-shrink-0">
+        <div className="w-[150px] flex-shrink-0 mr-8">
           {isEditable ? (
             isEditingKey ? (
               <div className="flex items-center gap-2">
@@ -226,7 +213,7 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, availableKeys }) 
                   ref={keySelectRef}
                   value={editedKey}
                   onChange={(e) => setEditedKey(e.target.value)}
-                  className="w-full px-2 py-1.5 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  className="w-full px-3 py-2 text-base border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
                   <option value={step.key}>{step.key}</option>
                   {availableKeys?.filter(k => k.key !== step.key).map((keyOption) => (
@@ -237,75 +224,108 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, availableKeys }) 
                 </select>
                 <button 
                   onClick={handleKeySave}
-                  className="p-1 text-green-600 hover:bg-green-50 rounded"
+                  className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
                 >
-                  <Check className="w-4 h-4" />
+                  <Check className="w-5 h-5" />
                 </button>
                 <button 
                   onClick={handleKeyCancel}
-                  className="p-1 text-red-600 hover:bg-red-50 rounded"
+                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
             ) : (
               <div className="flex items-center gap-2 group">
-                <span className="px-2 py-1 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded">
+                <span className="px-3 py-1.5 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg">
                   {step.key}
                 </span>
                 <button 
                   onClick={handleKeyEdit}
-                  className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  <Edit2 className="w-3 h-3" />
+                  <Edit2 className="w-4 h-4" />
                 </button>
               </div>
             )
           ) : (
-            <span className="px-2 py-1 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded">
+            <span className="px-3 py-1.5 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg">
               {step.key}
             </span>
           )}
         </div>
 
-        {/* Agent */}
-        <div className="w-[200px] flex-shrink-0">
+        {/* Agent - Made more prominent */}
+        <div className="w-[300px] flex-shrink-0 mr-8">
           {step.agentName && step.agentName !== 'none' ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
               {step.agentName === 'Diana' && (
-                <img 
-                  src="/assets/diana-avatar.png" 
-                  alt="Diana" 
-                  className="w-6 h-6 rounded-full object-cover"
-                />
+                <div className="relative group">
+                  <img 
+                    src="/assets/diana-avatar.png" 
+                    alt="Diana" 
+                    className="w-12 h-12 rounded-xl object-cover ring-2 ring-purple-100 group-hover:ring-purple-200 transition-all"
+                  />
+                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-purple-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">D</span>
+                  </div>
+                </div>
               )}
               {step.agentName === 'Fiona' && (
-                <img 
-                  src="/assets/fiona-avatar.png" 
-                  alt="Fiona" 
-                  className="w-6 h-6 rounded-full object-cover"
-                />
+                <div className="relative group">
+                  <img 
+                    src="/assets/fiona-avatar.png" 
+                    alt="Fiona" 
+                    className="w-12 h-12 rounded-xl object-cover ring-2 ring-blue-100 group-hover:ring-blue-200 transition-all"
+                  />
+                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">F</span>
+                  </div>
+                </div>
               )}
-              <span className={`inline-flex items-center px-2 py-1 rounded text-xs border ${
-                step.agentName === 'Diana' ? 'bg-purple-50 text-purple-600 border-purple-100' :
-                step.agentName === 'Fiona' ? 'bg-blue-50 text-blue-600 border-blue-100' :
-                step.agentName === 'Sophia' ? 'bg-pink-50 text-pink-600 border-pink-100' :
-                'bg-gray-50 text-gray-600 border-gray-200'
-              }`}>
-                {step.agentName}
-              </span>
+              <div className="flex flex-col">
+                <span className={`text-base font-semibold ${
+                  step.agentName === 'Diana' ? 'text-purple-600' :
+                  step.agentName === 'Fiona' ? 'text-blue-600' :
+                  step.agentName === 'Sophia' ? 'text-pink-600' :
+                  'text-gray-600'
+                }`}>
+                  {step.agentName}
+                </span>
+                <span className={`text-sm ${
+                  step.agentName === 'Diana' ? 'text-purple-500' :
+                  step.agentName === 'Fiona' ? 'text-blue-500' :
+                  step.agentName === 'Sophia' ? 'text-pink-500' :
+                  'text-gray-500'
+                }`}>
+                  AI Agent
+                </span>
+              </div>
             </div>
           ) : (
-            <span className="text-xs text-gray-400">Unassigned</span>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center">
+                <span className="text-gray-400 text-lg">?</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-base font-medium text-gray-400">Unassigned</span>
+              </div>
+            </div>
           )}
         </div>
 
-        {/* Agent Description */}
-        <div className="w-[200px] flex-shrink-0">
+        {/* Description - Made more prominent */}
+        <div className="flex-1 min-w-[300px]">
           {step.agentDescription ? (
-            <span className="text-xs text-gray-600 line-clamp-2">{step.agentDescription}</span>
+            <div className="flex flex-col">
+              <span className="text-base text-gray-700 line-clamp-2 font-medium">{step.agentDescription}</span>
+              <span className="text-sm text-gray-500 mt-1">Task Description</span>
+            </div>
           ) : (
-            <span className="text-xs text-gray-400">No description</span>
+            <div className="flex flex-col">
+              <span className="text-base text-gray-400">No description available</span>
+              <span className="text-sm text-gray-400">Task details not specified</span>
+            </div>
           )}
         </div>
       </div>
@@ -478,28 +498,36 @@ const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditabl
     <div className="space-y-6">
       {/* Summary Section */}
       {summary && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="text-sm text-gray-500">Total Steps</div>
-          <div className="text-2xl font-semibold text-gray-900">{summary.totalSteps}</div>
-          <div className="text-sm text-gray-500">Estimated Hours</div>
-          <div className="text-2xl font-semibold text-gray-900">{summary.totalEstimatedHours}</div>
-          <div className="text-sm text-gray-500">Required Steps</div>
-          <div className="text-2xl font-semibold text-gray-900">{summary.requiredSteps}</div>
-          <div className="text-sm text-gray-500">Optional Steps</div>
-          <div className="text-2xl font-semibold text-gray-900">{summary.optionalSteps}</div>
+        <div className="grid grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div className="text-base text-gray-600 mb-2">Total Steps</div>
+            <div className="text-3xl font-semibold text-gray-900">{summary.totalSteps}</div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div className="text-base text-gray-600 mb-2">Estimated Hours</div>
+            <div className="text-3xl font-semibold text-gray-900">{summary.totalEstimatedHours}</div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div className="text-base text-gray-600 mb-2">Required Steps</div>
+            <div className="text-3xl font-semibold text-gray-900">{summary.requiredSteps}</div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div className="text-base text-gray-600 mb-2">Optional Steps</div>
+            <div className="text-3xl font-semibold text-gray-900">{summary.optionalSteps}</div>
+          </div>
         </div>
       )}
 
-      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        {/* Table Headers */}
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+        {/* Table Headers - Updated to match new layout */}
         <div className="bg-gray-50 border-b border-gray-200">
-          <div className={`flex items-center min-h-[48px] ${isEditable ? 'pl-12' : 'pl-4'} pr-4 text-sm font-medium text-gray-500`}>
-            <div className="w-[80px] flex-shrink-0">Sl.No</div>
-            <div className="w-[400px] flex-shrink-0">Name</div>
-            <div className="w-[150px] flex-shrink-0">Time</div>
-            <div className="w-[200px] flex-shrink-0">Key</div>
-            <div className="w-[200px] flex-shrink-0">Agent</div>
-            <div className="w-[200px] flex-shrink-0">Description</div>
+          <div className={`flex items-center h-16 ${isEditable ? 'pl-16' : 'pl-6'} pr-6 text-base font-medium text-gray-600`}>
+            <div className="w-[80px] flex-shrink-0 mr-8">Sl.No</div>
+            <div className="w-[300px] flex-shrink-0 mr-8">Name</div>
+            <div className="w-[100px] flex-shrink-0 mr-8">Time</div>
+            <div className="w-[150px] flex-shrink-0 mr-8">Key</div>
+            <div className="w-[300px] flex-shrink-0 mr-8">Agent</div>
+            <div className="flex-1 min-w-[300px]">Description</div>
           </div>
         </div>
 
@@ -529,7 +557,7 @@ const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditabl
 
           <DragOverlay>
             {activeId ? (
-              <div className="rounded-lg shadow-2xl">
+              <div className="rounded-xl shadow-2xl">
                 <SortableStep
                   step={steps.find((step, idx) => (step._id || `step-${idx}`) === activeId)}
                   index={steps.findIndex((step, idx) => (step._id || `step-${idx}`) === activeId)}

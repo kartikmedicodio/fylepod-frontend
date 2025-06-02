@@ -1275,23 +1275,23 @@ const NewCase = () => {
         {/* Workflow Edit Modal */}
         {isWorkflowModalOpen && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100]">
-            <div className="bg-white w-full h-full max-w-[1400px] max-h-[90vh] rounded-xl shadow-xl flex flex-col">
+            <div className="bg-white w-[95vw] h-[90vh] max-h-[90vh] rounded-xl shadow-2xl flex flex-col">
               {/* Modal Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center justify-between px-8 py-6 border-b border-gray-200">
                 <div>
-                  <h2 className="text-xl font-semibold text-gray-900">Review Workflow Steps</h2>
-                  <p className="text-sm text-gray-500">Review and customize workflow steps before creating the case</p>
+                  <h2 className="text-2xl font-semibold text-gray-900 mb-2">Review Workflow Steps</h2>
+                  <p className="text-base text-gray-600">Review and customize workflow steps before creating the case</p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4">
                   <button
                     onClick={() => setIsWorkflowModalOpen(false)}
-                    className="inline-flex items-center px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    className="inline-flex items-center px-6 py-3 rounded-lg border-2 border-gray-200 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 transition-all duration-200"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleSaveWorkflowChanges}
-                    className="inline-flex items-center px-4 py-2 rounded-lg bg-blue-600 text-sm font-medium text-white hover:bg-blue-700"
+                    className="inline-flex items-center px-6 py-3 rounded-lg bg-blue-600 text-base font-medium text-white hover:bg-blue-700 transition-all duration-200"
                   >
                     Create Case
                   </button>
@@ -1299,7 +1299,7 @@ const NewCase = () => {
               </div>
 
               {/* Modal Content */}
-              <div className="flex-1 overflow-auto p-6">
+              <div className="flex-1 overflow-auto p-8">
                 <WorkflowSteps 
                   steps={workflowSteps} 
                   summary={workflowSummary}
