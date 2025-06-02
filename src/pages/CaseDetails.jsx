@@ -282,7 +282,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   // Move processedSteps to component level
   const processedSteps = useMemo(() => {
     const stepsByKey = {};
-    return caseSteps.sort((a, b) => a.order - b.order).map((step) => {
+    const steps = caseSteps.sort((a, b) => a.order - b.order).map((step) => {
       if (!stepsByKey[step.key]) {
         stepsByKey[step.key] = 1;
         return {
@@ -299,6 +299,18 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         };
       }
     });
+
+    // Always add the Audit Log tab
+    const auditLogTab = {
+      _id: 'audit-logs',
+      key: 'audit-logs',
+      displayKey: 'audit-logs',
+      displayName: 'Audit Logs',
+      disabled: false,
+      order: steps.length + 1
+    };
+
+    return [...steps, auditLogTab];
   }, [caseSteps]);
 
   // Add a function at the top of the component to load data from localStorage
@@ -5920,9 +5932,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               {activeTab === 'receipts' && <ReceiptsTab managementId={caseId} />}
               {activeTab === 'packaging' && <DocumentsArchiveTab managementId={caseId} />}
               {activeTab === 'communications' && <CommunicationsTab caseId={caseId} />}
-              {activeTab === 'audit-logs' && (
-                <AuditLogTab caseId={caseId} />
-              )}
+              {activeTab === 'audit-logs' && <AuditLogTab caseId={caseId} />}
             </div>
           </div>
         </div>
