@@ -3087,6 +3087,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 caseManagerId={managerId}
                 applicantId={caseData.userId?._id}
                 caseData={caseData}
+                stepId={processedSteps.find(step => step.key === 'retainer')?._id}
               />
             );
           })();
@@ -5924,18 +5925,22 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                     />
                   );
                 }
+                if (step.key === 'retainer' && activeTab === step.displayKey) {
+                  return (
+                    <RetainerTab
+                      key={step._id}
+                      companyId={profileData.company_id._id}
+                      profileData={profileData}
+                      caseId={caseId}
+                      caseManagerId={caseData?.caseManagerId?._id}
+                      applicantId={caseData.userId?._id}
+                      caseData={caseData}
+                      stepId={step._id}
+                    />
+                  );
+                }
                 return null;
               })}
-              {activeTab === 'retainer' && (
-                <RetainerTab
-                  companyId={profileData.company_id._id}
-                  profileData={profileData}
-                  caseId={caseId}
-                  caseManagerId={caseData?.caseManagerId?._id}
-                  applicantId={caseData.userId?._id}
-                  caseData={caseData}
-                />
-              )}
               {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
