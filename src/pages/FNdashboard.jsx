@@ -338,7 +338,7 @@ const ProfileCard = ({ cases, pendingCase, onCaseClick, setCurrentBreadcrumb, na
         </div>
         
         {/* Pending Documents Section */}
-        <div className="relative bg-white flex-1">
+        <div className="relative bg-white flex-1"> 
           <div className="p-4 h-full flex flex-col">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-[#000D3B] font-medium text-base">
@@ -450,7 +450,7 @@ const ProfileCard = ({ cases, pendingCase, onCaseClick, setCurrentBreadcrumb, na
               <FileText className="w-4 h-4 text-pink-500" />
             </div>
             <p className="text-[#000D3B] font-medium text-md">
-              I&apos;m here to guide you through your case and keep everything on track.
+              {agents?.["2"]?.description || "I'm here to guide you through your case and keep everything on track."}
             </p>
           </div>
         </div>
