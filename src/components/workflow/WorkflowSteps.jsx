@@ -150,8 +150,7 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, availableKeys }) 
     return availableKeys.filter(k => k.key !== step.key);
   }, [availableKeys, step.key]);
 
-  // In the SortableStep component, add console log for availableKeys
-  console.log('Available keys in render:', availableKeys);
+ 
 
   return (
     <div

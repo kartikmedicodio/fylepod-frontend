@@ -937,10 +937,7 @@ const FNCaseDetails = () => {
                 template.field_mappings.forEach(field => {
                   // Only log if field is dependent
                   if (field.isDependent === true) {
-                    console.log('Processing dependent field:', {
-                      fieldName: field.fieldName,
-                      dependentFields: field.dependentFields
-                    });
+                    // Remove console.log statement
                   }
                   
                   // Use fieldName as the key to prevent duplicates

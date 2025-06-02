@@ -1606,10 +1606,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 template.field_mappings.forEach(field => {
                   // Only log if field is dependent
                   if (field.isDependent === true) {
-                    console.log('Processing dependent field:', {
-                      fieldName: field.fieldName,
-                      dependentFields: field.dependentFields
-                    });
+                    // Remove console.log statement
                   }
                   
                   // Use fieldName as the key to prevent duplicates
@@ -2142,91 +2139,70 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   };
 
   const TabNavigation = () => {
-    const scrollContainerRef = useRef(null);
-    const [showLeftArrow, setShowLeftArrow] = useState(false);
-    const [showRightArrow, setShowRightArrow] = useState(false);
+    const tabsContainerRef = useRef(null);
+    const [showLeftScroll, setShowLeftScroll] = useState(false);
+    const [showRightScroll, setShowRightScroll] = useState(false);
 
-    // Check if scrolling is possible with a small threshold
-    const checkScroll = () => {
-      if (scrollContainerRef.current) {
-        const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
-        setShowLeftArrow(scrollLeft > 0);
-        setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 5); // 5px threshold
-      }
-    };
-
-    // Handle scroll buttons
-    const handleScroll = (direction) => {
-      if (scrollContainerRef.current) {
-        const scrollAmount = 200;
-        scrollContainerRef.current.scrollBy({
-          left: direction === 'left' ? -scrollAmount : scrollAmount,
-          behavior: 'smooth'
-        });
-      }
-    };
-
-    // Add scroll event listener with proper cleanup
     useEffect(() => {
-      const scrollContainer = scrollContainerRef.current;
-      if (scrollContainer) {
-        checkScroll();
-        scrollContainer.addEventListener('scroll', checkScroll);
-        window.addEventListener('resize', checkScroll);
-
-        return () => {
-          scrollContainer.removeEventListener('scroll', checkScroll);
-          window.removeEventListener('resize', checkScroll);
-        };
-      }
+      checkScroll();
+      window.addEventListener('resize', checkScroll);
+      return () => window.removeEventListener('resize', checkScroll);
     }, []);
 
-    // Map of component keys to their corresponding icons
+    const checkScroll = () => {
+      if (tabsContainerRef.current) {
+        const { scrollWidth, clientWidth, scrollLeft } = tabsContainerRef.current;
+        setShowLeftScroll(scrollLeft > 0);
+        setShowRightScroll(scrollLeft < scrollWidth - clientWidth);
+      }
+    };
+
+    const handleScroll = (direction) => {
+      if (tabsContainerRef.current) {
+        const scrollAmount = direction === 'left' ? -200 : 200;
+        tabsContainerRef.current.scrollLeft += scrollAmount;
+        checkScroll();
+      }
+    };
+
     const stepIcons = {
-      'profile': User,
-      'payment': CreditCard,
-      'retainer': FileText,
-      'document-checklist': ClipboardList,
-      'questionnaire': FileText,
-      'forms': File,
-      'letters': FileText,
+      'document-checklist': FileText,
+      'questionnaire': ClipboardList,
+      'forms': FileText,
+      'letters': Mail,
       'receipts': LucideReceiptText,
       'packaging': Package,
-      'communications': Mail,
+      'payment': CreditCard,
+      'communications': MessageSquare,
+      'retainer': FileText,
       'audit-logs': History
     };
 
     return (
-      <div className="border-b border-gray-200 relative">
-        {/* Gradient fades for scroll indication */}
-        <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none"></div>
-        <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none"></div>
-        
+      <div className="relative">
         {/* Left scroll button */}
-        {showLeftArrow && (
+        {showLeftScroll && (
           <button
             onClick={() => handleScroll('left')}
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-20 p-1.5 bg-white rounded-full shadow-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-            aria-label="Scroll left"
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-1 bg-white shadow-md rounded-full"
           >
             <ChevronLeft className="w-4 h-4 text-gray-600" />
           </button>
         )}
-        
+
         {/* Right scroll button */}
-        {showRightArrow && (
+        {showRightScroll && (
           <button
             onClick={() => handleScroll('right')}
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-20 p-1.5 bg-white rounded-full shadow-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-            aria-label="Scroll right"
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-1 bg-white shadow-md rounded-full"
           >
             <ChevronRight className="w-4 h-4 text-gray-600" />
           </button>
         )}
-        
-        {/* Scrollable container */}
-        <div 
-          ref={scrollContainerRef}
+
+        {/* Tabs container */}
+        <div
+          ref={tabsContainerRef}
           className="overflow-x-auto scrollbar-hide"
           onScroll={checkScroll}
         >
@@ -3055,7 +3031,10 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         case 'letters':
           return <LetterTab managementId={caseId} />;
         case 'receipts':
-          return <ReceiptsTab managementId={caseId} />;
+          return <ReceiptsTab 
+            managementId={caseId} 
+            stepId={processedSteps.find(step => step.key === 'receipts')?._id}
+          />;
         case 'payment':
           return <PaymentTab caseId={caseId} />;
         case 'communications':
@@ -3397,25 +3376,15 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     const evaluateDependencyRule = (rule, allFields) => {
       if (!rule) return true;
 
-      // Find target field by ID or field name
-      const targetField = Object.values(allFields).find(f => 
-        f._id === rule.targetFieldId || f.fieldName === rule.targetField
-      );
-      
-      if (!targetField) return false;
-
-      switch (rule.type) {
-        case 'NOT_EQUALS':
-          return targetField.value !== rule.targetValue;
-        case 'EQUALS':
-          return targetField.value === rule.targetValue;
-        case 'IN':
-          return Array.isArray(rule.targetValue) && rule.targetValue.includes(targetField.value);
-        case 'NOT_IN':
-          return Array.isArray(rule.targetValue) && !rule.targetValue.includes(targetField.value);
-        default:
-          return false;
+      const dependentField = rule.field;
+      if (dependentField.dependsOn) {
+        const dependencyValue = allFields[dependentField.dependsOn];
+        const dependencyRule = dependentField.dependencyRule;
+        return evaluateDependencyRule(dependencyRule, allFields);
       }
+
+      const fieldValue = allFields[rule.field];
+      return rule.condition === 'equals' ? fieldValue === rule.value : true;
     };
 
     const evaluateVisibilityCondition = (conditions, allFields) => {
@@ -5939,13 +5908,21 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                     />
                   );
                 }
+                if (step.key === 'receipts' && activeTab === step.displayKey) {
+                  return (
+                    <ReceiptsTab
+                      key={step._id}
+                      managementId={caseId}
+                      stepId={step._id}
+                    />
+                  );
+                }
                 return null;
               })}
               {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
               {activeTab === 'letters' && <LetterTab managementId={caseId} />}
-              {activeTab === 'receipts' && <ReceiptsTab managementId={caseId} />}
               {activeTab === 'packaging' && <DocumentsArchiveTab managementId={caseId} />}
               {activeTab === 'communications' && <CommunicationsTab caseId={caseId} />}
               {activeTab === 'audit-logs' && <AuditLogTab caseId={caseId} />}
