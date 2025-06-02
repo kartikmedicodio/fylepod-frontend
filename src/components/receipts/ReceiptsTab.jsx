@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import api from "../../utils/api"
 
-const ReceiptsTab = ({ managementId }) => {
+const ReceiptsTab = ({ managementId, stepId }) => {
   const [files, setFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -23,13 +23,15 @@ const ReceiptsTab = ({ managementId }) => {
   ]);
 
   useEffect(() => {
-    fetchReceipts();
-  }, [managementId]);
+    if (managementId && stepId) {
+      fetchReceipts();
+    }
+  }, [managementId, stepId]);
 
   const fetchReceipts = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/receipts/by-management/${managementId}`);
+      const response = await api.get(`/receipts/by-management/${managementId}?stepId=${stepId}`);
       if (response.data.status === 'success') {
         // Sort receipts by notice date in descending order (latest first)
         const sortedReceipts = response.data.data.receipts.sort((a, b) => {
@@ -226,6 +228,7 @@ const ReceiptsTab = ({ managementId }) => {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('managementId', managementId);
+        formData.append('stepId', stepId);
 
         // Animate through processing steps
         const stepInterval = setInterval(() => {
