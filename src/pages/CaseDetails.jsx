@@ -5917,12 +5917,20 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                     />
                   );
                 }
+                if (step.key === 'letters' && activeTab === step.displayKey) {
+                  return (
+                    <LetterTab
+                      key={step._id}
+                      managementId={caseId}
+                      stepId={step._id}
+                    />
+                  );
+                }
                 return null;
               })}
               {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
-              {activeTab === 'letters' && <LetterTab managementId={caseId} />}
               {activeTab === 'packaging' && <DocumentsArchiveTab managementId={caseId} />}
               {activeTab === 'communications' && <CommunicationsTab caseId={caseId} />}
               {activeTab === 'audit-logs' && <AuditLogTab caseId={caseId} />}

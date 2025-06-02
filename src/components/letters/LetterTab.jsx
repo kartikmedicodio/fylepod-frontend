@@ -54,7 +54,7 @@ body {
 }
 `;
 
-const LetterTab = ({ managementId }) => {
+const LetterTab = ({ managementId, stepId }) => {
   const editorRef = useRef(null);
   const [letterTemplates, setLetterTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -126,7 +126,7 @@ const LetterTab = ({ managementId }) => {
 
   const fetchSavedLetters = async () => {
     try {
-      const response = await api.get(`/letters/management/${managementId}`);
+      const response = await api.get(`/letters/management/${managementId}?stepId=${stepId}`);
       if (response.data.success) {
         setSavedLetters(response.data.data);
       }
@@ -215,6 +215,7 @@ const LetterTab = ({ managementId }) => {
         content: prompt,
         managementId: managementId,
         templateId: selectedTemplate._id,
+        stepId: stepId,
         save: true
       });
 
@@ -893,7 +894,8 @@ const LetterTab = ({ managementId }) => {
 };
 
 LetterTab.propTypes = {
-  managementId: PropTypes.string.isRequired
+  managementId: PropTypes.string.isRequired,
+  stepId: PropTypes.string.isRequired
 };
 
 export default LetterTab; 
