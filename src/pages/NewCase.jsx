@@ -98,6 +98,12 @@ const NewCase = () => {
     attorney: useRef(null)
   };
 
+  const searchInputRefs = {
+    template: useRef(null),
+    customer: useRef(null),
+    attorney: useRef(null)
+  };
+
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       navigate('/login', { 
@@ -344,6 +350,12 @@ const NewCase = () => {
     setter(!isOpen);
     if (!isOpen) {
       startDropdownTimeout(type, setter);
+      // Focus the search input after a short delay to ensure the dropdown is rendered
+      setTimeout(() => {
+        if (searchInputRefs[type]?.current) {
+          searchInputRefs[type].current.focus();
+        }
+      }, 50);
     }
   };
 
@@ -874,6 +886,7 @@ const NewCase = () => {
                     <div className="p-2 border-b border-gray-100">
                       <div className="relative">
                         <input
+                          ref={searchInputRefs.template}
                           type="text"
                           value={templateSearch}
                           onChange={(e) => {
@@ -967,6 +980,7 @@ const NewCase = () => {
                     <div className="p-2 border-b border-gray-100">
                       <div className="relative">
                         <input
+                          ref={searchInputRefs.customer}
                           type="text"
                           value={customerSearch}
                           onChange={(e) => {
@@ -1070,6 +1084,7 @@ const NewCase = () => {
                     <div className="p-2 border-b border-gray-100">
                       <div className="relative">
                         <input
+                          ref={searchInputRefs.attorney}
                           type="text"
                           value={attorneySearch}
                           onChange={(e) => {

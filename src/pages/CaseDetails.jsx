@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Check, 
   Loader2,
@@ -20,7 +20,12 @@ import {
   ChevronDown,
   LucideReceiptText,
   Package,
-  CreditCard
+  CreditCard,
+  Clock,
+  Search,
+  Filter,
+  History,
+  MessageSquare
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
@@ -40,6 +45,7 @@ import DocumentsArchiveTab from '../components/documents/DocumentsArchiveTab';
 import CommunicationsTab from '../components/CommunicationsTab';
 import RetainerTab from '../components/RetainerTab';
 import PaymentTab from '../components/payments/PaymentTab';
+import AuditLogTab from '../components/AuditLogTab';
 
 // Add a new status type to track document states
 const DOCUMENT_STATUS = {
@@ -200,15 +206,22 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const [processingDocuments, setProcessingDocuments] = useState({});
 
   // Add new state variables for chat functionality
-  const [messages, setMessages] = useState([{
-    role: 'assistant',
-    content: "Hello! I'm Sophia from support. I'm here to assist you with your case and answer any questions you might have. How can I help you today?"
-  }]);
+  const [messages, setMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef(null);
   const [currentChat, setCurrentChat] = useState(null);
   const [showChatPopup, setShowChatPopup] = useState(false);
+
+  // Add useEffect for initial chat message
+  useEffect(() => {
+    if (caseData?.userName && messages.length === 0) {
+      setMessages([{
+        role: 'assistant',
+        content: `Hello! I'm Sophia from support. I'm here to assist you with <strong>${caseData.userName}</strong>'s case. How can I help you today?`
+      }]);
+    }
+  }, [caseData, messages.length]);
 
   const [verificationData, setVerificationData] = useState(null);
   const [isLoadingVerification, setIsLoadingVerification] = useState(false);
@@ -532,18 +545,36 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             
             // Only proceed with tab switching if this was the last document being processed
             if (newProcessingIds.length === 0) {
-              // Check if we have validation results but no cross-verification
-              const hasValidations = data.validationResults && 
-                data.validationResults.validations && 
-                data.validationResults.validations.length > 0;
-              
-              const hasCrossVerification = data.crossVerificationData && 
-                Object.keys(data.crossVerificationData).length > 0;
-              
-              // Switch to validation tab only if we have validations but no cross-verification
-              if (hasValidations && !hasCrossVerification) {
-                setSelectedSubTab('validation');
-              }
+              // Fetch latest case data
+              api.get(`/management/${caseId}`)
+                .then(response => {
+                  if (response.data.status === 'success') {
+                    const updatedCaseData = response.data.data.entry;
+                    setCaseData(updatedCaseData);
+                    
+                    // Check if all documents are uploaded and validated
+                    const allUploaded = updatedCaseData.documentTypes.every(
+                      doc => doc.status === 'uploaded' || doc.status === 'approved'
+                    );
+
+                    if (allUploaded) {
+                      // Fetch validation data
+                      return fetchValidationData()
+                        .then(() => {
+                          // Switch to validation tab
+                          setActiveTab('document-checklist');
+                          setSelectedSubTab('validation');
+                          
+                          // Send validation email only if it hasn't been sent yet
+                          return handleSendValidationEmail();
+                        });
+                    }
+                  }
+                })
+                .catch(error => {
+                  console.error('Error updating data after processing:', error);
+                  toast.error('Failed to load validation results');
+                });
             }
             
             return newProcessingIds;
@@ -1251,21 +1282,35 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             // Check if this was the last document to be processed
             if (processingDocsRef.current.size === 0 && !emailSent) {
               // Fetch latest case data
-              const response = await api.get(`/management/${caseId}`);
-              if (response.data.status === 'success') {
-                const updatedCaseData = response.data.data.entry;
-                setCaseData(updatedCaseData);
-                
-                // Check if all documents are uploaded and validated
-                const allUploaded = updatedCaseData.documentTypes.every(
-                  doc => doc.status === 'uploaded' || doc.status === 'approved'
-                );
+              api.get(`/management/${caseId}`)
+                .then(response => {
+                  if (response.data.status === 'success') {
+                    const updatedCaseData = response.data.data.entry;
+                    setCaseData(updatedCaseData);
+                    
+                    // Check if all documents are uploaded and validated
+                    const allUploaded = updatedCaseData.documentTypes.every(
+                      doc => doc.status === 'uploaded' || doc.status === 'approved'
+                    );
 
-                if (allUploaded) {
-                  // Send validation email only if it hasn't been sent yet
-                  await handleSendValidationEmail();
-                }
-              }
+                    if (allUploaded) {
+                      // Fetch validation data
+                      return fetchValidationData()
+                        .then(() => {
+                          // Switch to validation tab
+                          setActiveTab('document-checklist');
+                          setSelectedSubTab('validation');
+                          
+                          // Send validation email only if it hasn't been sent yet
+                          return handleSendValidationEmail();
+                        });
+                    }
+                  }
+                })
+                .catch(error => {
+                  console.error('Error updating data after processing:', error);
+                  toast.error('Failed to load validation results');
+                });
             }
           });
           
@@ -1295,7 +1340,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   };
 
   // Update fetchValidationData to be more robust
-  const fetchValidationData = async () => {
+  const fetchValidationData = async (retryCount = 0, maxRetries = 3) => {
     // Prevent multiple simultaneous calls
     if (isLoadingValidation) return;
     
@@ -1304,6 +1349,14 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       const response = await api.get(`/documents/management/${caseId}/validations`);
       if (response.data.status === 'success') {
         const newValidationData = response.data.data;
+        
+        // If we got empty validation data and haven't exceeded retries, retry after a delay
+        if ((!newValidationData || Object.keys(newValidationData).length === 0) && retryCount < maxRetries) {
+          console.log(`No validation data yet, retrying in 2 seconds (attempt ${retryCount + 1}/${maxRetries})`);
+          setIsLoadingValidation(false);
+          return new Promise(resolve => setTimeout(resolve, 2000))
+            .then(() => fetchValidationData(retryCount + 1, maxRetries));
+        }
         
         // Update both state and ref
         setValidationData(newValidationData);
@@ -1323,6 +1376,15 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       }
     } catch (error) {
       console.error('Error fetching validation data:', error);
+      
+      // If we haven't exceeded retries, retry after a delay
+      if (retryCount < maxRetries) {
+        console.log(`Error fetching validation data, retrying in 2 seconds (attempt ${retryCount + 1}/${maxRetries})`);
+        setIsLoadingValidation(false);
+        return new Promise(resolve => setTimeout(resolve, 2000))
+          .then(() => fetchValidationData(retryCount + 1, maxRetries));
+      }
+      
       toast.error('Failed to load validation data');
     } finally {
       setIsLoadingValidation(false);
@@ -2067,75 +2129,96 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     );
   };
 
-    const TabNavigation = () => {
-      const scrollContainerRef = useRef(null);
-      const [showLeftArrow, setShowLeftArrow] = useState(false);
-      const [showRightArrow, setShowRightArrow] = useState(false);
+  const TabNavigation = () => {
+    const scrollContainerRef = useRef(null);
+    const [showLeftArrow, setShowLeftArrow] = useState(false);
+    const [showRightArrow, setShowRightArrow] = useState(false);
 
-      const checkForArrows = () => {
-        if (scrollContainerRef.current) {
-          const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
-          setShowLeftArrow(scrollLeft > 0);
-          setShowRightArrow(scrollLeft < scrollWidth - clientWidth);
-        }
-      };
+    // Check if scrolling is possible with a small threshold
+    const checkScroll = () => {
+      if (scrollContainerRef.current) {
+        const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
+        setShowLeftArrow(scrollLeft > 0);
+        setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 5); // 5px threshold
+      }
+    };
 
-      useEffect(() => {
-        checkForArrows();
-        window.addEventListener('resize', checkForArrows);
-        return () => window.removeEventListener('resize', checkForArrows);
-      }, []);
+    // Handle scroll buttons
+    const handleScroll = (direction) => {
+      if (scrollContainerRef.current) {
+        const scrollAmount = 200;
+        scrollContainerRef.current.scrollBy({
+          left: direction === 'left' ? -scrollAmount : scrollAmount,
+          behavior: 'smooth'
+        });
+      }
+    };
 
-      const scroll = (direction) => {
-        if (scrollContainerRef.current) {
-          const scrollAmount = 200;
-          scrollContainerRef.current.scrollBy({
-            left: direction === 'left' ? -scrollAmount : scrollAmount,
-            behavior: 'smooth'
-          });
-          setTimeout(checkForArrows, 100);
-        }
-      };
+    // Add scroll event listener with proper cleanup
+    useEffect(() => {
+      const scrollContainer = scrollContainerRef.current;
+      if (scrollContainer) {
+        checkScroll();
+        scrollContainer.addEventListener('scroll', checkScroll);
+        window.addEventListener('resize', checkScroll);
 
-      // Map of component keys to their corresponding icons
-      const stepIcons = {
-        'profile': User,
-        'payment': CreditCard,
-        'retainer': FileText,
-        'document-checklist': ClipboardList,
-        'questionnaire': FileText,
-        'forms': File,
-        'letters': FileText,
-        'receipts': LucideReceiptText,
-        'packaging': Package,
-        'communications': Mail
-      };
+        return () => {
+          scrollContainer.removeEventListener('scroll', checkScroll);
+          window.removeEventListener('resize', checkScroll);
+        };
+      }
+    }, []);
 
-      return (
-        <div className="border-b border-gray-200 px-6 relative">
-          {showLeftArrow && (
-            <button
-              onClick={() => scroll('left')}
-              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 p-1 rounded-full shadow-md hover:bg-gray-50 transition-colors"
-            >
-              <ChevronLeft className="w-5 h-5 text-gray-600" />
-            </button>
-          )}
-          
-          {showRightArrow && (
-            <button
-              onClick={() => scroll('right')}
-              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 p-1 rounded-full shadow-md hover:bg-gray-50 transition-colors"
-            >
-              <ChevronRight className="w-5 h-5 text-gray-600" />
-            </button>
-          )}
+    // Map of component keys to their corresponding icons
+    const stepIcons = {
+      'profile': User,
+      'payment': CreditCard,
+      'retainer': FileText,
+      'document-checklist': ClipboardList,
+      'questionnaire': FileText,
+      'forms': File,
+      'letters': FileText,
+      'receipts': LucideReceiptText,
+      'packaging': Package,
+      'communications': Mail,
+      'audit-logs': History
+    };
 
-          <div
-            ref={scrollContainerRef}
-            className="flex -mb-px overflow-x-auto scrollbar-hide"
-            onScroll={checkForArrows}
+    return (
+      <div className="border-b border-gray-200 relative">
+        {/* Gradient fades for scroll indication */}
+        <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none"></div>
+        <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none"></div>
+        
+        {/* Left scroll button */}
+        {showLeftArrow && (
+          <button
+            onClick={() => handleScroll('left')}
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-20 p-1.5 bg-white rounded-full shadow-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+            aria-label="Scroll left"
           >
+            <ChevronLeft className="w-4 h-4 text-gray-600" />
+          </button>
+        )}
+        
+        {/* Right scroll button */}
+        {showRightArrow && (
+          <button
+            onClick={() => handleScroll('right')}
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-20 p-1.5 bg-white rounded-full shadow-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+            aria-label="Scroll right"
+          >
+            <ChevronRight className="w-4 h-4 text-gray-600" />
+          </button>
+        )}
+        
+        {/* Scrollable container */}
+        <div 
+          ref={scrollContainerRef}
+          className="overflow-x-auto scrollbar-hide"
+          onScroll={checkScroll}
+        >
+          <div className="flex -mb-px min-w-max px-6">
             {processedSteps.map((step) => {
               const Icon = stepIcons[step.key] || FileText;
               return (
@@ -2145,14 +2228,14 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                   className={`flex items-center px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                     activeTab === step.displayKey
                       ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  } ${step.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      : step.disabled
+                      ? 'border-transparent text-gray-400 cursor-not-allowed'
+                      : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
+                  }`}
                   onClick={() => !step.disabled && setActiveTab(step.displayKey)}
                 >
                   <Icon className="w-5 h-5 mr-2" />
-                  <span>
-                    {step.displayName} {/* Use displayName instead of name */}
-                  </span>
+                  <span>{step.displayName}</span>
                   {step.status === 'completed' && (
                     <Check className="w-4 h-4 ml-2 text-green-500" />
                   )}
@@ -2161,8 +2244,9 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             })}
           </div>
         </div>
-      );
-    };
+      </div>
+    );
+  };
 
   const DocumentVerificationSection = ({ document, validations = [] }) => {
     const passedCount = validations.filter(v => v.passed).length;
@@ -5380,7 +5464,11 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                       ? 'bg-gradient-to-r from-slate-700 to-zinc-800 text-white shadow-sm' 
                       : 'bg-white border border-slate-200/50 shadow-sm text-slate-700'
                   }`}>
-                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                    {message.role === 'assistant' ? (
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed" dangerouslySetInnerHTML={{ __html: message.content }} />
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                    )}
                   </div>
 
                   {message.role === 'user' && (
@@ -5813,44 +5901,28 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           
           <div className="flex-1 overflow-auto"> {/* This will scroll independently */}
             <div className="max-w-7xl mx-auto">
-              {processedSteps.map((step) => {
-                const Component = (() => {
-                  switch (step.key) {
-                    case 'profile':
-                      return <ProfileTab profileData={caseData.userId} />;
-                    case 'payment':
-                      return <PaymentTab caseId={caseId} />;
-                    case 'retainer':
-                      return (
-                        <RetainerTab
-                          companyId={profileData.company_id._id}
-                          profileData={profileData}
-                          caseId={caseId}
-                          caseManagerId={caseData?.caseManagerId?._id}
-                          applicantId={caseData.userId?._id}
-                        />
-                      );
-                    case 'document-checklist':
-                      return <DocumentsChecklistTab />;
-                    case 'questionnaire':
-                      return <QuestionnaireTab />;
-                    case 'forms':
-                      return <FormsTab />;
-                    case 'letters':
-                      return <LetterTab managementId={caseId} />;
-                    case 'receipts':
-                      return <ReceiptsTab managementId={caseId} />;
-                    case 'packaging':
-                      return <DocumentsArchiveTab managementId={caseId} />;
-                    case 'communications':
-                      return <CommunicationsTab caseId={caseId} />;
-                    default:
-                      return null;
-                  }
-                })();
-
-                return activeTab === step.displayKey && Component;
-              })}
+              {activeTab === 'profile' && <ProfileTab profileData={caseData.userId} />}
+              {activeTab === 'payment' && <PaymentTab caseId={caseId} />}
+              {activeTab === 'retainer' && (
+                <RetainerTab
+                  companyId={profileData.company_id._id}
+                  profileData={profileData}
+                  caseId={caseId}
+                  caseManagerId={caseData?.caseManagerId?._id}
+                  applicantId={caseData.userId?._id}
+                  caseData={caseData}
+                />
+              )}
+              {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
+              {activeTab === 'questionnaire' && <QuestionnaireTab />}
+              {activeTab === 'forms' && <FormsTab />}
+              {activeTab === 'letters' && <LetterTab managementId={caseId} />}
+              {activeTab === 'receipts' && <ReceiptsTab managementId={caseId} />}
+              {activeTab === 'packaging' && <DocumentsArchiveTab managementId={caseId} />}
+              {activeTab === 'communications' && <CommunicationsTab caseId={caseId} />}
+              {activeTab === 'audit-logs' && (
+                <AuditLogTab caseId={caseId} />
+              )}
             </div>
           </div>
         </div>
