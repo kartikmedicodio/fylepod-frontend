@@ -5914,7 +5914,18 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           <div className="flex-1 overflow-auto"> {/* This will scroll independently */}
             <div className="max-w-7xl mx-auto">
               {activeTab === 'profile' && <ProfileTab profileData={caseData.userId} />}
-              {activeTab === 'payment' && <PaymentTab caseId={caseId} />}
+              {processedSteps.map(step => {
+                if (step.key === 'payment' && activeTab === step.displayKey) {
+                  return (
+                    <PaymentTab 
+                      key={step._id}
+                      caseId={caseId} 
+                      step_id={step._id}
+                    />
+                  );
+                }
+                return null;
+              })}
               {activeTab === 'retainer' && (
                 <RetainerTab
                   companyId={profileData.company_id._id}
