@@ -5920,7 +5920,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                     <PaymentTab 
                       key={step._id}
                       caseId={caseId} 
-                      step_id={step._id}
+                      stepId={step._id}
                     />
                   );
                 }

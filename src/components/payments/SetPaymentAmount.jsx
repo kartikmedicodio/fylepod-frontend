@@ -3,13 +3,11 @@ import { toast } from 'react-hot-toast';
 import { DollarSign, Mail, ArrowRight } from 'lucide-react';
 import api from '../../utils/api';
 
-const SetPaymentAmount = ({ caseId, step_id, onAmountSet, customerEmail }) => {
+const SetPaymentAmount = ({ caseId, stepId, onAmountSet, customerEmail }) => {
   const [amount, setAmount] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [paymentLink, setPaymentLink] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (customerEmail) {
@@ -19,15 +17,21 @@ const SetPaymentAmount = ({ caseId, step_id, onAmountSet, customerEmail }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    setError(null);
+    setLoading(true);
 
     try {
+      console.log('Sending payment request with:', {
+        caseId,
+        stepId,
+        amount: parseFloat(amount),
+        customerEmail: email
+      });
+
       const response = await api.post('/payments/set-amount', {
         caseId,
-        step_id,
+        stepId,
         amount: parseFloat(amount),
-        customerEmail
+        customerEmail: email
       });
       
       if (response.data.emailStatus === 'failed') {
@@ -39,9 +43,10 @@ const SetPaymentAmount = ({ caseId, step_id, onAmountSet, customerEmail }) => {
       setPaymentLink(response.data.paymentUrl);
       onAmountSet();
     } catch (error) {
-      setError(error.response?.data?.error || 'Failed to set payment amount');
+      toast.error('Failed to set payment amount');
+      console.error('Set amount error:', error);
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
