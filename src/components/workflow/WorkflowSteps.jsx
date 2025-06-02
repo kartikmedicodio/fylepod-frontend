@@ -526,7 +526,7 @@ const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditabl
             <div className="w-[300px] flex-shrink-0 mr-8">Name</div>
             <div className="w-[100px] flex-shrink-0 mr-8">Time</div>
             <div className="w-[150px] flex-shrink-0 mr-8">Key</div>
-            <div className="w-[300px] flex-shrink-0 mr-8">Agent</div>
+            <div className="w-[300px] flex-shrink-0 mr-8">Responsible</div>
             <div className="flex-1 min-w-[300px]">Description</div>
           </div>
         </div>
