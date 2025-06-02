@@ -5883,8 +5883,16 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           
           <div className="flex-1 overflow-auto"> {/* This will scroll independently */}
             <div className="max-w-7xl mx-auto">
-              {activeTab === 'profile' && <ProfileTab profileData={caseData.userId} />}
               {processedSteps.map(step => {
+                if (step.key === 'profile' && activeTab === step.displayKey) {
+                  return (
+                    <ProfileTab
+                      key={step._id}
+                      profileData={caseData.userId}
+                      stepId={step._id}
+                    />
+                  );
+                }
                 if (step.key === 'payment' && activeTab === step.displayKey) {
                   return (
                     <PaymentTab 
@@ -5926,13 +5934,29 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                     />
                   );
                 }
+                if (step.key === 'communications' && activeTab === step.displayKey) {
+                  return (
+                    <CommunicationsTab
+                      key={step._id}
+                      caseId={caseId}
+                      stepId={step._id}
+                    />
+                  );
+                }
+                if (step.key === 'packaging' && activeTab === step.displayKey) {
+                  return (
+                    <DocumentsArchiveTab
+                      key={step._id}
+                      managementId={caseId}
+                      stepId={step._id}
+                    />
+                  );
+                }
                 return null;
               })}
               {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
-              {activeTab === 'packaging' && <DocumentsArchiveTab managementId={caseId} />}
-              {activeTab === 'communications' && <CommunicationsTab caseId={caseId} />}
               {activeTab === 'audit-logs' && <AuditLogTab caseId={caseId} />}
             </div>
           </div>

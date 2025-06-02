@@ -71,6 +71,13 @@ const SortableItem = ({ id, item, documents, letters, onRemove, onAddBlank }) =>
                 ? (documents.find(d => d._id === item.id)?.originalName || 'Document')
                 : (letters.find(l => l._id === item.id)?.templateId?.name || 'Custom Letter')}
             </h3>
+            {item.type === 'letter' && (
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs text-gray-600">
+                  From: <span className="text-blue-600 font-medium">{letters.find(l => l._id === item.id)?.stepName || 'Letters Tab'}</span>
+                </span>
+              </div>
+            )}
           </div>
           <button
             onClick={() => onRemove(id)}
@@ -151,13 +158,39 @@ const DocumentsArchiveTab = ({ managementId }) => {
 
   const fetchLetters = async () => {
     try {
-      const response = await api.get(`/letters/management/${managementId}?status=final`);
-      if (response.data.success) {
-        // Filter out any letters that might still be in draft status
-        const nonDraftLetters = response.data.data.filter(letter => 
-          letter.status === 'final' || letter.status === 'approved'
+      // Get all steps with key 'letters' from CaseDetails
+      const stepsResponse = await api.get(`/case-steps/${managementId}`);
+      if (stepsResponse.data.status === 'success') {
+        const letterSteps = stepsResponse.data.data.steps.filter(step => step.key === 'letters');
+        
+        // Fetch letters for each step
+        const allLettersPromises = letterSteps.map(step => 
+          api.get(`/letters/management/${managementId}?stepId=${step._id}&status=final`)
+            .then(response => ({
+              response,
+              stepId: step._id,
+              stepName: step.name || step.displayName || 'Letter'
+            }))
         );
-        setLetters(nonDraftLetters);
+        
+        const responses = await Promise.all(allLettersPromises);
+        
+        // Combine all letters from different steps
+        const allLetters = responses.reduce((acc, { response, stepId, stepName }) => {
+          if (response.data.success) {
+            const nonDraftLetters = response.data.data.filter(letter => 
+              letter.status === 'final' || letter.status === 'approved'
+            ).map(letter => ({
+              ...letter,
+              stepId, // Add stepId to each letter
+              stepName // Add stepName to each letter
+            }));
+            return [...acc, ...nonDraftLetters];
+          }
+          return acc;
+        }, []);
+        
+        setLetters(allLetters);
       }
     } catch (error) {
       console.error('Error fetching letters:', error);
@@ -331,7 +364,12 @@ const DocumentsArchiveTab = ({ managementId }) => {
               }
             }
           } else if (item.type === 'letter') {
-            const response = await api.get(`/letters/${item.id}/download`, {
+            const letter = letters.find(l => l._id === item.id);
+            if (!letter) {
+              console.error(`Letter not found: ${item.id}`);
+              continue;
+            }
+            const response = await api.get(`/letters/${item.id}/download?stepId=${letter.stepId}`, {
               responseType: 'arraybuffer'
             });
             const letterPdf = await PDFDocument.load(response.data);
@@ -609,9 +647,15 @@ const DocumentsArchiveTab = ({ managementId }) => {
                         <h3 className="text-sm font-medium text-gray-900">
                           {letter.templateId?.name || 'Custom Letter'}
                         </h3>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Created on {new Date(letter.createdAt).toLocaleDateString()}
-                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-gray-600">
+                            From: <span className="text-blue-600 font-medium">{letter.stepName || 'Letters Tab'}</span>
+                          </span>
+                          <span className="text-xs text-gray-500">•</span>
+                          <span className="text-xs text-gray-500">
+                            Created on {new Date(letter.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
                         <p className="text-sm text-gray-500 mt-1 line-clamp-1">
                           {letter.content.substring(0, 100)}...
                         </p>
