@@ -2019,36 +2019,76 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       checkAllDocumentsApproved(caseData.documentTypes) : 
       false;
     
-    // Check if preparation is complete (questionnaire completed and in forms tab)
-    const isPreparationComplete = activeTab === 'forms' && isQuestionnaireCompleted;
+    // Helper function to check if a step is completed or not present (then considered completed)
+    const isStepCompleted = (stepKey) => {
+      // If the step is not present, consider it completed
+      if (!caseSteps?.some(step => step.key === stepKey)) return true;
+      return caseSteps?.some(step => step.key === stepKey && step.status === 'completed');
+    };
+    // Helper to check if a step exists
+    const isStepPresent = (stepKey) => caseSteps?.some(step => step.key === stepKey);
 
-    // Get case status from caseData
-    const caseStatus = caseData?.categoryStatus?.toLowerCase() || 'pending';
+    // Initial Configuration: payment & retainer
+    const initialConfigSteps = ['payment', 'retainer'];
+    const showInitialConfig = initialConfigSteps.some(isStepPresent);
+    const isInitialConfigComplete = initialConfigSteps.every(isStepCompleted);
 
-    // Define steps with dynamic completion status based on case status
-    const steps = [
-      { 
-        name: 'Case Started', 
-        completed: true 
-      },
-      { 
-        name: 'Data Collection', 
-        completed: ['reviewed', 'completed'].includes(caseStatus) || allDocumentsApproved 
-      },
-      { 
-        name: 'Review', 
-        completed: ['reviewed', 'completed'].includes(caseStatus) // Changed to include 'completed' status
-      },
-      { 
-        name: 'Preparation', 
-        completed: caseStatus === 'completed'
-      }
-    ];
+    // Document Collection
+    const showDocumentCollection = isStepPresent('document-checklist');
+    const isDocumentCollectionComplete = isStepCompleted('document-checklist');
+
+    // Review
+    const showReview = true; // Always show review if there are documents to approve
+    const isReviewComplete = allDocumentsApproved;
+
+    // Letters
+    const showLetters = isStepPresent('letters');
+    const isLettersComplete = isStepCompleted('letters');
+
+    // Preparation: receipts & packaging
+    const preparationSteps = ['receipts'];
+    const showPreparation = preparationSteps.some(isStepPresent);
+    const isPreparationComplete = preparationSteps.every(isStepCompleted);
+
+    // Build steps array dynamically
+    const steps = [];
+    if (showInitialConfig) {
+      steps.push({
+        name: 'Initial Configuration',
+        completed: isInitialConfigComplete,
+        description: 'Payment & Retainer'
+      });
+    }
+    if (showDocumentCollection) {
+      steps.push({
+        name: 'Document Collection',
+        completed: isDocumentCollectionComplete
+      });
+    }
+    if (showReview) {
+      steps.push({
+        name: 'Review',
+        completed: isReviewComplete
+      });
+    }
+    if (showLetters) {
+      steps.push({
+        name: 'Letters',
+        completed: isLettersComplete
+      });
+    }
+    if (showPreparation) {
+      steps.push({
+        name: 'Preparation',
+        completed: isPreparationComplete,
+        description: 'Receipts & Packaging'
+      });
+    }
 
     return (
       <div className="flex items-center justify-center w-full py-8 bg-gradient-to-r from-slate-50 to-white">
         <div className="flex items-center justify-between max-w-5xl w-full px-8 relative">
-          {/* Rest of the component remains the same */}
+          {/* Progress bar */}
           <div className="absolute top-[20px] left-0 h-[3px] bg-gradient-to-r from-blue-600/20 to-blue-600/20 w-full">
             <div 
               className="h-full bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700"
@@ -2065,7 +2105,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 {/* Pulse Animation for Current Step */}
                 {index === steps.findIndex(s => !s.completed) && (
                   <div className="absolute z-0 w-[44px] h-[44px] top-5 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                    {/* Multiple layers of pulse for enhanced effect */}
                     <div className="absolute inset-0 rounded-full opacity-20 animate-step-ping-slow bg-blue-400/50" />
                     <div className="absolute inset-0 rounded-full opacity-30 animate-step-ping bg-blue-500/50" />
                     <div className="absolute inset-0 rounded-full opacity-40 animate-step-pulse-fast bg-blue-600/50" />
