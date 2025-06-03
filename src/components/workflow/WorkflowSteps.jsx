@@ -475,9 +475,17 @@ const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditabl
         const newIndex = items.findIndex((item) => (item._id || `step-${items.indexOf(item)}`) === over.id);
 
         if (oldIndex !== -1 && newIndex !== -1) {
+          // First move the item to its new position
           const newSteps = arrayMove(items, oldIndex, newIndex);
-          onStepsReorder?.(newSteps);
-          return newSteps;
+          
+          // Then update the order numbers for all steps
+          const updatedSteps = newSteps.map((step, index) => ({
+            ...step,
+            order: index + 1 // Update order to be 1-based index
+          }));
+          
+          onStepsReorder?.(updatedSteps);
+          return updatedSteps;
         }
         return items;
       });
