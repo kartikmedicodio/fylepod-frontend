@@ -694,27 +694,27 @@ const NewCase = () => {
   };
 
   const handleSaveWorkflowChanges = async () => {
+    // Create loading toast ID first
+    const loadingToastId = toast.loading('Creating case and saving workflow...');
+
     try {
       if (!selectedTemplate?._id || !selectedCustomer || !selectedAttorney) {
-        toast.error('Please fill in all required fields');
+        toast.error('Please fill in all required fields', { id: loadingToastId });
         return;
       }
 
-      // Show loading toast
-      const loadingToastId = toast.loading('Creating case and saving workflow...');
-
       // Format steps for the API
       const formattedSteps = workflowSteps.map((step, index) => ({
-        _id: step._id || `step-${Date.now()}-${index}`,
         name: step.name,
         key: step.key,
         order: index + 1,
         isRequired: step.isRequired || false,
         estimatedHours: step.estimatedHours || 0,
-        description: step.description || '',
+        description: step.agentDescription || '',
         status: 'pending',
         isDefault: true,
-        isVisible: true
+        isVisible: true,
+        agentName: step.agentName || 'none'
       }));
 
       // Create case first
