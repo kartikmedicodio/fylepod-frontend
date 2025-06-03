@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Edit2, Check, X } from 'lucide-react';
+import { Edit2, Check, X, Plus, Trash2, Clock } from 'lucide-react';
 import PropTypes from 'prop-types';
 import {
   DndContext,
@@ -21,13 +21,14 @@ import { CSS } from '@dnd-kit/utilities';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { toast } from 'react-hot-toast';
 
-const SortableStep = ({ step, index, isEditable, onUpdateStep, availableKeys }) => {
-  const [isEditing, setIsEditing] = React.useState(false);
-  const [isEditingKey, setIsEditingKey] = React.useState(false);
+const SortableStep = ({ step, index, isEditable, onUpdateStep, onRemoveStep, availableKeys }) => {
+  const [isEditing, setIsEditing] = React.useState(step.name === '');
+  const [isEditingKey, setIsEditingKey] = React.useState(step.key === '');
   const [editedName, setEditedName] = React.useState(step?.name || '');
   const [editedKey, setEditedKey] = React.useState(step?.key || '');
   const inputRef = React.useRef(null);
   const keySelectRef = React.useRef(null);
+  const isNewStep = !step.name && !step.key;
 
   // Reset edited values when step changes
   React.useEffect(() => {
@@ -45,7 +46,7 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, availableKeys }) 
     transition,
     isDragging,
   } = useSortable({ 
-    id: step?._id || `step-${index}` // Fallback to index-based ID if no _id
+    id: step?._id || `step-${index}`
   });
 
   const style = {
@@ -57,23 +58,38 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, availableKeys }) 
   const handleEditClick = (e) => {
     e.stopPropagation();
     setIsEditing(true);
-    // Focus the input after it becomes visible
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
   const handleSave = () => {
-    if (editedName.trim()) {
-      onUpdateStep(step.key, {
-        ...step,
-        name: editedName.trim()
-      });
+    if (!editedName.trim()) {
+      toast.error('Step name cannot be empty');
+      return;
     }
+    if (!editedKey.trim()) {
+      toast.error('Step key must be selected');
+      return;
+    }
+
+    onUpdateStep(step.key, {
+      ...step,
+      name: editedName.trim(),
+      key: editedKey.trim()
+    });
     setIsEditing(false);
+    setIsEditingKey(false);
   };
 
   const handleCancel = () => {
-    setEditedName(step.name || '');
-    setIsEditing(false);
+    if (isNewStep) {
+      // If it's a new step and user cancels, we should remove it using onRemoveStep
+      onRemoveStep(step._id || `step-${index}`);
+    } else {
+      setEditedName(step.name || '');
+      setEditedKey(step.key || '');
+      setIsEditing(false);
+      setIsEditingKey(false);
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -84,48 +100,22 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, availableKeys }) 
     }
   };
 
-  const toggleRequired = () => {
-    onUpdateStep(step.key, {
-      ...step,
-      isRequired: !step.isRequired
-    });
-  };
-
-  const handleKeyEdit = () => {
-    setIsEditingKey(true);
-    setEditedKey(step.key || '');
-    // Focus the select after a short delay to ensure it's rendered
-    setTimeout(() => keySelectRef.current?.focus(), 50);
-  };
-
-  const handleKeySave = () => {
-    if (!editedKey.trim()) {
-      toast.error('Key cannot be empty');
-      return;
+  const handleRemove = () => {
+    if (window.confirm('Are you sure you want to remove this step?')) {
+      onRemoveStep(step._id || `step-${index}`);
     }
-
-    onUpdateStep(step.key, {
-      ...step,
-      key: editedKey.trim()
-    });
-    setIsEditingKey(false);
-  };
-
-  const handleKeyCancel = () => {
-    setEditedKey(step.key || '');
-    setIsEditingKey(false);
   };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`relative bg-white hover:bg-gray-50 transition-all duration-200 ${
+      className={`relative bg-white transition-all duration-200 ${
         isDragging ? 'z-50 shadow-lg rounded-xl border border-blue-200 bg-blue-50' : ''
-      }`}
+      } ${isNewStep ? 'border-2 border-blue-100 rounded-xl shadow-sm' : 'hover:bg-gray-50'}`}
       {...(isEditable ? attributes : {})}
     >
-      {isEditable && (
+      {isEditable && !isNewStep && (
         <div
           {...listeners}
           className="absolute left-4 top-1/2 -translate-y-1/2 cursor-move p-3 rounded-lg hover:bg-gray-100 group transition-colors"
@@ -139,19 +129,84 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, availableKeys }) 
         </div>
       )}
 
-      <div className={`flex items-center min-h-[80px] ${isEditable ? 'pl-16' : 'pl-6'} pr-6 border-b border-gray-100`}>
-        {/* Step Number */}
-        <div className="w-[80px] flex-shrink-0 mr-8">
-          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-100 text-blue-600 font-medium text-lg">
-            {step.order || index + 1}
+      {isNewStep ? (
+        // New Step Layout - Only Name and Key
+        <div className="p-6">
+          <div className="flex items-center gap-8">
+            {/* Step Number */}
+            <div className="w-[80px] flex-shrink-0">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-100 text-blue-600 font-medium text-lg">
+                {step.order || index + 1}
+              </div>
+            </div>
+
+            {/* Name Input */}
+            <div className="w-[300px] flex-shrink-0">
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-gray-700">Step Name</label>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className="w-full px-3 py-2 text-base border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter step name..."
+                />
+              </div>
+            </div>
+
+            {/* Key Selection */}
+            <div className="w-[250px] flex-shrink-0">
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-gray-700">Step Key</label>
+                <select
+                  ref={keySelectRef}
+                  value={editedKey}
+                  onChange={(e) => setEditedKey(e.target.value)}
+                  className="w-full px-3 py-2 text-base border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="">Select a key...</option>
+                  {availableKeys?.map((keyOption) => (
+                    <option key={keyOption.key} value={keyOption.key}>
+                      {keyOption.name || keyOption.key}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={handleSave}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                Save
+              </button>
+              <button 
+                onClick={handleCancel}
+                className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
+      ) : (
+        // Existing Step Layout - All Fields
+        <div className={`flex items-center min-h-[80px] ${isEditable ? 'pl-16' : 'pl-6'} pr-6 border-b border-gray-100`}>
+          {/* Step Number */}
+          <div className="w-[80px] flex-shrink-0 mr-8">
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-100 text-blue-600 font-medium text-lg">
+              {step.order || index + 1}
+            </div>
+          </div>
 
-        {/* Name */}
-        <div className="w-[300px] flex-shrink-0 mr-8">
-          {isEditing ? (
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 flex-1">
+          {/* Name */}
+          <div className="w-[300px] flex-shrink-0 mr-8">
+            {isEditing ? (
+              <div className="flex items-center gap-2">
                 <input
                   ref={inputRef}
                   type="text"
@@ -168,46 +223,44 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, availableKeys }) 
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <button
-                onClick={toggleRequired}
-                className={`shrink-0 inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer hover:opacity-80 ${
-                  step.isRequired 
-                    ? 'bg-green-50 text-green-700 border border-green-200' 
-                    : 'bg-gray-50 text-gray-600 border border-gray-200'
-                }`}
-              >
-                {step.isRequired ? 'Required' : 'Optional'}
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-3">
-              <div>
+            ) : (
+              <div className="flex items-center gap-3">
                 <span className="font-medium text-gray-900 text-base block">{step.name}</span>
-                {step.isRequired && (
-                  <span className="text-sm text-green-600 font-medium mt-1">Required</span>
-                )}
+                <div className="flex items-center gap-1">
+                  {isEditable && (
+                    <>
+                      <button 
+                        onClick={handleEditClick} 
+                        className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+                        title="Edit step"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={handleRemove}
+                        className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50"
+                        title="Remove step"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
-              {isEditable && (
-                <button onClick={handleEditClick} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
-                  <Edit2 className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Time */}
-        <div className="w-[100px] flex-shrink-0 mr-8">
-          <div className="flex items-center text-base text-gray-700">
-            <Clock className="h-5 w-5 mr-2 text-gray-400" />
-            <span>{step.estimatedHours}h</span>
+            )}
           </div>
-        </div>
 
-        {/* Key */}
-        <div className="w-[150px] flex-shrink-0 mr-8">
-          {isEditable ? (
-            isEditingKey ? (
+          {/* Time */}
+          <div className="w-[100px] flex-shrink-0 mr-8">
+            <div className="flex items-center text-base text-gray-700">
+              <Clock className="h-5 w-5 mr-2 text-gray-400" />
+              <span>{step.estimatedHours || 0}h</span>
+            </div>
+          </div>
+
+          {/* Key */}
+          <div className="w-[150px] flex-shrink-0 mr-8">
+            {isEditingKey ? (
               <div className="flex items-center gap-2">
                 <select
                   ref={keySelectRef}
@@ -215,23 +268,17 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, availableKeys }) 
                   onChange={(e) => setEditedKey(e.target.value)}
                   className="w-full px-3 py-2 text-base border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
-                  <option value={step.key}>{step.key}</option>
-                  {availableKeys?.filter(k => k.key !== step.key).map((keyOption) => (
+                  <option value="">Select a key...</option>
+                  {availableKeys?.map((keyOption) => (
                     <option key={keyOption.key} value={keyOption.key}>
                       {keyOption.name || keyOption.key}
                     </option>
                   ))}
                 </select>
-                <button 
-                  onClick={handleKeySave}
-                  className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
-                >
+                <button onClick={handleSave} className="p-2 text-green-600 hover:bg-green-50 rounded-lg">
                   <Check className="w-5 h-5" />
                 </button>
-                <button 
-                  onClick={handleKeyCancel}
-                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                >
+                <button onClick={handleCancel} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -240,95 +287,101 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, availableKeys }) 
                 <span className="px-3 py-1.5 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg">
                   {step.key}
                 </span>
-                <button 
-                  onClick={handleKeyEdit}
-                  className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <Edit2 className="w-4 h-4" />
-                </button>
+                {isEditable && (
+                  <button 
+                    onClick={() => setIsEditingKey(true)}
+                    className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
-            )
-          ) : (
-            <span className="px-3 py-1.5 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg">
-              {step.key}
-            </span>
-          )}
-        </div>
+            )}
+          </div>
 
-        {/* Agent - Made more prominent */}
-        <div className="w-[300px] flex-shrink-0 mr-8">
-          {step.agentName && step.agentName !== 'none' ? (
-            <div className="flex items-center gap-4">
-              {step.agentName === 'Diana' && (
+          {/* Agent */}
+          <div className="w-[300px] flex-shrink-0 mr-8">
+            {step.agentName === 'none' ? (
+              <div className="flex items-center gap-4">
                 <div className="relative group">
-                  <img 
-                    src="/assets/diana-avatar.png" 
-                    alt="Diana" 
-                    className="w-12 h-12 rounded-xl object-cover ring-2 ring-purple-100 group-hover:ring-purple-200 transition-all"
-                  />
-                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-purple-500 rounded-full flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">D</span>
+                  <div className="w-12 h-12 rounded-xl bg-gray-100 ring-2 ring-gray-200 group-hover:ring-gray-300 transition-all flex items-center justify-center">
+                    <span className="text-gray-600 text-lg font-medium">U</span>
                   </div>
                 </div>
-              )}
-              {step.agentName === 'Fiona' && (
-                <div className="relative group">
-                  <img 
-                    src="/assets/fiona-avatar.png" 
-                    alt="Fiona" 
-                    className="w-12 h-12 rounded-xl object-cover ring-2 ring-blue-100 group-hover:ring-blue-200 transition-all"
-                  />
-                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">F</span>
-                  </div>
+                <div className="flex flex-col">
+                  <span className="text-base font-semibold text-gray-600">User</span>
+                  <span className="text-sm text-gray-500">Manual Step</span>
                 </div>
-              )}
-              <div className="flex flex-col">
-                <span className={`text-base font-semibold ${
-                  step.agentName === 'Diana' ? 'text-purple-600' :
-                  step.agentName === 'Fiona' ? 'text-blue-600' :
-                  step.agentName === 'Sophia' ? 'text-pink-600' :
-                  'text-gray-600'
-                }`}>
-                  {step.agentName}
-                </span>
-                <span className={`text-sm ${
-                  step.agentName === 'Diana' ? 'text-purple-500' :
-                  step.agentName === 'Fiona' ? 'text-blue-500' :
-                  step.agentName === 'Sophia' ? 'text-pink-500' :
-                  'text-gray-500'
-                }`}>
-                  AI Agent
-                </span>
               </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center">
-                <span className="text-gray-400 text-lg">?</span>
+            ) : step.agentName && step.agentName !== 'none' ? (
+              <div className="flex items-center gap-4">
+                {step.agentName === 'Diana' && (
+                  <div className="relative group">
+                    <img 
+                      src="/assets/diana-avatar.png" 
+                      alt="Diana" 
+                      className="w-12 h-12 rounded-xl object-cover ring-2 ring-purple-100 group-hover:ring-purple-200 transition-all"
+                    />
+                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-purple-500 rounded-full flex items-center justify-center">
+                      <span className="text-white text-xs font-bold">D</span>
+                    </div>
+                  </div>
+                )}
+                {step.agentName === 'Fiona' && (
+                  <div className="relative group">
+                    <img 
+                      src="/assets/fiona-avatar.png" 
+                      alt="Fiona" 
+                      className="w-12 h-12 rounded-xl object-cover ring-2 ring-blue-100 group-hover:ring-blue-200 transition-all"
+                    />
+                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+                      <span className="text-white text-xs font-bold">F</span>
+                    </div>
+                  </div>
+                )}
+                <div className="flex flex-col">
+                  <span className={`text-base font-semibold ${
+                    step.agentName === 'Diana' ? 'text-purple-600' :
+                    step.agentName === 'Fiona' ? 'text-blue-600' :
+                    'text-gray-600'
+                  }`}>
+                    {step.agentName}
+                  </span>
+                  <span className="text-sm text-gray-500">AI Agent</span>
+                </div>
               </div>
-              <div className="flex flex-col">
-                <span className="text-base font-medium text-gray-400">Unassigned</span>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center">
+                  <span className="text-gray-400 text-lg">?</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-base font-medium text-gray-400">Unassigned</span>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
 
-        {/* Description - Made more prominent */}
-        <div className="flex-1 min-w-[300px]">
-          {step.agentDescription ? (
-            <div className="flex flex-col">
-              <span className="text-base text-gray-700 line-clamp-2 font-medium">{step.agentDescription}</span>
-              <span className="text-sm text-gray-500 mt-1">Task Description</span>
-            </div>
-          ) : (
-            <div className="flex flex-col">
-              <span className="text-base text-gray-400">No description available</span>
-              <span className="text-sm text-gray-400">Task details not specified</span>
-            </div>
-          )}
+          {/* Description */}
+          <div className="flex-1 min-w-[300px]">
+            {step.agentName === 'none' ? (
+              <div className="flex flex-col">
+                <span className="text-base text-gray-700 line-clamp-2">
+                  {step.userDescription || step.description || 'Manual step to be completed by the user'}
+                </span>
+              </div>
+            ) : step.agentDescription ? (
+              <div className="flex flex-col">
+                <span className="text-base text-gray-700 line-clamp-2">{step.agentDescription}</span>
+              </div>
+            ) : (
+              <div className="flex flex-col">
+                <span className="text-base text-gray-400">No description available</span>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
@@ -342,15 +395,36 @@ SortableStep.propTypes = {
     isRequired: PropTypes.bool,
     estimatedHours: PropTypes.number,
     agentName: PropTypes.string,
-    agentDescription: PropTypes.string
+    agentDescription: PropTypes.string,
+    userDescription: PropTypes.string,
+    description: PropTypes.string
   }).isRequired,
   index: PropTypes.number.isRequired,
   isEditable: PropTypes.bool.isRequired,
   onUpdateStep: PropTypes.func.isRequired,
+  onRemoveStep: PropTypes.func.isRequired,
   availableKeys: PropTypes.arrayOf(PropTypes.shape({
     key: PropTypes.string.isRequired,
     name: PropTypes.string
   }))
+};
+
+const AddStep = ({ onAddStep }) => {
+  return (
+    <div className="mt-4 flex justify-center">
+      <button
+        onClick={() => onAddStep()}
+        className="inline-flex items-center px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors gap-2 font-medium"
+      >
+        <Plus className="w-5 h-5" />
+        Add New Step
+      </button>
+    </div>
+  );
+};
+
+AddStep.propTypes = {
+  onAddStep: PropTypes.func.isRequired,
 };
 
 const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditable = false, caseId }) => {
@@ -494,6 +568,29 @@ const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditabl
     setActiveId(null);
   };
 
+  const handleAddStep = () => {
+    const newStep = {
+      _id: `new-step-${Date.now()}`,
+      name: '',
+      key: '',
+      order: steps.length + 1,
+      isRequired: false,
+      estimatedHours: 1,
+      agentName: 'none',
+      agentDescription: ''
+    };
+
+    const newSteps = [...steps, newStep];
+    setSteps(newSteps);
+    onStepsReorder?.(newSteps);
+  };
+
+  const handleRemoveStep = (stepId) => {
+    const newSteps = steps.filter(step => (step._id || `step-${steps.indexOf(step)}`) !== stepId);
+    setSteps(newSteps);
+    onStepsReorder?.(newSteps);
+  };
+
   if (!steps || steps.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
@@ -534,7 +631,7 @@ const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditabl
             <div className="w-[300px] flex-shrink-0 mr-8">Name</div>
             <div className="w-[100px] flex-shrink-0 mr-8">Time</div>
             <div className="w-[150px] flex-shrink-0 mr-8">Key</div>
-            <div className="w-[300px] flex-shrink-0 mr-8">Responsible</div>
+            <div className="w-[300px] flex-shrink-0 mr-8">Accountable Entity</div>
             <div className="flex-1 min-w-[300px]">Description</div>
           </div>
         </div>
@@ -558,6 +655,7 @@ const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditabl
                 index={index}
                 isEditable={isEditable}
                 onUpdateStep={handleUpdateStep}
+                onRemoveStep={handleRemoveStep}
                 availableKeys={availableKeys}
               />
             ))}
@@ -571,12 +669,15 @@ const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditabl
                   index={steps.findIndex((step, idx) => (step._id || `step-${idx}`) === activeId)}
                   isEditable={isEditable}
                   onUpdateStep={handleUpdateStep}
+                  onRemoveStep={handleRemoveStep}
                   availableKeys={availableKeys}
                 />
               </div>
             ) : null}
           </DragOverlay>
         </DndContext>
+
+        {isEditable && <AddStep onAddStep={handleAddStep} />}
       </div>
     </div>
   );
