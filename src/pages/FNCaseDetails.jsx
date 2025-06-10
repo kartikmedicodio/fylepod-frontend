@@ -4514,13 +4514,17 @@ const FNCaseDetails = () => {
                       <div className="text-sm text-gray-500">Email</div>
                       <div className="font-medium">{profileData?.email || '-'}</div>
                     </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Nationality</div>
+                      <div className="font-medium">{profileData?.nationality || '-'}</div>
+                    </div>
                   </div>
 
                   {/* Right Column - Location Info */}
                   <div className="space-y-2">
                     <div>
                       <div className="text-sm text-gray-500">Nationality</div>
-                      <div className="font-medium">{profileData?.address?.country || '-'}</div>
+                      <div className="font-medium">{profileData?.nationality || '-'}</div>
                     </div>
                     <div>
                       <div className="text-sm text-gray-500">Address</div>

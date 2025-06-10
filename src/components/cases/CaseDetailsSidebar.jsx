@@ -33,13 +33,13 @@ const CaseDetailsSidebar = ({ caseData, loading, error, onEmailChange }) => {
   return (
     <div className="h-full overflow-y-auto">
       {/* Merged Case Details & Profile Section */}
-      <div className="p-6 bg-white mb-4 shadow-sm rounded-xl border border-gray-100/50">
+      <div className="p-6 bg-white rounded-xl border border-gray-100/50">
         <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 text-gray-800">
           <Folder className="text-blue-600" size={20} />
           Case Details
         </h2>
         
-        <div className="space-y-5">
+        <div className="space-y-5 pb-1">
           {/* Highlighted Fields */}
           <div>
             <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Applicant Name</label>
@@ -102,7 +102,7 @@ const CaseDetailsSidebar = ({ caseData, loading, error, onEmailChange }) => {
             <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Nationality</label>
             <div className="text-sm font-medium flex items-center gap-2">
               <Globe size={14} className="text-gray-400" />
-              {caseData?.userId?.address?.country || 'Not Specified'}
+              {caseData?.userId?.nationality || 'Not Specified'}
             </div>
           </div>
 

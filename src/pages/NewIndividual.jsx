@@ -19,12 +19,14 @@ const NewIndividual = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [attorneys, setAttorneys] = useState([]);
   const [isLoadingAttorneys, setIsLoadingAttorneys] = useState(false);
+  const [selectedAttorney, setSelectedAttorney] = useState(null);
 
   const [formData, setFormData] = useState({
     name: '',
     sex: '',
     email: '',
     role: 'individual',
+    nationality: '',
     attorney_id: '',
     attorney_name: '',
     lawfirm_id: '',
@@ -50,12 +52,13 @@ const NewIndividual = () => {
   // Format attorneys for react-select
   const attorneyOptions = attorneys
     .filter(attorney => {
-      const userLawfirmId = user?.lawfirm_id?._id;
-      return !userLawfirmId || String(attorney.lawfirm_id?._id) === String(userLawfirmId);
+      const userLawFirmId = user?.lawfirm_id?._id;
+      return userLawFirmId && String(attorney?.lawfirm_id?._id) === String(userLawFirmId);
     })
     .map(attorney => ({
       value: attorney._id,
-      label: `${attorney.name} (${attorney.lawfirm_id?.name || attorney.lawfirm_name || 'No Law Firm'})`
+      label: `${attorney.name} (${attorney.lawfirm_id?.name || attorney.lawfirm_name || 'No Law Firm'})`,
+      attorney: attorney // Keep the full attorney object for reference
     }));
 
   // Set breadcrumb and page title on mount
@@ -78,18 +81,33 @@ const NewIndividual = () => {
       try {
         const response = await api.get('/auth/attorneys');
         if (response.data.status === 'success') {
-          const attorneysData = response.data.data.attorneys;
-          setAttorneys(attorneysData);
+          const allAttorneys = response.data.data.attorneys || [];
+          const userLawFirmId = user?.lawfirm_id?._id;
+          const filteredAttorneys = allAttorneys.filter(attorney => {
+            const attorneyLawFirmId = attorney?.lawfirm_id?._id;
+            return String(attorneyLawFirmId) === String(userLawFirmId);
+          });
+          console.log('Filtered Attorneys:', filteredAttorneys); // Debug log
+          setAttorneys(filteredAttorneys);
         }
       } catch (error) {
+        console.error('Error fetching attorneys:', error);
         toast.error('Failed to load attorneys');
       } finally {
         setIsLoadingAttorneys(false);
       }
     };
 
-    fetchAttorneys();
-  }, [user?.lawfirm_id]);
+    if (user?.id) {
+      fetchAttorneys();
+    }
+  }, [user]);
+
+  // Debug logs
+  useEffect(() => {
+    console.log('Selected Attorney State:', selectedAttorney);
+    console.log('Form Data:', formData);
+  }, [selectedAttorney, formData]);
 
   const handleInputChange = (field, value) => {
     if (field === 'residence_phone' || field === 'mobile_number') {
@@ -117,18 +135,22 @@ const NewIndividual = () => {
   };
 
   const handleAttorneySelect = (selectedOption) => {
+    console.log('Selected attorney option:', selectedOption);
+    setSelectedAttorney(selectedOption);
+    
     if (selectedOption) {
-      const selectedAttorney = attorneys.find(a => a._id === selectedOption.value);
-      if (selectedAttorney) {
-        setFormData(prev => ({
-          ...prev,
-          attorney_id: selectedAttorney._id,
-          attorney_name: selectedAttorney.name,
-          lawfirm_id: selectedAttorney.lawfirm_id?._id || null,
-          lawfirm_name: selectedAttorney.lawfirm_id?.name || selectedAttorney.lawfirm_name || null
-        }));
-      }
+      const selectedAttorney = selectedOption.attorney; // Use the attached attorney object
+      console.log('Found selected attorney:', selectedAttorney);
+      
+      setFormData(prev => ({
+        ...prev,
+        attorney_id: selectedAttorney._id,
+        attorney_name: selectedAttorney.name,
+        lawfirm_id: selectedAttorney.lawfirm_id?._id || null,
+        lawfirm_name: selectedAttorney.lawfirm_id?.name || selectedAttorney.lawfirm_name || null
+      }));
     } else {
+      console.log('Clearing attorney selection');
       setFormData(prev => ({
         ...prev,
         attorney_id: '',
@@ -150,6 +172,7 @@ const NewIndividual = () => {
         lawfirm_name: formData.lawfirm_name || null,
         attorney_id: formData.attorney_id || null,
         attorney_name: formData.attorney_name || null,
+        nationality: formData.nationality || null,
         contact: {
           ...formData.contact,
           email: formData.contact.email || formData.email
@@ -176,6 +199,15 @@ const NewIndividual = () => {
       setIsSubmitting(false);
     }
   };
+
+  // Debug logs for form validation
+  useEffect(() => {
+    console.log('Form Validation State:', {
+      selectedAttorney,
+      formData,
+      isValid: isFormValid()
+    });
+  }, [selectedAttorney, formData]);
 
   return (
     <div className="container mx-auto p-6 max-w-4xl">
@@ -222,14 +254,14 @@ const NewIndividual = () => {
             {!formData.attorney_id && <span className="text-rose-500 text-lg leading-none">*</span>}
           </label>
           <Select
-            value={formData.attorney_id ? { value: formData.attorney_id, label: formData.attorney_name } : null}
+            value={selectedAttorney}
             onChange={handleAttorneySelect}
             options={attorneyOptions}
             isLoading={isLoadingAttorneys}
             isClearable
             isSearchable
             placeholder="Search and select attorney..."
-            noOptionsMessage={() => "No attorneys found"}
+            noOptionsMessage={() => attorneyOptions.length === 0 ? "No attorneys found in your law firm" : "No matching attorneys"}
             className={`react-select-container ${!formData.attorney_id ? 'select-error' : ''}`}
             classNamePrefix="react-select"
             styles={{
@@ -265,7 +297,7 @@ const NewIndividual = () => {
               <div className="flex items-start gap-3">
                 <span className="text-amber-600 text-sm font-medium">No Attorneys Available</span>
                 <p className="text-sm text-amber-700 mt-0.5">
-                  There are no attorneys available. Please contact your administrator to add attorneys.
+                  There are no attorneys available in your law firm. Please contact your administrator to add attorneys.
                 </p>
               </div>
             </div>
@@ -316,18 +348,21 @@ const NewIndividual = () => {
                     />
                   </div>
 
-                  {/* Phone Number */}
+                  {/* Email */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Phone Number
+                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                      Email Address
+                      {!formData.email.trim() && <span className="text-rose-500 text-lg leading-none">*</span>}
                     </label>
                     <input
-                      type="tel"
-                      value={formData.contact.residencePhone}
-                      onChange={(e) => handleInputChange('residence_phone', e.target.value)}
-                      placeholder="Enter residence phone"
-                      maxLength={12} // XXX-XXX-XXXX format
-                      className="block w-full rounded-lg border border-gray-300 py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => handleInputChange('email', e.target.value)}
+                      placeholder="Enter email address"
+                      required
+                      className={`block w-full rounded-lg border ${
+                        !formData.email.trim() ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
+                      } py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors`}
                     />
                   </div>
 
@@ -342,7 +377,7 @@ const NewIndividual = () => {
                       value={formData.contact.mobileNumber}
                       onChange={(e) => handleInputChange('mobile_number', e.target.value)}
                       placeholder="Enter mobile number"
-                      maxLength={12} // XXX-XXX-XXXX format
+                      maxLength={12}
                       required
                       className={`block w-full rounded-lg border ${
                         !validatePhoneNumber(formData.contact.mobileNumber) ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
@@ -351,6 +386,21 @@ const NewIndividual = () => {
                     {!validatePhoneNumber(formData.contact.mobileNumber) && formData.contact.mobileNumber && (
                       <p className="mt-1 text-sm text-rose-600">Please enter a valid 10-digit phone number</p>
                     )}
+                  </div>
+
+                  {/* Phone Number */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.contact.residencePhone}
+                      onChange={(e) => handleInputChange('residence_phone', e.target.value)}
+                      placeholder="Enter residence phone"
+                      maxLength={12}
+                      className="block w-full rounded-lg border border-gray-300 py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                    />
                   </div>
 
                   {/* Sex */}
@@ -374,22 +424,186 @@ const NewIndividual = () => {
                     </select>
                   </div>
 
-                  {/* Email */}
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                      Email Address
-                      {!formData.email.trim() && <span className="text-rose-500 text-lg leading-none">*</span>}
+                  {/* Nationality */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nationality
                     </label>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => handleInputChange('email', e.target.value)}
-                      placeholder="Enter email address"
-                      required
-                      className={`block w-full rounded-lg border ${
-                        !formData.email.trim() ? 'border-rose-300 bg-rose-50' : 'border-gray-300'
-                      } py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors`}
-                    />
+                    <select
+                      value={formData.nationality}
+                      onChange={(e) => handleInputChange('nationality', e.target.value)}
+                      className="block w-full rounded-lg border border-gray-300 py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                    >
+                      <option value="">Select nationality</option>
+                      <option value="Afghan">Afghan</option>
+                      <option value="Albanian">Albanian</option>
+                      <option value="Algerian">Algerian</option>
+                      <option value="American">American</option>
+                      <option value="Andorran">Andorran</option>
+                      <option value="Angolan">Angolan</option>
+                      <option value="Argentine">Argentine</option>
+                      <option value="Armenian">Armenian</option>
+                      <option value="Australian">Australian</option>
+                      <option value="Austrian">Austrian</option>
+                      <option value="Azerbaijani">Azerbaijani</option>
+                      <option value="Bahamian">Bahamian</option>
+                      <option value="Bahraini">Bahraini</option>
+                      <option value="Bangladeshi">Bangladeshi</option>
+                      <option value="Barbadian">Barbadian</option>
+                      <option value="Belarusian">Belarusian</option>
+                      <option value="Belgian">Belgian</option>
+                      <option value="Belizean">Belizean</option>
+                      <option value="Beninese">Beninese</option>
+                      <option value="Bhutanese">Bhutanese</option>
+                      <option value="Bolivian">Bolivian</option>
+                      <option value="Brazilian">Brazilian</option>
+                      <option value="British">British</option>
+                      <option value="Bruneian">Bruneian</option>
+                      <option value="Bulgarian">Bulgarian</option>
+                      <option value="Burkinabe">Burkinabe</option>
+                      <option value="Burmese">Burmese</option>
+                      <option value="Burundian">Burundian</option>
+                      <option value="Cambodian">Cambodian</option>
+                      <option value="Cameroonian">Cameroonian</option>
+                      <option value="Canadian">Canadian</option>
+                      <option value="Cape Verdean">Cape Verdean</option>
+                      <option value="Central African">Central African</option>
+                      <option value="Chadian">Chadian</option>
+                      <option value="Chilean">Chilean</option>
+                      <option value="Chinese">Chinese</option>
+                      <option value="Colombian">Colombian</option>
+                      <option value="Comoran">Comoran</option>
+                      <option value="Congolese">Congolese</option>
+                      <option value="Costa Rican">Costa Rican</option>
+                      <option value="Croatian">Croatian</option>
+                      <option value="Cuban">Cuban</option>
+                      <option value="Cypriot">Cypriot</option>
+                      <option value="Czech">Czech</option>
+                      <option value="Danish">Danish</option>
+                      <option value="Djiboutian">Djiboutian</option>
+                      <option value="Dominican">Dominican</option>
+                      <option value="Dutch">Dutch</option>
+                      <option value="East Timorese">East Timorese</option>
+                      <option value="Ecuadorean">Ecuadorean</option>
+                      <option value="Egyptian">Egyptian</option>
+                      <option value="Emirati">Emirati</option>
+                      <option value="Equatorial Guinean">Equatorial Guinean</option>
+                      <option value="Eritrean">Eritrean</option>
+                      <option value="Estonian">Estonian</option>
+                      <option value="Ethiopian">Ethiopian</option>
+                      <option value="Fijian">Fijian</option>
+                      <option value="Filipino">Filipino</option>
+                      <option value="Finnish">Finnish</option>
+                      <option value="French">French</option>
+                      <option value="Gabonese">Gabonese</option>
+                      <option value="Gambian">Gambian</option>
+                      <option value="Georgian">Georgian</option>
+                      <option value="German">German</option>
+                      <option value="Ghanaian">Ghanaian</option>
+                      <option value="Greek">Greek</option>
+                      <option value="Grenadian">Grenadian</option>
+                      <option value="Guatemalan">Guatemalan</option>
+                      <option value="Guinean">Guinean</option>
+                      <option value="Guyanese">Guyanese</option>
+                      <option value="Haitian">Haitian</option>
+                      <option value="Honduran">Honduran</option>
+                      <option value="Hungarian">Hungarian</option>
+                      <option value="Icelandic">Icelandic</option>
+                      <option value="Indian">Indian</option>
+                      <option value="Indonesian">Indonesian</option>
+                      <option value="Iranian">Iranian</option>
+                      <option value="Iraqi">Iraqi</option>
+                      <option value="Irish">Irish</option>
+                      <option value="Israeli">Israeli</option>
+                      <option value="Italian">Italian</option>
+                      <option value="Ivorian">Ivorian</option>
+                      <option value="Jamaican">Jamaican</option>
+                      <option value="Japanese">Japanese</option>
+                      <option value="Jordanian">Jordanian</option>
+                      <option value="Kazakhstani">Kazakhstani</option>
+                      <option value="Kenyan">Kenyan</option>
+                      <option value="Korean">Korean</option>
+                      <option value="Kuwaiti">Kuwaiti</option>
+                      <option value="Laotian">Laotian</option>
+                      <option value="Latvian">Latvian</option>
+                      <option value="Lebanese">Lebanese</option>
+                      <option value="Liberian">Liberian</option>
+                      <option value="Libyan">Libyan</option>
+                      <option value="Lithuanian">Lithuanian</option>
+                      <option value="Luxembourger">Luxembourger</option>
+                      <option value="Macedonian">Macedonian</option>
+                      <option value="Malagasy">Malagasy</option>
+                      <option value="Malawian">Malawian</option>
+                      <option value="Malaysian">Malaysian</option>
+                      <option value="Maldivian">Maldivian</option>
+                      <option value="Malian">Malian</option>
+                      <option value="Maltese">Maltese</option>
+                      <option value="Mauritanian">Mauritanian</option>
+                      <option value="Mauritian">Mauritian</option>
+                      <option value="Mexican">Mexican</option>
+                      <option value="Moldovan">Moldovan</option>
+                      <option value="Monacan">Monacan</option>
+                      <option value="Mongolian">Mongolian</option>
+                      <option value="Moroccan">Moroccan</option>
+                      <option value="Mozambican">Mozambican</option>
+                      <option value="Namibian">Namibian</option>
+                      <option value="Nepalese">Nepalese</option>
+                      <option value="New Zealander">New Zealander</option>
+                      <option value="Nicaraguan">Nicaraguan</option>
+                      <option value="Nigerian">Nigerian</option>
+                      <option value="Norwegian">Norwegian</option>
+                      <option value="Omani">Omani</option>
+                      <option value="Pakistani">Pakistani</option>
+                      <option value="Panamanian">Panamanian</option>
+                      <option value="Papua New Guinean">Papua New Guinean</option>
+                      <option value="Paraguayan">Paraguayan</option>
+                      <option value="Peruvian">Peruvian</option>
+                      <option value="Polish">Polish</option>
+                      <option value="Portuguese">Portuguese</option>
+                      <option value="Qatari">Qatari</option>
+                      <option value="Romanian">Romanian</option>
+                      <option value="Russian">Russian</option>
+                      <option value="Rwandan">Rwandan</option>
+                      <option value="Saudi">Saudi</option>
+                      <option value="Senegalese">Senegalese</option>
+                      <option value="Serbian">Serbian</option>
+                      <option value="Seychellois">Seychellois</option>
+                      <option value="Sierra Leonean">Sierra Leonean</option>
+                      <option value="Singaporean">Singaporean</option>
+                      <option value="Slovak">Slovak</option>
+                      <option value="Slovenian">Slovenian</option>
+                      <option value="Solomon Islander">Solomon Islander</option>
+                      <option value="Somali">Somali</option>
+                      <option value="South African">South African</option>
+                      <option value="Spanish">Spanish</option>
+                      <option value="Sri Lankan">Sri Lankan</option>
+                      <option value="Sudanese">Sudanese</option>
+                      <option value="Surinamer">Surinamer</option>
+                      <option value="Swazi">Swazi</option>
+                      <option value="Swedish">Swedish</option>
+                      <option value="Swiss">Swiss</option>
+                      <option value="Syrian">Syrian</option>
+                      <option value="Taiwanese">Taiwanese</option>
+                      <option value="Tajik">Tajik</option>
+                      <option value="Tanzanian">Tanzanian</option>
+                      <option value="Thai">Thai</option>
+                      <option value="Togolese">Togolese</option>
+                      <option value="Tongan">Tongan</option>
+                      <option value="Trinidadian">Trinidadian</option>
+                      <option value="Tunisian">Tunisian</option>
+                      <option value="Turkish">Turkish</option>
+                      <option value="Turkmen">Turkmen</option>
+                      <option value="Tuvaluan">Tuvaluan</option>
+                      <option value="Ugandan">Ugandan</option>
+                      <option value="Ukrainian">Ukrainian</option>
+                      <option value="Uruguayan">Uruguayan</option>
+                      <option value="Uzbekistani">Uzbekistani</option>
+                      <option value="Venezuelan">Venezuelan</option>
+                      <option value="Vietnamese">Vietnamese</option>
+                      <option value="Yemeni">Yemeni</option>
+                      <option value="Zambian">Zambian</option>
+                      <option value="Zimbabwean">Zimbabwean</option>
+                    </select>
                   </div>
                 </div>
 

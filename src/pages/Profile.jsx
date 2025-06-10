@@ -1009,6 +1009,7 @@ const Profile = () => {
         user_id: profileId,
         name: editedProfile.name.trim(),
         email: editedProfile.email?.trim(),
+        nationality: editedProfile.nationality,
         contact: {
           residencePhone: formatPhoneNumber(editedProfile.contact?.residencePhone),
           mobileNumber: formatPhoneNumber(editedProfile.contact?.mobileNumber),
@@ -1272,7 +1273,22 @@ const Profile = () => {
                 <div className="name">Nationality</div>
                 <div className="details">
                   <div className="detail-item">
-                    {profileData.nationality || 'Not specified'}
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={editedProfile.nationality || ''}
+                        onChange={(e) => handleFieldChange('nationality', e.target.value)}
+                        className="w-full p-2 border rounded"
+                        placeholder="Enter nationality"
+                      />
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <User size={16} className="text-indigo-500" />
+                        <span>
+                          {profileData.nationality || 'Will be automatically updated from your passport or national ID'}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
