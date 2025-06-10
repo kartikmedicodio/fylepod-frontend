@@ -29,6 +29,7 @@ const NewCompany = () => {
     assignedAttorney: '',
     address: ''
   });
+  const [selectedAttorney, setSelectedAttorney] = useState(null);
 
   // Set breadcrumb and page title on mount
   useEffect(() => {
@@ -47,7 +48,7 @@ const NewCompany = () => {
   const attorneyOptions = attorneys
     .filter(attorney => {
       const userLawFirmId = user?.lawfirm_id?._id;
-      return !userLawFirmId || String(attorney?.lawfirm_id?._id) === String(userLawFirmId);
+      return userLawFirmId && String(attorney?.lawfirm_id?._id) === String(userLawFirmId);
     })
     .map(attorney => ({
       value: attorney._id,
@@ -65,11 +66,13 @@ const NewCompany = () => {
           const userLawFirmId = user?.lawfirm_id?._id;
           const filteredAttorneys = allAttorneys.filter(attorney => {
             const attorneyLawFirmId = attorney?.lawfirm_id?._id;
-            return attorneyLawFirmId === userLawFirmId;
+            return String(attorneyLawFirmId) === String(userLawFirmId);
           });
+          console.log('Filtered Attorneys:', filteredAttorneys); // Debug log
           setAttorneys(filteredAttorneys);
         }
       } catch (error) {
+        console.error('Error fetching attorneys:', error);
         toast.error('Failed to fetch attorneys');
       } finally {
         setLoading(false);
@@ -80,6 +83,12 @@ const NewCompany = () => {
       fetchAttorneys();
     }
   }, [user]);
+
+  // Debug logs
+  useEffect(() => {
+    console.log('Selected Attorney State:', selectedAttorney);
+    console.log('Form Data:', formData);
+  }, [selectedAttorney, formData]);
 
   const handleInputChange = (field, value) => {
     if (field === 'phoneNumber') {
@@ -98,18 +107,31 @@ const NewCompany = () => {
   };
 
   const handleAttorneySelect = (selectedOption) => {
+    console.log('Selected attorney option:', selectedOption);
+    setSelectedAttorney(selectedOption);
+    
+    // Update form data with the selected attorney's information
     setFormData(prev => ({
       ...prev,
-      assignedAttorney: selectedOption ? selectedOption.value : ''
+      assignedAttorney: selectedOption?.value || '',
+      assignedAttorneyName: selectedOption?.label || ''
     }));
   };
 
   const isFormValid = () => {
+    console.log('Validating form:', {
+      name: formData.name.trim() !== '',
+      contactName: formData.contactName.trim() !== '',
+      phoneValid: validatePhoneNumber(formData.phoneNumber),
+      attorney: formData.assignedAttorney !== '',
+      address: formData.address.trim() !== ''
+    });
+    
     return (
       formData.name.trim() !== '' &&
       formData.contactName.trim() !== '' &&
       validatePhoneNumber(formData.phoneNumber) &&
-      formData.assignedAttorney !== '' &&
+      (formData.assignedAttorney !== '' || selectedAttorney !== null) && // Check both form data and selected attorney
       formData.address.trim() !== ''
     );
   };
@@ -119,33 +141,62 @@ const NewCompany = () => {
     setLoading(true);
 
     try {
+      // Format phone number to remove any non-numeric characters
+      const formattedPhoneNumber = formData.phoneNumber.replace(/\D/g, '');
+      
       const payload = {
-        company_name: formData.name,
-        contact_name: formData.contactName,
-        phone_number: formData.phoneNumber,
-        company_address: formData.address,
-        attorney_id: formData.assignedAttorney,
-        attorney_name: attorneys.find(a => a._id === formData.assignedAttorney)?.name || '',
-        lawfirm_id: user?.lawfirm_id?._id,
-        lawfirm_name: user?.lawfirm_name || user?.lawfirm_id?.lawfirm_name
+        company_name: formData.name.trim(),
+        contact_name: formData.contactName.trim(),
+        phone_number: formattedPhoneNumber,
+        company_address: formData.address.trim(),
+        attorney_id: selectedAttorney?.value,
+        attorney_name: selectedAttorney?.label,
+        lawfirm_id: user?.lawfirm_id?._id || '',
+        lawfirm_name: user?.lawfirm_id?.lawfirm_name || user?.lawfirm_name || ''
       };
+
+      console.log('Submitting payload:', payload); // Debug log
 
       const response = await api.post('/companies/create', payload);
       
-      if (response.data.success) {
+      if (response?.data?.success) {
         setShowSuccess(true);
         setTimeout(() => {
           navigate(`/companies/${response.data.data._id}/admin/new`);
         }, 1500);
       } else {
-        throw new Error(response.data.message || 'Failed to create company');
+        throw new Error(response?.data?.message || 'Failed to create company');
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || error.message || 'Failed to create company');
+      console.error('Error creating company:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to create company';
+      console.log('Error details:', {
+        error,
+        response: error.response,
+        data: error.response?.data
+      });
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
+
+  // Debug logs
+  useEffect(() => {
+    console.log('Form Validation State:', {
+      selectedAttorney,
+      formData,
+      isValid: isFormValid()
+    });
+  }, [selectedAttorney, formData]);
+
+  // Debug logs
+  useEffect(() => {
+    console.log('Current User:', user);
+    console.log('Form Data:', formData);
+    console.log('Selected Attorney:', selectedAttorney);
+    console.log('Attorney Options:', attorneyOptions);
+  }, [user, formData, selectedAttorney, attorneyOptions]);
 
   return (
     <div className="container mx-auto p-6 max-w-4xl">
@@ -192,14 +243,14 @@ const NewCompany = () => {
             {!formData.assignedAttorney && <span className="text-rose-500 text-lg leading-none">*</span>}
           </label>
           <Select
-            value={formData.assignedAttorney ? attorneyOptions.find(opt => opt.value === formData.assignedAttorney) : null}
+            value={selectedAttorney}
             onChange={handleAttorneySelect}
             options={attorneyOptions}
             isLoading={loading}
             isClearable
             isSearchable
             placeholder="Search and select attorney..."
-            noOptionsMessage={() => "No attorneys found"}
+            noOptionsMessage={() => attorneyOptions.length === 0 ? "No attorneys found in your law firm" : "No matching attorneys"}
             className={`react-select-container ${!formData.assignedAttorney ? 'select-error' : ''}`}
             classNamePrefix="react-select"
             styles={{
