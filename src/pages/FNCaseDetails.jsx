@@ -40,6 +40,31 @@ const getInitials = (name) => {
     : '';
 };
 
+const formatSophiaMessage = (content) => {
+  if (!content) return '';
+  
+  let formattedContent = content
+    // Convert ### headers to styled headers
+    .replace(/###\s+(.*?)(?:\n|$)/g, '<h3 class="text-gray-800 font-semibold text-base mt-4 mb-2">$1</h3>')
+    
+    // Convert **key**: value pattern (common in Sophia's responses)
+    .replace(/\*\*(.*?)\*\*:\s*/g, '<strong class="text-gray-700">$1</strong>: ')
+    
+    // Convert remaining **text** to bold
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    
+    // Convert bullet points
+    .replace(/^\s*-\s+/gm, '• ')
+    
+    // Convert numbered lists
+    .replace(/^\s*(\d+)\.\s+/gm, '<span class="inline-block w-4 mr-2">$1.</span>')
+    
+    // Preserve line breaks
+    .replace(/\n/g, '<br />');
+  
+  return formattedContent;
+};
+
 const processingSteps = [
   { id: 1, text: "Analyzing document" },
   { id: 2, text: "Extracting information" },
@@ -3914,7 +3939,16 @@ const FNCaseDetails = () => {
                       ? 'bg-gradient-to-r from-slate-700 to-zinc-800 text-white shadow-sm' 
                       : 'bg-white border border-slate-200/50 shadow-sm text-slate-700'
                   }`}>
-                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                    {message.role === 'assistant' ? (
+                      <div className="text-sm whitespace-pre-wrap leading-relaxed prose prose-sm max-w-none">
+                        <div 
+                          className="[&>h3]:text-gray-800 [&>h3]:font-semibold [&>h3]:text-base [&>h3]:mt-4 [&>h3]:mb-2 [&>strong]:text-inherit [&>br]:my-1"
+                          dangerouslySetInnerHTML={{ __html: formatSophiaMessage(message.content) }}
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                    )}
                   </div>
 
                   {message.role === 'user' && (

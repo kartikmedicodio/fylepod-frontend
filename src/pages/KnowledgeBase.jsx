@@ -409,18 +409,7 @@ const KnowledgeBase = () => {
                           </p>
                         )}
                       </div>
-                      {selectedCategory === 'Retainer Templates' && item.pdf_url && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            window.open(item.pdf_url, '_blank');
-                          }}
-                          className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full flex items-center gap-1"
-                          title="View Retainer Template"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                      )}
+
                     </div>
                     
                     {item.description && (
