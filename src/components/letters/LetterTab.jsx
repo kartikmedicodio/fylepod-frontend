@@ -5,8 +5,8 @@ import api from '../../utils/api';
 import PropTypes from 'prop-types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams } from 'react-router-dom';
-import { Button, List, message, Popconfirm, Space, Typography } from 'antd';
-import { DeleteOutlined, EyeOutlined } from '@ant-design/icons';
+import { Button, List, message, Popconfirm, Space, Typography, Modal, Spin } from 'antd';
+import { DeleteOutlined, EyeOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 
 const TINYMCE_API_KEY = 'ddqwuqhde6t5al5rxogsrzlje9q74nujwn1dbou5zq2kqpd1';
 
@@ -74,23 +74,64 @@ const LetterTab = ({ managementId, stepId }) => {
   const [pendingContent, setPendingContent] = useState(null);
   const [dianaMessages, setDianaMessages] = useState([]);
   const [showDiana, setShowDiana] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [letterToDelete, setLetterToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
 
   // Add Diana's messages
   const dianaSteps = [
-    "Hi! I'm Diana, your letter assistant! 📝",
-    "Analyzing your requirements...",
-    "Crafting the perfect letter format...",
-    "Adding professional touches...",
-    "Almost done! Final review..."
+    {
+      message: "Greetings. I'm Diana, your AI assistant for letter drafting. I'm here to help you craft a precise and professional letter tailored to your needs.",
+      color: "bg-blue-100"
+    },
+    {
+      message: "I am analyzing the requirements you've provided and gathering the necessary information to ensure accuracy and compliance.",
+      color: "bg-indigo-100"
+    },
+    {
+      message: "I'm identifying the appropriate format and legal structure for the letter based on your specified needs and intended outcome.",
+      color: "bg-purple-100"
+    },
+    {
+      message: "I will incorporate the required legal formatting and professional elements, in line with industry standards.",
+      color: "bg-pink-100"
+    },
+    {
+      message: "I will ensure the inclusion of proper salutations, subject lines, and contact information as per legal best practices.",
+      color: "bg-green-100"
+    },
+    {
+      message: "I'm ensuring the letter's paragraph structure and content flow adhere to professional standards and legal clarity.",
+      color: "bg-yellow-100"
+    },
+    {
+      message: "I will add the necessary professional closing statements and signature blocks, in line with legal correspondence.",
+      color: "bg-orange-100"
+    },
+    {
+      message: "I'm performing a final review, including formatting checks, to ensure the document is polished and ready for professional use.",
+      color: "bg-red-100"
+    },
+    {
+      message: "Your letter is now prepared for your review and final edits, ready for any necessary revisions.",
+      color: "bg-emerald-100"
+    }
   ];
-
+  
   const animateDiana = async () => {
     setShowDiana(true);
-    for (const msg of dianaSteps) {
-      setDianaMessages(prev => [...prev, msg]);
+    for (let i = 0; i < dianaSteps.length; i++) {
+      setDianaMessages(prev => [...prev, dianaSteps[i]]);
+      setCurrentMessageIndex(Math.floor(i / 3) * 3);
       await new Promise(resolve => setTimeout(resolve, 1500));
     }
   };
+
+  // Get the current visible messages
+  const visibleMessages = dianaMessages.slice(currentMessageIndex, currentMessageIndex + 3);
+  const hasMoreMessages = currentMessageIndex + 3 < dianaMessages.length;
+  const hasPreviousMessages = currentMessageIndex > 0;
 
   useEffect(() => {
     if (!managementId) {
@@ -441,32 +482,43 @@ const LetterTab = ({ managementId, stepId }) => {
     return formattedContent;
   };
 
-  const handleDeleteLetter = async (letterId, event) => {
+  const showDeleteConfirm = (letterId, event) => {
     event.preventDefault();
     event.stopPropagation();
+    setLetterToDelete(letterId);
+    setDeleteModalVisible(true);
+  };
 
-    if (!window.confirm('Are you sure you want to delete this letter?')) {
-      return;
-    }
+  const handleDeleteConfirm = async () => {
+    if (!letterToDelete) return;
 
     try {
-      const response = await api.delete(`/letters/${letterId}`);
+      setIsDeleting(true);
+      const response = await api.delete(`/letters/${letterToDelete}`);
 
       if (response.data.success) {
-        setSavedLetters(savedLetters.filter(letter => letter._id !== letterId));
-        if (currentLetterId === letterId) {
+        setSavedLetters(savedLetters.filter(letter => letter._id !== letterToDelete));
+        if (currentLetterId === letterToDelete) {
           setCurrentLetterId(null);
           setShowEditor(false);
         }
-        setError(null);
+        message.success('Letter deleted successfully');
       } else {
         throw new Error('Failed to delete letter');
       }
     } catch (error) {
       console.error('Delete letter error:', error);
-      setError('Failed to delete letter');
-      setShowError(true);
+      message.error('Failed to delete letter');
+    } finally {
+      setIsDeleting(false);
+      setDeleteModalVisible(false);
+      setLetterToDelete(null);
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteModalVisible(false);
+    setLetterToDelete(null);
   };
 
   const loadSavedLetter = async (letterId) => {
@@ -631,7 +683,7 @@ const LetterTab = ({ managementId, stepId }) => {
                           </>
                         )}
                         <button
-                          onClick={(e) => handleDeleteLetter(letter._id, e)}
+                          onClick={(e) => showDeleteConfirm(letter._id, e)}
                           className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="Delete letter"
                         >
@@ -700,9 +752,9 @@ const LetterTab = ({ managementId, stepId }) => {
                           initial={{ opacity: 0, x: -20 }}
                           animate={{ opacity: 1, x: 0 }}
                           exit={{ opacity: 0, x: -20 }}
-                          className="w-64 bg-blue-50 rounded-lg p-4"
+                          className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 shadow-lg border border-blue-100 max-w-[900px]"
                         >
-                          <div className="flex items-center space-x-3 mb-3">
+                          <div className="flex items-center space-x-3 mb-4">
                             <motion.div
                               animate={{
                                 scale: [1, 1.1, 1],
@@ -713,26 +765,53 @@ const LetterTab = ({ managementId, stepId }) => {
                                 repeat: Infinity,
                                 repeatType: "reverse",
                               }}
-                              className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center"
+                              className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-md"
                             >
-                              <span className="text-white text-lg font-bold">D</span>
+                              <span className="text-white text-xl font-bold">D</span>
                             </motion.div>
-                            <span className="font-medium text-blue-700">Diana</span>
+                            <div>
+                              <span className="font-semibold text-blue-800">Diana</span>
+                              <div className="text-xs text-blue-600">AI Letter Assistant</div>
+                            </div>
                           </div>
-                          <div className="space-y-2">
-                            <AnimatePresence>
-                              {dianaMessages.map((msg, index) => (
+                          <div className="grid grid-cols-3 gap-4">
+                            <AnimatePresence mode="popLayout">
+                              {visibleMessages.map((step, index) => (
                                 <motion.div
-                                  key={index}
-                                  initial={{ opacity: 0, y: 10 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  exit={{ opacity: 0, y: -10 }}
-                                  className="text-sm text-blue-600"
+                                  key={currentMessageIndex + index}
+                                  initial={{ opacity: 0, x: 50 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  exit={{ opacity: 0, x: -50 }}
+                                  transition={{ duration: 0.3 }}
+                                  className={`p-3 ${step.color} rounded-lg shadow-sm`}
                                 >
-                                  {msg}
+                                  <div className="flex-1">
+                                    <p className="text-sm text-gray-800 min-h-[2.5rem]">{step.message}</p>
+                                    <div className="mt-2 h-1 w-full bg-white/50 rounded-full overflow-hidden">
+                                      <motion.div
+                                        initial={{ width: "0%" }}
+                                        animate={{ width: "100%" }}
+                                        transition={{ duration: 1.5 }}
+                                        className="h-full bg-blue-500/30 rounded-full"
+                                      />
+                                    </div>
+                                  </div>
                                 </motion.div>
                               ))}
                             </AnimatePresence>
+                          </div>
+                          {/* Navigation dots */}
+                          <div className="flex justify-center items-center mt-4 space-x-2">
+                            {Array.from({ length: Math.ceil(dianaMessages.length / 3) }).map((_, i) => (
+                              <div
+                                key={i}
+                                className={`w-2 h-2 rounded-full transition-colors duration-200 ${
+                                  Math.floor(currentMessageIndex / 3) === i
+                                    ? 'bg-blue-500'
+                                    : 'bg-blue-200'
+                                }`}
+                              />
+                            ))}
                           </div>
                         </motion.div>
                       )}
@@ -897,6 +976,36 @@ const LetterTab = ({ managementId, stepId }) => {
           </div>
         </div>
       )}
+
+      <Modal
+        title="Delete Letter"
+        open={deleteModalVisible}
+        onOk={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+        confirmLoading={isDeleting}
+        okText="Delete"
+        okButtonProps={{
+          danger: true,
+          className: 'bg-red-600'
+        }}
+        cancelButtonProps={{
+          className: 'border-gray-200'
+        }}
+      >
+        <div className="py-4">
+          <p className="text-gray-600">Are you sure you want to delete this letter? This action cannot be undone.</p>
+        </div>
+      </Modal>
+
+      <style jsx>{`
+        .hide-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .hide-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
     </div>
   );
 };
