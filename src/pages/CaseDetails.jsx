@@ -46,6 +46,7 @@ import CommunicationsTab from '../components/CommunicationsTab';
 import RetainerTab from '../components/RetainerTab';
 import PaymentTab from '../components/payments/PaymentTab';
 import AuditLogTab from '../components/AuditLogTab';
+import AuditLogTimeline from '../components/AuditLogTimeline';
 
 // Add a new status type to track document states
 const DOCUMENT_STATUS = {
@@ -300,17 +301,27 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       }
     });
 
-    // Always add the Audit Log tab
-    const auditLogTab = {
-      _id: 'audit-logs',
-      key: 'audit-logs',
-      displayKey: 'audit-logs',
-      displayName: 'Audit Logs',
-      disabled: false,
-      order: steps.length + 1
-    };
+    // Always add the Audit Log tabs
+    const auditLogTabs = [
+      {
+        _id: 'audit-logs',
+        key: 'audit-logs',
+        displayKey: 'audit-logs',
+        displayName: 'Activity Logs (Old)',
+        disabled: false,
+        order: steps.length + 1
+      },
+      {
+        _id: 'audit-logs-timeline',
+        key: 'audit-logs-timeline',
+        displayKey: 'audit-logs-timeline',
+        displayName: 'Activity Logs (New)',
+        disabled: false,
+        order: steps.length + 2
+      }
+    ];
 
-    return [...steps, auditLogTab];
+    return [...steps, ...auditLogTabs];
   }, [caseSteps]);
 
   // Add a function at the top of the component to load data from localStorage
@@ -5997,6 +6008,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
               {activeTab === 'audit-logs' && <AuditLogTab caseId={caseId} />}
+              {activeTab === 'audit-logs-timeline' && <AuditLogTimeline managementId={caseId} />}
             </div>
           </div>
         </div>
