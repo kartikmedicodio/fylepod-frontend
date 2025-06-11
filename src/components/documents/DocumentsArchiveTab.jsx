@@ -499,6 +499,42 @@ const DocumentsArchiveTab = ({ managementId }) => {
         
         // Get the blob URL from the response
         const blobUrl = response.data.data.combinedPdf.blobUrl;
+        const packageName = `Combined Documents ${new Date().toISOString().split('T')[0]}`;
+
+        // Send email notification
+        try {
+          // Get document names for the email
+          const documentNames = selectedItems
+            .filter(item => item.type === 'document')
+            .map(item => documents.find(d => d._id === item.id)?.originalName || 'Document');
+
+          const letterNames = selectedItems
+            .filter(item => item.type === 'letter')
+            .map(item => letters.find(l => l._id === item.id)?.templateId?.name || 'Custom Letter');
+
+          const retainerNames = selectedItems
+            .filter(item => item.type === 'retainer')
+            .map(item => retainers.find(r => r._id === item.id)?.name || 'Retainer Document');
+
+          // Get management details to get the user's email
+          const managementResponse = await api.get(`/management/${managementId}`);
+          if (managementResponse.data.status === 'success' && managementResponse.data.data?.entry?.userId) {
+            const userDetails = managementResponse.data.data.entry.userId;
+            
+            await api.post('/mail/package-notification', {
+              recipientEmail: userDetails.email,
+              userName: userDetails.name || 'User',
+              packageName,
+              packageUrl: blobUrl,
+              documents: documentNames,
+              letters: letterNames,
+              retainers: retainerNames
+            });
+          }
+        } catch (emailError) {
+          console.error('Failed to send package notification:', emailError);
+          // Don't block the download if email fails
+        }
         
         try {
           // Fetch the PDF content
@@ -511,7 +547,7 @@ const DocumentsArchiveTab = ({ managementId }) => {
           const downloadUrl = window.URL.createObjectURL(blob);
           const link = document.createElement('a');
           link.href = downloadUrl;
-          link.download = `Combined_Documents_${new Date().toISOString().split('T')[0]}.pdf`;
+          link.download = `${packageName}.pdf`;
           
           // Trigger download
           document.body.appendChild(link);
