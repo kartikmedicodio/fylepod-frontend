@@ -339,6 +339,13 @@ const FinalizeTab = ({
           });
           onDocumentsUpdate(updatedDocuments);
           toast.success('Documents approved successfully');
+
+          // Check if all documents are now approved
+          const allApproved = updatedDocuments.every(doc => doc.status === 'Approved');
+          if (allApproved) {
+            // Navigate to questionnaire tab
+            onStateClick('questionnaire');
+          }
         }
       } else {
         throw new Error('Failed to approve documents');

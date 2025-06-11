@@ -78,7 +78,8 @@ const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantI
   const fetchRetainerTemplates = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/retainer-templates/company/${companyId}`);
+      const response = await api.get(`/retainer-templates/company/${companyId}/${caseId}`);
+      console.log("response", response);
       if (response.data) {
         setTemplates(response.data);
         if (response.data.length > 0) {
