@@ -5623,6 +5623,13 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               </div>
 
               <div>
+                <label className="block text-sm text-gray-600 mb-1">Nationality</label>
+                <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
+                  {profileData.nationality || 'N/A'}
+                </div>
+              </div>
+
+              <div>
                 <label className="block text-sm text-gray-600 mb-1">Email</label>
                 <div className="text-sm font-medium p-2 border border-gray-200 rounded-lg bg-gray-50">
                   {profileData.contact?.email || profileData.email || 'N/A'}

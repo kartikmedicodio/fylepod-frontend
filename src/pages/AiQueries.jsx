@@ -42,6 +42,8 @@ const AiQueries = () => {
     sending: false
   });
   const [allChatsWithMessages, setAllChatsWithMessages] = useState([]);
+  const [isMessageSending, setIsMessageSending] = useState(false);
+  const messageDebounceRef = useRef(null);
 
   // Set page title and breadcrumb
   useEffect(() => {
@@ -158,9 +160,16 @@ const AiQueries = () => {
 
   // Handle sending message
   const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedCase || !(user?.role === 'individual' || user?.role === 'employee')) return;
+    if (!newMessage.trim() || !selectedCase || !(user?.role === 'individual' || user?.role === 'employee') || isMessageSending) return;
     
+    // Clear any pending debounce
+    if (messageDebounceRef.current) {
+      clearTimeout(messageDebounceRef.current);
+    }
+
+    setIsMessageSending(true);
     setLoading(prev => ({ ...prev, sending: true }));
+    
     try {
       let chatId;
       
@@ -176,9 +185,15 @@ const AiQueries = () => {
         chatId = createResponse.data.data.chat._id;
       }
 
+      // Store message to prevent modifications during send
+      const messageToSend = newMessage.trim();
+      
+      // Clear input immediately for better UX
+      setNewMessage('');
+
       // Send message
       const messageResponse = await api.post(`/chat/${chatId}/messages`, {
-        message: newMessage.trim()
+        message: messageToSend
       });
 
       if (!messageResponse.data.status === "success") {
@@ -230,19 +245,24 @@ const AiQueries = () => {
       ).sort((a, b) => b.latestMessageTimestamp - a.latestMessageTimestamp);
 
       setCases(uniqueCases);
-      setNewMessage('');
       toast.success('Message sent successfully');
     } catch (error) {
       console.error('Error sending message:', error);
       toast.error('Failed to send message');
+      // Restore message if send failed
+      setNewMessage(newMessage);
     } finally {
-      setLoading(prev => ({ ...prev, sending: false }));
+      // Add a small delay before allowing new messages
+      messageDebounceRef.current = setTimeout(() => {
+        setIsMessageSending(false);
+        setLoading(prev => ({ ...prev, sending: false }));
+      }, 500);
     }
   };
 
   // Handle key press
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !isMessageSending) {
       e.preventDefault();
       sendMessage();
     }
@@ -347,6 +367,32 @@ const AiQueries = () => {
       console.error('Error formatting date:', error);
       return '';
     }
+  };
+
+  // Add this formatter function near the top with other utility functions
+  const formatSophiaMessage = (content) => {
+    if (!content) return '';
+    
+    let formattedContent = content
+      // Convert ### headers to styled headers
+      .replace(/###\s+(.*?)(?:\n|$)/g, '<h3 class="text-gray-800 font-semibold text-base mt-4 mb-2">$1</h3>')
+      
+      // Convert **key**: value pattern (common in Sophia's responses)
+      .replace(/\*\*(.*?)\*\*:\s*/g, '<strong class="text-gray-700">$1</strong>: ')
+      
+      // Convert remaining **text** to bold
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      
+      // Convert bullet points
+      .replace(/^\s*-\s+/gm, '• ')
+      
+      // Convert numbered lists
+      .replace(/^\s*(\d+)\.\s+/gm, '<span class="inline-block w-4 mr-2">$1.</span>')
+      
+      // Preserve line breaks
+      .replace(/\n/g, '<br />');
+    
+    return formattedContent;
   };
 
   return (
@@ -560,7 +606,16 @@ const AiQueries = () => {
                                 : 'bg-gray-100 text-gray-900 rounded-bl-none'
                             }`}
                           >
-                            <div className="text-sm whitespace-pre-wrap break-words">{message.content}</div>
+                            {message.role === 'assistant' ? (
+                              <div className="text-sm whitespace-pre-wrap break-words prose prose-sm max-w-none">
+                                <div 
+                                  className="[&>h3]:text-gray-800 [&>h3]:font-semibold [&>h3]:text-base [&>h3]:mt-4 [&>h3]:mb-2 [&>strong]:text-inherit [&>br]:my-1"
+                                  dangerouslySetInnerHTML={{ __html: formatSophiaMessage(message.content) }}
+                                />
+                              </div>
+                            ) : (
+                              <div className="text-sm whitespace-pre-wrap break-words">{message.content}</div>
+                            )}
                             <div 
                               className={`text-[11px] mt-1 ${
                                 message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
@@ -602,12 +657,13 @@ const AiQueries = () => {
                 placeholder="Type your message..."
                 className="flex-grow p-2 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 rows={1}
+                disabled={isMessageSending}
               />
               <button
                 onClick={sendMessage}
-                disabled={loading.sending || !newMessage.trim()}
+                disabled={isMessageSending || loading.sending || !newMessage.trim()}
                 className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
-                  loading.sending || !newMessage.trim()
+                  isMessageSending || loading.sending || !newMessage.trim()
                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                     : 'bg-blue-500 text-white hover:bg-blue-600'
                 }`}
@@ -617,7 +673,7 @@ const AiQueries = () => {
                 ) : (
                   <Send className="w-4 h-4" />
                 )}
-                Send
+                {isMessageSending ? 'Sending...' : 'Send'}
               </button>
             </div>
           </div>
