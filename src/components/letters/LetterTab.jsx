@@ -4,55 +4,8 @@ import { Editor } from '@tinymce/tinymce-react';
 import api from '../../utils/api';
 import PropTypes from 'prop-types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useParams } from 'react-router-dom';
-import { Button, List, message, Popconfirm, Space, Typography } from 'antd';
-import { DeleteOutlined, EyeOutlined } from '@ant-design/icons';
 
 const TINYMCE_API_KEY = 'ddqwuqhde6t5al5rxogsrzlje9q74nujwn1dbou5zq2kqpd1';
-
-// Custom CSS for letter formatting
-const LETTER_STYLES = `
-body {
-  font-family: 'Times New Roman', Times, serif;
-  font-size: 14px;
-  line-height: 1.6;
-  padding: 40px;
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-.letter-date {
-  text-align: right;
-  margin-bottom: 30px;
-}
-
-.letter-address {
-  margin-bottom: 20px;
-}
-
-.letter-subject {
-  font-weight: bold;
-  margin-bottom: 20px;
-}
-
-.letter-salutation {
-  margin-bottom: 20px;
-}
-
-.letter-body {
-  margin-bottom: 30px;
-  text-align: justify;
-}
-
-.letter-closing {
-  margin-top: 30px;
-  margin-bottom: 10px;
-}
-
-.letter-signature {
-  margin-top: 40px;
-}
-`;
 
 const LetterTab = ({ managementId, stepId }) => {
   const editorRef = useRef(null);
@@ -64,7 +17,6 @@ const LetterTab = ({ managementId, stepId }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showError, setShowError] = useState(false);
   const [currentLetterId, setCurrentLetterId] = useState(null);
-  const [currentLetter, setCurrentLetter] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [savedLetters, setSavedLetters] = useState([]);
@@ -264,6 +216,53 @@ const LetterTab = ({ managementId, stepId }) => {
     return content;
   };
 
+  // Add this new function to get user details from management
+  const getUserDetailsFromManagement = async (managementId) => {
+    try {
+      console.log('Fetching user details for management:', managementId);
+      const response = await api.get(`/management/${managementId}`);
+      console.log('Management response:', response.data);
+      
+      if (response.data.status === "success" && response.data.data?.entry?.userId) {
+        const userDetails = {
+          email: response.data.data.entry.userId.email,
+          name: response.data.data.entry.userId.name || 'User'
+        };
+        console.log('Found user details:', userDetails);
+        return userDetails;
+      }
+      console.warn('No user details found in management response:', response.data);
+      return null;
+    } catch (error) {
+      console.error('Error fetching user details:', error.response?.data || error.message);
+      return null;
+    }
+  };
+
+  const sendLetterNotification = async (userDetails, letterData, templateName) => {
+    try {
+      console.log('Sending letter notification with:', {
+        email: userDetails.email,
+        letterName: templateName,
+        pdfUrl: letterData.pdfUrl
+      });
+
+      const response = await api.post('/mail/letter-notification', {
+        recipientEmail: userDetails.email,
+        letterName: templateName || 'Generated Letter',
+        letterUrl: letterData.pdfUrl,
+        userName: userDetails.name,
+        letterType: templateName || 'Generated'
+      });
+
+      console.log('Letter notification response:', response.data);
+      return true;
+    } catch (err) {
+      console.error('Letter notification error:', err.response?.data || err.message);
+      throw err;
+    }
+  };
+
   const handleSave = async () => {
     if (!currentLetterId) {
       setError('No letter to save');
@@ -279,6 +278,7 @@ const LetterTab = ({ managementId, stepId }) => {
       // Validate editor state and content
       const currentContent = validateEditor();
 
+      console.log('Saving letter:', currentLetterId);
       const response = await api.put(`/letters/${currentLetterId}`, {
         status: 'final',
         content: currentContent,
@@ -287,6 +287,33 @@ const LetterTab = ({ managementId, stepId }) => {
 
       if (response.data.success) {
         await fetchSavedLetters();
+        
+        // Send email notification
+        try {
+          const letter = savedLetters.find(l => l._id === currentLetterId);
+          console.log('Found letter for notification:', letter);
+          
+          if (!letter?.managementId) {
+            console.warn('No managementId found for letter:', currentLetterId);
+            throw new Error('Management ID not found');
+          }
+
+          // Get user details from management
+          const userDetails = await getUserDetailsFromManagement(letter.managementId);
+          
+          if (userDetails?.email) {
+            await sendLetterNotification(
+              userDetails,
+              response.data.data,
+              selectedTemplate?.name
+            );
+          } else {
+            console.warn('No user email found for management:', letter.managementId);
+          }
+        } catch (emailError) {
+          console.error('Failed to send email notification:', emailError.response?.data || emailError.message);
+        }
+
         setError('Letter saved successfully');
         setShowError(true);
         setTimeout(() => setShowError(false), 3000);
@@ -294,7 +321,7 @@ const LetterTab = ({ managementId, stepId }) => {
         throw new Error(response.data.error || 'Failed to save letter');
       }
     } catch (err) {
-      console.error('Error saving letter:', err);
+      console.error('Error saving letter:', err.response?.data || err.message);
       const errorMessage = err.response?.data?.error || err.message || 'An error occurred while saving the letter';
       setError(errorMessage);
       setShowError(true);
@@ -374,6 +401,7 @@ const LetterTab = ({ managementId, stepId }) => {
       // Validate editor state and content
       const currentContent = validateEditor();
 
+      console.log('Saving letter for download:', currentLetterId);
       // First save the letter
       const saveResponse = await api.put(`/letters/${currentLetterId}`, {
         status: 'final',
@@ -386,8 +414,30 @@ const LetterTab = ({ managementId, stepId }) => {
       }
 
       const updatedLetter = saveResponse.data.data;
-      setCurrentLetter(updatedLetter);
       await fetchSavedLetters();
+
+      // Send email notification
+      try {
+        if (!updatedLetter?.managementId) {
+          console.warn('No managementId found in updated letter:', currentLetterId);
+          throw new Error('Management ID not found');
+        }
+
+        // Get user details from management
+        const userDetails = await getUserDetailsFromManagement(updatedLetter.managementId);
+          
+        if (userDetails?.email) {
+          await sendLetterNotification(
+            userDetails,
+            updatedLetter,
+            selectedTemplate?.name
+          );
+        } else {
+          console.warn('No user email found for management:', updatedLetter.managementId);
+        }
+      } catch (emailError) {
+        console.error('Failed to send email notification:', emailError.response?.data || emailError.message);
+      }
 
       // Then download the PDF
       const letterName = selectedTemplate?.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'letter';
@@ -401,7 +451,7 @@ const LetterTab = ({ managementId, stepId }) => {
       setShowError(true);
       setTimeout(() => setShowError(false), 3000);
     } catch (err) {
-      console.error('Error saving and downloading letter:', err);
+      console.error('Error saving and downloading letter:', err.response?.data || err.message);
       const errorMessage = err.response?.data?.error || err.message || 'An error occurred while saving and downloading the letter';
       setError(errorMessage);
       setShowError(true);
