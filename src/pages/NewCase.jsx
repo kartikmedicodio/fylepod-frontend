@@ -537,6 +537,24 @@ const NewCase = () => {
           }
         );
 
+        // Send management creation email
+        try {
+          await api.post('/mail/send', {
+            subject: `🤖 Fiona: New Case Created - ${selectedTemplate.name}`,
+            recipientEmail: selectedCustomer.email,
+            recipientName: selectedCustomer.name,
+            managementId: caseId,
+            categoryName: selectedTemplate.name,
+            documentTypes: selectedDocuments,
+            caseManagerName: selectedAttorney.name,
+            emailType: 'management_creation',
+            userId: selectedCustomer._id
+          });
+        } catch (emailError) {
+          console.error('Failed to send case creation email:', emailError);
+          // Don't block the case creation process if email fails
+        }
+
         // Second toast with Diana after a short delay
         setTimeout(() => {
           toast.success(
