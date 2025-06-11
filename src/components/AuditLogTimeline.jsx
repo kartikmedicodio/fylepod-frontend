@@ -3,7 +3,7 @@ import { fetchAuditLogsByManagement } from '../services/auditLogService';
 import { History, Search, User, ArrowDown } from 'lucide-react';
 import { format } from 'date-fns';
 
-const AuditLogTimeline = ({ managementId }) => {
+const AuditLogTimeline = ({ managementId, onMailLogClick }) => {
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -164,92 +164,99 @@ const AuditLogTimeline = ({ managementId }) => {
         {filteredLogs.length === 0 ? (
           <div className="text-center py-8 text-gray-500">No matching logs found</div>
         ) : (
-          filteredLogs.map((log, index) => (
-            <div key={index} className="relative mb-8">
-              {/* Vertical Timeline Line */}
-              {index !== filteredLogs.length - 1 && (
-                <div
-                  className={`absolute left-6 top-0 w-0.5 ${
-                    isAIAgent(log.user)
-                      ? 'bg-gradient-to-b from-purple-300 via-blue-200 to-purple-300'
-                      : 'bg-gray-200'
-                  }`}
-                  style={{ height: '100%', top: '2.5rem' }}
-                ></div>
-              )}
-              {/* Timeline Item */}
-              <div className="flex items-start gap-6">
-                {/* Actor Icon */}
-                <div className={`relative z-10 flex items-center justify-center w-12 h-12 rounded-full 
-                  ${isAIAgent(log.user)
-                    ? 'bg-gradient-to-r from-purple-400 via-blue-400 to-purple-400 p-[3px] shadow-lg hover:shadow-purple-200 transition-shadow duration-200'
-                    : 'border-2 border-gray-200 bg-white'
-                  }`}>
-                  <div className={`flex items-center justify-center w-full h-full rounded-full bg-white overflow-hidden
-                    ${isAIAgent(log.user) ? 'transform hover:scale-105 transition-transform duration-200' : ''}`}>
-                    {getActorIcon(log.user)}
-                  </div>
-                </div>
-                {/* Content */}
-                <div className={`flex-1 p-5 border rounded-lg transform hover:scale-[1.01] transition-transform duration-200
-                  ${getActionColor(log.type, isAIAgent(log.user))} 
-                  ${isAIAgent(log.user)
-                    ? 'before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-gradient-to-b before:from-purple-400 before:via-blue-400 before:to-purple-400 before:rounded-l-lg relative shadow-md hover:shadow-lg'
-                    : 'hover:shadow-md'}`}>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <span className={`text-sm font-medium ${
-                        isAIAgent(log.user)
-                          ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-transparent bg-clip-text'
-                          : 'text-gray-900'
-                      }`}>
-                        {log.user}
-                      </span>
-                      {isAIAgent(log.user) && (
-                        <span className="px-3 py-1 text-xs font-medium bg-gradient-to-r from-purple-100 to-blue-100 text-purple-800 rounded-full shadow-sm">
-                          AI Agent
-                        </span>
-                      )}
+          filteredLogs.map((log, index) => {
+            const isEmailLog = log.type === 'email' && log.mailId;
+            return (
+              <div
+                key={index}
+                className={`relative mb-8 ${isEmailLog ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
+                onClick={isEmailLog ? () => onMailLogClick && onMailLogClick(log.mailId) : undefined}
+              >
+                {/* Vertical Timeline Line */}
+                {index !== filteredLogs.length - 1 && (
+                  <div
+                    className={`absolute left-6 top-0 w-0.5 ${
+                      isAIAgent(log.user)
+                        ? 'bg-gradient-to-b from-purple-300 via-blue-200 to-purple-300'
+                        : 'bg-gray-200'
+                    }`}
+                    style={{ height: '100%', top: '2.5rem' }}
+                  ></div>
+                )}
+                {/* Timeline Item */}
+                <div className="flex items-start gap-6">
+                  {/* Actor Icon */}
+                  <div className={`relative z-10 flex items-center justify-center w-12 h-12 rounded-full 
+                    ${isAIAgent(log.user)
+                      ? 'bg-gradient-to-r from-purple-400 via-blue-400 to-purple-400 p-[3px] shadow-lg hover:shadow-purple-200 transition-shadow duration-200'
+                      : 'border-2 border-gray-200 bg-white'
+                    }`}>
+                    <div className={`flex items-center justify-center w-full h-full rounded-full bg-white overflow-hidden
+                      ${isAIAgent(log.user) ? 'transform hover:scale-105 transition-transform duration-200' : ''}`}>
+                      {getActorIcon(log.user)}
                     </div>
-                    <span className="text-sm text-gray-500 font-medium">
-                      {format(new Date(log.timestamp), 'dd MMM yyyy')}
-                    </span>
                   </div>
-                  <h3 className={`text-base font-semibold mb-2 ${
-                    isAIAgent(log.user)
-                      ? 'bg-gradient-to-r from-purple-700 to-blue-700 text-transparent bg-clip-text'
-                      : 'text-gray-900'
-                  }`}>
-                    {prettifyAction(log.action)}
-                  </h3>
-                  <p className="text-sm text-gray-600 leading-relaxed">{log.description}</p>
-                  {/* Action Type Badge */}
-                  <div className="mt-3">
-                    <span className={`px-3 py-1 text-xs font-medium rounded-full shadow-sm
-                      ${isAIAgent(log.user)
-                        ? 'bg-gradient-to-r from-purple-100 to-blue-100 text-purple-800'
-                        : log.type === 'document'
-                          ? 'bg-blue-100 text-blue-800'
-                          : log.type === 'payment'
-                            ? 'bg-green-100 text-green-800'
-                            : log.type === 'questionnaire'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : log.type === 'form'
-                                ? 'bg-indigo-100 text-indigo-800'
-                                : log.type === 'letter'
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : log.type === 'receipt'
-                                    ? 'bg-cyan-100 text-cyan-800'
-                                    : log.type === 'retainer'
-                                      ? 'bg-pink-100 text-pink-800'
-                                      : 'bg-gray-100 text-gray-800'}`}>
-                      {prettifyAction(log.type)}
-                    </span>
+                  {/* Content */}
+                  <div className={`flex-1 p-5 border rounded-lg transform hover:scale-[1.01] transition-transform duration-200
+                    ${getActionColor(log.type, isAIAgent(log.user))} 
+                    ${isAIAgent(log.user)
+                      ? 'before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-gradient-to-b before:from-purple-400 before:via-blue-400 before:to-purple-400 before:rounded-l-lg relative shadow-md hover:shadow-lg'
+                      : 'hover:shadow-md'}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <span className={`text-sm font-medium ${
+                          isAIAgent(log.user)
+                            ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-transparent bg-clip-text'
+                            : 'text-gray-900'
+                        }`}>
+                          {log.user}
+                        </span>
+                        {isAIAgent(log.user) && (
+                          <span className="px-3 py-1 text-xs font-medium bg-gradient-to-r from-purple-100 to-blue-100 text-purple-800 rounded-full shadow-sm">
+                            AI Agent
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-sm text-gray-500 font-medium">
+                        {format(new Date(log.timestamp), 'dd MMM yyyy')}
+                      </span>
+                    </div>
+                    <h3 className={`text-base font-semibold mb-2 ${
+                      isAIAgent(log.user)
+                        ? 'bg-gradient-to-r from-purple-700 to-blue-700 text-transparent bg-clip-text'
+                        : 'text-gray-900'
+                    }`}>
+                      {prettifyAction(log.action)}
+                    </h3>
+                    <p className="text-sm text-gray-600 leading-relaxed">{log.description}</p>
+                    {/* Action Type Badge */}
+                    <div className="mt-3">
+                      <span className={`px-3 py-1 text-xs font-medium rounded-full shadow-sm
+                        ${isAIAgent(log.user)
+                          ? 'bg-gradient-to-r from-purple-100 to-blue-100 text-purple-800'
+                          : log.type === 'document'
+                            ? 'bg-blue-100 text-blue-800'
+                            : log.type === 'payment'
+                              ? 'bg-green-100 text-green-800'
+                              : log.type === 'questionnaire'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : log.type === 'form'
+                                  ? 'bg-indigo-100 text-indigo-800'
+                                  : log.type === 'letter'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : log.type === 'receipt'
+                                      ? 'bg-cyan-100 text-cyan-800'
+                                      : log.type === 'retainer'
+                                        ? 'bg-pink-100 text-pink-800'
+                                        : 'bg-gray-100 text-gray-800'}`}>
+                        {prettifyAction(log.type)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
