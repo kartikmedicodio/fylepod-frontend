@@ -3218,13 +3218,31 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         );
       }
 
-      // Count total failed validations across all documents
-      const totalFailedValidations = currentValidationData.mergedValidations.reduce((total, doc) => 
+      // Filter out unknown document types
+      const validDocuments = currentValidationData.mergedValidations.filter(doc => 
+        !doc.isUnknownType && doc.documentType !== 'Unknown'
+      );
+
+      // If all documents are unknown, show a message
+      if (validDocuments.length === 0) {
+        return (
+          <div className="flex flex-col items-center justify-center p-8 text-center">
+            <AlertCircle className="w-12 h-12 text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Documents to Verify</h3>
+            <p className="text-gray-500 max-w-md">
+              There are no documents that require verification at this time.
+            </p>
+          </div>
+        );
+      }
+
+      // Count total failed validations across all valid documents
+      const totalFailedValidations = validDocuments.reduce((total, doc) => 
         total + doc.validations.filter(v => !v.passed).length, 0
       );
 
       // Count document types with validations
-      const documentCount = currentValidationData.mergedValidations.length;
+      const documentCount = validDocuments.length;
       
       console.log(`Displaying validations for ${documentCount} documents with ${totalFailedValidations} failed validations`);
 
@@ -3233,7 +3251,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-            <h2 className="text-lg font-semibold text-gray-900">Document Verification</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Document Verification</h2>
               <p className="text-sm text-gray-500 mt-1">
                 Validation results for {documentCount} {documentCount === 1 ? 'document' : 'documents'}
               </p>
@@ -3251,7 +3269,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
           {/* Documents List */}
           <div className="space-y-4">
-            {currentValidationData.mergedValidations.map((docValidation, index) => (
+            {validDocuments.map((docValidation, index) => (
               <div 
                 key={`validation-section-${docValidation.documentType}-${index}-${validationUpdated}`}
                 className="border border-gray-200 rounded-lg overflow-hidden"
@@ -3265,11 +3283,11 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                   </h3>
                 </div>
                 <div className="p-4">
-              <DocumentVerificationSection
+                  <DocumentVerificationSection
                     key={`validation-content-${docValidation.documentType}-${index}-${validationUpdated}`}
-                document={{ name: docValidation.documentType }}
-                validations={docValidation.validations}
-              />
+                    document={{ name: docValidation.documentType }}
+                    validations={docValidation.validations}
+                  />
                 </div>
               </div>
             ))}

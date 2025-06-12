@@ -21,6 +21,86 @@ import { CSS } from '@dnd-kit/utilities';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { toast } from 'react-hot-toast';
 
+// Custom Toast Component for Fiona's Case Setup
+const FionaCaseSetupToast = ({ t, message }) => {
+  return (
+    <div
+      className={`${
+        t.visible ? 'animate-enter' : 'animate-leave'
+      } max-w-md w-full bg-white shadow-lg rounded-xl pointer-events-auto flex ring-1 ring-black ring-opacity-5`}
+    >
+      <div className="flex-1 w-0 p-4">
+        <div className="flex items-start">
+          <div className="flex-shrink-0 pt-0.5">
+            <img
+              className="h-10 w-10 rounded-xl ring-2 ring-blue-100"
+              src="/assets/fiona-avatar.png"
+              alt="Fiona"
+            />
+          </div>
+          <div className="ml-3 flex-1">
+            <p className="text-sm font-medium text-gray-900 flex items-center gap-2">
+              Fiona
+              <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full">AI Agent</span>
+            </p>
+            <p className="mt-1 text-sm text-gray-600">
+              {message}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+FionaCaseSetupToast.propTypes = {
+  t: PropTypes.object.isRequired,
+  message: PropTypes.string.isRequired
+};
+
+// Export the toast function for use in other components
+export const showCaseSetupToast = () => {
+  const messages = [
+    "Hi! I'm setting up your case...",
+    "Analyzing requirements and configuring workflows...",
+    "Setting up document validations...",
+    "Preparing AI assistance channels...",
+    "Almost done! Just a moment..."
+  ];
+
+  let currentIndex = 0;
+  const toastId = toast.loading(messages[0], {
+    icon: '🤖',
+    style: {
+      minWidth: '350px',
+      background: '#fff',
+      color: '#1f2937',
+      fontSize: '14px',
+      padding: '16px',
+      borderRadius: '12px',
+      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+    }
+  });
+
+  const interval = setInterval(() => {
+    currentIndex++;
+    if (currentIndex < messages.length) {
+      toast.loading(messages[currentIndex], {
+        id: toastId,
+      });
+    } else {
+      clearInterval(interval);
+      toast.success("All set! Your case has been created successfully.", {
+        id: toastId,
+        duration: 2000,
+        icon: '✨',
+      });
+    }
+  }, 2000);
+
+  return toastId;
+};
+
 const SortableStep = ({ step, index, isEditable, onUpdateStep, onRemoveStep, availableKeys }) => {
   const [isEditing, setIsEditing] = React.useState(step.name === '');
   const [isEditingKey, setIsEditingKey] = React.useState(step.key === '');
