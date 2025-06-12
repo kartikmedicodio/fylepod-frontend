@@ -358,11 +358,72 @@ const Cases = () => {
     ]
   };
 
-  // Update the fetchCases function to properly handle search
-  const fetchCases = async (page = 1, searchQuery = '', status = '') => {
+  // Add location check for auto-filtering
+  useEffect(() => {
+    const locationState = location.state;
+    if (locationState?.applyFilter && locationState?.autoApply) {
+      setLoading(true);
+      
+      // Reset all filters first
+      const resetFilters = {
+        status: '',
+        documentStatus: '',
+        deadline: ''
+      };
+      
+      // Handle both single and multiple filter cases
+      const newFilters = {
+        ...resetFilters
+      };
+
+      // Handle single filter case
+      if (locationState.filterType) {
+        if (locationState.filterType === 'status') {
+          newFilters.status = locationState.filterValue;
+        } else if (locationState.filterType === 'documentStatus') {
+          newFilters.documentStatus = locationState.filterValue;
+        }
+      }
+
+      // Handle additional filter if present
+      if (locationState.filterType2) {
+        if (locationState.filterType2 === 'status') {
+          newFilters.status = locationState.filterValue2;
+        } else if (locationState.filterType2 === 'documentStatus') {
+          newFilters.documentStatus = locationState.filterValue2;
+        }
+      }
+
+      // Update both filter states
+      setFilters(newFilters);
+      setTempFilters(newFilters);
+      setCurrentPage(1);
+      
+      // Fetch cases with the filters
+      fetchCases(1, '', newFilters.status, newFilters.documentStatus)
+        .then(() => {
+          // Clear search term and other states
+          setSearchTerm('');
+          setSearching(false);
+        })
+        .finally(() => {
+          setLoading(false);
+          // Clear the location state to prevent re-applying on refresh
+          navigate(location.pathname, { replace: true, state: {} });
+        });
+    }
+  }, [location.state]);
+
+  // Modify fetchCases to return a promise
+  const fetchCases = async (page = 1, searchQuery = '', status = '', documentStatus = '') => {
     try {
       setLoading(true);
-      console.log('Fetching cases with pagination:', { page, searchQuery, status });
+      console.log('Fetching cases with filters:', { 
+        page, 
+        searchQuery, 
+        status, 
+        documentStatus: documentStatus || filters.documentStatus 
+      });
 
       const userDetails = getStoredUser();
       if (!userDetails) {
@@ -374,18 +435,16 @@ const Cases = () => {
       if (userDetails.lawfirm_id?._id) {
         // Build query parameters
         const params = {
-          page,
-          limit: pagination.limit,
+          page: 1,
+          limit: 1000,
           sortBy: 'createdAt',
           order: 'desc'
         };
 
-        // Only add search if it's not empty
         if (searchQuery?.trim()) {
           params.search = searchQuery.trim();
         }
 
-        // Only add status if it's not empty
         if (status) {
           params.status = status;
         }
@@ -394,17 +453,75 @@ const Cases = () => {
         const response = await api.get(`/management/paginated?${queryString}`);
         
         if (response.data.status === 'success') {
-          const { managements, pagination: paginationData } = response.data.data;
+          const { managements } = response.data.data;
+          console.log('Total cases before filtering:', managements.length);
           
-          // Filter cases by lawfirm ID
-          const filteredCases = managements.filter(caseItem => 
+          let filteredCases = managements.filter(caseItem => 
             caseItem.lawfirmId === userDetails.lawfirm_id._id ||
             caseItem.createdBy?.lawfirm_id?._id === userDetails.lawfirm_id._id
           );
+          console.log('Cases after lawfirm filter:', filteredCases.length);
+
+          const activeDocumentStatus = documentStatus || filters.documentStatus;
+          const activeStatus = status || filters.status;
+
+          // Apply status filter if present
+          if (activeStatus) {
+            filteredCases = filteredCases.filter(caseItem => 
+              caseItem.categoryStatus?.toLowerCase() === activeStatus.toLowerCase()
+            );
+            console.log('Cases after status filter:', filteredCases.length);
+          }
+
+          // Apply document status filter if selected
+          if (activeDocumentStatus) {
+            console.log('Applying document status filter:', activeDocumentStatus);
+            
+            filteredCases = filteredCases.filter(caseItem => {
+              const pendingCount = caseItem.documentTypes?.filter(doc => 
+                doc.status === 'pending'
+              ).length || 0;
+              
+              console.log('Case:', {
+                id: caseItem._id,
+                pendingCount
+              });
+
+              if (activeDocumentStatus === 'pending') {
+                const shouldShow = pendingCount > 0;
+                console.log('Pending filter result:', shouldShow);
+                return shouldShow;
+              } else if (activeDocumentStatus === 'complete') {
+                const shouldShow = pendingCount === 0;
+                console.log('Complete filter result:', shouldShow);
+                return shouldShow;
+              }
+              return true;
+            });
+            
+            console.log('Cases after document status filter:', filteredCases.length);
+          }
+
+          // Calculate pagination
+          const ITEMS_PER_PAGE = 10;
+          const totalItems = filteredCases.length;
+          const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+          const currentPageIndex = page - 1;
+          const startIndex = currentPageIndex * ITEMS_PER_PAGE;
+          const endIndex = startIndex + ITEMS_PER_PAGE;
+
+          const casesForCurrentPage = filteredCases.slice(startIndex, endIndex);
 
           setCases(filteredCases);
-          setDisplayCases(filteredCases);
-          setPagination(paginationData);
+          setDisplayCases(casesForCurrentPage);
+          setPagination({
+            total: totalItems,
+            currentPage: page,
+            limit: ITEMS_PER_PAGE,
+            totalPages: totalPages,
+            hasNextPage: page < totalPages,
+            hasPrevPage: page > 1
+          });
         }
       }
     } catch (error) {
@@ -430,7 +547,7 @@ const Cases = () => {
     // Set new timeout
     searchTimeout.current = setTimeout(() => {
       setCurrentPage(1); // Reset to first page when searching
-      fetchCases(1, value, filters.status);
+      fetchCases(1, value, filters.status, filters.documentStatus);
     }, 500);
   };
 
@@ -445,8 +562,8 @@ const Cases = () => {
 
   // Update the initial data fetch effect to not include searchTerm dependency
   useEffect(() => {
-    fetchCases(currentPage, searchTerm, filters.status);
-  }, [currentPage, filters.status]); // Remove searchTerm from dependencies
+    fetchCases(currentPage, searchTerm, filters.status, filters.documentStatus);
+  }, [currentPage, filters.status, filters.documentStatus]); // Add filters.documentStatus to dependencies
 
   // Handler functions
   const handleFilterChange = (filterType, value) => {
@@ -457,10 +574,14 @@ const Cases = () => {
   };
 
   const handleApplyFilters = () => {
-    setFilters(tempFilters);
+    // Update filters state
+    const newFilters = { ...tempFilters };
+    setFilters(newFilters);
     setShowFilters(false);
     setCurrentPage(1);
-    fetchCases(1, searchTerm, tempFilters.status);
+    
+    // Immediately fetch with new filters
+    fetchCases(1, searchTerm, newFilters.status, newFilters.documentStatus);
   };
 
   const clearAllFilters = () => {
@@ -473,7 +594,8 @@ const Cases = () => {
     setFilters(emptyFilters);
     setShowFilters(false);
     setCurrentPage(1);
-    fetchCases(1, searchTerm);
+    // Immediately fetch with cleared filters
+    fetchCases(1, searchTerm, '', '');
   };
 
   const handlePageChange = (newPage) => {
@@ -508,7 +630,7 @@ const Cases = () => {
           onClick={() => {
             setError(null);
             setLoading(true);
-            fetchCases(currentPage, searchTerm, filters.status);
+            fetchCases(currentPage, searchTerm, filters.status, filters.documentStatus);
           }}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
@@ -596,7 +718,7 @@ const Cases = () => {
                 <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Process Name</th>
                 <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Deadline</th>
                 <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
-                <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Documents Pending</th>
+                <th className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900">Documents to Submit</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
