@@ -21,6 +21,7 @@ const NewEmployee = () => {
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
   const [attorneys, setAttorneys] = useState([]);
   const [isLoadingAttorneys, setIsLoadingAttorneys] = useState(false);
+  const [selectedAttorney, setSelectedAttorney] = useState(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -71,7 +72,8 @@ const NewEmployee = () => {
     })
     .map(attorney => ({
       value: attorney._id,
-      label: `${attorney.name} (${attorney.lawfirm_id?.name || attorney.lawfirm_name || 'No Law Firm'})`
+      label: `${attorney.name} (${attorney.lawfirm_id?.name || attorney.lawfirm_name || 'No Law Firm'})`,
+      attorney: attorney
     }));
 
   // Set breadcrumb and page title on mount
@@ -172,22 +174,28 @@ const NewEmployee = () => {
   };
 
   const handleAttorneySelect = (selectedOption) => {
+    console.log('Selected attorney option:', selectedOption);
+    setSelectedAttorney(selectedOption);
+    
     if (selectedOption) {
-      const selectedAttorney = attorneys.find(a => a._id === selectedOption.value);
-      if (selectedAttorney) {
-        setFormData(prev => ({
-          ...prev,
-          attorney_id: selectedAttorney._id,
-          attorney_name: selectedAttorney.name,
-          lawfirm_id: selectedAttorney.lawfirm_id?._id || null,
-          lawfirm_name: selectedAttorney.lawfirm_id?.name || selectedAttorney.lawfirm_name || null
-        }));
-      }
+      const selectedAttorney = selectedOption.attorney;
+      console.log('Found selected attorney:', selectedAttorney);
+      
+      setFormData(prev => ({
+        ...prev,
+        attorney_id: selectedAttorney._id,
+        attorney_name: selectedAttorney.name,
+        lawfirm_id: selectedAttorney.lawfirm_id?._id || null,
+        lawfirm_name: selectedAttorney.lawfirm_id?.name || selectedAttorney.lawfirm_name || null
+      }));
     } else {
+      console.log('Clearing attorney selection');
       setFormData(prev => ({
         ...prev,
         attorney_id: '',
         attorney_name: '',
+        lawfirm_id: user?.lawfirm_id?._id || null,
+        lawfirm_name: user?.lawfirm_name || null
       }));
     }
   };
@@ -342,7 +350,7 @@ const NewEmployee = () => {
                 {!formData.attorney_id && <span className="text-rose-500 text-lg leading-none">*</span>}
               </label>
               <Select
-                value={formData.attorney_id ? { value: formData.attorney_id, label: formData.attorney_name } : null}
+                value={selectedAttorney}
                 onChange={handleAttorneySelect}
                 options={attorneyOptions}
                 isLoading={isLoadingAttorneys}
