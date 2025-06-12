@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { FileText, ClipboardList, File, Mail } from 'lucide-react';
 
-const Sidebar = ({ onCategorySelect }) => {
+const Sidebar = ({ onCategorySelect, selectedCategory }) => {
   const navigate = useNavigate();
-  const [selectedItem, setSelectedItem] = useState('Process Template');
+  const location = useLocation();
 
   const sidebarItems = [
     {
@@ -47,11 +47,10 @@ const Sidebar = ({ onCategorySelect }) => {
   ];
 
   const handleItemClick = (category) => {
-    setSelectedItem(category);
-    if (onCategorySelect) {
-      onCategorySelect(category);
-    } else {
+    if (location.pathname !== '/knowledge') {
       navigate('/knowledge', { state: { selectedCategory: category } });
+    } else if (onCategorySelect) {
+      onCategorySelect(category);
     }
   };
 
@@ -69,7 +68,7 @@ const Sidebar = ({ onCategorySelect }) => {
             key={item.id}
             onClick={() => handleItemClick(item.category)}
             className={`block w-full text-left px-4 py-2 rounded-lg text-sm mb-1 ${
-              selectedItem === item.category
+              selectedCategory === item.category
                 ? 'bg-blue-50 text-blue-600'
                 : 'text-gray-700 hover:bg-gray-50'
             }`}
@@ -83,7 +82,8 @@ const Sidebar = ({ onCategorySelect }) => {
 };
 
 Sidebar.propTypes = {
-  onCategorySelect: PropTypes.func
+  onCategorySelect: PropTypes.func,
+  selectedCategory: PropTypes.string
 };
 
 export default Sidebar; 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Search, SlidersHorizontal, Clock, Edit2, CheckCircle, XCircle, FileText, Plus, ChevronLeft, ChevronRight, Eye, Mail, X } from 'lucide-react';
 import api from '../utils/api';
 import { usePage } from '../contexts/PageContext';
@@ -161,6 +161,7 @@ const KnowledgeBase = () => {
   const [selectedPrompt, setSelectedPrompt] = useState('');
   const [expandedPromptId, setExpandedPromptId] = useState(null);
   const [previewModal, setPreviewModal] = useState({ isOpen: false, subject: '', content: '' });
+  const didMount = useRef(false);
 
   // Initial setup and data fetch
   useEffect(() => {
@@ -169,95 +170,83 @@ const KnowledgeBase = () => {
       { label: 'Dashboard', link: '/' },
       { label: 'Knowledge Base', link: '/knowledge' }
     ]);
-
-    // Only fetch if we don't have categories data
-    if (categories.length === 0) {
-      setLoading(true);
-      api.get('/categories')
-        .then(response => {
-          if (response.data.status === 'success') {
-            setCategories(response.data.data.categories);
-          }
-        })
-        .catch(err => {
-          console.error('Error fetching categories:', err);
-          setError('Failed to load initial data');
-        })
-        .finally(() => {
-          setLoading(false);
-        });
-    }
   }, []); // Empty dependency array for single execution
 
-  const handleCategorySelect = async (category) => {
-    // Don't refetch if selecting Process Template and we already have data
-    if (category === 'Process Template' && categories.length > 0) {
-      setSelectedCategory(category);
+  useEffect(() => {
+    if (location.state?.selectedCategory) {
+      setSelectedCategory(location.state.selectedCategory);
+    }
+  }, [location.state]);
+
+  useEffect(() => {
+    if (!didMount.current) {
+      didMount.current = true;
+      return;
+    }
+    // Fetch data for the selected category
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
       setCurrentBreadcrumb([
         { label: 'Dashboard', link: '/' },
         { label: 'Knowledge Base', link: '/knowledge' },
-        { label: category, link: '#' }
+        { label: selectedCategory, link: '#' }
       ]);
-      return;
-    }
-
-    setSelectedCategory(category);
-    setLoading(true);
-    setError(null);
-
-    // Update breadcrumb immediately
-    setCurrentBreadcrumb([
-      { label: 'Dashboard', link: '/' },
-      { label: 'Knowledge Base', link: '/knowledge' },
-      { label: category, link: '#' }
-    ]);
-
-    try {
-      let response;
-      switch (category) {
-        case 'Process Template':
-          response = await api.get('/categories');
-          if (response.data.status === 'success') {
-            setCategories(response.data.data.categories);
-          }
-          break;
-        case 'Master Document List':
-          response = await api.get('/masterdocuments');
-          if (response.data.status === 'success') {
-            setMasterDocuments(response.data.data.masterDocuments);
-          }
-          break;
-        case 'Master Forms List':
-          response = await api.get('/forms');
-          if (response.data.status === 'success') {
-            setForms(response.data.data.forms);
-          }
-          break;
-        case 'Letter Templates':
-          response = await api.get('/letter-templates');
-          if (response.data.status === 'success') {
-            setLetterTemplates(response.data.data);
-          }
-          break;
-        case 'Retainer Templates':
-          response = await api.get('/retainer-templates');
-          if (response.data) {
-            setRetainerTemplates(response.data);
-          }
-          break;
-        case 'Email Templates':
-          response = await api.get('/email-templates');
-          if (response.data.status === 'success') {
-            setEmailTemplates(response.data.data);
-          }
-          break;
+      try {
+        let response;
+        switch (selectedCategory) {
+          case 'Process Template':
+            response = await api.get('/categories');
+            if (response.data.status === 'success') {
+              setCategories(response.data.data.categories);
+            }
+            break;
+          case 'Master Document List':
+            response = await api.get('/masterdocuments');
+            if (response.data.status === 'success') {
+              setMasterDocuments(response.data.data.masterDocuments);
+            }
+            break;
+          case 'Master Forms List':
+            response = await api.get('/forms');
+            if (response.data.status === 'success') {
+              setForms(response.data.data.forms);
+            }
+            break;
+          case 'Letter Templates':
+            response = await api.get('/letter-templates');
+            if (response.data.status === 'success') {
+              setLetterTemplates(response.data.data);
+            }
+            break;
+          case 'Retainer Templates':
+            response = await api.get('/retainer-templates');
+            if (response.data) {
+              setRetainerTemplates(response.data);
+            }
+            break;
+          case 'Email Templates':
+            response = await api.get('/email-templates');
+            if (response.data.status === 'success') {
+              setEmailTemplates(response.data.data);
+            }
+            break;
+          default:
+            break;
+        }
+      } catch (err) {
+        console.error('Error loading category data:', err);
+        setError('Failed to load data');
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error('Error loading category data:', err);
-      setError('Failed to load data');
-    } finally {
-      setLoading(false);
-    }
+    };
+    fetchData();
+    // eslint-disable-next-line
+  }, [selectedCategory]);
+
+  const handleCategorySelect = (category) => {
+    setSelectedCategory(category);
   };
 
   const handleCategoryClick = (categoryId) => {
@@ -712,7 +701,7 @@ const KnowledgeBase = () => {
   if (loading) {
     return (
       <div className="flex h-full gap-4 mt-8">
-        <Sidebar onCategorySelect={handleCategorySelect} />
+        <Sidebar onCategorySelect={handleCategorySelect} selectedCategory={selectedCategory} />
         <div className="flex-1 bg-[#f8fafc] rounded-lg shadow-sm h-fit">
           <div className="p-4 flex items-center gap-4">
             <div className="flex-1 relative">
@@ -737,7 +726,7 @@ const KnowledgeBase = () => {
   if (error) {
     return (
       <div className="flex h-full gap-4 mt-8">
-        <Sidebar onCategorySelect={handleCategorySelect} />
+        <Sidebar onCategorySelect={handleCategorySelect} selectedCategory={selectedCategory} />
         <div className="flex-1 bg-[#f8fafc] rounded-lg shadow-sm h-fit">
           <div className="p-4 flex items-center gap-4">
             <div className="flex-1 relative">
@@ -761,7 +750,7 @@ const KnowledgeBase = () => {
 
   return (
     <div className="flex h-full gap-4 mt-8">
-      <Sidebar onCategorySelect={handleCategorySelect} />
+      <Sidebar onCategorySelect={handleCategorySelect} selectedCategory={selectedCategory} />
       
       {/* Main Content */}
       <div className="flex-1 bg-[#f8fafc] rounded-lg shadow-sm h-fit">
