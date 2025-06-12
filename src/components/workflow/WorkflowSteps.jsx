@@ -61,13 +61,18 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, onRemoveStep, ava
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
+  const handleKeyChange = (e) => {
+    setEditedKey(e.target.value);
+  };
+
   const handleSave = () => {
     if (!editedName.trim()) {
       toast.error('Step name cannot be empty');
       return;
     }
+
     if (!editedKey.trim()) {
-      toast.error('Step key must be selected');
+      toast.error('Please select a key');
       return;
     }
 
@@ -76,13 +81,13 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, onRemoveStep, ava
       name: editedName.trim(),
       key: editedKey.trim()
     });
+
     setIsEditing(false);
     setIsEditingKey(false);
   };
 
   const handleCancel = () => {
     if (isNewStep) {
-      // If it's a new step and user cancels, we should remove it using onRemoveStep
       onRemoveStep(step._id || `step-${index}`);
     } else {
       setEditedName(step.name || '');
@@ -130,7 +135,6 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, onRemoveStep, ava
       )}
 
       {isNewStep ? (
-        // New Step Layout - Only Name and Key
         <div className="p-6">
           <div className="flex items-center gap-8">
             {/* Step Number */}
@@ -163,13 +167,13 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, onRemoveStep, ava
                 <select
                   ref={keySelectRef}
                   value={editedKey}
-                  onChange={(e) => setEditedKey(e.target.value)}
+                  onChange={handleKeyChange}
                   className="w-full px-3 py-2 text-base border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
                   <option value="">Select a key...</option>
-                  {availableKeys?.map((keyOption) => (
+                  {availableKeys.map((keyOption) => (
                     <option key={keyOption.key} value={keyOption.key}>
-                      {keyOption.name || keyOption.key}
+                      {keyOption.key}
                     </option>
                   ))}
                 </select>
@@ -194,7 +198,6 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, onRemoveStep, ava
           </div>
         </div>
       ) : (
-        // Existing Step Layout - All Fields
         <div className={`flex items-center min-h-[80px] ${isEditable ? 'pl-16' : 'pl-6'} pr-6 border-b border-gray-100`}>
           {/* Step Number */}
           <div className="w-[80px] flex-shrink-0 mr-8">
@@ -265,13 +268,13 @@ const SortableStep = ({ step, index, isEditable, onUpdateStep, onRemoveStep, ava
                 <select
                   ref={keySelectRef}
                   value={editedKey}
-                  onChange={(e) => setEditedKey(e.target.value)}
+                  onChange={handleKeyChange}
                   className="w-full px-3 py-2 text-base border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
                   <option value="">Select a key...</option>
-                  {availableKeys?.map((keyOption) => (
+                  {availableKeys.map((keyOption) => (
                     <option key={keyOption.key} value={keyOption.key}>
-                      {keyOption.name || keyOption.key}
+                      {keyOption.key}
                     </option>
                   ))}
                 </select>
@@ -405,8 +408,8 @@ SortableStep.propTypes = {
   onRemoveStep: PropTypes.func.isRequired,
   availableKeys: PropTypes.arrayOf(PropTypes.shape({
     key: PropTypes.string.isRequired,
-    name: PropTypes.string
-  }))
+    name: PropTypes.string.isRequired
+  })).isRequired
 };
 
 const AddStep = ({ onAddStep }) => {
@@ -430,42 +433,20 @@ AddStep.propTypes = {
 const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditable = false, caseId }) => {
   const [steps, setSteps] = useState(initialSteps || []);
   const [activeId, setActiveId] = useState(null);
-  const [availableKeys, setAvailableKeys] = useState([]);
   
-  useEffect(() => {
-    const fetchWorkflowKeys = async () => {
-      try {
-        const token = localStorage.getItem('auth_token');
-        if (!token) {
-          console.error('No auth token found');
-          return;
-        }
-
-        const response = await fetch('http://localhost:5001/api/workflow-keys', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch workflow keys: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        if (data.status === 'success') {
-          setAvailableKeys(data.data);
-        }
-      } catch (error) {
-        console.error('Error fetching workflow keys:', error);
+  // Get unique keys from existing steps
+  const getAvailableKeys = () => {
+    const uniqueKeys = new Set();
+    steps.forEach(step => {
+      if (step.key) {
+        uniqueKeys.add(step.key);
       }
-    };
-
-    if (isEditable) {
-      fetchWorkflowKeys();
-    }
-  }, [isEditable]);
+    });
+    return Array.from(uniqueKeys).map(key => ({
+      key,
+      name: steps.find(step => step.key === key)?.name || key
+    }));
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -478,12 +459,16 @@ const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditabl
     })
   );
 
-  // Update handler for updating step details to allow duplicate keys
+  // Update handler for updating step details
   const handleUpdateStep = (stepKey, updatedStep) => {
     const newSteps = steps.map(step => {
-      // Match the step by its unique _id instead of key
       if (step._id === updatedStep._id) {
-        return updatedStep;
+        return {
+          ...updatedStep,
+          status: 'pending', // Ensure status is set
+          isDefault: true,
+          isVisible: true
+        };
       }
       return step;
     });
@@ -492,7 +477,7 @@ const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditabl
     onStepsReorder?.(newSteps);
   };
 
-  const handleSaveChanges = async () => {
+  const handleSaveWorkflowChanges = async () => {
     try {
       const token = localStorage.getItem('auth_token');
       const response = await fetch('http://localhost:5001/api/case-steps', {
@@ -503,12 +488,17 @@ const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditabl
         },
         body: JSON.stringify({
           caseId,
-          steps: steps.map(step => ({
+          steps: steps.map((step, index) => ({
             name: step.name,
             key: step.key,
-            isRequired: step.isRequired,
-            estimatedHours: step.estimatedHours,
-            description: step.description
+            order: index + 1,
+            isRequired: step.isRequired || false,
+            estimatedHours: step.estimatedHours || 0,
+            description: step.agentDescription || '',
+            status: 'pending',
+            isDefault: true,
+            isVisible: true,
+            agentName: step.agentName || 'none'
           }))
         })
       });
@@ -520,13 +510,8 @@ const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditabl
       const data = await response.json();
       console.log('Saved workflow steps:', data);
       
-      // You might want to show a success message
-      // toast.success('Workflow steps saved successfully');
-      
     } catch (error) {
       console.error('Error saving workflow steps:', error);
-      // Show error message
-      // toast.error('Failed to save workflow steps');
     }
   };
 
@@ -577,7 +562,10 @@ const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditabl
       isRequired: false,
       estimatedHours: 1,
       agentName: 'none',
-      agentDescription: ''
+      agentDescription: '',
+      status: 'pending',
+      isDefault: true,
+      isVisible: true
     };
 
     const newSteps = [...steps, newStep];
@@ -656,7 +644,7 @@ const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditabl
                 isEditable={isEditable}
                 onUpdateStep={handleUpdateStep}
                 onRemoveStep={handleRemoveStep}
-                availableKeys={availableKeys}
+                availableKeys={getAvailableKeys()}
               />
             ))}
           </SortableContext>
@@ -670,7 +658,7 @@ const WorkflowSteps = ({ steps: initialSteps, summary, onStepsReorder, isEditabl
                   isEditable={isEditable}
                   onUpdateStep={handleUpdateStep}
                   onRemoveStep={handleRemoveStep}
-                  availableKeys={availableKeys}
+                  availableKeys={getAvailableKeys()}
                 />
               </div>
             ) : null}
