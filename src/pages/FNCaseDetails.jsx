@@ -3542,21 +3542,38 @@ const FNCaseDetails = () => {
           
           {inputType === 'checkbox' && (
             <div className="mt-1 space-y-2">
-              {options.map((option, index) => (
-                <div key={`${fieldId}-option-${index}`} className="flex items-center">
+              {options.length > 0 ? (
+                // Multi-option checkbox group
+                options.map((option, index) => (
+                  <div key={`${fieldId}-option-${index}`} className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id={`${fieldId}-${index}`}
+                      value={option}
+                      checked={isOptionChecked(option)}
+                      onChange={(e) => handleChange(e.target.checked, option)}
+                      className="mr-2 h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                    <label htmlFor={`${fieldId}-${index}`} className="text-sm text-gray-700">
+                      {option}
+                    </label>
+                  </div>
+                ))
+              ) : (
+                // Single checkbox (true/false)
+                <div className="flex items-center">
                   <input
                     type="checkbox"
-                    id={`${fieldId}-${index}`}
-                    value={option}
-                    checked={isOptionChecked(option)}
-                    onChange={(e) => handleChange(e.target.checked, option)}
+                    id={fieldId}
+                    checked={!!field.value}
+                    onChange={(e) => handleLocalInputChange(fieldKey, e.target.checked)}
                     className="mr-2 h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
                   />
-                  <label htmlFor={`${fieldId}-${index}`} className="text-sm text-gray-700">
-                    {option}
+                  <label htmlFor={fieldId} className="text-sm text-gray-700">
+                    {fieldLabel}
                   </label>
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>
