@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import PropTypes from 'prop-types';
 import WorkflowSteps from '../components/workflow/WorkflowSteps';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const FionaIcon = () => (
   <div className="w-6 h-6 rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 flex items-center justify-center text-white font-semibold text-sm">
@@ -54,6 +55,46 @@ const ProgressLine = ({ isCompleted }) => (
 
 ProgressLine.propTypes = {
   isCompleted: PropTypes.bool.isRequired
+};
+
+const FionaSetupToast = ({ message }) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className="flex items-start space-x-4 bg-white rounded-xl shadow-lg p-5 min-w-[380px] max-w-[420px]"
+    >
+      {/* Fiona's Avatar with Pulse Effect */}
+      <div className="relative flex-shrink-0">
+        <div className="absolute -inset-1.5">
+          <div className="w-full h-full rotate-180 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full blur-md opacity-30 animate-pulse" />
+        </div>
+        <img
+          src="/assets/fiona-avatar.png"
+          alt="Fiona"
+          className="relative w-14 h-14 rounded-xl ring-2 ring-white"
+        />
+        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center ring-2 ring-white">
+          <span className="text-white text-xs font-bold">F</span>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 space-y-2 py-0.5">
+        <div className="flex items-center space-x-2">
+          <span className="text-[15px] font-semibold text-gray-900">Fiona</span>
+          <span className="px-2 py-0.5 text-xs font-medium bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-full">AI Agent</span>
+        </div>
+        
+        <p className="text-sm leading-relaxed text-gray-600">{message}</p>
+      </div>
+    </motion.div>
+  );
+};
+
+FionaSetupToast.propTypes = {
+  message: PropTypes.string.isRequired
 };
 
 const NewCase = () => {
@@ -464,28 +505,31 @@ const NewCase = () => {
       setIsCreatingCase(true);
 
       // Show initial toast with Fiona
-      const toastId = toast.loading(
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 flex items-center justify-center text-white">
-            <FionaIcon />
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="font-medium">Creating your case</span>
-            <span className="text-sm text-gray-500">This will only take a moment</span>
-          </div>
-        </div>,
-        {
-          position: 'top-center',
-          style: {
-            background: '#fff',
-            color: '#1f2937',
-            padding: '16px',
-            borderRadius: '8px',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-            minWidth: '360px',
-          },
+      const loadingToastId = toast.loading("Hi! I'm Fiona, setting up your case...", {
+        icon: '🤖',
+        style: {
+          minWidth: '350px',
+          background: '#fff',
+          color: '#1f2937',
+          fontSize: '14px',
+          padding: '16px',
+          borderRadius: '12px',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
         }
-      );
+      });
+
+      // Update the message after a delay
+      setTimeout(() => {
+        toast.loading("Configuring your workflow and documents...", { id: loadingToastId });
+      }, 2000);
+
+      setTimeout(() => {
+        toast.loading("Setting up AI assistance channels...", { id: loadingToastId });
+      }, 4000);
+
+      setTimeout(() => {
+        toast.loading("Almost done! Finalizing everything...", { id: loadingToastId });
+      }, 6000);
 
       const requestBody = {
         userId: selectedCustomer._id,
@@ -523,7 +567,7 @@ const NewCase = () => {
             </div>
           </div>,
           {
-            id: toastId,
+            id: loadingToastId,
             duration: 2000,
             position: 'top-center',
             style: {
@@ -712,12 +756,69 @@ const NewCase = () => {
   };
 
   const handleSaveWorkflowChanges = async () => {
-    // Create loading toast ID first
-    const loadingToastId = toast.loading('Creating case and saving workflow...');
+    const messages = [
+      "Hi! I'm setting up your case workflow...",
+      "Configuring document validations...",
+      "Setting up AI assistance channels...",
+      "Almost done! Finalizing setup..."
+    ];
+
+    let currentIndex = 0;
+    const toastId = toast.custom((t) => (
+      <FionaSetupToast
+        message={messages[currentIndex]}
+      />
+    ), { duration: false });
+
+    // Update messages
+    const interval = setInterval(() => {
+      currentIndex++;
+      if (currentIndex < messages.length) {
+        toast.custom((t) => (
+          <FionaSetupToast
+            message={messages[currentIndex]}
+          />
+        ), { id: toastId, duration: false });
+      } else {
+        clearInterval(interval);
+        // Show success message
+        toast.custom((t) => (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="flex items-start space-x-4 bg-white rounded-xl shadow-lg p-5 min-w-[380px] max-w-[420px]"
+          >
+            <div className="relative flex-shrink-0">
+              <div className="absolute -inset-1.5">
+                <div className="w-full h-full rotate-180 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full blur-md opacity-30 animate-pulse" />
+              </div>
+              <img
+                src="/assets/fiona-avatar.png"
+                alt="Fiona"
+                className="relative w-14 h-14 rounded-xl ring-2 ring-white"
+              />
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center ring-2 ring-white">
+                <span className="text-white text-xs">✓</span>
+              </div>
+            </div>
+            <div className="flex-1 space-y-2 py-0.5">
+              <div className="flex items-center space-x-2">
+                <span className="text-[15px] font-semibold text-gray-900">Fiona</span>
+                <span className="px-2 py-0.5 text-xs font-medium bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-full">Success</span>
+              </div>
+              <p className="text-sm leading-relaxed text-gray-600">
+                Perfect! Your case has been created successfully ✨
+              </p>
+            </div>
+          </motion.div>
+        ), { id: toastId, duration: 3000 });
+      }
+    }, 2500);
 
     try {
       if (!selectedTemplate?._id || !selectedCustomer || !selectedAttorney) {
-        toast.error('Please fill in all required fields', { id: loadingToastId });
+        toast.error('Please fill in all required fields', { id: toastId });
         return;
       }
 
@@ -762,11 +863,6 @@ const NewCase = () => {
           steps: formattedSteps
         });
 
-        // Show success toast
-        toast.success('Case created and workflow saved successfully', {
-          id: loadingToastId
-        });
-
         // Navigate to case details
         setTimeout(() => {
           navigate(`/cases/${caseId}`);
@@ -777,7 +873,7 @@ const NewCase = () => {
       console.error('Error creating case and saving workflow:', error);
       toast.error(
         error.response?.data?.message || 'Failed to create case and save workflow',
-        { id: loadingToastId }
+        { id: toastId }
       );
     }
   };
