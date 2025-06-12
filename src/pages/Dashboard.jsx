@@ -125,13 +125,16 @@ function Dashboard() {
         </div>
 
         {/* Pending Review - Enhanced Card */}
-        <div 
+                  <div 
           onClick={() => {
             navigate('/cases', { 
               state: { 
                 applyFilter: true,
-                filterType: 'status',
-                filterValue: 'pending'
+                autoApply: true,
+                filterType: 'documentStatus',
+                filterValue: 'complete',
+                filterType2: 'status',
+                filterValue2: 'pending'
               } 
             });
           }}
@@ -245,7 +248,8 @@ function Dashboard() {
                 state: { 
                   applyFilter: true,
                   filterType: 'status',
-                  filterValue: 'Reviewed'
+                  filterValue: 'Reviewed',
+                  autoApply: true
                 } 
               });
             }}
@@ -286,6 +290,7 @@ function Dashboard() {
               navigate('/cases', { 
                 state: { 
                   applyFilter: true,
+                  autoApply: true,
                   filterType: 'status',
                   filterValue: 'completed'
                 } 
