@@ -125,7 +125,7 @@ function Dashboard() {
         </div>
 
         {/* Pending Review - Enhanced Card */}
-                  <div 
+        <div 
           onClick={() => {
             navigate('/cases', { 
               state: { 
@@ -135,7 +135,8 @@ function Dashboard() {
                 filterValue: 'complete',
                 filterType2: 'status',
                 filterValue2: 'pending'
-              } 
+              },
+              replace: true
             });
           }}
           className="bg-white rounded-lg shadow-sm p-4 cursor-pointer relative group
@@ -450,6 +451,47 @@ function Dashboard() {
       </div>
     </div>
   );
+
+  // Update the navigation handler for pending review cases
+  const handlePendingReviewClick = () => {
+    navigate('/cases', { 
+      state: { 
+        applyFilter: true,
+        autoApply: true,
+        filterType: 'documentStatus',
+        filterValue: 'complete',
+        filterType2: 'status',
+        filterValue2: 'pending'
+      },
+      replace: true // Use replace to prevent back button issues
+    });
+  };
+
+  // Update the navigation handler for pending documents
+  const handlePendingDocumentsClick = () => {
+    navigate('/cases', {
+      state: {
+        applyFilter: true,
+        autoApply: true,
+        filterType: 'documentStatus',
+        filterValue: 'pending'
+      },
+      replace: true
+    });
+  };
+
+  // Update the navigation handler for completed cases
+  const handleCompletedCasesClick = () => {
+    navigate('/cases', {
+      state: {
+        applyFilter: true,
+        autoApply: true,
+        filterType: 'status',
+        filterValue: 'completed'
+      },
+      replace: true
+    });
+  };
 
   return (
     <>
