@@ -40,10 +40,25 @@ const ProcessState = ({ state, status, onClick }) => {
     ? 'hover:shadow-md hover:brightness-105 hover:-translate-y-0.5 transform transition-all duration-200' 
     : '';
 
+  const handleStateClick = () => {
+    console.log('ProcessState clicked:', state);
+    if (isClickableState) {
+      // Map state names to correct tab names
+      let tabName;
+      if (state === 'Verification') {
+        tabName = 'validation';
+      } else if (state === 'Cross Verification') {
+        tabName = 'cross-verification';
+      }
+      console.log('Mapped tab name:', tabName);
+      onClick(tabName);
+    }
+  };
+
   return (
     <div 
-      className={`relative flex-1 cursor-pointer group ${isClickableState ? 'hover:z-10' : ''}`}
-      onClick={onClick}
+      className={`relative flex-1 ${isClickableState ? 'cursor-pointer group hover:z-10' : ''}`}
+      onClick={handleStateClick}
     >
       {/* Invisible click area */}
       <div className="absolute inset-0 -top-9 -bottom-2" />
@@ -232,20 +247,22 @@ const DocumentRow = ({
           </div>
         </div>
 
-        {/* Progress States - Remove Extract state */}
+        {/* Progress States */}
         <div className="flex items-center gap-3 px-1 py-3">
           {document.states
-            // Filter out the Extract state
             .filter(state => state.name !== 'Extract')
             .map((state, index, filteredStates) => (
               <React.Fragment key={state.name}>
                 <ProcessState 
                   state={state.name}
                   status={state.status}
-                  onClick={() => {
-                    
-                    onStateClick(state.name, document);
-                   
+                  onClick={(tabName) => {
+                    console.log('DocumentRow received tab click:', tabName);
+                    console.log('Document data:', document);
+                    if (tabName === 'validation' || tabName === 'cross-verification') {
+                      console.log('Attempting navigation to:', tabName);
+                      onStateClick(tabName, document);
+                    }
                   }}
                 />
                 {index < filteredStates.length - 1 && (
@@ -293,12 +310,14 @@ const FinalizeTab = ({
   const [isBulkApproving, setIsBulkApproving] = useState(false);
 
   useEffect(() => {
+    console.log('FinalizeTab mounted with onStateClick:', !!onStateClick);
+    console.log('Documents:', documents);
     // Only fetch if we don't already have the details for these documents
     const needsFetch = documents.some(doc => !documentDetailsMap[doc.id]);
     if (needsFetch) {
       fetchDocumentDetails(documents);
     }
-  }, [documents]);
+  }, [documents, onStateClick]);
 
   const handleBulkApprove = async () => {
     try {
