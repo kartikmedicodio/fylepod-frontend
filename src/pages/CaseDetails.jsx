@@ -2052,6 +2052,12 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     const isStepCompleted = (stepKey) => {
       // If the step is not present, consider it completed
       if (!caseSteps?.some(step => step.key === stepKey)) return true;
+      
+      // For payment step, check if it's marked as completed in caseSteps
+      if (stepKey === 'payment') {
+        return caseSteps?.some(step => step.key === 'payment' && step.status === 'completed');
+      }
+      
       return caseSteps?.some(step => step.key === stepKey && step.status === 'completed');
     };
     // Helper to check if a step exists
@@ -2079,128 +2085,178 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     const showPreparation = preparationSteps.some(isStepPresent);
     const isPreparationComplete = preparationSteps.every(isStepCompleted);
 
-    // Build steps array dynamically
+    // Build steps array dynamically with icons and descriptions
     const steps = [];
     if (showInitialConfig) {
       steps.push({
         name: 'Initial Configuration',
         completed: isInitialConfigComplete,
-        description: 'Payment & Retainer'
+        description: 'Payment & Retainer Setup',
+        icon: CreditCard
       });
     }
     if (showDocumentCollection) {
       steps.push({
         name: 'Document Collection',
-        completed: isDocumentCollectionComplete
+        completed: isDocumentCollectionComplete,
+        description: 'Required Documents Upload',
+        icon: FileText
       });
     }
     if (showReview) {
       steps.push({
         name: 'Review',
-        completed: isReviewComplete
+        completed: isReviewComplete,
+        description: 'Document Review',
+        icon: ClipboardList
       });
     }
     if (showLetters) {
       steps.push({
         name: 'Letters',
-        completed: isLettersComplete
+        completed: isLettersComplete,
+        description: 'Letter Generation',
+        icon: Mail
       });
     }
     if (showPreparation) {
       steps.push({
         name: 'Preparation',
         completed: isPreparationComplete,
-        description: 'Receipts & Packaging'
+        description: 'Final Package & Government Notices',
+        icon: Package
       });
     }
 
+    const currentStepIndex = steps.findIndex(s => !s.completed);
+
     return (
-      <div className="flex items-center justify-center w-full py-8 bg-gradient-to-r from-slate-50 to-white">
-        <div className="flex items-center justify-between max-w-5xl w-full px-8 relative">
-          {/* Progress bar */}
-          <div className="absolute top-[20px] left-0 h-[3px] bg-gradient-to-r from-blue-600/20 to-blue-600/20 w-full">
+      <div className="w-full py-8 bg-gradient-to-r from-slate-50 via-white to-slate-50">
+        <div className="max-w-6xl mx-auto px-8 relative">
+          {/* Main progress bar with gradient and shimmer */}
+          <div className="absolute top-[28px] left-12 right-12 h-1">
+            {/* Background line */}
+            <div className="h-full w-full bg-gray-100 rounded-full" />
+            
+            {/* Animated progress line */}
             <div 
-              className="h-full bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700"
+              className="absolute top-0 left-0 h-full rounded-full bg-indigo-600"
               style={{
                 width: `${Math.min((steps.filter(step => step.completed).length / steps.length) * 100, 100)}%`,
-                transition: 'width 1s ease-in-out'
+                transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxShadow: '0 0 10px rgba(79, 70, 229, 0.4)'
               }}
-            />
+            >
+              {/* Animated gradient overlay */}
+              <div 
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer-progress"
+                style={{
+                  backgroundSize: '200% 100%'
+                }}
+              />
+            </div>
           </div>
 
-          {steps.map((step, index) => (
-            <div key={step.name} className="flex items-center">
-              <div className="flex flex-col items-center relative">
-                {/* Pulse Animation for Current Step */}
-                {index === steps.findIndex(s => !s.completed) && (
-                  <div className="absolute z-0 w-[44px] h-[44px] top-5 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                    <div className="absolute inset-0 rounded-full opacity-20 animate-step-ping-slow bg-blue-400/50" />
-                    <div className="absolute inset-0 rounded-full opacity-30 animate-step-ping bg-blue-500/50" />
-                    <div className="absolute inset-0 rounded-full opacity-40 animate-step-pulse-fast bg-blue-600/50" />
-                    <div className="absolute inset-0 rounded-full animate-step-pulse bg-blue-700/30 blur-[1px]" />
-                  </div>
-                )}
-
-                {/* Circle */}
-                <div 
-                  className={`
-                    w-10 h-10 rounded-full flex items-center justify-center 
-                    transition-all duration-500 relative z-10
-                    transform hover:scale-110
-                    ${step.completed 
-                      ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/30 ring-4 ring-blue-100' 
-                      : index === steps.findIndex(s => !s.completed)
-                        ? 'bg-white border-2 border-blue-600 text-blue-600 shadow-md'
-                        : 'bg-gray-100 text-gray-400'
-                    }
-                  `}
-                >
-                  {step.completed ? (
-                    <Check className="w-5 h-5 animate-fadeIn" />
-                  ) : (
-                    <span className="text-sm font-semibold">{index + 1}</span>
+          {/* Steps container */}
+          <div className="flex justify-between relative z-10">
+            {steps.map((step, index) => (
+              <div 
+                key={step.name}
+                className={`flex flex-col items-center ${
+                  index === currentStepIndex ? 'transform scale-105 transition-transform duration-500' : ''
+                }`}
+              >
+                {/* Step circle with animations */}
+                <div className="relative mb-4">
+                  {/* Animated rings for current step */}
+                  {index === currentStepIndex && (
+                    <>
+                      <div className="absolute -inset-2 bg-indigo-500/20 rounded-full animate-ping-slow" />
+                      <div className="absolute -inset-4 bg-indigo-500/10 rounded-full animate-pulse-slow" />
+                    </>
                   )}
+
+                  {/* Main circle with icon */}
+                  <div 
+                    className={`
+                      w-14 h-14 rounded-full flex items-center justify-center
+                      transform transition-all duration-500 relative
+                      ${step.completed 
+                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' 
+                        : index === currentStepIndex
+                          ? 'bg-white border-2 border-indigo-600 text-indigo-600'
+                          : 'bg-gray-100 text-gray-400'
+                      }
+                      group hover:scale-105 hover:shadow-lg
+                    `}
+                  >
+                    {/* Icon/Check with animation */}
+                    <div className="transform transition-transform group-hover:scale-110">
+                      {step.completed ? (
+                        <Check className="w-6 h-6 animate-check" />
+                      ) : (
+                        <step.icon className="w-6 h-6" />
+                      )}
+                    </div>
+
+                    {/* Live ripple effect for current step */}
+                    {index === currentStepIndex && (
+                      <div className="absolute -inset-1 border-2 border-indigo-500 rounded-full animate-ripple" />
+                    )}
+                  </div>
                 </div>
 
-                {/* Label */}
-                <span 
-                  className={`
-                    mt-4 text-sm font-medium whitespace-nowrap
-                    transition-all duration-300
-                    ${step.completed 
-                      ? 'text-blue-700' 
-                      : index === steps.findIndex(s => !s.completed)
-                        ? 'text-blue-600 font-semibold scale-105'
-                        : 'text-gray-400'
+                {/* Step name and description */}
+                <div className="text-center space-y-1 relative">
+                  <h3 
+                    className={`
+                      font-semibold text-sm transition-all duration-300
+                      ${step.completed 
+                        ? 'text-indigo-600' 
+                        : index === currentStepIndex
+                          ? 'text-indigo-500'
+                          : 'text-gray-400'
+                      }
+                    `}
+                  >
+                    {step.name}
+                  </h3>
+                  <p 
+                    className={`
+                      text-xs transition-all duration-300 max-w-[120px]
+                      ${step.completed 
+                        ? 'text-gray-600' 
+                        : index === currentStepIndex
+                          ? 'text-gray-500'
+                          : 'text-gray-300'
+                      }
+                    `}
+                  >
+                    {step.description}
+                  </p>
+                  <div 
+                    className={`
+                      mt-2 text-xs font-medium px-3 py-1 rounded-full
+                      transition-all duration-300
+                      ${step.completed 
+                        ? 'bg-green-50 text-green-600 border border-green-200' 
+                        : index === currentStepIndex
+                          ? 'bg-indigo-50 text-indigo-600 border border-indigo-200 animate-pulse'
+                          : 'bg-gray-50 text-gray-400 border border-gray-200'
+                      }
+                    `}
+                  >
+                    {step.completed 
+                      ? 'Completed' 
+                      : index === currentStepIndex
+                        ? 'In Progress'
+                        : 'Pending'
                     }
-                  `}
-                >
-                  {step.name}
-                </span>
-
-                {/* Status Indicator */}
-                <span 
-                  className={`
-                    mt-1 text-xs
-                    transition-all duration-300
-                    ${step.completed 
-                      ? 'text-green-600' 
-                      : index === steps.findIndex(s => !s.completed)
-                        ? 'text-blue-500'
-                        : 'text-gray-400'
-                    }
-                  `}
-                >
-                  {step.completed 
-                    ? 'Completed' 
-                    : index === steps.findIndex(s => !s.completed)
-                      ? 'In Progress'
-                      : 'Pending'
-                  }
-                </span>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     );
