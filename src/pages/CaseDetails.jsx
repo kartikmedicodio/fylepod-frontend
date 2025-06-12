@@ -46,6 +46,7 @@ import CommunicationsTab from '../components/CommunicationsTab';
 import RetainerTab from '../components/RetainerTab';
 import PaymentTab from '../components/payments/PaymentTab';
 import AuditLogTab from '../components/AuditLogTab';
+import AuditLogTimeline from '../components/AuditLogTimeline';
 
 // Add a new status type to track document states
 const DOCUMENT_STATUS = {
@@ -195,6 +196,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     }
   });
   const [forms, setForms] = useState([]);
+  const [filteredForms, setFilteredForms] = useState([]);
   const [isSavingQuestionnaire, setIsSavingQuestionnaire] = useState(false);
   const [loadingFormId, setLoadingFormId] = useState(null);
   const [error, setError] = useState(null);
@@ -300,17 +302,27 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       }
     });
 
-    // Always add the Audit Log tab
-    const auditLogTab = {
-      _id: 'audit-logs',
-      key: 'audit-logs',
-      displayKey: 'audit-logs',
-      displayName: 'Audit Logs',
-      disabled: false,
-      order: steps.length + 1
-    };
+    // Always add the Audit Log tabs
+    const auditLogTabs = [
+      {
+        _id: 'audit-logs',
+        key: 'audit-logs',
+        displayKey: 'audit-logs',
+        displayName: 'Activity Logs (Old)',
+        disabled: false,
+        order: steps.length + 1
+      },
+      {
+        _id: 'audit-logs-timeline',
+        key: 'audit-logs-timeline',
+        displayKey: 'audit-logs-timeline',
+        displayName: 'Activity Logs (New)',
+        disabled: false,
+        order: steps.length + 2
+      }
+    ];
 
-    return [...steps, auditLogTab];
+    return [...steps, ...auditLogTabs];
   }, [caseSteps]);
 
   // Add a function at the top of the component to load data from localStorage
@@ -1671,12 +1683,14 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     const fetchForms = async () => {
       try {
         const response = await api.get('/forms');
+        console.log("response of the forms", response);
         if (response.data.status === 'success') {
+          console.log("All forms:", response.data.data.forms);
           setForms(response.data.data.forms);
         }
       } catch (error) {
         console.error('Error fetching forms:', error);
-        toast.error('Failed to load forms');
+        toast.error('Failed to fetch forms');
       }
     };
 
@@ -1688,6 +1702,21 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       fetchQuestionnaires();
     }
   }, [caseId, caseData]); // Added caseData as dependency since fetchQuestionnaires needs it
+
+  // Add useEffect to filter forms when caseData changes
+  useEffect(() => {
+    console.log("CaseData changed:", caseData);
+    console.log("Current forms:", forms);
+    if (caseData?.categoryId?._id) {
+      console.log("Category ID from case:", caseData.categoryId._id);
+      const filtered = forms.filter(form => {
+        console.log("Form category_id:", form.category_id);
+        return form.category_id === caseData.categoryId._id;
+      });
+      console.log("Filtered forms:", filtered);
+      setFilteredForms(filtered);
+    }
+  }, [caseData, forms]);
 
   const handleInputChange = (section, field, value) => {
     setFormData(prev => ({
@@ -4903,7 +4932,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     useEffect(() => {
       const fetchExistingForms = async () => {
         try {
-          const response = await api.get(`/management/forms-url/${caseId}`);
+          const response = await api.get(`/management/forms-url/${caseId}/${caseData?.categoryId?._id}`);
           if (response.data.status === 'success') {
             setExistingForms(response.data.data.formsUrl);
           }
@@ -5324,7 +5353,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
          <div>
            <h2 className="text-lg font-semibold text-gray-900 mb-4">Available Forms</h2>
           <div className="space-y-3">
-          {forms.map((form) => (
+          {filteredForms.map((form) => (
             <div 
               key={form._id}
               onClick={() => handleFormClick(form)}
@@ -6004,6 +6033,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
               {activeTab === 'audit-logs' && <AuditLogTab caseId={caseId} />}
+              {activeTab === 'audit-logs-timeline' && <AuditLogTimeline managementId={caseId} />}
             </div>
           </div>
         </div>
