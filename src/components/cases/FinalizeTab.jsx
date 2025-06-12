@@ -185,19 +185,22 @@ const DocumentRow = ({
                     onApprove(document.documentTypeId, document.id);
                   }}
                   disabled={processingDocuments[document.id]}
-                  className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2
                     ${processingDocuments[document.id] 
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                      : 'bg-green-500 text-white hover:bg-green-600 shadow-sm'
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-70' 
+                      : 'bg-green-500 text-white hover:bg-green-600 active:bg-green-700 hover:shadow-md active:shadow-sm transform hover:-translate-y-0.5 active:translate-y-0'
                     }`}
                 >
                   {processingDocuments[document.id] ? (
-                    <span className="flex items-center">
-                      <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                      Processing
+                    <span className="flex items-center gap-1.5">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Processing...
                     </span>
                   ) : (
-                    'Approve'
+                    <span className="flex items-center gap-1.5">
+                      <Check className="w-4 h-4" />
+                      Approve
+                    </span>
                   )}
                 </button>
                 <button 
@@ -206,19 +209,22 @@ const DocumentRow = ({
                     onRequestReupload(document.documentTypeId, document.id);
                   }}
                   disabled={processingDocuments[document.id]}
-                  className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2
                     ${processingDocuments[document.id] 
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                      : 'bg-white border border-red-200 text-red-500 hover:bg-red-50 shadow-sm'
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-70' 
+                      : 'bg-rose-500 text-white hover:bg-rose-600 active:bg-rose-700 hover:shadow-md active:shadow-sm transform hover:-translate-y-0.5 active:translate-y-0'
                     }`}
                 >
                   {processingDocuments[document.id] ? (
-                    <span className="flex items-center">
-                      <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                      Processing
+                    <span className="flex items-center gap-1.5">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Processing...
                     </span>
                   ) : (
-                    'Request Reupload'
+                    <span className="flex items-center gap-1.5">
+                      <X className="w-4 h-4" />
+                      Request Reupload
+                    </span>
                   )}
                 </button>
               </div>
@@ -382,22 +388,22 @@ const FinalizeTab = ({
               <button
                 onClick={handleBulkApprove}
                 disabled={isBulkApproving}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2
                   ${isBulkApproving 
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                    : 'bg-green-500 text-white hover:bg-green-600 shadow-sm'
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-70' 
+                    : 'bg-green-500 text-white hover:bg-green-600 active:bg-green-700 hover:shadow-md active:shadow-sm transform hover:-translate-y-0.5 active:translate-y-0'
                   }`}
               >
                 {isBulkApproving ? (
-                  <>
+                  <span className="flex items-center gap-1.5">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Approving All...
-                  </>
+                  </span>
                 ) : (
-                  <>
+                  <span className="flex items-center gap-1.5">
                     <Check className="w-4 h-4" />
                     Approve All ({pendingDocumentsCount})
-                  </>
+                  </span>
                 )}
               </button>
             )}

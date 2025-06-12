@@ -203,39 +203,6 @@ const FiltersDropdown = ({
         </Listbox>
       </div>
 
-      {/* Document Status Filter */}
-      <div>
-        <label className="text-sm font-medium text-gray-700 block mb-2">Document Status</label>
-        <Listbox
-          value={tempFilters.documentStatus}
-          onChange={value => handleFilterChange('documentStatus', value)}
-        >
-          <div className="relative">
-            <Listbox.Button className="w-full rounded-lg border border-gray-300 py-2 px-3 text-sm text-left flex justify-between items-center">
-              <span>
-                {filterOptions.documentStatus.find(o => o.value === tempFilters.documentStatus)?.label || 'Select...'}
-              </span>
-              <ChevronUpDownIcon className="w-4 h-4 text-gray-400 ml-2" />
-            </Listbox.Button>
-            <Listbox.Options className="absolute mt-1 w-full bg-white shadow-lg rounded-lg z-10">
-              {filterOptions.documentStatus.map((option) => (
-                <Listbox.Option
-                  key={option.value}
-                  value={option.value}
-                  className={({ active, selected }) =>
-                    `cursor-pointer select-none relative py-2 px-3
-                    ${selected ? 'bg-indigo-600 text-white' : ''}
-                    ${active && !selected ? 'bg-indigo-50' : ''}`
-                  }
-                >
-                  {option.label}
-                </Listbox.Option>
-              ))}
-            </Listbox.Options>
-          </div>
-        </Listbox>
-      </div>
-
       {/* Deadline Filter */}
       <div>
         <label className="text-sm font-medium text-gray-700 block mb-2">Deadline</label>
@@ -312,12 +279,10 @@ const Cases = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
     status: '',
-    documentStatus: '',
     deadline: ''
   });
   const [tempFilters, setTempFilters] = useState({
     status: '',
-    documentStatus: '',
     deadline: ''
   });
 
@@ -344,11 +309,6 @@ const Cases = () => {
       { value: 'pending', label: 'Pending' },
       { value: 'completed', label: 'Completed' },
       { value: 'Reviewed', label: 'Reviewed' }
-    ],
-    documentStatus: [
-      { value: '', label: 'All Document Status' },
-      { value: 'pending', label: 'Documents Pending' },
-      { value: 'complete', label: 'Documents Complete' }
     ],
     deadline: [
       { value: '', label: 'All Deadlines' },
@@ -443,9 +403,32 @@ const Cases = () => {
     };
   }, []);
 
-  // Update the initial data fetch effect to not include searchTerm dependency
+  // Add this effect to handle incoming state
   useEffect(() => {
-    fetchCases(currentPage, searchTerm, filters.status);
+    const handleInitialFilter = async () => {
+      if (location.state?.applyFilter) {
+        const { filterType, filterValue } = location.state;
+        const newFilters = {
+          ...filters,
+          [filterType]: filterValue
+        };
+        setTempFilters(newFilters);
+        setFilters(newFilters);
+        setCurrentPage(1);
+        await fetchCases(1, searchTerm, filterValue);
+        // Clear the state after applying but keep the URL clean
+        navigate(location.pathname, { replace: true, state: null });
+      }
+    };
+
+    handleInitialFilter();
+  }, [location.state]);
+
+  // Update the initial data fetch effect
+  useEffect(() => {
+    if (!location.state?.applyFilter) { // Only fetch if not handling initial filter
+      fetchCases(currentPage, searchTerm, filters.status);
+    }
   }, [currentPage, filters.status]); // Remove searchTerm from dependencies
 
   // Handler functions
@@ -466,7 +449,6 @@ const Cases = () => {
   const clearAllFilters = () => {
     const emptyFilters = {
       status: '',
-      documentStatus: '',
       deadline: ''
     };
     setTempFilters(emptyFilters);
