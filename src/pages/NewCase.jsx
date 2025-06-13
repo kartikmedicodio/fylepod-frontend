@@ -60,34 +60,43 @@ ProgressLine.propTypes = {
 const FionaSetupToast = ({ message }) => {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      className="flex items-start space-x-4 bg-white rounded-xl shadow-lg p-5 min-w-[380px] max-w-[420px]"
+      initial={{ opacity: 0, y: 20, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -20, scale: 0.95 }}
+      transition={{ type: "spring", stiffness: 300, damping: 25 }}
+      className="flex items-start space-x-4 bg-white rounded-2xl shadow-2xl p-6 min-w-[420px] max-w-[480px] border border-gray-100"
     >
-      {/* Fiona's Avatar with Pulse Effect */}
+      {/* Fiona's Avatar with Enhanced Pulse Effect */}
       <div className="relative flex-shrink-0">
-        <div className="absolute -inset-1.5">
-          <div className="w-full h-full rotate-180 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full blur-md opacity-30 animate-pulse" />
+        <div className="absolute -inset-2">
+          <div className="w-full h-full rotate-180 bg-gradient-to-r from-blue-600 via-purple-600 to-blue-600 rounded-full blur-xl opacity-30 animate-pulse" />
         </div>
-        <img
-          src="/assets/fiona-avatar.png"
-          alt="Fiona"
-          className="relative w-14 h-14 rounded-xl ring-2 ring-white"
-        />
-        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center ring-2 ring-white">
+        <div className="relative w-16 h-16 rounded-2xl overflow-hidden ring-2 ring-white shadow-lg">
+          <img
+            src="/assets/fiona-avatar.png"
+            alt="Fiona"
+            className="w-full h-full object-cover"
+          />
+        </div>
+        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center ring-2 ring-white shadow-md">
           <span className="text-white text-xs font-bold">F</span>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 space-y-2 py-0.5">
-        <div className="flex items-center space-x-2">
-          <span className="text-[15px] font-semibold text-gray-900">Fiona</span>
-          <span className="px-2 py-0.5 text-xs font-medium bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-full">AI Agent</span>
+      {/* Content with Enhanced Typography */}
+      <div className="flex-1 space-y-3 py-1">
+        <div className="flex items-center space-x-3">
+          <span className="text-[16px] font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Fiona
+          </span>
+          <span className="px-2.5 py-1 text-xs font-medium bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-full shadow-sm">
+            AI Agent
+          </span>
         </div>
         
-        <p className="text-sm leading-relaxed text-gray-600">{message}</p>
+        <p className="text-[15px] leading-relaxed text-gray-600 font-medium">
+          {message}
+        </p>
       </div>
     </motion.div>
   );
@@ -458,21 +467,24 @@ const NewCase = () => {
     try {
       if (!selectedTemplate || !selectedCustomer || !selectedAttorney) {
         toast.error(
-          <div className="flex flex-col gap-1">
-            <span className="font-medium">Missing Information</span>
-            <span className="text-sm text-gray-500">
-              Please select all required fields
-            </span>
+          <div className="flex items-start gap-4 bg-white rounded-2xl shadow-2xl p-6 min-w-[420px] max-w-[480px] border border-gray-100">
+            <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-6 h-6 text-red-500" />
+            </div>
+            <div className="flex-1 space-y-2">
+              <h3 className="text-[16px] font-semibold text-gray-900">Missing Information</h3>
+              <p className="text-[15px] text-gray-600">
+                Please select all required fields to proceed
+              </p>
+            </div>
           </div>,
           {
-            duration: 3000,
-            position: 'top-right',
+            duration: 4000,
+            position: 'top-center',
             style: {
-              background: '#fff',
-              color: '#1f2937',
-              padding: '16px',
-              borderRadius: '8px',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+              background: 'transparent',
+              boxShadow: 'none',
+              padding: 0,
             },
           }
         );
@@ -481,21 +493,24 @@ const NewCase = () => {
 
       if (!selectedDocuments || selectedDocuments.length === 0) {
         toast.error(
-          <div className="flex flex-col gap-1">
-            <span className="font-medium">No Documents Selected</span>
-            <span className="text-sm text-gray-500">
-              Please select at least one document
-            </span>
+          <div className="flex items-start gap-4 bg-white rounded-2xl shadow-2xl p-6 min-w-[420px] max-w-[480px] border border-gray-100">
+            <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-6 h-6 text-red-500" />
+            </div>
+            <div className="flex-1 space-y-2">
+              <h3 className="text-[16px] font-semibold text-gray-900">No Documents Selected</h3>
+              <p className="text-[15px] text-gray-600">
+                Please select at least one document to proceed
+              </p>
+            </div>
           </div>,
           {
-            duration: 3000,
-            position: 'top-right',
+            duration: 4000,
+            position: 'top-center',
             style: {
-              background: '#fff',
-              color: '#1f2937',
-              padding: '16px',
-              borderRadius: '8px',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+              background: 'transparent',
+              boxShadow: 'none',
+              padding: 0,
             },
           }
         );
@@ -505,31 +520,24 @@ const NewCase = () => {
       setIsCreatingCase(true);
 
       // Show initial toast with Fiona
-      const loadingToastId = toast.loading("Hi! I'm Fiona, setting up your case...", {
-        icon: '🤖',
-        style: {
-          minWidth: '350px',
-          background: '#fff',
-          color: '#1f2937',
-          fontSize: '14px',
-          padding: '16px',
-          borderRadius: '12px',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-        }
+      const loadingToastId = toast.custom((t) => (
+        <FionaSetupToast message="Hi! I'm Fiona, setting up your case..." />
+      ), { duration: false });
+
+      // Update messages with enhanced animations
+      const messages = [
+        "Configuring your workflow and documents...",
+        "Setting up AI assistance channels...",
+        "Almost done! Finalizing everything..."
+      ];
+
+      messages.forEach((message, index) => {
+        setTimeout(() => {
+          toast.custom((t) => (
+            <FionaSetupToast message={message} />
+          ), { id: loadingToastId });
+        }, (index + 1) * 2000);
       });
-
-      // Update the message after a delay
-      setTimeout(() => {
-        toast.loading("Configuring your workflow and documents...", { id: loadingToastId });
-      }, 2000);
-
-      setTimeout(() => {
-        toast.loading("Setting up AI assistance channels...", { id: loadingToastId });
-      }, 4000);
-
-      setTimeout(() => {
-        toast.loading("Almost done! Finalizing everything...", { id: loadingToastId });
-      }, 6000);
 
       const requestBody = {
         userId: selectedCustomer._id,
@@ -553,33 +561,19 @@ const NewCase = () => {
       if (response.data.status === 'success') {
         const caseId = response.data.data.management._id;
         
-        // First success toast with Fiona
-        toast.success(
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 flex items-center justify-center text-white flex-shrink-0">
-              <FionaIcon />
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="font-medium">Case created successfully</span>
-              <span className="text-sm text-gray-500">
-                I have set up everything for you. Diana will now take over with the document collection process.
-              </span>
-            </div>
-          </div>,
-          {
-            id: loadingToastId,
-            duration: 2000,
-            position: 'top-center',
-            style: {
-              background: '#fff',
-              color: '#1f2937',
-              padding: '16px',
-              borderRadius: '8px',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-              minWidth: '400px',
-            },
-          }
-        );
+        // Success toast with enhanced design
+        toast.custom((t) => (
+          <FionaSetupToast message="Perfect! Your case has been created successfully ✨" />
+        ), {
+          id: loadingToastId,
+          duration: 3000,
+          position: 'top-center',
+          style: {
+            background: 'transparent',
+            boxShadow: 'none',
+            padding: 0,
+          },
+        });
 
         // Send management creation email
         try {
@@ -637,28 +631,38 @@ const NewCase = () => {
       setError(error.response?.data?.message || 'Failed to create case');
       setIsCreatingCase(false);
 
-      // Show error toast with Fiona
+      // Enhanced error toast
       toast.error(
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-500">
-            <AlertCircle className="w-5 h-5" />
+        <div className="flex items-start gap-4 bg-white rounded-2xl shadow-2xl p-6 min-w-[420px] max-w-[480px] border border-gray-100">
+          <div className="relative flex-shrink-0">
+            <div className="absolute -inset-2">
+              <div className="w-full h-full rotate-180 bg-gradient-to-r from-red-500 to-rose-500 rounded-full blur-xl opacity-30 animate-pulse" />
+            </div>
+            <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center ring-2 ring-white shadow-lg">
+              <AlertCircle className="w-8 h-8 text-red-500" />
+            </div>
           </div>
-          <div className="flex flex-col gap-1">
-            <span className="font-medium">Failed to create case</span>
-            <span className="text-sm text-gray-500">
-              {error.response?.data?.message || 'Please try again'}
-            </span>
+          <div className="flex-1 space-y-3 py-1">
+            <div className="flex items-center space-x-3">
+              <span className="text-[16px] font-semibold text-red-600">
+                Error
+              </span>
+              <span className="px-2.5 py-1 text-xs font-medium bg-red-100 text-red-600 rounded-full">
+                Failed
+              </span>
+            </div>
+            <p className="text-[15px] leading-relaxed text-gray-600 font-medium">
+              {error.response?.data?.message || 'Failed to create case. Please try again.'}
+            </p>
           </div>
         </div>,
         {
           duration: 4000,
+          position: 'top-center',
           style: {
-            background: '#fff',
-            color: '#1f2937',
-            padding: '16px',
-            borderRadius: '8px',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-            minWidth: '400px',
+            background: 'transparent',
+            boxShadow: 'none',
+            padding: 0,
           },
         }
       );
