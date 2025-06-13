@@ -3412,16 +3412,16 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           processedInformation: trimmedFormData
         };
         
-        // console.log('Saving questionnaire with trimmed data:', payload);
-        
+        // Save the questionnaire data
         const response = await api.put(`/questionnaire-responses/management/${caseId}`, payload);
 
         if (response.data.status === 'success') {
+          // Update the status to saved
+          await api.put(`/questionnaire-responses/${caseId}/status`);
+          
           toast.success('Changes saved successfully');
           setIsQuestionnaireCompleted(true);
-          
-          // Optionally navigate to the next tab
-          // setActiveTab('forms');
+          setActiveTab('forms'); // Add this line to switch to forms tab
         }
       } catch (error) {
         console.error('Error saving questionnaire:', error);
