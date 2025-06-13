@@ -1112,6 +1112,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
       // Get the case owner's userId from caseData
       const userId = caseData?.userId;
+      const caseName = caseData?.caseName || caseData?.categoryName || '';
+      const applicantName = caseData?.applicantName || profileData?.name || '';
 
       // Structure the request body according to the backend's expected format
       const requestBody = {
@@ -1132,62 +1134,67 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         recipientEmail,
         recipientName,
         managementId: caseId,
-        emailType: 'validation',
+        emailType: 'document_validation', // <-- fix here
         userId: userId // Use the case owner's userId
       };
 
       // Log the request body for debugging
       console.log('Sending validation email request with data:', {
-      recipientEmail,
-      recipientName,
-      managementId: caseId,
-      userId: userId,
-      validationCount: validationData.data.mergedValidations?.length,
-      mismatchCount: crossVerifyData.data.verificationResults.mismatchErrors?.length,
-      missingCount: crossVerifyData.data.verificationResults.missingErrors?.length
+        recipientEmail,
+        recipientName,
+        managementId: caseId,
+        userId: userId,
+        validationCount: validationData.data.mergedValidations?.length,
+        mismatchCount: crossVerifyData.data.verificationResults.mismatchErrors?.length,
+        missingCount: crossVerifyData.data.verificationResults.missingErrors?.length
       });
 
-     // Generate the draft mail content
-     const draftResponse = await api.post('/mail/draft', requestBody);
+      // Generate the draft mail content
+      const draftResponse = await api.post('/mail/draft', requestBody);
       
-     if (draftResponse.data.status !== 'success') {
-       throw new Error('Failed to generate draft: ' + draftResponse.data.message);
-     }
+      if (draftResponse.data.status !== 'success') {
+        throw new Error('Failed to generate draft: ' + draftResponse.data.message);
+      }
 
-     const mailContent = draftResponse.data.data;
+      const mailContent = draftResponse.data.data;
 
-     // Send the email
-     const sendResponse = await api.post('/mail/send', {
-       subject: mailContent.subject,
-       body: mailContent.body,
-       recipientEmail: recipientEmail,
-       recipientName: recipientName,
-       managementId: caseId,
-       emailType: 'validation',
-       userId: userId // Use the case owner's userId
-     });
+      // Send the email
+      const sendResponse = await api.post('/mail/send', {
+        subject: mailContent.subject,
+        body: mailContent.body,
+        recipientEmail: recipientEmail,
+        recipientName: recipientName,
+        managementId: caseId,
+        caseId: caseId, // <-- add
+        caseName: caseName, // <-- add
+        applicantName: applicantName, // <-- add
+        validationData: validationData.data, // <-- add
+        crossVerifyData: crossVerifyData.data, // <-- add
+        emailType: 'document_validation', // <-- fix here
+        userId: userId // Use the case owner's userId
+      });
 
-     if (sendResponse.data.status === 'success') {
-       setEmailSent(true);
-       toast.success('Validation report email sent successfully');
-       setMessages(prev => [...prev, {
-         type: 'system',
-         content: 'Validation email sent successfully.',
-         timestamp: new Date().toISOString()
-       }]);
-     } else {
-       throw new Error('Failed to send email: ' + sendResponse.data.message);
-     }
-   } catch (error) {
-     console.error('Error sending validation email:', error);
-     toast.error('Failed to send validation report email');
-     setMessages(prev => [...prev, {
-       type: 'error',
-       content: 'Failed to send validation email: ' + (error.response?.data?.message || error.message),
-       timestamp: new Date().toISOString()
-     }]);
-   }
- };
+      if (sendResponse.data.status === 'success') {
+        setEmailSent(true);
+        toast.success('Validation report email sent successfully');
+        setMessages(prev => [...prev, {
+          type: 'system',
+          content: 'Validation email sent successfully.',
+          timestamp: new Date().toISOString()
+        }]);
+      } else {
+        throw new Error('Failed to send email: ' + sendResponse.data.message);
+      }
+    } catch (error) {
+      console.error('Error sending validation email:', error);
+      toast.error('Failed to send validation report email');
+      setMessages(prev => [...prev, {
+        type: 'error',
+        content: 'Failed to send validation email: ' + (error.response?.data?.message || error.message),
+        timestamp: new Date().toISOString()
+      }]);
+    }
+  };
 
   const handleFileUpload = async (files) => {
     if (!files.length) return;
