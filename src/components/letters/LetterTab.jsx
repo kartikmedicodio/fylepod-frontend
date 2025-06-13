@@ -270,7 +270,8 @@ const LetterTab = ({ managementId, stepId }) => {
       if (response.data.status === "success" && response.data.data?.entry?.userId) {
         const userDetails = {
           email: response.data.data.entry.userId.email,
-          name: response.data.data.entry.userId.name || 'User'
+          name: response.data.data.entry.userId.name || 'User',
+          _id: response.data.data.entry.userId._id
         };
         console.log('Found user details:', userDetails);
         return userDetails;
@@ -283,13 +284,14 @@ const LetterTab = ({ managementId, stepId }) => {
     }
   };
 
-  const sendLetterNotification = async (userDetails, letterData, templateName) => {
+  const sendLetterNotification = async (userDetails, letterData, templateName, managementId, userId) => {
     try {
       console.log('Sending letter notification with:', {
         email: userDetails.email,
         letterName: templateName,
         pdfUrl: letterData.pdfUrl,
-        managementId: letterData.managementId
+        managementId: managementId,
+        userId: userDetails._id || userId // Use userDetails._id if available, fallback to passed userId
       });
 
       const response = await api.post('/mail/letter-notification', {
@@ -298,7 +300,9 @@ const LetterTab = ({ managementId, stepId }) => {
         letterUrl: letterData.pdfUrl,
         userName: userDetails.name,
         letterType: templateName || 'Generated',
-        caseId: letterData.managementId
+        caseId: managementId,
+        managementId: managementId,
+        userId: userDetails._id || userId // Use userDetails._id if available, fallback to passed userId
       });
 
       console.log('Letter notification response:', response.data);
@@ -351,7 +355,9 @@ const LetterTab = ({ managementId, stepId }) => {
             await sendLetterNotification(
               userDetails,
               response.data.data,
-              selectedTemplate?.name
+              selectedTemplate?.name,
+              letter.managementId,
+              userDetails._id // Pass the user's ID
             );
           } else {
             console.warn('No user email found for management:', letter.managementId);
@@ -476,7 +482,9 @@ const LetterTab = ({ managementId, stepId }) => {
           await sendLetterNotification(
             userDetails,
             updatedLetter,
-            selectedTemplate?.name
+            selectedTemplate?.name,
+            updatedLetter.managementId,
+            userDetails._id
           );
         } else {
           console.warn('No user email found for management:', updatedLetter.managementId);
