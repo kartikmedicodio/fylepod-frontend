@@ -3065,6 +3065,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                   })
                 }));
               }}
+              managementId={caseId} // Changed from caseData?.caseManagerId?._id to caseId
             />
           );
         case 'letters':
@@ -6006,6 +6007,116 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                       key={step._id}
                       managementId={caseId}
                       stepId={step._id}
+                    />
+                  );
+                }
+                if (step.key === 'finalize' && activeTab === step.displayKey) {
+                  return (
+                    <FinalizeTab
+                      documents={caseData.documentTypes
+                        .filter(doc => doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED)
+                        .map(doc => {
+                          const hasVerificationData = (verificationDataRef.current || verificationData) && 
+                            Object.keys(verificationDataRef.current || verificationData).length > 0;
+                          
+                          const getValidationStatus = () => {
+                            const currentValidationData = validationDataRef.current || validationData;
+                            if (!currentValidationData?.mergedValidations) return 'pending';
+                            
+                            // Find validation for current document
+                            const docValidation = currentValidationData.mergedValidations.find(
+                              v => v.documentType === doc.name
+                            );
+                            
+                            if (!docValidation) return 'pending';
+
+                            // Check individual validations for this document
+                            if (docValidation.validations && docValidation.validations.length > 0) {
+                              const totalValidations = docValidation.validations.length;
+                              const passedValidations = docValidation.validations.filter(v => v.passed).length;
+
+                              if (passedValidations === totalValidations) {
+                                // All validations passed
+                                return 'success';
+                              } else if (passedValidations > 0) {
+                                // Some validations passed
+                                return 'partial';
+                              } else {
+                                // No validations passed
+                                return 'error';
+                              }
+                            }
+
+                            return 'pending';
+                          };
+
+                          return {
+                            id: doc._id,
+                            name: doc.name,
+                            status: doc.status === 'approved' ? 'Approved' : 'Verification pending',
+                            documentTypeId: doc.documentTypeId,
+                            updatedAt: doc.updatedAt,
+                            managementId: caseId,
+                            states: [
+                              {
+                                name: 'Document collection',
+                                status: doc.status !== 'pending' ? 'success' : 'error'
+                              },
+                              {
+                                name: 'Read',
+                                status: doc.status !== 'pending' ? 'success' : 'pending'
+                              },
+                              {
+                                name: 'Verification',
+                                status: getValidationStatus()
+                              },
+                              {
+                                name: 'Cross Verification',
+                                status: !hasVerificationData ? 'pending' :
+                                       (verificationDataRef.current || verificationData)?.[doc.name]?.isVerified ? 'success' : 
+                                       (verificationDataRef.current || verificationData)?.[doc.name]?.partiallyVerified ? 'partial' : 'error'
+                              }
+                            ]
+                          };
+                        })
+                      }
+                      validationData={validationDataRef.current || validationData}
+                      onStateClick={(state, document) => {
+                        // Handle state clicks to navigate to appropriate tabs
+                        switch(state) {
+                          case 'validation':
+                            setSelectedSubTab('validation');
+                            break;
+                          case 'cross-verification':
+                            setSelectedSubTab('cross-verification');
+                            break;
+                          case 'extracted-data':
+                            setSelectedSubTab('extracted-data');
+                            break;
+                          default:
+                            break;
+                        }
+                      }}
+                      onApprove={handleDocumentApprove}
+                      onRequestReupload={handleRequestReupload}
+                      processingDocuments={processingDocuments}
+                      onDocumentsUpdate={(updatedDocuments) => {
+                        // Update the caseData state with the new document statuses
+                        setCaseData(prevData => ({
+                          ...prevData,
+                          documentTypes: prevData.documentTypes.map(doc => {
+                            const updatedDoc = updatedDocuments.find(d => d.documentTypeId === doc.documentTypeId);
+                            if (updatedDoc) {
+                              return {
+                                ...doc,
+                                status: updatedDoc.status === 'Approved' ? DOCUMENT_STATUS.APPROVED : doc.status
+                              };
+                            }
+                            return doc;
+                          })
+                        }));
+                      }}
+                      managementId={caseId} // Changed from caseData?.caseManagerId?._id to caseId
                     />
                   );
                 }

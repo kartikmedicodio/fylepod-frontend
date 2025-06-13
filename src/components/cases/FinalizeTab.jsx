@@ -287,10 +287,13 @@ const FinalizeTab = ({
   onApprove,
   onRequestReupload,
   processingDocuments = {},
-  onDocumentsUpdate
+  onDocumentsUpdate,
+  managementId
 }) => {
   const { documentDetailsMap, isLoading, fetchDocumentDetails } = useDocumentContext();
   const [isBulkApproving, setIsBulkApproving] = useState(false);
+  const [unknownDocuments, setUnknownDocuments] = useState([]);
+  const [isLoadingUnknown, setIsLoadingUnknown] = useState(false);
 
   useEffect(() => {
     // Only fetch if we don't already have the details for these documents
@@ -299,6 +302,27 @@ const FinalizeTab = ({
       fetchDocumentDetails(documents);
     }
   }, [documents]);
+
+  useEffect(() => {
+    const fetchUnknownDocuments = async () => {
+      if (!managementId) return;
+      
+      try {
+        setIsLoadingUnknown(true);
+        const response = await api.get(`/documents/management/${managementId}/unknown`);
+        if (response.data?.status === 'success') {
+          setUnknownDocuments(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching unknown documents:', error);
+        toast.error('Failed to fetch additional documents');
+      } finally {
+        setIsLoadingUnknown(false);
+      }
+    };
+
+    fetchUnknownDocuments();
+  }, [managementId]);
 
   const handleBulkApprove = async () => {
     try {
@@ -359,6 +383,8 @@ const FinalizeTab = ({
 
   const pendingDocumentsCount = documents.filter(doc => doc.status === 'Verification pending').length;
 
+  const allDocuments = [...documents, ...unknownDocuments];
+
   return (
     <div>
       {/* Header Section */}
@@ -375,7 +401,12 @@ const FinalizeTab = ({
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 text-sm text-slate-500">
-              <span>{documents.length} document{documents.length !== 1 ? 's' : ''} to review</span>
+              <span>{allDocuments.length} document{allDocuments.length !== 1 ? 's' : ''} to review</span>
+              {unknownDocuments.length > 0 && (
+                <span className="text-blue-500">
+                  ({unknownDocuments.length} additional)
+                </span>
+              )}
             </div>
             {pendingDocumentsCount > 0 && (
               <button
@@ -435,26 +466,64 @@ const FinalizeTab = ({
       {/* Documents List */}
       <div className="p-4">
         <div className="space-y-3">
-          {isLoading ? (
+          {(isLoading || isLoadingUnknown) ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
             </div>
           ) : (
-            documents.map(doc => {
-              console.log('Rendering document:', doc);
-              console.log('Document details for this doc:', documentDetailsMap[doc.id]);
-              return (
-                <DocumentRow 
-                  key={doc.id} 
-                  document={doc} 
-                  documentDetails={documentDetailsMap[doc.id]}
-                  onStateClick={onStateClick}
-                  onApprove={onApprove}
-                  onRequestReupload={onRequestReupload}
-                  processingDocuments={processingDocuments}
-                />
-              );
-            })
+            <>
+              {/* Required Documents */}
+              {documents.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-sm font-medium text-slate-900 mb-3">Required Documents</h3>
+                  <div className="space-y-3">
+                    {documents.map(doc => (
+                      <DocumentRow 
+                        key={doc.id} 
+                        document={doc} 
+                        documentDetails={documentDetailsMap[doc.id]}
+                        onStateClick={onStateClick}
+                        onApprove={onApprove}
+                        onRequestReupload={onRequestReupload}
+                        processingDocuments={processingDocuments}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Additional Documents */}
+              {unknownDocuments.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-slate-900 mb-3">Additional Documents</h3>
+                  <div className="space-y-3">
+                    {unknownDocuments.map(doc => (
+                      <DocumentRow 
+                        key={doc.id} 
+                        document={{
+                          ...doc,
+                          documentTypeId: 'unknown',
+                          states: doc.states || [
+                            { name: 'Document collection', status: 'success' },
+                            { name: 'Read', status: 'success' },
+                            { name: 'Verification', status: doc.status === 'Approved' ? 'success' : 'pending' },
+                            { name: 'Cross Verification', status: doc.status === 'Approved' ? 'success' : 'pending' }
+                          ]
+                        }}
+                        documentDetails={{
+                          type: 'Additional Document',
+                          ...doc.fileDetails
+                        }}
+                        onStateClick={onStateClick}
+                        onApprove={onApprove}
+                        onRequestReupload={onRequestReupload}
+                        processingDocuments={processingDocuments}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -476,7 +545,8 @@ FinalizeTab.propTypes = {
   onApprove: PropTypes.func.isRequired,
   onRequestReupload: PropTypes.func.isRequired,
   processingDocuments: PropTypes.object,
-  onDocumentsUpdate: PropTypes.func
+  onDocumentsUpdate: PropTypes.func,
+  managementId: PropTypes.string
 };
 
 export default FinalizeTab; 
