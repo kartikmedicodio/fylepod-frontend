@@ -288,7 +288,8 @@ const LetterTab = ({ managementId, stepId }) => {
       console.log('Sending letter notification with:', {
         email: userDetails.email,
         letterName: templateName,
-        pdfUrl: letterData.pdfUrl
+        pdfUrl: letterData.pdfUrl,
+        managementId: letterData.managementId
       });
 
       const response = await api.post('/mail/letter-notification', {
@@ -296,7 +297,8 @@ const LetterTab = ({ managementId, stepId }) => {
         letterName: templateName || 'Generated Letter',
         letterUrl: letterData.pdfUrl,
         userName: userDetails.name,
-        letterType: templateName || 'Generated'
+        letterType: templateName || 'Generated',
+        caseId: letterData.managementId
       });
 
       console.log('Letter notification response:', response.data);

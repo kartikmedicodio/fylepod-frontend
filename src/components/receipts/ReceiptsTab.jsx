@@ -150,6 +150,8 @@ const ReceiptsTab = ({ managementId, stepId }) => {
             <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
               <h3 style="color: #4F46E5; margin-top: 0;">📄 Notice Details:</h3>
               
+              <p><strong>Case ID:</strong> ${managementId}</p>
+              
               ${extractedData.approvalDetails?.value ? `<p><strong>Notice Type:</strong> ✅ ${extractedData.approvalDetails.value}</p>` : ''}
               ${extractedData.receiptNumber?.value ? `<p><strong>Receipt Number:</strong> ${extractedData.receiptNumber.value}</p>` : ''}
               ${extractedData.formType?.value ? `<p><strong>Form Type:</strong> ${extractedData.formType.value}</p>` : ''}
