@@ -562,18 +562,48 @@ const NewCase = () => {
         const caseId = response.data.data.management._id;
         
         // Success toast with enhanced design
-        toast.custom((t) => (
-          <FionaSetupToast message="Perfect! Your case has been created successfully ✨" />
-        ), {
-          id: loadingToastId,
-          duration: 3000,
-          position: 'top-center',
-          style: {
-            background: 'transparent',
-            boxShadow: 'none',
-            padding: 0,
-          },
-        });
+        toast.success(
+          <div className="flex items-start gap-4 bg-white rounded-2xl shadow-2xl p-6 min-w-[420px] max-w-[480px] border border-gray-100">
+            <div className="relative flex-shrink-0">
+              <div className="absolute -inset-2">
+                <div className="w-full h-full rotate-180 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full blur-xl opacity-30 animate-pulse" />
+              </div>
+              <div className="relative w-16 h-16 rounded-2xl overflow-hidden ring-2 ring-white shadow-lg">
+                <img
+                  src="/assets/fiona-avatar.png"
+                  alt="Fiona"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center ring-2 ring-white shadow-md">
+                <span className="text-white text-xs">✓</span>
+              </div>
+            </div>
+            <div className="flex-1 space-y-3 py-1">
+              <div className="flex items-center space-x-3">
+                <span className="text-[16px] font-semibold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                  Fiona
+                </span>
+                <span className="px-2.5 py-1 text-xs font-medium bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-full shadow-sm">
+                  Success
+                </span>
+              </div>
+              <p className="text-[15px] leading-relaxed text-gray-600 font-medium">
+                Perfect! Your case has been created successfully ✨
+              </p>
+            </div>
+          </div>,
+          {
+            id: loadingToastId,
+            duration: 3000,
+            position: 'top-center',
+            style: {
+              background: 'transparent',
+              boxShadow: 'none',
+              padding: 0,
+            },
+          }
+        );
 
         // Send management creation email
         try {
