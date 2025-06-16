@@ -281,6 +281,22 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const [caseSteps, setCaseSteps] = useState([]);
   const [loadingCaseSteps, setLoadingCaseSteps] = useState(true);
 
+  // Add function to refresh case steps
+  const refreshCaseSteps = async () => {
+    try {
+      console.log('Refreshing case steps...');
+      const stepsResponse = await api.get(`/case-steps/${caseId}`);
+      if (stepsResponse.data.status === 'success') {
+        console.log('Case steps refreshed:', stepsResponse.data.data);
+        console.log('Previous case steps:', caseSteps);
+        setCaseSteps(stepsResponse.data.data.steps);
+        console.log('New case steps set:', stepsResponse.data.data.steps);
+      }
+    } catch (error) {
+      console.error('Error refreshing case steps:', error);
+    }
+  };
+
   // Move processedSteps to component level
   const processedSteps = useMemo(() => {
     const stepsByKey = {};
@@ -988,6 +1004,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         [managementDocumentId]: true
       }));
       
+      // Make the API call to approve the document
       await api.patch(`/management/${caseId}/documents/${documentTypeId}/status`, {
         status: DOCUMENT_STATUS.APPROVED,
         documentTypeId: documentTypeId,
@@ -1000,23 +1017,38 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         const updatedCaseData = response.data.data.entry;
         setCaseData(updatedCaseData);
         
-        // Check if all documents are approved
-        const allApproved = updatedCaseData.documentTypes.every(
-          doc => doc.status === DOCUMENT_STATUS.APPROVED
-        );
-
+        // Check if all documents are now approved
+        const allApproved = updatedCaseData.documentTypes.every(doc => doc.status === DOCUMENT_STATUS.APPROVED);
+        console.log('[Debug] All documents approved check:', allApproved);
+        
         if (allApproved) {
-          // Show success message
-          toast.success('All documents have been approved');
-          // Navigate to questionnaire tab
-          setActiveTab('questionnaire');
+          console.log('[Debug] All documents approved, updating step status');
+          const stepToUpdate = processedSteps.find(step => step.key === 'document-checklist');
+          if (stepToUpdate) {
+            try {
+              // Make API call to update step status using the correct endpoint
+              await api.put(`/case-steps/case/${caseId}/step/document-checklist/status`, {
+                status: 'completed'
+              });
+              console.log('[Debug] Successfully updated case step status');
+              await refreshCaseSteps();
+            } catch (error) {
+              console.error('[Debug] Error updating case step status:', error);
+              toast.error('Failed to update step status');
+            }
+          }
         }
       }
+
+      // Clear processing state
+      setProcessingDocuments(prev => ({
+        ...prev,
+        [managementDocumentId]: false
+      }));
+
     } catch (error) {
       console.error('Error approving document:', error);
       toast.error('Failed to approve document');
-    } finally {
-      // Clear processing state for this document
       setProcessingDocuments(prev => ({
         ...prev,
         [managementDocumentId]: false
@@ -1140,61 +1172,61 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
       // Log the request body for debugging
       console.log('Sending validation email request with data:', {
-        recipientEmail,
-        recipientName,
-        managementId: caseId,
-        userId: userId,
-        validationCount: validationData.data.mergedValidations?.length,
-        mismatchCount: crossVerifyData.data.verificationResults.mismatchErrors?.length,
-        missingCount: crossVerifyData.data.verificationResults.missingErrors?.length
+      recipientEmail,
+      recipientName,
+      managementId: caseId,
+      userId: userId,
+      validationCount: validationData.data.mergedValidations?.length,
+      mismatchCount: crossVerifyData.data.verificationResults.mismatchErrors?.length,
+      missingCount: crossVerifyData.data.verificationResults.missingErrors?.length
       });
 
-      // Generate the draft mail content
-      const draftResponse = await api.post('/mail/draft', requestBody);
+     // Generate the draft mail content
+     const draftResponse = await api.post('/mail/draft', requestBody);
       
-      if (draftResponse.data.status !== 'success') {
-        throw new Error('Failed to generate draft: ' + draftResponse.data.message);
-      }
+     if (draftResponse.data.status !== 'success') {
+       throw new Error('Failed to generate draft: ' + draftResponse.data.message);
+     }
 
-      const mailContent = draftResponse.data.data;
+     const mailContent = draftResponse.data.data;
 
-      // Send the email
-      const sendResponse = await api.post('/mail/send', {
-        subject: mailContent.subject,
-        body: mailContent.body,
-        recipientEmail: recipientEmail,
-        recipientName: recipientName,
-        managementId: caseId,
+     // Send the email
+     const sendResponse = await api.post('/mail/send', {
+       subject: mailContent.subject,
+       body: mailContent.body,
+       recipientEmail: recipientEmail,
+       recipientName: recipientName,
+       managementId: caseId,
         caseId: caseId, // <-- add
         caseName: caseName, // <-- add
         applicantName: applicantName, // <-- add
         validationData: validationData.data, // <-- add
         crossVerifyData: crossVerifyData.data, // <-- add
         emailType: 'document_validation', // <-- fix here
-        userId: userId // Use the case owner's userId
-      });
+       userId: userId // Use the case owner's userId
+     });
 
-      if (sendResponse.data.status === 'success') {
-        setEmailSent(true);
-        toast.success('Validation report email sent successfully');
-        setMessages(prev => [...prev, {
-          type: 'system',
-          content: 'Validation email sent successfully.',
-          timestamp: new Date().toISOString()
-        }]);
-      } else {
-        throw new Error('Failed to send email: ' + sendResponse.data.message);
-      }
-    } catch (error) {
-      console.error('Error sending validation email:', error);
-      toast.error('Failed to send validation report email');
-      setMessages(prev => [...prev, {
-        type: 'error',
-        content: 'Failed to send validation email: ' + (error.response?.data?.message || error.message),
-        timestamp: new Date().toISOString()
-      }]);
-    }
-  };
+     if (sendResponse.data.status === 'success') {
+       setEmailSent(true);
+       toast.success('Validation report email sent successfully');
+       setMessages(prev => [...prev, {
+         type: 'system',
+         content: 'Validation email sent successfully.',
+         timestamp: new Date().toISOString()
+       }]);
+     } else {
+       throw new Error('Failed to send email: ' + sendResponse.data.message);
+     }
+   } catch (error) {
+     console.error('Error sending validation email:', error);
+     toast.error('Failed to send validation report email');
+     setMessages(prev => [...prev, {
+       type: 'error',
+       content: 'Failed to send validation email: ' + (error.response?.data?.message || error.message),
+       timestamp: new Date().toISOString()
+     }]);
+   }
+ };
 
   const handleFileUpload = async (files) => {
     if (!files.length) return;
@@ -2079,9 +2111,11 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     const showDocumentCollection = isStepPresent('document-checklist');
     const isDocumentCollectionComplete = isStepCompleted('document-checklist');
 
-    // Review
-    const showReview = true; // Always show review if there are documents to approve
-    const isReviewComplete = allDocumentsApproved;
+    // Processing & Review: includes document approval, questionnaire, and forms
+    const showProcessingReview = true; // Always show this step
+    const isProcessingReviewComplete = allDocumentsApproved && 
+      isStepCompleted('questionnaire') && 
+      isStepCompleted('forms');
 
     // Letters
     const showLetters = isStepPresent('letters');
@@ -2110,11 +2144,11 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         icon: FileText
       });
     }
-    if (showReview) {
+    if (showProcessingReview) {
       steps.push({
-        name: 'Review',
-        completed: isReviewComplete,
-        description: 'Document Review',
+        name: 'Form Completion',
+        completed: isProcessingReviewComplete,
+        description: 'Questionnaire, Forms & Document Review',
         icon: ClipboardList
       });
     }
@@ -3053,7 +3087,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           );
         case 'finalize':
           return (
-            <FinalizeTab 
+            <FinalizeTab
               documents={caseData.documentTypes
                 .filter(doc => doc.status === DOCUMENT_STATUS.UPLOADED || doc.status === DOCUMENT_STATUS.APPROVED)
                 .map(doc => {
@@ -3094,37 +3128,19 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                   return {
                     id: doc._id,
                     name: doc.name,
-                    status: doc.status === 'approved' ? 'Approved' : 'Verification pending',
+                    status: doc.status === DOCUMENT_STATUS.APPROVED ? 'Approved' : 'Verification pending',
                     documentTypeId: doc.documentTypeId,
-                    updatedAt: doc.updatedAt,
                     managementId: caseId,
                     states: [
-                      {
-                        name: 'Document collection',
-                        status: doc.status !== 'pending' ? 'success' : 'error'
-                      },
-                      {
-                        name: 'Read',
-                        status: doc.status !== 'pending' ? 'success' : 'pending'
-                      },
-                      {
-                        name: 'Verification',
-                        status: getValidationStatus()
-                      },
-                      {
-                        name: 'Cross Verification',
-                        status: !hasVerificationData ? 'pending' :
-                               (verificationDataRef.current || verificationData)?.[doc.name]?.isVerified ? 'success' : 
-                               (verificationDataRef.current || verificationData)?.[doc.name]?.partiallyVerified ? 'partial' : 'error'
-                      }
+                      { name: 'Document collection', status: 'success' },
+                      { name: 'Read', status: 'success' },
+                      { name: 'Verification', status: getValidationStatus() },
+                      { name: 'Cross Verification', status: doc.status === DOCUMENT_STATUS.APPROVED ? 'success' : 'pending' }
                     ]
                   };
-                })
-              }
-              validationData={validationDataRef.current || validationData}
-              onStateClick={(state, document) => {
-                // Handle state clicks to navigate to appropriate tabs
-                switch(state) {
+                })}
+              onStateClick={(tabName, document) => {
+                switch (tabName) {
                   case 'validation':
                     setSelectedSubTab('validation');
                     break;
@@ -3157,18 +3173,35 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                   })
                 }));
               }}
-              managementId={caseId} // Changed from caseData?.caseManagerId?._id to caseId
+              managementId={caseId}
+              onStepCompleted={refreshCaseSteps}
             />
           );
         case 'letters':
-          return <LetterTab managementId={caseId} />;
-        case 'receipts':
-          return <ReceiptsTab 
-            managementId={caseId} 
-            stepId={processedSteps.find(step => step.key === 'receipts')?._id}
+          return <LetterTab
+            key={step._id}
+            managementId={caseId}
+            stepId={step._id}
+            onStepCompleted={refreshCaseSteps}
           />;
+        case 'receipts':
+          return (
+            <ReceiptsTab
+              key={step._id}
+              managementId={caseId}
+              stepId={step._id}
+              onStepCompleted={refreshCaseSteps}
+            />
+          );
         case 'payment':
-          return <PaymentTab caseId={caseId} />;
+          return (
+            <PaymentTab 
+              key={step._id}
+              caseId={caseId} 
+              stepId={step._id}
+              onPaymentCompleted={refreshCaseSteps}
+            />
+          );
         case 'communications':
           return <CommunicationsTab caseId={caseId} />;
         case 'retainer':
@@ -3199,9 +3232,19 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                 applicantId={caseData.userId?._id}
                 caseData={caseData}
                 stepId={processedSteps.find(step => step.key === 'retainer')?._id}
+                onRetainerUploaded={refreshCaseSteps}
               />
             );
           })();
+        case 'packaging':
+          return (
+            <DocumentsArchiveTab
+              key={step._id}
+              managementId={caseId}
+              stepId={step._id}
+              onStepCompleted={refreshCaseSteps}
+            />
+          );
         default:
           return null;
       }
@@ -3500,6 +3543,22 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         if (response.data.status === 'success') {
           // Update the status to saved
           await api.put(`/questionnaire-responses/${caseId}/status`);
+          
+          // Update case step status to completed
+          const stepToUpdate = processedSteps.find(step => step.key === 'questionnaire');
+          if (stepToUpdate) {
+            try {
+              // Make API call to update step status
+              await api.put(`/case-steps/case/${caseId}/step/questionnaire/status`, {
+                status: 'completed'
+              });
+              console.log('[Debug] Successfully updated questionnaire step status');
+              await refreshCaseSteps();
+            } catch (error) {
+              console.error('[Debug] Error updating questionnaire step status:', error);
+              toast.error('Failed to update step status');
+            }
+          }
           
           toast.success('Changes saved successfully');
           setIsQuestionnaireCompleted(true);
@@ -5361,27 +5420,33 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         const formData = new FormData();
         formData.append('file', blob, `${selectedForm.form_name}.pdf`);
         formData.append('managementId', caseId);
+        
         // Send the file to backend
         await api.post('/management/upload-form', formData, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
         });
-        // Update case status to completed
-        // await api.patch(`/management/${caseId}/status`, {
-        //   status: 'completed'
-        // });
+
+        // Update case step status to completed
+        const stepToUpdate = processedSteps.find(step => step.key === 'forms');
+        if (stepToUpdate) {
+          try {
+            // Make API call to update step status
+            await api.put(`/case-steps/case/${caseId}/step/forms/status`, {
+              status: 'completed'
+            });
+            console.log('[Debug] Successfully updated forms step status');
+            await refreshCaseSteps();
+          } catch (error) {
+            console.error('[Debug] Error updating forms step status:', error);
+            toast.error('Failed to update step status');
+          }
+        }
         
         // Show success message
         toast.success('Form downloaded and uploaded successfully');
         
-        // Refresh case data to update UI
-        // const response = await api.get(`/management/${caseId}`);
-        // if (response.data.status === 'success') {
-        //   const updatedCaseData = response.data.data.entry;
-        //   setCaseData(updatedCaseData);
-        // }
-
         // Close the preview modal
         setShowPreview(false);
       } catch (error) {
@@ -6056,6 +6121,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                       key={step._id}
                       caseId={caseId} 
                       stepId={step._id}
+                      onPaymentCompleted={refreshCaseSteps}
                     />
                   );
                 }
@@ -6070,6 +6136,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                       applicantId={caseData.userId?._id}
                       caseData={caseData}
                       stepId={step._id}
+                      onRetainerUploaded={refreshCaseSteps}
                     />
                   );
                 }
@@ -6079,6 +6146,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                       key={step._id}
                       managementId={caseId}
                       stepId={step._id}
+                      onStepCompleted={refreshCaseSteps}
                     />
                   );
                 }
@@ -6088,6 +6156,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                       key={step._id}
                       managementId={caseId}
                       stepId={step._id}
+                      onStepCompleted={refreshCaseSteps}
                     />
                   );
                 }
@@ -6106,6 +6175,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                       key={step._id}
                       managementId={caseId}
                       stepId={step._id}
+                      onStepCompleted={refreshCaseSteps}
                     />
                   );
                 }
@@ -6152,37 +6222,20 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                           return {
                             id: doc._id,
                             name: doc.name,
-                            status: doc.status === 'approved' ? 'Approved' : 'Verification pending',
+                            status: doc.status === DOCUMENT_STATUS.APPROVED ? 'Approved' : 'Verification pending',
                             documentTypeId: doc.documentTypeId,
-                            updatedAt: doc.updatedAt,
                             managementId: caseId,
                             states: [
-                              {
-                                name: 'Document collection',
-                                status: doc.status !== 'pending' ? 'success' : 'error'
-                              },
-                              {
-                                name: 'Read',
-                                status: doc.status !== 'pending' ? 'success' : 'pending'
-                              },
-                              {
-                                name: 'Verification',
-                                status: getValidationStatus()
-                              },
-                              {
-                                name: 'Cross Verification',
-                                status: !hasVerificationData ? 'pending' :
-                                       (verificationDataRef.current || verificationData)?.[doc.name]?.isVerified ? 'success' : 
-                                       (verificationDataRef.current || verificationData)?.[doc.name]?.partiallyVerified ? 'partial' : 'error'
-                              }
+                              { name: 'Document collection', status: 'success' },
+                              { name: 'Read', status: 'success' },
+                              { name: 'Verification', status: getValidationStatus() },
+                              { name: 'Cross Verification', status: doc.status === DOCUMENT_STATUS.APPROVED ? 'success' : 'pending' }
                             ]
                           };
                         })
                       }
-                      validationData={validationDataRef.current || validationData}
-                      onStateClick={(state, document) => {
-                        // Handle state clicks to navigate to appropriate tabs
-                        switch(state) {
+                      onStateClick={(tabName, document) => {
+                        switch (tabName) {
                           case 'validation':
                             setSelectedSubTab('validation');
                             break;
@@ -6215,7 +6268,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                           })
                         }));
                       }}
-                      managementId={caseId} // Changed from caseData?.caseManagerId?._id to caseId
+                      managementId={caseId}
+                      onStepCompleted={refreshCaseSteps}
                     />
                   );
                 }
