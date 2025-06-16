@@ -109,7 +109,7 @@ SortableItem.propTypes = {
   onAddBlank: PropTypes.func.isRequired,
 };
 
-const DocumentsArchiveTab = ({ managementId }) => {
+const DocumentsArchiveTab = ({ managementId, stepId, onStepCompleted }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [documents, setDocuments] = useState([]);
   const [letters, setLetters] = useState([]);
@@ -495,6 +495,21 @@ const DocumentsArchiveTab = ({ managementId }) => {
       });
 
       if (response.data.status === 'success') {
+        // Update step status to completed
+        try {
+          await api.put(`/case-steps/case/${managementId}/step/packaging/status`, {
+            status: 'completed'
+          });
+          console.log('[Debug] Successfully updated packaging step status');
+          // Call the callback to refresh case steps
+          if (onStepCompleted) {
+            onStepCompleted();
+          }
+        } catch (stepError) {
+          console.error('[Debug] Error updating packaging step status:', stepError);
+          toast.error('Failed to update step status');
+        }
+
         toast.success('Documents combined successfully');
         
         // Get the blob URL from the response
@@ -843,6 +858,8 @@ const DocumentsArchiveTab = ({ managementId }) => {
 
 DocumentsArchiveTab.propTypes = {
   managementId: PropTypes.string.isRequired,
+  stepId: PropTypes.string.isRequired,
+  onStepCompleted: PropTypes.func
 };
 
 export default DocumentsArchiveTab; 

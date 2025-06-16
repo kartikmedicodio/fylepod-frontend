@@ -7,10 +7,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useParams } from 'react-router-dom';
 import { Button, List, message, Popconfirm, Space, Typography, Modal, Spin } from 'antd';
 import { DeleteOutlined, EyeOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
+import { toast } from 'react-hot-toast';
 
 const TINYMCE_API_KEY = 'ddqwuqhde6t5al5rxogsrzlje9q74nujwn1dbou5zq2kqpd1';
 
-const LetterTab = ({ managementId, stepId }) => {
+const LetterTab = ({ managementId, stepId, onStepCompleted }) => {
   const editorRef = useRef(null);
   const [letterTemplates, setLetterTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -338,6 +339,21 @@ const LetterTab = ({ managementId, stepId }) => {
       if (response.data.success) {
         await fetchSavedLetters();
         
+        // Update case step status to completed
+        try {
+          await api.put(`/case-steps/case/${managementId}/step/letters/status`, {
+            status: 'completed'
+          });
+          console.log('[Debug] Successfully updated letters step status');
+          // Call the callback to refresh case steps
+          if (onStepCompleted) {
+            onStepCompleted();
+          }
+        } catch (stepError) {
+          console.error('[Debug] Error updating letters step status:', stepError);
+          toast.error('Failed to update step status');
+        }
+        
         // Send email notification
         try {
           const letter = savedLetters.find(l => l._id === currentLetterId);
@@ -467,6 +483,21 @@ const LetterTab = ({ managementId, stepId }) => {
 
       const updatedLetter = saveResponse.data.data;
       await fetchSavedLetters();
+
+      // Update case step status to completed
+      try {
+        await api.put(`/case-steps/case/${managementId}/step/letters/status`, {
+          status: 'completed'
+        });
+        console.log('[Debug] Successfully updated letters step status');
+        // Call the callback to refresh case steps
+        if (onStepCompleted) {
+          onStepCompleted();
+        }
+      } catch (stepError) {
+        console.error('[Debug] Error updating letters step status:', stepError);
+        toast.error('Failed to update step status');
+      }
 
       // Send email notification
       try {
@@ -943,7 +974,7 @@ const LetterTab = ({ managementId, stepId }) => {
                 ) : (
                   <>
                     <Save className="w-4 h-4 mr-2" />
-                    Save Changes
+                    Save
                   </>
                 )}
               </button>
@@ -1075,7 +1106,8 @@ const LetterTab = ({ managementId, stepId }) => {
 
 LetterTab.propTypes = {
   managementId: PropTypes.string.isRequired,
-  stepId: PropTypes.string.isRequired
+  stepId: PropTypes.string.isRequired,
+  onStepCompleted: PropTypes.func
 };
 
 export default LetterTab; 

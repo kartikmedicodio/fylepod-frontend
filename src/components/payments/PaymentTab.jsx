@@ -34,7 +34,7 @@ const getStatusStyles = (status) => {
   return styleMap[status] || styleMap.pending;
 };
 
-const PaymentTab = ({ caseId, stepId }) => {
+const PaymentTab = ({ caseId, stepId, onPaymentCompleted }) => {
   const [paymentDetails, setPaymentDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -75,6 +75,16 @@ const PaymentTab = ({ caseId, stepId }) => {
       setError('Failed to load payment details. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePaymentCompleted = () => {
+    // Refresh payment details
+    fetchPaymentDetails();
+    
+    // Call parent callback if provided
+    if (onPaymentCompleted) {
+      onPaymentCompleted();
     }
   };
 
@@ -135,6 +145,7 @@ const PaymentTab = ({ caseId, stepId }) => {
                   stepId={stepId}
                   onAmountSet={fetchPaymentDetails}
                   customerEmail={customerEmail}
+                  onPaymentCompleted={handlePaymentCompleted}
                 />
               </div>
             ) : (

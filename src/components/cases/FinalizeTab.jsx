@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Check, AlertTriangle, X, FileText, Bot, Loader2, Eye } from 'lucide-react';
 import { useDocumentContext } from '../../contexts/DocumentContext';
 import api from '../../utils/api';
@@ -305,62 +305,172 @@ const FinalizeTab = ({
   onRequestReupload,
   processingDocuments = {},
   onDocumentsUpdate,
-  managementId
+  managementId,
+  onStepCompleted
 }) => {
   const { documentDetailsMap, isLoading, fetchDocumentDetails } = useDocumentContext();
   const [isBulkApproving, setIsBulkApproving] = useState(false);
   const [unknownDocuments, setUnknownDocuments] = useState([]);
   const [isLoadingUnknown, setIsLoadingUnknown] = useState(false);
+  const fetchUnknownDocumentsRef = useRef(null);
+  const previousDocumentsRef = useRef(documents);
+
+  // Memoize documents to prevent unnecessary re-renders
+  const memoizedDocuments = useMemo(() => documents, [
+    // Only update if the document IDs or statuses change
+    JSON.stringify(documents.map(doc => ({
+      id: doc.id,
+      status: doc.status,
+      documentTypeId: doc.documentTypeId
+    })))
+  ]);
 
   useEffect(() => {
-    console.log('FinalizeTab mounted with onStateClick:', !!onStateClick);
-    console.log('Documents:', documents);
-    // Only fetch if we don't already have the details for these documents
-    const needsFetch = documents.some(doc => !documentDetailsMap[doc.id]);
-    if (needsFetch) {
-      fetchDocumentDetails(documents);
+    console.log('[Debug] Documents changed. Previous:', previousDocumentsRef.current);
+    console.log('[Debug] Current:', documents);
+    console.log('[Debug] Changed properties:', 
+      documents.map((doc, i) => {
+        const prev = previousDocumentsRef.current[i];
+        if (!prev) return 'new document';
+        return Object.entries(doc)
+          .filter(([key, val]) => JSON.stringify(val) !== JSON.stringify(prev[key]))
+          .map(([key]) => key);
+      })
+    );
+    previousDocumentsRef.current = documents;
+  }, [documents]);
+
+  // Memoize the fetchUnknownDocuments function
+  const fetchUnknownDocuments = useCallback(async () => {
+    if (!managementId) {
+      console.log('[Debug] No managementId, skipping unknown documents fetch');
+      return;
     }
-  }, [documents, onStateClick]);
-
-  useEffect(() => {
-    const fetchUnknownDocuments = async () => {
-      if (!managementId) return;
+    
+    try {
+      console.log('[Debug] Starting unknown documents fetch for managementId:', managementId);
+      setIsLoadingUnknown(true);
+      const response = await api.get(`/documents/management/${managementId}/unknown`);
+      console.log('[Debug] Unknown documents API response:', response.data);
       
-      try {
-        setIsLoadingUnknown(true);
-        const response = await api.get(`/documents/management/${managementId}/unknown`);
-        if (response.data?.status === 'success') {
-          setUnknownDocuments(response.data.data);
-        }
-      } catch (error) {
-        console.error('Error fetching unknown documents:', error);
-        toast.error('Failed to fetch additional documents');
-      } finally {
-        setIsLoadingUnknown(false);
+      if (response.data?.status === 'success') {
+        setUnknownDocuments(response.data.data);
       }
-    };
-
-    fetchUnknownDocuments();
+    } catch (error) {
+      console.error('[Debug] Error fetching unknown documents:', error);
+      toast.error('Failed to fetch additional documents');
+    } finally {
+      setIsLoadingUnknown(false);
+    }
   }, [managementId]);
 
-  const handleBulkApprove = async () => {
+  useEffect(() => {
+    console.log('[Debug] useEffect for unknown documents triggered. managementId:', managementId);
+    console.log('[Debug] Component props:', {
+      documentsLength: documents.length,
+      hasOnStateClick: !!onStateClick,
+      processingDocumentsKeys: Object.keys(processingDocuments),
+      managementId
+    });
+    
+    // Clear any existing timeout
+    if (fetchUnknownDocumentsRef.current) {
+      console.log('[Debug] Clearing existing fetch timeout');
+      clearTimeout(fetchUnknownDocumentsRef.current);
+    }
+
+    // Only fetch if we have a managementId and documents have changed
+    if (managementId) {
+      fetchUnknownDocumentsRef.current = setTimeout(() => {
+        console.log('[Debug] Executing debounced fetch after timeout');
+        fetchUnknownDocuments();
+      }, 1000);
+    }
+
+    return () => {
+      if (fetchUnknownDocumentsRef.current) {
+        console.log('[Debug] Cleaning up fetch timeout on unmount/re-render');
+        clearTimeout(fetchUnknownDocumentsRef.current);
+      }
+    };
+  }, [managementId, fetchUnknownDocuments]);
+
+  // Add a function to check if all documents are approved
+  const checkAllDocumentsApproved = useCallback((docs) => {
+    const allApproved = docs.every(doc => doc.status === 'Approved');
+    console.log('[Debug] Checking all documents approved:', { 
+      allApproved, 
+      documentStatuses: docs.map(d => ({ id: d.id, status: d.status }))
+    });
+    
+    if (allApproved) {
+      console.log('[Debug] All documents are approved, calling onStepCompleted');
+      // Call the callback to refresh case steps with a small delay to ensure backend update is complete
+      if (onStepCompleted) {
+        setTimeout(() => {
+          onStepCompleted();
+        }, 500);
+      }
+      // Navigate to questionnaire tab
+      onStateClick('questionnaire');
+    }
+    return allApproved;
+  }, [onStepCompleted, onStateClick]);
+
+  // Create a wrapper for onApprove to check document status after each approval
+  const handleSingleApprove = useCallback(async (documentTypeId, managementDocumentId) => {
+    console.log('[Debug] Single document approve triggered:', { documentTypeId, managementDocumentId });
+    
+    try {
+      // Call the original onApprove
+      await onApprove(documentTypeId, managementDocumentId);
+      
+      // Get the updated documents after approval
+      const updatedDocuments = memoizedDocuments.map(doc => {
+        if (doc.documentTypeId === documentTypeId) {
+          return {
+            ...doc,
+            status: 'Approved',
+            states: doc.states.map(state => ({
+              ...state,
+              status: state.name === 'Document collection' || state.name === 'Read' ? 'success' : state.status
+            }))
+          };
+        }
+        return doc;
+      });
+
+      // Update documents in parent component
+      if (onDocumentsUpdate) {
+        onDocumentsUpdate(updatedDocuments);
+      }
+
+      // Check if all documents are now approved
+      checkAllDocumentsApproved(updatedDocuments);
+      
+    } catch (error) {
+      console.error('[Debug] Error in single document approve:', error);
+    }
+  }, [onApprove, memoizedDocuments, onDocumentsUpdate, checkAllDocumentsApproved]);
+
+  const handleBulkApprove = useCallback(async () => {
     try {
       setIsBulkApproving(true);
-      const documentTypeIds = documents
+      const documentTypeIds = memoizedDocuments
         .filter(doc => doc.status === 'Verification pending')
         .map(doc => doc.documentTypeId);
 
-      console.log('Documents to approve:', documents);
-      console.log('DocumentTypeIds to approve:', documentTypeIds);
-      console.log('Management ID:', documents[0]?.managementId);
+      console.log('[Debug] Bulk approve - Documents to approve:', documents);
+      console.log('[Debug] Bulk approve - DocumentTypeIds to approve:', documentTypeIds);
+      console.log('[Debug] Bulk approve - Management ID:', documents[0]?.managementId);
 
       if (documentTypeIds.length === 0) {
-        console.log('No documents to approve');
+        console.log('[Debug] Bulk approve - No documents to approve');
         return;
       }
 
       if (!documents[0]?.managementId) {
-        console.error('No management ID found');
+        console.error('[Debug] Bulk approve - No management ID found');
         return;
       }
 
@@ -368,7 +478,7 @@ const FinalizeTab = ({
         documentTypeIds
       });
 
-      console.log('Bulk approve response:', response);
+      console.log('[Debug] Bulk approve - Response:', response);
 
       if (response.data?.status === 'success') {
         // Update documents in the background
@@ -386,26 +496,38 @@ const FinalizeTab = ({
             }
             return doc;
           });
+          console.log('[Debug] Bulk approve - Updating documents with:', updatedDocuments);
           onDocumentsUpdate(updatedDocuments);
           toast.success('Documents approved successfully');
 
           // Check if all documents are now approved
-          const allApproved = updatedDocuments.every(doc => doc.status === 'Approved');
-          if (allApproved) {
-            // Navigate to questionnaire tab
-            onStateClick('questionnaire');
-          }
+          checkAllDocumentsApproved(updatedDocuments);
         }
       } else {
         throw new Error('Failed to approve documents');
       }
     } catch (error) {
-      console.error('Error bulk approving documents:', error);
+      console.error('[Debug] Bulk approve - Error:', error);
       toast.error('Failed to approve documents');
     } finally {
       setIsBulkApproving(false);
     }
-  };
+  }, [memoizedDocuments, onDocumentsUpdate, checkAllDocumentsApproved, onStateClick]);
+
+  // Memoize the document rows to prevent unnecessary re-renders
+  const documentRows = useMemo(() => {
+    return memoizedDocuments.map(doc => (
+      <DocumentRow 
+        key={doc.id} 
+        document={doc} 
+        documentDetails={documentDetailsMap[doc.id]}
+        onStateClick={onStateClick}
+        onApprove={handleSingleApprove}  // Use our wrapped version instead of direct onApprove
+        onRequestReupload={onRequestReupload}
+        processingDocuments={processingDocuments}
+      />
+    ));
+  }, [memoizedDocuments, documentDetailsMap, onStateClick, handleSingleApprove, onRequestReupload, processingDocuments]);
 
   const pendingDocumentsCount = documents.filter(doc => doc.status === 'Verification pending').length;
 
@@ -503,17 +625,7 @@ const FinalizeTab = ({
                 <div className="mb-6">
                   <h3 className="text-sm font-medium text-slate-900 mb-3">Required Documents</h3>
                   <div className="space-y-3">
-                    {documents.map(doc => (
-                      <DocumentRow 
-                        key={doc.id} 
-                        document={doc} 
-                        documentDetails={documentDetailsMap[doc.id]}
-                        onStateClick={onStateClick}
-                        onApprove={onApprove}
-                        onRequestReupload={onRequestReupload}
-                        processingDocuments={processingDocuments}
-                      />
-                    ))}
+                    {documentRows}
                   </div>
                 </div>
               )}
@@ -572,7 +684,16 @@ FinalizeTab.propTypes = {
   onRequestReupload: PropTypes.func.isRequired,
   processingDocuments: PropTypes.object,
   onDocumentsUpdate: PropTypes.func,
-  managementId: PropTypes.string
+  managementId: PropTypes.string,
+  onStepCompleted: PropTypes.func
 };
 
-export default FinalizeTab; 
+// Memoize the entire component
+export default React.memo(FinalizeTab, (prevProps, nextProps) => {
+  // Only re-render if these props have changed
+  return (
+    prevProps.managementId === nextProps.managementId &&
+    JSON.stringify(prevProps.documents) === JSON.stringify(nextProps.documents) &&
+    JSON.stringify(prevProps.processingDocuments) === JSON.stringify(nextProps.processingDocuments)
+  );
+}); 

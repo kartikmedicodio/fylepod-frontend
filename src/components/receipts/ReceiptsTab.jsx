@@ -4,8 +4,9 @@ import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import api from "../../utils/api"
+import PropTypes from 'prop-types';
 
-const ReceiptsTab = ({ managementId, stepId }) => {
+const ReceiptsTab = ({ managementId, stepId, onStepCompleted }) => {
   const [files, setFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -249,6 +250,21 @@ const ReceiptsTab = ({ managementId, stepId }) => {
         
         clearInterval(stepInterval);
         console.log("File upload response:", response.data);
+
+        // Update step status to completed
+        try {
+          await api.put(`/case-steps/case/${managementId}/step/receipts/status`, {
+            status: 'completed'
+          });
+          console.log('[Debug] Successfully updated receipts step status');
+          // Call the callback to refresh case steps
+          if (onStepCompleted) {
+            onStepCompleted();
+          }
+        } catch (stepError) {
+          console.error('[Debug] Error updating receipts step status:', stepError);
+          toast.error('Failed to update step status');
+        }
 
         // Send notification emails after successful upload
         await sendUploadNotificationEmails(file);
@@ -619,6 +635,12 @@ const ReceiptsTab = ({ managementId, stepId }) => {
       </div>
     </div>
   );
+};
+
+ReceiptsTab.propTypes = {
+  managementId: PropTypes.string.isRequired,
+  stepId: PropTypes.string.isRequired,
+  onStepCompleted: PropTypes.func
 };
 
 export default ReceiptsTab; 

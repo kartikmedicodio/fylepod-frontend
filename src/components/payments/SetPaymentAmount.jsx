@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
-import { DollarSign, Mail, ArrowRight } from 'lucide-react';
+import { DollarSign, Mail, ArrowRight, Link } from 'lucide-react';
 import api from '../../utils/api';
 
-const SetPaymentAmount = ({ caseId, stepId, onAmountSet, customerEmail }) => {
+const SetPaymentAmount = ({ caseId, stepId, onAmountSet, customerEmail, onPaymentCompleted }) => {
   const [amount, setAmount] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -42,6 +42,11 @@ const SetPaymentAmount = ({ caseId, stepId, onAmountSet, customerEmail }) => {
 
       setPaymentLink(response.data.paymentUrl);
       onAmountSet();
+      
+      // Call the payment completed callback if provided
+      if (onPaymentCompleted) {
+        onPaymentCompleted();
+      }
     } catch (error) {
       toast.error('Failed to set payment amount');
       console.error('Set amount error:', error);

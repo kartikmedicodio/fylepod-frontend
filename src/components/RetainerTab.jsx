@@ -8,7 +8,7 @@ import { PDFDocument } from 'pdf-lib';
 import PropTypes from 'prop-types';
 import { getStoredUser } from '../utils/auth';
 
-const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantId, caseData, stepId }) => {
+const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantId, caseData, stepId, onRetainerUploaded }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [templates, setTemplates] = useState([]);
@@ -226,8 +226,6 @@ const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantI
       });
 
       if (uploadResponse.data.status === 'success') {
-        toast.success('Retainer document uploaded successfully');
-        
         // Download the PDF locally
         const blob = new Blob([populatedPdfBytes], { type: 'application/pdf' });
         const url = window.URL.createObjectURL(blob);
@@ -247,7 +245,15 @@ const RetainerTab = ({ companyId, profileData, caseId, caseManagerId, applicantI
         setSelectedTemplate('');
         setPreviewUrl(null);
         
-        // Show success message with animation
+        // Call the callback to refresh case steps
+        if (onRetainerUploaded) {
+          // Add a small delay to ensure backend update is complete
+          setTimeout(() => {
+            onRetainerUploaded();
+          }, 500);
+        }
+        
+        // Show single comprehensive success message
         toast.success('Retainer created and saved successfully!', {
           duration: 3000,
           icon: '✅',
@@ -566,7 +572,8 @@ RetainerTab.propTypes = {
   caseManagerId: PropTypes.string.isRequired, 
   applicantId: PropTypes.string.isRequired,
   caseData: PropTypes.object.isRequired,
-  stepId: PropTypes.string.isRequired
+  stepId: PropTypes.string.isRequired,
+  onRetainerUploaded: PropTypes.func
 };
 
 export default RetainerTab; 
