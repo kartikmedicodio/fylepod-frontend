@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Search, Edit2, Clock, ChevronDown, Plus, X, Trash, ChevronUp } from 'lucide-react';
+import { Search, Edit2, Clock, ChevronDown, Plus, X, Trash, ChevronUp, ChevronRight, User } from 'lucide-react';
 import api from '../utils/api';
 import { useBreadcrumb } from '../contexts/BreadcrumbContext';
 import PropTypes from 'prop-types';
@@ -41,6 +41,7 @@ const DocumentChecklist = () => {
   const [isLoadingWorkflow, setIsLoadingWorkflow] = useState(false);
   const [workflowSummary, setWorkflowSummary] = useState("");
   const [currentCaseId, setCurrentCaseId] = useState(null);
+  const [expandedMilestones, setExpandedMilestones] = useState({});
 
   const handleCategorySelect = (category) => {
     setSelectedCategory(category);
@@ -209,31 +210,252 @@ const DocumentChecklist = () => {
     );
   }
 
-  const renderWorkflowTab = () => (
-    <>
-      <div className="flex items-center justify-between mb-1">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">Process Workflow</h2>
-          <p className="text-gray-500 mb-6">
-            Below is the step-by-step workflow for this process. Each step shows its requirements, dependencies, and estimated time.
-          </p>
-        </div>
-      </div>
+  const renderWorkflowTab = () => {
+    // Group steps by milestone
+    const groupStepsByMilestone = () => {
+      const milestoneGroups = {};
+      const orphanSteps = [];
 
-      {isLoadingWorkflow ? (
-        <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      workflowSteps.forEach(step => {
+        if (step.milestone) {
+          if (!milestoneGroups[step.milestone]) {
+            milestoneGroups[step.milestone] = [];
+          }
+          milestoneGroups[step.milestone].push(step);
+        } else {
+          orphanSteps.push(step);
+        }
+      });
+
+      // Sort steps within each milestone by order
+      Object.keys(milestoneGroups).forEach(milestone => {
+        milestoneGroups[milestone].sort((a, b) => a.order - b.order);
+      });
+
+      orphanSteps.sort((a, b) => a.order - b.order);
+
+      return { milestoneGroups, orphanSteps };
+    };
+
+    const { milestoneGroups, orphanSteps } = groupStepsByMilestone();
+
+    const toggleMilestone = (milestone) => {
+      setExpandedMilestones(prev => ({
+        ...prev,
+        [milestone]: !prev[milestone]
+      }));
+    };
+
+    const renderStep = (step, isLast = false, isNested = false) => {
+      // Agent badge styles - updated for lighter background and more rounded corners
+      const agentBadgeStyles = {
+        'Diana': 'text-purple-600 bg-purple-50/70 px-4',
+        'Fiona': 'text-blue-600 bg-blue-50/70 px-4',
+        'Sophia': 'text-green-600 bg-green-50/70 px-4',
+        'none': 'text-gray-600 bg-gray-50/70 px-4'
+      };
+
+      const getAgentAvatar = (agentName) => {
+        switch (agentName) {
+          case 'Diana':
+            return '/assets/diana-avatar.png';
+          case 'Fiona':
+            return '/assets/fiona-avatar.png';
+          case 'Sophia':
+            return '/assets/sophia-avatar.png';
+          default:
+            return null;
+        }
+      };
+
+      return (
+        <div key={step._id} className="relative pl-8 mb-8 last:mb-0">
+          {/* Vertical line - thinner and lighter */}
+          <div className="absolute left-[5px] top-0 bottom-0 w-[1px] bg-gray-200/80" />
+          
+          {/* Horizontal line and dot - adjusted positioning */}
+          <div className="absolute left-0 top-[22px] flex items-center">
+            <div className="w-[14px] h-[1px] bg-gray-200/80" />
+            <div className={`w-[8px] h-[8px] rounded-full ${step.isRequired ? 'bg-blue-500' : 'bg-gray-300'}`} />
+          </div>
+
+          {/* Content */}
+          <div className="pt-3">
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-3">
+              <h4 className="text-[15px] font-medium text-gray-900">{step.name}</h4>
+              <span className="text-sm text-gray-500">({step.estimatedHours}h)</span>
+              {step.agentName && step.agentName !== 'none' && (
+                <span className={`py-1 text-sm font-medium rounded-full ${agentBadgeStyles[step.agentName]}`}>
+                  {step.agentName}
+                </span>
+              )}
+              {step.isRequired && (
+                <span className="px-4 py-1 text-sm font-medium rounded-full bg-red-50/70 text-red-600">
+                  Required
+                </span>
+              )}
+            </div>
+
+            {/* Description */}
+            {step.description && (
+              <p className="text-[15px] text-gray-600 mb-5">{step.description}</p>
+            )}
+
+            {/* User and Agent sections */}
+            <div className="space-y-5">
+              {step.userDescription && (
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100/70 flex items-center justify-center">
+                    <User className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div className="flex-1 pt-0.5">
+                    <div className="text-[15px]">
+                      <span className="text-blue-600 font-medium">User: </span>
+                      <span className="text-blue-600">{step.userDescription}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {step.agentDescription && step.agentName && step.agentName !== 'none' && (
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0">
+                    {getAgentAvatar(step.agentName) ? (
+                      <img 
+                        src={getAgentAvatar(step.agentName)} 
+                        alt={`${step.agentName} avatar`}
+                        className="w-6 h-6 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-purple-100/70 flex items-center justify-center">
+                        <span className="text-xs font-medium text-purple-600">
+                          {step.agentName.charAt(0)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 pt-0.5">
+                    <div className="text-[15px]">
+                      <span className="text-purple-600 font-medium">{step.agentName}: </span>
+                      <span className="text-purple-600">{step.agentDescription}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      ) : (
-        <WorkflowSteps 
-          steps={workflowSteps} 
-          summary={workflowSummary}
-          onStepsReorder={null}
-          isEditable={false}
-        />
-      )}
-    </>
-  );
+      );
+    };
+
+    return (
+      <>
+        <div className="flex items-center justify-between mb-1">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Process Workflow</h2>
+            <p className="text-gray-500 mb-6">
+              Below is the step-by-step workflow organized by milestones. Click on milestones to expand/collapse steps.
+            </p>
+          </div>
+        </div>
+
+        {isLoadingWorkflow ? (
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            {/* Render milestone groups */}
+            {Object.entries(milestoneGroups).map(([milestone, steps], milestoneIndex) => (
+              <div key={milestone} className="mb-8 last:mb-0">
+                {/* Milestone header */}
+                <button
+                  onClick={() => toggleMilestone(milestone)}
+                  className="flex items-center gap-3 w-full text-left p-4 bg-gray-50/80 rounded-lg hover:bg-gray-100/80 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-base font-medium">
+                        {(milestoneIndex + 1 <= 6) ? milestoneIndex + 1 : 6}
+                      </div>
+                      <div>
+                        <h3 className="text-[15px] font-medium text-gray-900">{milestone}</h3>
+                        <p className="text-sm text-gray-600">
+                          {steps.length} step{steps.length !== 1 ? 's' : ''} • {steps.reduce((total, step) => total + step.estimatedHours, 0)}h total
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  {expandedMilestones[milestone] ? (
+                    <ChevronDown className="w-5 h-5 text-gray-400 ml-auto" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5 text-gray-400 ml-auto" />
+                  )}
+                </button>
+
+                {/* Steps */}
+                {expandedMilestones[milestone] && (
+                  <div className="mt-6 space-y-0">
+                    {steps.map((step, index) => 
+                      renderStep(step, index === steps.length - 1, true)
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Render orphan steps */}
+            {orphanSteps.length > 0 && (
+              <div className="mb-8 last:mb-0">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-8 h-8 rounded-full bg-gray-400 flex items-center justify-center text-white text-base font-medium">
+                    {Math.min(Object.keys(milestoneGroups).length + 1, 6)}
+                  </div>
+                  <div>
+                    <h3 className="text-[15px] font-medium text-gray-900">Other Steps</h3>
+                    <p className="text-sm text-gray-600">
+                      {orphanSteps.length} step{orphanSteps.length !== 1 ? 's' : ''} • 
+                      {orphanSteps.reduce((total, step) => total + step.estimatedHours, 0)}h total
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-0">
+                  {orphanSteps.map((step, index) => 
+                    renderStep(step, index === orphanSteps.length - 1, true)
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Summary section */}
+            {workflowSummary && (
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                  <div className="bg-blue-50 rounded-lg p-3">
+                    <div className="text-2xl font-bold text-blue-600">{workflowSummary.totalSteps}</div>
+                    <div className="text-sm text-blue-600">Total Steps</div>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-3">
+                    <div className="text-2xl font-bold text-green-600">{workflowSummary.totalEstimatedHours}h</div>
+                    <div className="text-sm text-green-600">Estimated Hours</div>
+                  </div>
+                  <div className="bg-red-50 rounded-lg p-3">
+                    <div className="text-2xl font-bold text-red-600">{workflowSummary.requiredSteps}</div>
+                    <div className="text-sm text-red-600">Required Steps</div>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <div className="text-2xl font-bold text-gray-600">{workflowSummary.optionalSteps}</div>
+                    <div className="text-sm text-gray-600">Optional Steps</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </>
+    );
+  };
 
   return (
     <div className="flex h-full gap-4 mt-8">
