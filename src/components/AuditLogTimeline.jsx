@@ -1,7 +1,61 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { fetchAuditLogsByManagement } from '../services/auditLogService';
-import { History, Search, User, ArrowDown } from 'lucide-react';
+import { History, Search, User, ArrowDown, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
+
+const LoadingSkeleton = () => {
+  return (
+    <div className="space-y-8 p-4">
+      {/* Loading header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <div className="h-10 w-10 rounded-full bg-gray-200 animate-pulse"></div>
+          <div className="space-y-2">
+            <div className="h-4 w-48 bg-gray-200 rounded animate-pulse"></div>
+            <div className="h-3 w-32 bg-gray-100 rounded animate-pulse"></div>
+          </div>
+        </div>
+        <div className="h-8 w-24 bg-gray-200 rounded animate-pulse"></div>
+      </div>
+
+      {/* Loading timeline items */}
+      {[...Array(5)].map((_, index) => (
+        <div key={index} className="relative pl-8 pb-8">
+          {/* Timeline line */}
+          <div className="absolute left-3 top-5 bottom-0 w-0.5 bg-gray-200"></div>
+          
+          {/* Timeline dot */}
+          <div className="absolute left-2 top-5 h-3 w-3 rounded-full bg-gray-200 animate-pulse"></div>
+          
+          {/* Content */}
+          <div className="rounded-lg border border-gray-100 bg-white p-4 shadow-sm">
+            <div className="flex items-start gap-4">
+              {/* Avatar placeholder */}
+              <div className="h-10 w-10 rounded-full bg-gray-200 animate-pulse"></div>
+              
+              <div className="flex-1 space-y-3">
+                {/* Title placeholder */}
+                <div className="h-4 w-3/4 bg-gray-200 rounded animate-pulse"></div>
+                
+                {/* Description placeholders */}
+                <div className="space-y-2">
+                  <div className="h-3 w-full bg-gray-100 rounded animate-pulse"></div>
+                  <div className="h-3 w-5/6 bg-gray-100 rounded animate-pulse"></div>
+                </div>
+                
+                {/* Footer placeholder */}
+                <div className="flex items-center gap-4 pt-2">
+                  <div className="h-3 w-24 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-3 w-32 bg-gray-100 rounded animate-pulse"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 const AuditLogTimeline = ({ managementId, onMailLogClick }) => {
   const [auditLogs, setAuditLogs] = useState([]);
@@ -105,7 +159,17 @@ const AuditLogTimeline = ({ managementId, onMailLogClick }) => {
           .join(' ')
       : '';
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) {
+    return (
+      <div className="relative min-h-[400px] bg-gray-50/50">
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-full max-w-4xl">
+            <LoadingSkeleton />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 bg-white rounded-lg shadow-lg">
