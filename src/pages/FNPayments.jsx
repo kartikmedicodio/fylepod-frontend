@@ -60,19 +60,23 @@ PaymentStatus.propTypes = {
   status: PropTypes.string
 };
 
-const FNPayments = () => {
+const FNPayments = ({ stepId }) => {
   const { caseId } = useParams();
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchPayments();
-  }, [caseId]);
+  }, [caseId, stepId]);
 
   const fetchPayments = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/payments/case/${caseId}`);
+      const url = stepId 
+        ? `/payments/case/${caseId}?stepId=${stepId}`
+        : `/payments/case/${caseId}`;
+      
+      const response = await api.get(url);
       
       if (response.data.status === 'success') {
         const paymentData = response.data.data;
@@ -179,6 +183,10 @@ const FNPayments = () => {
       )}
     </div>
   );
+};
+
+FNPayments.propTypes = {
+  stepId: PropTypes.string
 };
 
 export default FNPayments; 

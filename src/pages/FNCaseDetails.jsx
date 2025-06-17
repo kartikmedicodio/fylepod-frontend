@@ -12,7 +12,13 @@ import {
   ChevronUp,
   ChevronDown,
   X,
-  Upload
+  Upload,
+  FileText,
+  CreditCard,
+  CheckSquare,
+  ClipboardList,
+  Package,
+  Mail
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../utils/api';
@@ -332,7 +338,8 @@ const FNCaseDetails = () => {
   // Add this new state near other state declarations
   const [showAttorneyOptions, setShowAttorneyOptions] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
-
+  const [caseSteps, setCaseSteps] = useState([]);
+  
   // Group all useRef hooks
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -2651,8 +2658,31 @@ const FNCaseDetails = () => {
           templateId: selectedQuestionnaire?._id,
           processedInformation: trimmedFormData
         };
+        
+        // Save the questionnaire data
         const response = await api.put(`/questionnaire-responses/management/${caseId}`, payload);
+        
         if (response.data.status === 'success') {
+          // Update the questionnaire response status to saved
+          await api.put(`/questionnaire-responses/${caseId}/status`);
+          
+          // Update case step status to completed
+          const questionnaireStep = caseSteps.find(step => step.key === 'questionnaire');
+          if (questionnaireStep) {
+            try {
+              // Make API call to update step status
+              await api.put(`/case-steps/case/${caseId}/step/questionnaire/status`, {
+                status: 'completed'
+              });
+              console.log('Successfully updated questionnaire step status');
+              // Refresh case steps to reflect the updated status
+              await fetchCaseSteps();
+            } catch (error) {
+              console.error('Error updating questionnaire step status:', error);
+              toast.error('Failed to update step status');
+            }
+          }
+          
           toast.success('Changes saved successfully');
           setIsQuestionnaireCompleted(true);
         }
@@ -4526,6 +4556,325 @@ const FNCaseDetails = () => {
     return caseData?.storageOnlyDocs?.some(doc => doc.documentTypeId === documentId);
   };
 
+  // Add fetchCaseSteps function
+  const fetchCaseSteps = async () => {
+    try {
+      const response = await api.get(`/case-steps/case/${caseId}`);
+      if (response.data.status === 'success') {
+        // Filter only the steps we want to show for FN user
+        const allowedStepKeys = ['retainer', 'payment', 'document-checklist', 'questionnaire'];
+        const filteredSteps = response.data.data.steps.filter(step => 
+          allowedStepKeys.includes(step.key)
+        ).sort((a, b) => a.order - b.order);
+        
+        setCaseSteps(filteredSteps);
+      }
+    } catch (error) {
+      console.error('Error fetching case steps:', error);
+    }
+  };
+
+  // Add useEffect to fetch steps
+  useEffect(() => {
+    if (caseId) {
+      fetchCaseSteps();
+    }
+  }, [caseId]);
+
+  // Modify TabNavigation to use caseSteps
+  const TabNavigation = () => {
+    const [scrollPosition, setScrollPosition] = useState(0);
+    const tabsContainerRef = useRef(null);
+    const [showLeftArrow, setShowLeftArrow] = useState(false);
+    const [showRightArrow, setShowRightArrow] = useState(false);
+
+    useEffect(() => {
+      checkScroll();
+      window.addEventListener('resize', checkScroll);
+      return () => window.removeEventListener('resize', checkScroll);
+    }, []);
+
+    const checkScroll = () => {
+      if (tabsContainerRef.current) {
+        const { scrollWidth, clientWidth } = tabsContainerRef.current;
+        setShowLeftArrow(scrollPosition > 0);
+        setShowRightArrow(scrollPosition < scrollWidth - clientWidth);
+      }
+    };
+
+    const handleScroll = (direction) => {
+      if (tabsContainerRef.current) {
+        const newPosition = direction === 'left'
+          ? Math.max(0, scrollPosition - 200)
+          : Math.min(
+              tabsContainerRef.current.scrollWidth - tabsContainerRef.current.clientWidth,
+              scrollPosition + 200
+            );
+        setScrollPosition(newPosition);
+        tabsContainerRef.current.scrollTo({ left: newPosition, behavior: 'smooth' });
+      }
+    };
+
+    // Map step keys to icons
+    const stepIcons = {
+      'retainer': FileText,
+      'payment': CreditCard,
+      'document-checklist': CheckSquare,
+      'questionnaire': ClipboardList
+    };
+
+    return (
+      <div className="relative">
+        {showLeftArrow && (
+          <button
+            onClick={() => handleScroll('left')}
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full bg-white shadow-md hover:bg-gray-50"
+          >
+            <ChevronLeft className="w-5 h-5 text-gray-600" />
+          </button>
+        )}
+        {showRightArrow && (
+          <button
+            onClick={() => handleScroll('right')}
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full bg-white shadow-md hover:bg-gray-50"
+          >
+            <ChevronRight className="w-5 h-5 text-gray-600" />
+          </button>
+        )}
+        <div className="overflow-hidden" style={{ margin: '0 24px' }}>
+          <div
+            ref={tabsContainerRef}
+            className="flex overflow-x-auto scrollbar-hide"
+            style={{ scrollBehavior: 'smooth' }}
+          >
+            <div className="flex -mb-px min-w-max px-6">
+              {caseSteps.map((step) => {
+                const Icon = stepIcons[step.key] || FileText;
+                return (
+                  <button
+                    key={step._id}
+                    disabled={step.disabled}
+                    className={`flex items-center px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                      activeTab === step.key
+                        ? 'border-blue-600 text-blue-600'
+                        : step.disabled
+                        ? 'border-transparent text-gray-400 cursor-not-allowed'
+                        : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
+                    }`}
+                    onClick={() => !step.disabled && setActiveTab(step.key)}
+                  >
+                    <Icon className="w-5 h-5 mr-2" />
+                    <span>{step.name}</span>
+                    {step.status === 'completed' && (
+                      <Check className="w-4 h-4 ml-2 text-green-500" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Add FNProgressSteps component
+  const FNProgressSteps = ({ caseData, caseSteps, activeTab, isQuestionnaireCompleted }) => {
+    // Helper function to check if all documents are approved
+    const checkAllDocumentsApproved = (documentTypes) => {
+      return documentTypes && documentTypes.length > 0 && 
+             documentTypes.every(doc => doc.status === 'approved');
+    };
+
+    // Helper function to check if a step is completed
+    const isStepCompleted = (stepKey) => {
+      const step = caseSteps?.find(step => step.key === stepKey);
+      return step?.status === 'completed';
+    };
+
+    // Helper function to check if a step exists
+    const isStepPresent = (stepKey) => {
+      return caseSteps?.some(step => step.key === stepKey);
+    };
+
+    // Check document status
+    const allDocumentsApproved = caseData?.documentTypes ? 
+      checkAllDocumentsApproved(caseData.documentTypes) : false;
+
+    const hasUploadedDocuments = caseData?.documentTypes?.some(doc => 
+      doc.status === 'uploaded' || doc.status === 'approved'
+    );
+
+    // Define the milestone steps for FN users
+    const steps = [
+      {
+        key: 'initial-configuration',
+        name: 'Initial Configuration',
+        description: 'Payment & Retainer Setup',
+        icon: CreditCard,
+        completed: isStepCompleted('payment') && isStepCompleted('retainer'),
+        present: isStepPresent('payment') || isStepPresent('retainer')
+      },
+      {
+        key: 'document-collection',
+        name: 'Document Collection',
+        description: 'Required Documents Upload',
+        icon: FileText,
+        completed: hasUploadedDocuments,
+        present: isStepPresent('document-checklist')
+      },
+      {
+        key: 'form-completion',
+        name: 'Form Completion',
+        description: 'Questionnaire, Forms & Document Review',
+        icon: ClipboardList,
+        completed: allDocumentsApproved && isQuestionnaireCompleted,
+        present: true // Always show this step
+      },
+      {
+        key: 'letters',
+        name: 'Letters',
+        description: 'Letter Generation',
+        icon: Mail,
+        completed: isStepCompleted('letters'),
+        present: isStepPresent('letters')
+      },
+      {
+        key: 'preparation',
+        name: 'Preparation',
+        description: 'Final Package & Government Notices',
+        icon: Package,
+        completed: isStepCompleted('receipts') || isStepCompleted('packaging'),
+        present: isStepPresent('receipts') || isStepPresent('packaging')
+      }
+    ];
+
+    // Filter steps to only show present ones
+    const visibleSteps = steps.filter(step => step.present);
+    
+    // Find current step index
+    const currentStepIndex = visibleSteps.findIndex(step => !step.completed);
+    const completedSteps = visibleSteps.filter(step => step.completed).length;
+
+    return (
+      <div className="px-6 py-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-8 py-6">
+            {/* Header */}
+            <div className="text-center mb-8">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Case Progress</h3>
+              <p className="text-sm text-gray-500">
+                {completedSteps} of {visibleSteps.length} milestones completed
+              </p>
+            </div>
+
+            {/* Progress Steps */}
+            <div className="relative">
+              {/* Progress Line */}
+              <div className="absolute top-[30px] left-[30px] right-[30px] h-[2px] bg-gray-200">
+                <div 
+                  className="h-full bg-blue-500 transition-all duration-1000 ease-out"
+                  style={{
+                    width: visibleSteps.length > 0 ? `${(completedSteps / visibleSteps.length) * 100}%` : '0%'
+                  }}
+                />
+              </div>
+
+              {/* Steps Container */}
+              <div className="flex justify-between items-start relative px-[30px]">
+                {visibleSteps.map((step, index) => {
+                  const Icon = step.icon;
+                  const isActive = index === currentStepIndex;
+                  
+                  return (
+                    <div key={step.key} className="flex flex-col items-center relative max-w-[180px]">
+                      {/* Step Circle */}
+                      <div 
+                        className={`
+                          relative z-10 w-[60px] h-[60px] rounded-full flex items-center justify-center
+                          transition-all duration-300 shadow-sm
+                          ${step.completed 
+                            ? 'bg-blue-500 text-white border-4 border-white shadow-lg' 
+                            : isActive
+                              ? 'bg-white border-2 border-blue-500 text-blue-500 shadow-md'
+                              : 'bg-gray-100 border-2 border-gray-200 text-gray-400'
+                          }
+                        `}
+                      >
+                        {step.completed ? (
+                          <Check className="w-6 h-6 stroke-[2.5]" />
+                        ) : (
+                          <Icon className="w-6 h-6 stroke-[1.5]" />
+                        )}
+                      </div>
+
+                      {/* Step Info */}
+                      <div className="mt-4 text-center">
+                        <h4 
+                          className={`
+                            text-sm font-semibold mb-1 leading-tight
+                            ${step.completed 
+                              ? 'text-blue-600' 
+                              : isActive
+                                ? 'text-blue-600'
+                                : 'text-gray-600'
+                            }
+                          `}
+                        >
+                          {step.name}
+                        </h4>
+                        <p 
+                          className={`
+                            text-xs leading-relaxed mb-3
+                            ${step.completed 
+                              ? 'text-gray-600' 
+                              : isActive
+                                ? 'text-gray-600'
+                                : 'text-gray-400'
+                            }
+                          `}
+                        >
+                          {step.description}
+                        </p>
+                        
+                        {/* Status Badge */}
+                        <span 
+                          className={`
+                            inline-block px-3 py-1 rounded-full text-xs font-medium
+                            ${step.completed 
+                              ? 'bg-green-50 text-green-600 border border-green-100' 
+                              : isActive
+                                ? 'bg-blue-50 text-blue-600 border border-blue-100'
+                                : 'bg-gray-50 text-gray-500 border border-gray-100'
+                            }
+                          `}
+                        >
+                          {step.completed 
+                            ? 'Completed' 
+                            : isActive
+                              ? 'In Progress'
+                              : 'Pending'
+                          }
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  FNProgressSteps.propTypes = {
+    caseData: PropTypes.object,
+    caseSteps: PropTypes.array,
+    activeTab: PropTypes.string.isRequired,
+    isQuestionnaireCompleted: PropTypes.bool.isRequired
+  };
+
   // Main component return
   return (
     <>
@@ -4651,8 +5000,9 @@ const FNCaseDetails = () => {
         </div>
       </div>
        {/* Add ProgressSteps at the top */}
-       <ProgressSteps 
+       <FNProgressSteps 
         caseData={caseData}
+        caseSteps={caseSteps}
         activeTab={activeTab}
         isQuestionnaireCompleted={isQuestionnaireCompleted}
       />
@@ -4715,12 +5065,13 @@ const FNCaseDetails = () => {
                   caseManagerId={caseData?.caseManagerId?._id}
                   applicantId={caseData?.userId?._id}
                   caseData={caseData}
+                  stepId={caseSteps.find(step => step.key === 'retainer')?._id}
                 />
               </div>
             )}
             {activeTab === 'payments' && (
               <div className="bg-white rounded-lg border border-gray-200">
-                <FNPayments />
+                <FNPayments stepId={caseSteps.find(step => step.key === 'payment')?._id} />
               </div>
             )}
             {activeTab === 'documents-checklist' && (
