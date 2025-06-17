@@ -366,91 +366,96 @@ const DocumentChecklist = () => {
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 p-6">
-            {/* Render milestone groups */}
-            {Object.entries(milestoneGroups).map(([milestone, steps], milestoneIndex) => (
-              <div key={milestone} className="mb-8 last:mb-0">
-                {/* Milestone header */}
-                <button
-                  onClick={() => toggleMilestone(milestone)}
-                  className="flex items-center gap-3 w-full text-left p-4 bg-gray-50/80 rounded-lg hover:bg-gray-100/80 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-base font-medium">
+            {/* Main vertical blue line */}
+            <div className="relative">
+              <div className="absolute left-[1.35rem] top-0 bottom-0 w-[2px] bg-blue-500"></div>
+
+              {/* Render milestone groups */}
+              {Object.entries(milestoneGroups).map(([milestone, steps], milestoneIndex) => (
+                <div key={milestone} className="relative mb-6 last:mb-0">
+                  {/* White connecting line */}
+                  <div className="absolute left-[1.35rem] top-[1.15rem] w-4 h-[2px] bg-white"></div>
+                  
+                  {/* Milestone header */}
+                  <button
+                    onClick={() => toggleMilestone(milestone)}
+                    className="relative flex items-start gap-4 w-full text-left p-3 pl-8 bg-transparent hover:bg-gray-50/80 transition-colors rounded-lg"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="relative z-10 w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-medium shrink-0">
                         {(milestoneIndex + 1 <= 6) ? milestoneIndex + 1 : 6}
                       </div>
                       <div>
                         <h3 className="text-[15px] font-medium text-gray-900">{milestone}</h3>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-gray-500 mt-0.5">
                           {steps.length} step{steps.length !== 1 ? 's' : ''} • {steps.reduce((total, step) => total + step.estimatedHours, 0)}h total
                         </p>
                       </div>
                     </div>
-                  </div>
-                  {expandedMilestones[milestone] ? (
-                    <ChevronDown className="w-5 h-5 text-gray-400 ml-auto" />
-                  ) : (
-                    <ChevronRight className="w-5 h-5 text-gray-400 ml-auto" />
-                  )}
-                </button>
+                    <ChevronRight className="w-5 h-5 text-gray-400 ml-auto shrink-0" />
+                  </button>
 
-                {/* Steps */}
-                {expandedMilestones[milestone] && (
-                  <div className="mt-6 space-y-0">
-                    {steps.map((step, index) => 
-                      renderStep(step, index === steps.length - 1, true)
+                  {/* Steps content */}
+                  {expandedMilestones[milestone] && (
+                    <div className="mt-4 space-y-4 ml-[3.75rem]">
+                      {steps.map((step, index) => 
+                        renderStep(step, index === steps.length - 1, true)
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Render orphan steps */}
+              {orphanSteps.length > 0 && (
+                <div className="relative mb-6 last:mb-0">
+                  {/* White connecting line */}
+                  <div className="absolute left-[1.35rem] top-[1.15rem] w-4 h-[2px] bg-white"></div>
+                  
+                  <div className="flex items-start gap-4 p-3 pl-8">
+                    <div className="relative z-10 w-7 h-7 rounded-full bg-gray-400 flex items-center justify-center text-white text-sm font-medium shrink-0">
+                      {Math.min(Object.keys(milestoneGroups).length + 1, 6)}
+                    </div>
+                    <div>
+                      <h3 className="text-[15px] font-medium text-gray-900">Other Steps</h3>
+                      <p className="text-sm text-gray-500 mt-0.5">
+                        {orphanSteps.length} step{orphanSteps.length !== 1 ? 's' : ''} • 
+                        {orphanSteps.reduce((total, step) => total + step.estimatedHours, 0)}h total
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-0">
+                    {orphanSteps.map((step, index) => 
+                      renderStep(step, index === orphanSteps.length - 1, true)
                     )}
                   </div>
-                )}
-              </div>
-            ))}
+                </div>
+              )}
 
-            {/* Render orphan steps */}
-            {orphanSteps.length > 0 && (
-              <div className="mb-8 last:mb-0">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-8 h-8 rounded-full bg-gray-400 flex items-center justify-center text-white text-base font-medium">
-                    {Math.min(Object.keys(milestoneGroups).length + 1, 6)}
-                  </div>
-                  <div>
-                    <h3 className="text-[15px] font-medium text-gray-900">Other Steps</h3>
-                    <p className="text-sm text-gray-600">
-                      {orphanSteps.length} step{orphanSteps.length !== 1 ? 's' : ''} • 
-                      {orphanSteps.reduce((total, step) => total + step.estimatedHours, 0)}h total
-                    </p>
-                  </div>
-                </div>
-                <div className="space-y-0">
-                  {orphanSteps.map((step, index) => 
-                    renderStep(step, index === orphanSteps.length - 1, true)
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Summary section */}
-            {workflowSummary && (
-              <div className="mt-8 pt-6 border-t border-gray-200">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                  <div className="bg-blue-50 rounded-lg p-3">
-                    <div className="text-2xl font-bold text-blue-600">{workflowSummary.totalSteps}</div>
-                    <div className="text-sm text-blue-600">Total Steps</div>
-                  </div>
-                  <div className="bg-green-50 rounded-lg p-3">
-                    <div className="text-2xl font-bold text-green-600">{workflowSummary.totalEstimatedHours}h</div>
-                    <div className="text-sm text-green-600">Estimated Hours</div>
-                  </div>
-                  <div className="bg-red-50 rounded-lg p-3">
-                    <div className="text-2xl font-bold text-red-600">{workflowSummary.requiredSteps}</div>
-                    <div className="text-sm text-red-600">Required Steps</div>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <div className="text-2xl font-bold text-gray-600">{workflowSummary.optionalSteps}</div>
-                    <div className="text-sm text-gray-600">Optional Steps</div>
+              {/* Summary section */}
+              {workflowSummary && (
+                <div className="mt-8 pt-6 border-t border-gray-200">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                    <div className="bg-blue-50 rounded-lg p-3">
+                      <div className="text-2xl font-bold text-blue-600">{workflowSummary.totalSteps}</div>
+                      <div className="text-sm text-blue-600">Total Steps</div>
+                    </div>
+                    <div className="bg-green-50 rounded-lg p-3">
+                      <div className="text-2xl font-bold text-green-600">{workflowSummary.totalEstimatedHours}h</div>
+                      <div className="text-sm text-green-600">Estimated Hours</div>
+                    </div>
+                    <div className="bg-red-50 rounded-lg p-3">
+                      <div className="text-2xl font-bold text-red-600">{workflowSummary.requiredSteps}</div>
+                      <div className="text-sm text-red-600">Required Steps</div>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <div className="text-2xl font-bold text-gray-600">{workflowSummary.optionalSteps}</div>
+                      <div className="text-sm text-gray-600">Optional Steps</div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
       </>
