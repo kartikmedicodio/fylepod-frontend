@@ -313,32 +313,22 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         return {
           ...step,
           displayKey: `${step.key}-${stepsByKey[step.key]}`,
-          displayName: `${step.name} ${stepsByKey[step.key]}` // Add number to name for uniqueness
+          displayName: `${step.name} ${stepsByKey[step.key]}`, // Add number to name for uniqueness
         };
       }
     });
 
-    // Always add the Audit Log tabs
-    const auditLogTabs = [
-      {
-        _id: 'audit-logs',
-        key: 'audit-logs',
-        displayKey: 'audit-logs',
-        displayName: 'Activity Logs (Old)',
-        disabled: false,
-        order: steps.length + 1
-      },
-      {
-        _id: 'audit-logs-timeline',
-        key: 'audit-logs-timeline',
-        displayKey: 'audit-logs-timeline',
-        displayName: 'Activity Logs (New)',
-        disabled: false,
-        order: steps.length + 2
-      }
-    ];
+    // Always add the Activity Log tab (merged communications and audit logs)
+    const activityLogTab = {
+      _id: 'activity-log',
+      key: 'activity-log',
+      displayKey: 'activity-log',
+      displayName: 'Activity Log',
+      disabled: false,
+      order: steps.length + 1
+    };
 
-    return [...steps, ...auditLogTabs];
+    return [...steps, activityLogTab];
   }, [caseSteps]);
 
   // Add a function at the top of the component to load data from localStorage
@@ -2303,6 +2293,51 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     );
   };
 
+  // Add ActivityLogTab component
+  const ActivityLogTab = ({ caseId }) => {
+    const [activeSubTab, setActiveSubTab] = useState('activity');  // Changed default to 'activity'
+
+    const subTabs = [
+      { id: 'activity', label: 'Activity Log', icon: History },    // Moved Activity Log first
+      { id: 'communications', label: 'Communications (Mails)', icon: Mail }
+    ];
+
+    return (
+      <div className="p-6">
+        {/* Sub-tab navigation */}
+        <div className="mb-6 flex items-center gap-2">
+          {subTabs.map(tab => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveSubTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeSubTab === tab.id
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Content based on active sub-tab */}
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          {activeSubTab === 'activity' && (
+            <AuditLogTimeline managementId={caseId} />
+          )}
+          {activeSubTab === 'communications' && (
+            <CommunicationsTab caseId={caseId} />
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const TabNavigation = () => {
     const tabsContainerRef = useRef(null);
     const [showLeftScroll, setShowLeftScroll] = useState(false);
@@ -2338,9 +2373,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       'receipts': LucideReceiptText,
       'packaging': Package,
       'payment': CreditCard,
-      'communications': MessageSquare,
       'retainer': FileText,
-      'audit-logs': History
+      'activity-log': History
     };
 
     return (
@@ -3202,8 +3236,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               onPaymentCompleted={refreshCaseSteps}
             />
           );
-        case 'communications':
-          return <CommunicationsTab caseId={caseId} />;
         case 'retainer':
           return (() => {
             // Get the case manager ID, handling both string and object formats
@@ -6278,8 +6310,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               {activeTab === 'document-checklist' && <DocumentsChecklistTab />}
               {activeTab === 'questionnaire' && <QuestionnaireTab />}
               {activeTab === 'forms' && <FormsTab />}
-              {activeTab === 'audit-logs' && <AuditLogTab caseId={caseId} />}
-              {activeTab === 'audit-logs-timeline' && <AuditLogTimeline managementId={caseId} />}
+              {activeTab === 'activity-log' && <ActivityLogTab caseId={caseId} />}
             </div>
           </div>
         </div>
