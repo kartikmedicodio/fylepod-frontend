@@ -1108,6 +1108,15 @@ const FNCaseDetails = () => {
             }))
           };
 
+          // Get user info from profile data
+          const userInfo = {
+            name: profileData?.name || 'User',
+            email: profileData?.email,
+            contact: profileData?.contact,
+            address: profileData?.address,
+            role: profileData?.role || 'individual' // Add user role
+          };
+
           let chatResponse;
           
           // Get uploaded and approved document types from the case
@@ -1125,7 +1134,8 @@ const FNCaseDetails = () => {
             chatResponse = await api.post('/chat', {
               documentIds: [],
               managementId: caseId,
-              managementContext: managementContext
+              managementContext: managementContext,
+              userInfo: userInfo // Add user info to chat creation
             });
           } else {
             // Extract just the document type IDs
@@ -1149,7 +1159,8 @@ const FNCaseDetails = () => {
               chatResponse = await api.post('/chat', {
                 documentIds: [],
                 managementId: caseId,
-                managementContext: managementContext
+                managementContext: managementContext,
+                userInfo: userInfo // Add user info to chat creation
               });
             } else {
               // Extract document IDs for chat creation
@@ -1159,7 +1170,8 @@ const FNCaseDetails = () => {
               chatResponse = await api.post('/chat', {
                 documentIds: docIds,
                 managementId: caseId,
-                managementContext: managementContext
+                managementContext: managementContext,
+                userInfo: userInfo // Add user info to chat creation
               });
             }
           }
@@ -4969,15 +4981,15 @@ const FNCaseDetails = () => {
                   <div className="space-y-2">
                     <div>
                       <div className="text-sm text-gray-500">Case Applicant</div>
-                      <div className="font-medium">{caseData.userName}</div>
+                      <div className="font-medium">{caseData?.userName || '-'}</div>
                     </div>
                     <div>
                       <div className="text-sm text-gray-500">Case Manager</div>
-                      <div className="font-medium">{caseData.caseManagerName || caseData.createdBy?.name || '-'}</div>
+                      <div className="font-medium">{caseData?.caseManagerName || caseData?.createdBy?.name || '-'}</div>
                     </div>
                     <div>
                       <div className="text-sm text-gray-500">Case Name</div>
-                      <div className="font-medium">{caseData.categoryName}</div>
+                      <div className="font-medium">{caseData?.categoryName || '-'}</div>
                     </div>
                   </div>
 
@@ -4985,16 +4997,16 @@ const FNCaseDetails = () => {
                   <div className="space-y-2">
                     <div>
                       <div className="text-sm text-gray-500">Current Status</div>
-                      <div className="font-medium">{caseData.categoryStatus}</div>
+                      <div className="font-medium">{caseData?.categoryStatus || '-'}</div>
                     </div>
                     <div>
                       <div className="text-sm text-gray-500">Created Date</div>
-                      <div className="font-medium">{new Date(caseData.createdAt).toLocaleDateString()}</div>
+                      <div className="font-medium">{caseData?.createdAt ? new Date(caseData.createdAt).toLocaleDateString() : '-'}</div>
                     </div>
                     <div>
                       <div className="text-sm text-gray-500">Deadline</div>
                       <div className="font-medium">
-                        {caseData.deadline ? new Date(caseData.deadline).toLocaleDateString() : '-'}
+                        {caseData?.deadline ? new Date(caseData.deadline).toLocaleDateString() : '-'}
                       </div>
                     </div>
                   </div>
