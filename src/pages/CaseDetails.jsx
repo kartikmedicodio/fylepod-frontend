@@ -220,7 +220,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
     if (caseData?.userName && messages.length === 0) {
       setMessages([{
         role: 'assistant',
-        content: `Hello! I'm Sophia from support. I'm here to assist you with <strong>${caseData.userName}</strong>'s case. How can I help you today?`
+        content: `Hello! I'm Sophia. I'm here to assist you with <strong>${caseData.userName}</strong>'s case. How can I help you today?`
       }]);
     }
   }, [caseData, messages.length]);
@@ -1922,7 +1922,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
           // Get the management data that we want to send to the AI
           const managementData = caseResponse.data.data.entry;
           
-          
           // Prepare management model data to include in chat context
           const managementContext = {
             caseId: managementData._id,
@@ -1934,6 +1933,15 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               status: doc.status,
               required: doc.required
             }))
+          };
+
+          // Get user info from profile data
+          const userInfo = {
+            name: profileData?.name || 'User',
+            email: profileData?.email,
+            contact: profileData?.contact,
+            address: profileData?.address,
+            role: profileData?.role || 'individual' // Add user role
           };
 
           let chatResponse;
@@ -1957,7 +1965,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
             chatResponse = await api.post('/chat', {
               documentIds: [],
               managementId: caseId,
-              managementContext: managementContext
+              managementContext: managementContext,
+              userInfo: userInfo // Add user info to chat creation
             });
           } else {
             // Extract just the document type IDs
@@ -1984,7 +1993,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               chatResponse = await api.post('/chat', {
                 documentIds: [],
                 managementId: caseId,
-                managementContext: managementContext
+                managementContext: managementContext,
+                userInfo: userInfo // Add user info to chat creation
               });
             } else {
               // Extract document IDs for chat creation
@@ -1995,7 +2005,8 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               chatResponse = await api.post('/chat', {
                 documentIds: docIds,
                 managementId: caseId,
-                managementContext: managementContext
+                managementContext: managementContext,
+                userInfo: userInfo // Add user info to chat creation
               });
             }
           }
