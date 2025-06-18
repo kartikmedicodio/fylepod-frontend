@@ -215,7 +215,6 @@ const DocumentChecklist = () => {
     const groupStepsByMilestone = () => {
       const milestoneGroups = {};
       const orphanSteps = [];
-
       workflowSteps.forEach(step => {
         if (step.milestone) {
           if (!milestoneGroups[step.milestone]) {
@@ -226,129 +225,92 @@ const DocumentChecklist = () => {
           orphanSteps.push(step);
         }
       });
-
-      // Sort steps within each milestone by order
       Object.keys(milestoneGroups).forEach(milestone => {
         milestoneGroups[milestone].sort((a, b) => a.order - b.order);
       });
-
       orphanSteps.sort((a, b) => a.order - b.order);
-
       return { milestoneGroups, orphanSteps };
     };
-
     const { milestoneGroups, orphanSteps } = groupStepsByMilestone();
-
     const toggleMilestone = (milestone) => {
       setExpandedMilestones(prev => ({
         ...prev,
         [milestone]: !prev[milestone]
       }));
     };
-
-    const renderStep = (step, isLast = false, isNested = false) => {
-      // Agent badge styles - updated for lighter background and more rounded corners
-      const agentBadgeStyles = {
-        'Diana': 'text-purple-600 bg-purple-50/70 px-4',
-        'Fiona': 'text-blue-600 bg-blue-50/70 px-4',
-        'Sophia': 'text-green-600 bg-green-50/70 px-4',
-        'none': 'text-gray-600 bg-gray-50/70 px-4'
-      };
-
-      const getAgentAvatar = (agentName) => {
-        switch (agentName) {
-          case 'Diana':
-            return '/assets/diana-avatar.png';
-          case 'Fiona':
-            return '/assets/fiona-avatar.png';
-          case 'Sophia':
-            return '/assets/sophia-avatar.png';
-          default:
-            return null;
-        }
-      };
-
-      return (
-        <div key={step._id} className="relative pl-8 mb-8 last:mb-0">
-          {/* Vertical line - thinner and lighter */}
-          <div className="absolute left-[5px] top-0 bottom-0 w-[1px] bg-gray-200/80" />
-          
-          {/* Horizontal line and dot - adjusted positioning */}
-          <div className="absolute left-0 top-[22px] flex items-center">
-            <div className="w-[14px] h-[1px] bg-gray-200/80" />
-            <div className={`w-[8px] h-[8px] rounded-full ${step.isRequired ? 'bg-blue-500' : 'bg-gray-300'}`} />
-          </div>
-
-          {/* Content */}
-          <div className="pt-3">
-            {/* Header */}
-            <div className="flex items-center gap-3 mb-3">
-              <h4 className="text-[15px] font-medium text-gray-900">{step.name}</h4>
-              <span className="text-sm text-gray-500">({step.estimatedHours}h)</span>
-              {step.agentName && step.agentName !== 'none' && (
-                <span className={`py-1 text-sm font-medium rounded-full ${agentBadgeStyles[step.agentName]}`}>
-                  {step.agentName}
-                </span>
-              )}
-              {step.isRequired && (
-                <span className="px-4 py-1 text-sm font-medium rounded-full bg-red-50/70 text-red-600">
-                  Required
-                </span>
-              )}
-            </div>
-
-            {/* Description */}
-            {step.description && (
-              <p className="text-[15px] text-gray-600 mb-5">{step.description}</p>
+    const agentBadgeStyles = {
+      'Diana': 'text-purple-600 bg-purple-50/70 px-4',
+      'Fiona': 'text-blue-600 bg-blue-50/70 px-4',
+      'Sophia': 'text-green-600 bg-green-50/70 px-4',
+      'none': 'text-gray-600 bg-gray-50/70 px-4'
+    };
+    const getAgentAvatar = (agentName) => {
+      switch (agentName) {
+        case 'Diana':
+          return '/assets/diana-avatar.png';
+        case 'Fiona':
+          return '/assets/fiona-avatar.png';
+        case 'Sophia':
+          return '/assets/sophia-avatar.png';
+        default:
+          return null;
+      }
+    };
+    const renderStep = (step, isLast = false, isNested = false) => (
+      <div key={step._id} className="relative group pl-12 mb-8 last:mb-0">
+        {/* Vertical line for tree branch */}
+        <div className="absolute left-2 top-0 bottom-0 w-0.5 bg-blue-100 z-0" />
+        {/* Horizontal connector and dot */}
+        <div className="absolute left-0 top-5 flex items-center z-10">
+          <div className="w-8 h-0.5 bg-blue-200" />
+          <div className={`w-4 h-4 rounded-full border-2 ${step.isRequired ? 'bg-blue-500 border-blue-500' : 'bg-gray-200 border-gray-300'} shadow-sm`} />
+        </div>
+        {/* Step content */}
+        <div className="pt-2 pb-2 pl-8 pr-4 bg-white rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-200">
+          <div className="flex items-center gap-3 mb-2">
+            <h4 className="text-base font-semibold text-gray-900">{step.name}</h4>
+            <span className="text-xs text-gray-500">({step.estimatedHours}h)</span>
+            {step.agentName && step.agentName !== 'none' && (
+              <span className={`py-1 text-xs font-medium rounded-full ${agentBadgeStyles[step.agentName]}`}>{step.agentName}</span>
             )}
-
-            {/* User and Agent sections */}
-            <div className="space-y-5">
-              {step.userDescription && (
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100/70 flex items-center justify-center">
-                    <User className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div className="flex-1 pt-0.5">
-                    <div className="text-[15px]">
-                      <span className="text-blue-600 font-medium">User: </span>
-                      <span className="text-blue-600">{step.userDescription}</span>
-                    </div>
-                  </div>
+            {step.isRequired && (
+              <span className="px-3 py-1 text-xs font-medium rounded-full bg-red-50/70 text-red-600 ml-2">Required</span>
+            )}
+          </div>
+          {step.description && (
+            <p className="text-sm text-gray-600 mb-3">{step.description}</p>
+          )}
+          <div className="space-y-3">
+            {step.userDescription && (
+              <div className="flex items-start gap-2">
+                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
+                  <User className="w-4 h-4 text-blue-600" />
                 </div>
-              )}
-
-              {step.agentDescription && step.agentName && step.agentName !== 'none' && (
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0">
-                    {getAgentAvatar(step.agentName) ? (
-                      <img 
-                        src={getAgentAvatar(step.agentName)} 
-                        alt={`${step.agentName} avatar`}
-                        className="w-6 h-6 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-6 h-6 rounded-full bg-purple-100/70 flex items-center justify-center">
-                        <span className="text-xs font-medium text-purple-600">
-                          {step.agentName.charAt(0)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 pt-0.5">
-                    <div className="text-[15px]">
-                      <span className="text-purple-600 font-medium">{step.agentName}: </span>
-                      <span className="text-purple-600">{step.agentDescription}</span>
-                    </div>
-                  </div>
+                <div className="flex-1 text-blue-700 text-sm">
+                  <span className="font-medium">User: </span>{step.userDescription}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+            {step.agentDescription && step.agentName && step.agentName !== 'none' && (
+              <div className="flex items-start gap-2">
+                <div className="flex-shrink-0">
+                  {getAgentAvatar(step.agentName) ? (
+                    <img src={getAgentAvatar(step.agentName)} alt={`${step.agentName} avatar`} className="w-6 h-6 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center">
+                      <span className="text-xs font-medium text-purple-600">{step.agentName.charAt(0)}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 text-purple-700 text-sm">
+                  <span className="font-medium">{step.agentName}: </span>{step.agentDescription}
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      );
-    };
-
+      </div>
+    );
     return (
       <>
         <div className="flex items-center justify-between mb-1">
@@ -359,79 +321,65 @@ const DocumentChecklist = () => {
             </p>
           </div>
         </div>
-
         {isLoadingWorkflow ? (
           <div className="flex justify-center items-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 p-6">
-            {/* Main vertical blue line */}
+            {/* Main vertical blue trunk */}
             <div className="relative">
-              <div className="absolute left-[1.35rem] top-0 bottom-0 w-[2px] bg-blue-500"></div>
-
-              {/* Render milestone groups */}
+              <div className="absolute left-6 top-0 bottom-0 w-1 bg-blue-500 z-0" />
+              {/* Render milestone groups as tree nodes */}
               {Object.entries(milestoneGroups).map(([milestone, steps], milestoneIndex) => (
-                <div key={milestone} className="relative mb-6 last:mb-0">
-                  {/* White connecting line */}
-                  <div className="absolute left-[1.35rem] top-[1.15rem] w-4 h-[2px] bg-white"></div>
-                  
-                  {/* Milestone header */}
+                <div key={milestone} className="relative mb-8 last:mb-0">
+                  {/* Milestone node - entire card clickable */}
                   <button
                     onClick={() => toggleMilestone(milestone)}
-                    className="relative flex items-start gap-4 w-full text-left p-3 pl-8 bg-transparent hover:bg-gray-50/80 transition-colors rounded-lg"
+                    className="flex items-center gap-4 mb-2 w-full text-left p-3 rounded-lg hover:bg-gray-50 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-200"
                   >
-                    <div className="flex items-start gap-4">
-                      <div className="relative z-10 w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm font-medium shrink-0">
-                        {(milestoneIndex + 1 <= 6) ? milestoneIndex + 1 : 6}
-                      </div>
-                      <div>
-                        <h3 className="text-[15px] font-medium text-gray-900">{milestone}</h3>
-                        <p className="text-sm text-gray-500 mt-0.5">
-                          {steps.length} step{steps.length !== 1 ? 's' : ''} • {steps.reduce((total, step) => total + step.estimatedHours, 0)}h total
-                        </p>
-                      </div>
+                    <div className="relative z-10 w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white text-lg font-bold shadow-lg border-4 border-white">
+                      {milestoneIndex + 1}
                     </div>
-                    <ChevronRight className="w-5 h-5 text-gray-400 ml-auto shrink-0" />
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900">{milestone}</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {steps.length} step{steps.length !== 1 ? 's' : ''} • {steps.reduce((total, step) => total + step.estimatedHours, 0)}h total
+                      </p>
+                    </div>
+                    {expandedMilestones[milestone] ? (
+                      <ChevronDown className="w-5 h-5 text-gray-400 ml-2" />
+                    ) : (
+                      <ChevronRight className="w-5 h-5 text-gray-400 ml-2" />
+                    )}
                   </button>
-
-                  {/* Steps content */}
+                  {/* Steps as tree branches */}
                   {expandedMilestones[milestone] && (
-                    <div className="mt-4 space-y-4 ml-[3.75rem]">
-                      {steps.map((step, index) => 
-                        renderStep(step, index === steps.length - 1, true)
-                      )}
+                    <div className="ml-12 border-l-2 border-blue-100 pl-6">
+                      {steps.map((step, index) => renderStep(step, index === steps.length - 1, true))}
                     </div>
                   )}
                 </div>
               ))}
-
-              {/* Render orphan steps */}
+              {/* Orphan steps */}
               {orphanSteps.length > 0 && (
-                <div className="relative mb-6 last:mb-0">
-                  {/* White connecting line */}
-                  <div className="absolute left-[1.35rem] top-[1.15rem] w-4 h-[2px] bg-white"></div>
-                  
-                  <div className="flex items-start gap-4 p-3 pl-8">
-                    <div className="relative z-10 w-7 h-7 rounded-full bg-gray-400 flex items-center justify-center text-white text-sm font-medium shrink-0">
-                      {Math.min(Object.keys(milestoneGroups).length + 1, 6)}
+                <div className="relative mb-8 last:mb-0">
+                  <div className="flex items-center gap-4 mb-2">
+                    <div className="relative z-10 w-10 h-10 rounded-full bg-gray-400 flex items-center justify-center text-white text-lg font-bold shadow-lg border-4 border-white">
+                      {Object.keys(milestoneGroups).length + 1}
                     </div>
-                    <div>
-                      <h3 className="text-[15px] font-medium text-gray-900">Other Steps</h3>
-                      <p className="text-sm text-gray-500 mt-0.5">
-                        {orphanSteps.length} step{orphanSteps.length !== 1 ? 's' : ''} • 
-                        {orphanSteps.reduce((total, step) => total + step.estimatedHours, 0)}h total
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-gray-900">Other Steps</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {orphanSteps.length} step{orphanSteps.length !== 1 ? 's' : ''} • {orphanSteps.reduce((total, step) => total + step.estimatedHours, 0)}h total
                       </p>
                     </div>
                   </div>
-                  <div className="space-y-0">
-                    {orphanSteps.map((step, index) => 
-                      renderStep(step, index === orphanSteps.length - 1, true)
-                    )}
+                  <div className="ml-12 border-l-2 border-gray-200 pl-6">
+                    {orphanSteps.map((step, index) => renderStep(step, index === orphanSteps.length - 1, true))}
                   </div>
                 </div>
               )}
-
               {/* Summary section */}
               {workflowSummary && (
                 <div className="mt-8 pt-6 border-t border-gray-200">

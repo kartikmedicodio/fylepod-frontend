@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { History, Search, Filter, Download, User, Bot, ArrowDown } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -6,6 +6,14 @@ const AuditLogTab = ({ caseId }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [selectedUser, setSelectedUser] = useState('all');
+  const [loading, setLoading] = useState(true);
+
+  // Simulate loading for 1 second (or replace with real fetch logic)
+  useEffect(() => {
+    setLoading(true);
+    const timer = setTimeout(() => setLoading(false), 1000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Static audit logs data
   const staticAuditLogs = [
@@ -473,7 +481,11 @@ const AuditLogTab = ({ caseId }) => {
 
       {/* Timeline Flowchart with enhanced styling */}
       <div className="relative pl-12">
-        {filteredLogs.length === 0 ? (
+        {loading ? (
+          <div className="flex justify-center items-center h-48">
+            <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-300 border-t-transparent"></div>
+          </div>
+        ) : filteredLogs.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             No matching logs found
           </div>
