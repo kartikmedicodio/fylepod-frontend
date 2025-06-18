@@ -179,6 +179,18 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDocumentTab, setSelectedDocumentTab] = useState('pending');
   const [uploadStatus, setUploadStatus] = useState(DOCUMENT_STATUS.PENDING);
+  const [processingDocuments, setProcessingDocuments] = useState({});
+  const [processingDocIds, setProcessingDocIds] = useState([]);
+  const [uploadStatusMessages, setUploadStatusMessages] = useState([]);
+  const addUploadStatusMessage = (msg) => {
+    setUploadStatusMessages(prev => [msg, ...prev]);
+  };
+  useEffect(() => {
+    if (processingDocIds.length === 0) {
+      setUploadStatusMessages([]);
+    }
+  }, [processingDocIds]);
+
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -205,7 +217,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const [processingStep, setProcessingStep] = useState(0);
 
   // Add a new state to track processing state for each document
-  const [processingDocuments, setProcessingDocuments] = useState({});
 
   // Add new state variables for chat functionality
   const [messages, setMessages] = useState([]);
@@ -258,7 +269,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
   const [isProcessingComplete, setIsProcessingComplete] = useState(false);
 
   // Create a state to track active document processing
-  const [processingDocIds, setProcessingDocIds] = useState([]);
+  
   
   // Modified part - add state for drag over
   const [isDragOver, setDragOver] = useState(false);
@@ -471,20 +482,28 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
         if (data.caseId === caseId) {
           setProcessingDocIds(prev => [...prev, data.documentId]);
           setProcessingStep(1); // Analyzing document
+          addUploadStatusMessage(`Diana is analyzing document: ${data.documentName || data.documentId}`);
         }
       });
       
       socket.on('document-processing-progress', (data) => {
         console.log(`Processing ${data.documentName || data.documentId}: ${data.status}`);
         if (data.caseId === caseId) {
-          // Update processing step based on the status message
-          if (data.status.toLowerCase().includes('extract')) {
-            setProcessingStep(2); // Extracting information
-          } else if (data.status.toLowerCase().includes('validat')) {
-            setProcessingStep(3); // Validating content
-          } else if (data.status.toLowerCase().includes('verify')) {
-            setProcessingStep(4); // Verifying document
-          }
+          addUploadStatusMessage(`Diana status: ${data.status} (${data.documentName || data.documentId})`);
+        }
+      });
+      
+      socket.on('document-processing-completed', (data) => {
+        console.log(`Processing complete for document: ${data.documentName || data.documentId}`);
+        if (data.caseId === caseId) {
+          addUploadStatusMessage(`Diana has completed processing: ${data.documentName || data.documentId}`);
+        }
+      });
+      
+      socket.on('document-processing-failed', (data) => {
+        console.log(`Processing failed for document: ${data.documentName || data.documentId}`);
+        if (data.caseId === caseId) {
+          addUploadStatusMessage(`Diana failed to process: ${data.documentName || data.documentId}`);
         }
       });
       
@@ -907,6 +926,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               processedDocuments: [],
               validationFailuresByDocument: {}
             });
+            const completeMsg = `Processing complete: ${documentSummary}`;
           }
         }
       });
@@ -2721,11 +2741,33 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
 
       return (
         <div className="col-span-4 bg-white rounded-lg border border-gray-200 p-6 relative">
-          <div className={`transition-opacity duration-200 ${isProcessingAnyDocument ? 'opacity-50' : 'opacity-100'}`}>
+          {/* Upload status messages UI */}
+          {uploadStatusMessages.length > 0 && (
+            <div className="mb-4">
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-semibold text-sm text-blue-900">Document Processing Status</span>
+                <button
+                  className="text-xs text-blue-500 hover:underline ml-2"
+                  onClick={() => setUploadStatusMessages([])}
+                  aria-label="Clear status messages"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="space-y-2">
+                {/* Only show the most recent message, make card big enough for full message */}
+                <div className="flex items-center bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-900 min-h-[48px] break-words">
+                  <svg className="h-5 w-5 text-blue-400 mr-3 flex-shrink-0" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" /><circle cx="12" cy="12" r="4" fill="currentColor" /></svg>
+                  <span className="whitespace-pre-line">{uploadStatusMessages[0]}</span>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Main upload UI */}
+          <div className={`transition-opacity duration-200 ${isProcessingAnyDocument ? 'opacity-50' : 'opacity-100'}`}> 
             <div className="mb-4 pb-4 border-b border-gray-100">
               <h4 className="font-medium text-sm">Smart Upload Files</h4>
             </div>
-            
             <div 
               className={`flex flex-col items-center justify-center py-8 rounded-lg transition-colors
                 ${isDragging 
@@ -2749,9 +2791,7 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
                   <Upload className={`h-8 w-8 ${isProcessingAnyDocument ? 'text-gray-300' : 'text-blue-500'}`} />
                 </div>
                 <div className="text-center mb-4">
-                  <h5 className={`text-sm font-medium ${isProcessingAnyDocument ? 'text-gray-400' : ''}`}>
-                    {isDragging ? 'Drop files here' : 'Drag files here or click to browse'}
-                  </h5>
+                  <h5 className={`text-sm font-medium ${isProcessingAnyDocument ? 'text-gray-400' : ''}`}>{isDragging ? 'Drop files here' : 'Drag files here or click to browse'}</h5>
                   <p className="text-xs text-gray-500 mt-1">
                     {isProcessingAnyDocument 
                       ? 'Please wait while current documents are being processed'
@@ -2773,7 +2813,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               </div>
             </div>
           </div>
-          
           {/* Only show selected files when not processing */}
           {files.length > 0 && !isProcessingAnyDocument && (
             <div className="mt-4">
@@ -3702,40 +3741,6 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
       }
 
       return true;
-    };
-
-    // Helper function to convert old format to new tree structure
-    const convertOldToNewFormat = (oldConditions) => {
-      if (!oldConditions || oldConditions.length === 0) return null;
-
-      // If there's only one condition, no need for logical operator
-      if (oldConditions.length === 1) {
-        return {
-          parentField: oldConditions[0].parentField,
-          showWhen: oldConditions[0].showWhen
-        };
-      }
-
-      // Debug: Log old format conversion
-      // console.log('Converting old format to new:', {
-      //   oldConditions
-      // });
-
-      // Multiple conditions are combined with AND by default
-      const newFormat = {
-        operator: 'AND',
-        conditions: oldConditions.map(condition => ({
-          parentField: condition.parentField,
-          showWhen: condition.showWhen
-        }))
-      };
-
-      // Debug: Log new format
-      // console.log('Converted to new format:', {
-      //   newFormat
-      // });
-
-      return newFormat;
     };
 
     const evaluateCondition = (condition, allFields) => {
