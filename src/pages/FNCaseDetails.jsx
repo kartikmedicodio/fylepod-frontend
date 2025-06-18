@@ -287,6 +287,7 @@ const FNCaseDetails = () => {
   const [questionnaires, setQuestionnaires] = useState([]);
   const [isLoadingQuestionnaires, setIsLoadingQuestionnaires] = useState(true);
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState(null);
+  const [uploadStatusMessages, setUploadStatusMessages] = useState([]);
   const [questionnaireData, setQuestionnaireData] = useState(null);
   const [formData, setFormData] = useState({
     Passport: {},
@@ -343,6 +344,11 @@ const FNCaseDetails = () => {
   // Group all useRef hooks
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+
+  // Add this helper function to fix ReferenceError
+  const addUploadStatusMessage = (msg) => {
+    setUploadStatusMessages(prev => [msg, ...prev]);
+  };
 
   // Group all useEffect hooks
   useEffect(() => {
@@ -481,6 +487,7 @@ const FNCaseDetails = () => {
         if (data.caseId === caseId) {
           setProcessingDocIds(prev => [...prev, data.documentId]);
           setProcessingStep(1);
+          addUploadStatusMessage(`Diana is analyzing document: ${data.documentName || data.documentId}`);
         }
       });
 
@@ -497,6 +504,7 @@ const FNCaseDetails = () => {
           } else if (data.status.toLowerCase().includes('verify')) {
             setProcessingStep(4);
           }
+          addUploadStatusMessage(`Diana is ${data.status} (${data.documentName || data.documentId})`);
         }
       });
       
@@ -679,6 +687,7 @@ const FNCaseDetails = () => {
               toast.success(`Document processing complete!`);
             }
           }, 500);
+          addUploadStatusMessage(`Diana has completed processing: ${data.documentName || data.documentId}`);
         }
       });
       
@@ -695,6 +704,14 @@ const FNCaseDetails = () => {
       console.error('Error setting up socket connection:', error);
     }
   }, [caseId, processingDocIds]);
+
+  // Synchronize disappearance of status message with processing
+  useEffect(() => {
+    if (processingDocIds.length === 0 && uploadStatusMessages.length > 0) {
+      const timer = setTimeout(() => setUploadStatusMessages([]), 1200);
+      return () => clearTimeout(timer);
+    }
+  }, [processingDocIds, uploadStatusMessages]);
 
   const validateFileType = (file) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
@@ -778,6 +795,17 @@ const FNCaseDetails = () => {
           return null;
         }
 
+        // Check if a document of this type already exists and is not in pending state
+        const existingDoc = caseData.documents?.find(doc => 
+          doc.documentTypeId === pendingDoc.documentTypeId && 
+          doc.status !== 'pending'
+        );
+
+        if (existingDoc) {
+          toast.error('A document of this type already exists and cannot be reuploaded');
+          return null;
+        }
+
         const formData = new FormData();
         formData.append('file', file);
         formData.append('originalName', file.name);
@@ -789,16 +817,12 @@ const FNCaseDetails = () => {
         formData.append('mimeType', file.type);
 
         try {
-          // When sending FormData, don't set Content-Type header
-          // Let the browser set it automatically with the correct boundary
           const response = await api.post('/documents', formData, {
             headers: {
               'Content-Type': undefined
             },
             onUploadProgress: (progressEvent) => {
               const progress = (progressEvent.loaded / progressEvent.total) * 100;
-              console.log(`Upload progress for ${file.name}: ${Math.round(progress)}%`);
-              // Update the progress state to show it in the UI
               setUploadProgress(Math.round(progress));
             }
           });
@@ -806,11 +830,7 @@ const FNCaseDetails = () => {
           if (response.data.status === 'success') {
             const documentId = response.data.data.document._id;
             uploadedDocIds.push(documentId);
-            
-            // Join the document room to receive processing updates via socket
-            console.log('Joining document room for uploaded document:', documentId);
             joinDocumentRoom(documentId);
-            
             return {
               documentId,
               managementDocumentId: pendingDoc._id,
@@ -820,7 +840,8 @@ const FNCaseDetails = () => {
           return null;
         } catch (error) {
           console.error('Error uploading document:', error);
-          toast.error('Error uploading document: ' + (error.response?.data?.message || 'Unknown error'));
+          const errorMessage = error.response?.data?.message || 'Unknown error';
+          toast.error(`Error uploading document: ${errorMessage}`);
           return null;
         }
       });
@@ -829,27 +850,17 @@ const FNCaseDetails = () => {
       const uploadResults = await Promise.all(uploadPromises);
       const uploadedDocs = uploadResults.filter(result => result !== null);
       
-      // If we have uploaded documents, track them in the processing state
       if (uploadedDocs.length > 0) {
         setProcessingDocIds(prev => [...prev, ...uploadedDocs.map(doc => doc.documentId)]);
-        
-        console.log(`Added documents to processing: ${uploadedDocs.map(doc => doc.documentId).join(', ')}`);
-        
-        // We don't need to fetch document status immediately as we'll receive updates via socket
+        toast.success(`Uploaded ${uploadedDocs.length} document(s)`);
+        await refreshCaseData();
       }
       
-      toast.success(`Uploaded ${uploadedDocs.length} document(s)`);
-
-      // Refresh case data after all uploads are complete
-      await refreshCaseData();
-      
-      // Clear file inputs
       setFiles([]);
     } catch (error) {
       console.error('Error in file upload process:', error);
-      toast.error('Error uploading files: ' + error.message);
+      toast.error('Error uploading files: ' + (error.response?.data?.message || error.message));
     } finally {
-      // Note: We don't reset processing state here as socket events will handle it
       setIsProcessing(false);
       setUploadProgress(0);
     }
@@ -1895,6 +1906,27 @@ const FNCaseDetails = () => {
       return (
         uploadStatus === 'pending' && (
           <div className="flex-1 border border-gray-200 rounded-lg p-4 relative">
+            {/* Status message card - like CaseDetails.jsx */}
+            {uploadStatusMessages.length > 0 && (
+              <div className="mb-4">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-semibold text-sm text-blue-900">Document Processing Status</span>
+                  <button
+                    className="text-xs text-blue-500 hover:underline ml-2"
+                    onClick={() => setUploadStatusMessages([])}
+                    aria-label="Clear status messages"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-900 min-h-[48px] break-words">
+                    <svg className="h-5 w-5 text-blue-400 mr-3 flex-shrink-0" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" /><circle cx="12" cy="12" r="4" fill="currentColor" /></svg>
+                    <span className="whitespace-pre-line">{uploadStatusMessages[0]}</span>
+                  </div>
+                </div>
+              </div>
+            )}
             {/* Processing overlay */}
             {isProcessing && <ProcessingIndicator currentStep={processingStep} />}
             
@@ -4417,84 +4449,57 @@ const FNCaseDetails = () => {
   // Update this function to properly handle document reupload
   const handleDocumentReupload = async (documentTypeId) => {
     try {
+      setProcessingDocuments(prev => ({
+        ...prev,
+        [documentTypeId]: true
+      }));
+
       // Use the dedicated reupload endpoint
       const response = await api.patch(`/management/${caseId}/documents/${documentTypeId}/reupload`);
       
       if (response.data.status === 'success') {
-        // Switch to documents checklist tab
-        handleTabClick('documents-checklist');
-        
-        // Clear data based on clearLocalStorage flag
-        if (response.data.data.clearLocalStorage) {
-          try {
-            // Clear cross-verification data since it depends on all documents
-            localStorage.removeItem(`cross-verification-data-${caseId}`);
-            
-            // Get and update validation data
-            const validationDataKey = `validation-data-${caseId}`;
-            const storedValidationData = localStorage.getItem(validationDataKey);
-            
-            if (storedValidationData) {
-              const parsedData = JSON.parse(storedValidationData);
-              
-              // Find the document type name from caseData
-              const docType = caseData.documentTypes.find(dt => dt.documentTypeId === documentTypeId);
-              
-              if (docType && parsedData.mergedValidations) {
-                // Remove validation data for this specific document type using name
-                parsedData.mergedValidations = parsedData.mergedValidations.filter(
-                  validation => validation.documentType !== docType.name
-                );
-                
-                // Also remove from documentUrls if present
-                if (parsedData.documentUrls) {
-                  delete parsedData.documentUrls[docType.name];
-                }
-                
-                if (parsedData.mergedValidations.length > 0) {
-                  // Save filtered validation data back if there are other documents
-                  localStorage.setItem(validationDataKey, JSON.stringify(parsedData));
-                  // Update the validation data ref and state with filtered data
-                  validationDataRef.current = parsedData;
-                  setValidationData(parsedData);
-                } else {
-                  // If no validations left, remove the entire validation data
-                  localStorage.removeItem(validationDataKey);
-                  validationDataRef.current = null;
-                  setValidationData(null);
-                }
-              }
+        // Refresh case data
+        const caseResponse = await api.get(`/management/${caseId}`);
+        if (caseResponse.data.status === 'success') {
+          const updatedCaseData = caseResponse.data.data.entry;
+          setCaseData(updatedCaseData);
+
+          // Clear validation data for this document from the current validation state
+          if (validationDataRef.current?.mergedValidations) {
+            const updatedValidations = validationDataRef.current.mergedValidations.filter(
+              validation => validation.documentType !== updatedCaseData.documentTypes.find(
+                dt => dt.documentTypeId === documentTypeId
+              )?.name
+            );
+
+            const newValidationData = {
+              ...validationDataRef.current,
+              mergedValidations: updatedValidations
+            };
+
+            // Update both the ref and state
+            validationDataRef.current = newValidationData;
+            setValidationData(newValidationData);
+
+            // Clear from localStorage as well
+            try {
+              localStorage.setItem(`validation-data-${caseId}`, JSON.stringify(newValidationData));
+            } catch (storageError) {
+              console.error('Error updating validation data in localStorage:', storageError);
             }
-            
-            // Clear verification data
-            verificationDataRef.current = null;
-            setVerificationData(null);
-            
-            // Reset processing status for this document
-            setProcessingStatus(prevStatus => ({
-              ...prevStatus,
-              validationFailuresByDocument: {
-                ...prevStatus.validationFailuresByDocument,
-                [documentTypeId]: null
-              },
-              processedDocuments: prevStatus.processedDocuments.filter(id => id !== documentTypeId)
-            }));
-            
-            // Show success message after clearing data
-            toast.success('Document sent for reupload');
-            
-            // Refresh case data to get latest state from server
-            await refreshCaseData();
-          } catch (clearError) {
-            console.error('Error clearing document data:', clearError);
-            // Still show success since reupload worked
-            toast.success('Document sent for reupload');
           }
+
+          toast.success('Document sent for reupload');
         }
       }
     } catch (error) {
       console.error('Error requesting document reupload:', error);
       toast.error('Failed to initiate document reupload');
+    } finally {
+      setProcessingDocuments(prev => ({
+        ...prev,
+        [documentTypeId]: false
+      }));
     }
   };
 

@@ -179,10 +179,7 @@ const KnowledgeBase = () => {
   }, [location.state]);
 
   useEffect(() => {
-    if (!didMount.current) {
-      didMount.current = true;
-      return;
-    }
+    
     // Fetch data for the selected category
     const fetchData = async () => {
       setLoading(true);
