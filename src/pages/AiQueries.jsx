@@ -482,35 +482,42 @@ const AiQueries = () => {
                         </div>
                       ) : (
                         <div className="py-2">
-                          {cases.map((caseItem) => (
-                            <button
-                              key={caseItem._id}
-                              onClick={() => handleCaseClick(caseItem)}
-                              className={`w-full px-6 py-3 flex items-start gap-3 hover:bg-gray-100 transition-colors ${
-                                selectedCase?._id === caseItem._id ? 'bg-blue-50' : ''
-                              }`}
-                            >
-                              <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                                <Folder className="w-4 h-4 text-indigo-600" />
-                              </div>
-                              <div className="flex-grow text-left">
-                                <div className="font-medium text-gray-900 text-sm">
-                                  {caseItem.categoryName}
+                          {cases.length === 0 ? (
+                            <div className="text-center text-gray-500 py-6">
+                              <History className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                              <p>No cases yet</p>
+                            </div>
+                          ) : (
+                            cases.map((caseItem) => (
+                              <button
+                                key={caseItem._id}
+                                onClick={() => handleCaseClick(caseItem)}
+                                className={`w-full px-6 py-3 flex items-start gap-3 hover:bg-gray-100 transition-colors ${
+                                  selectedCase?._id === caseItem._id ? 'bg-blue-50' : ''
+                                }`}
+                              >
+                                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                                  <Folder className="w-4 h-4 text-indigo-600" />
                                 </div>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(caseItem.categoryStatus)}`}>
-                                    {caseItem.categoryStatus}
-                                  </span>
-                                  {caseItem.deadline && (
-                                    <div className="flex items-center text-xs text-gray-500">
-                                      <Clock className="w-3 h-3 mr-1" />
-                                      {formatDate(caseItem.deadline)}
-                                    </div>
-                                  )}
+                                <div className="flex-grow text-left">
+                                  <div className="font-medium text-gray-900 text-sm">
+                                    {caseItem.categoryName}
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(caseItem.categoryStatus)}`}>
+                                      {caseItem.categoryStatus}
+                                    </span>
+                                    {caseItem.deadline && (
+                                      <div className="flex items-center text-xs text-gray-500">
+                                        <Clock className="w-3 h-3 mr-1" />
+                                        {formatDate(caseItem.deadline)}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            </button>
-                          ))}
+                              </button>
+                            ))
+                          )}
                         </div>
                       )}
                     </div>
