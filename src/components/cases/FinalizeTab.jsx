@@ -165,7 +165,7 @@ const DocumentRow = ({
             </div>
             <div className="space-y-1">
               <span className="text-base font-medium text-slate-900">
-                {documentDetails?.type || 'Unknown Type'}
+                {document.name || documentDetails?.type || 'Unknown Type'}
               </span>
               {documentDetails && (
                 <div className="text-sm text-slate-500">
