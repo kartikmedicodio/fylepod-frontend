@@ -68,7 +68,7 @@ const CaseRow = ({ caseItem, onClick }) => {
     >
       <td className="px-6 py-4 text-sm text-gray-900">{caseItem._id?.substring(0, 6)}</td>
       <td className="px-6 py-4 text-sm text-gray-900">{caseItem.userName}</td>
-      <td className="px-6 py-4 text-sm text-gray-900">{caseItem.createdBy?.name}</td>
+      <td className="px-6 py-4 text-sm text-gray-900">{caseItem.caseManagerName}</td>
       <td className="px-6 py-4 text-sm text-gray-900">{caseItem.categoryName}</td>
       <td className="px-6 py-4 text-sm text-gray-900">{formattedDeadline}</td>
       <td className="px-6 py-4 text-sm">
@@ -170,6 +170,39 @@ const FiltersDropdown = ({
 }) => (
   <div className="absolute right-0 top-12 w-64 bg-white rounded-xl shadow-lg border border-gray-200 p-4 z-10">
     <div className="space-y-4">
+      {/* My Cases Filter */}
+      <div>
+        <label className="text-sm font-medium text-gray-700 block mb-2">View</label>
+        <Listbox
+          value={tempFilters.showMyCases}
+          onChange={value => handleFilterChange('showMyCases', value)}
+        >
+          <div className="relative">
+            <Listbox.Button className="w-full rounded-lg border border-gray-300 py-2 px-3 text-sm text-left flex justify-between items-center">
+              <span>
+                {filterOptions.showMyCases.find(o => o.value === tempFilters.showMyCases)?.label || 'Select...'}
+              </span>
+              <ChevronUpDownIcon className="w-4 h-4 text-gray-400 ml-2" />
+            </Listbox.Button>
+            <Listbox.Options className="absolute mt-1 w-full bg-white shadow-lg rounded-lg z-10">
+              {filterOptions.showMyCases.map((option) => (
+                <Listbox.Option
+                  key={String(option.value)}
+                  value={option.value}
+                  className={({ active, selected }) =>
+                    `cursor-pointer select-none relative py-2 px-3
+                    ${selected ? 'bg-indigo-600 text-white' : ''}
+                    ${active && !selected ? 'bg-indigo-50' : ''}`
+                  }
+                >
+                  {option.label}
+                </Listbox.Option>
+              ))}
+            </Listbox.Options>
+          </div>
+        </Listbox>
+      </div>
+
       {/* Status Filter */}
       <div>
         <label className="text-sm font-medium text-gray-700 block mb-2">Status</label>
@@ -313,12 +346,14 @@ const Cases = () => {
   const [filters, setFilters] = useState({
     status: '',
     documentStatus: '',
-    deadline: ''
+    deadline: '',
+    showMyCases: false
   });
   const [tempFilters, setTempFilters] = useState({
     status: '',
     documentStatus: '',
-    deadline: ''
+    deadline: '',
+    showMyCases: false
   });
 
   // Navigation hooks
@@ -355,6 +390,10 @@ const Cases = () => {
       { value: 'thisWeek', label: 'This Week' },
       { value: 'thisMonth', label: 'This Month' },
       { value: 'nextMonth', label: 'Next Month' }
+    ],
+    showMyCases: [
+      { value: false, label: 'All Cases' },
+      { value: true, label: 'My Cases Only' }
     ]
   };
 
@@ -368,7 +407,8 @@ const Cases = () => {
       const resetFilters = {
         status: '',
         documentStatus: '',
-        deadline: ''
+        deadline: '',
+        showMyCases: false
       };
       
       // Handle both single and multiple filter cases
@@ -418,14 +458,8 @@ const Cases = () => {
   const fetchCases = async (page = 1, searchQuery = '', status = '', documentStatus = '') => {
     try {
       setLoading(true);
-      console.log('Fetching cases with filters:', { 
-        page, 
-        searchQuery, 
-        status, 
-        documentStatus: documentStatus || filters.documentStatus 
-      });
-
       const userDetails = getStoredUser();
+
       if (!userDetails) {
         throw new Error('No user data found in localStorage');
       }
@@ -454,13 +488,19 @@ const Cases = () => {
         
         if (response.data.status === 'success') {
           const { managements } = response.data.data;
-          console.log('Total cases before filtering:', managements.length);
           
+          // First filter by lawfirm
           let filteredCases = managements.filter(caseItem => 
             caseItem.lawfirmId === userDetails.lawfirm_id._id ||
             caseItem.createdBy?.lawfirm_id?._id === userDetails.lawfirm_id._id
           );
-          console.log('Cases after lawfirm filter:', filteredCases.length);
+
+          // Then filter by user if "My Cases" is selected
+          if (filters.showMyCases) {
+            filteredCases = filteredCases.filter(caseItem => 
+              caseItem.caseManagerId === userDetails.id
+            );
+          }
 
           const activeDocumentStatus = documentStatus || filters.documentStatus;
           const activeStatus = status || filters.status;
@@ -470,36 +510,22 @@ const Cases = () => {
             filteredCases = filteredCases.filter(caseItem => 
               caseItem.categoryStatus?.toLowerCase() === activeStatus.toLowerCase()
             );
-            console.log('Cases after status filter:', filteredCases.length);
           }
 
           // Apply document status filter if selected
           if (activeDocumentStatus) {
-            console.log('Applying document status filter:', activeDocumentStatus);
-            
             filteredCases = filteredCases.filter(caseItem => {
               const pendingCount = caseItem.documentTypes?.filter(doc => 
                 doc.status === 'pending'
               ).length || 0;
               
-              console.log('Case:', {
-                id: caseItem._id,
-                pendingCount
-              });
-
               if (activeDocumentStatus === 'pending') {
-                const shouldShow = pendingCount > 0;
-                console.log('Pending filter result:', shouldShow);
-                return shouldShow;
+                return pendingCount > 0;
               } else if (activeDocumentStatus === 'complete') {
-                const shouldShow = pendingCount === 0;
-                console.log('Complete filter result:', shouldShow);
-                return shouldShow;
+                return pendingCount === 0;
               }
               return true;
             });
-            
-            console.log('Cases after document status filter:', filteredCases.length);
           }
 
           // Calculate pagination
@@ -586,7 +612,7 @@ const Cases = () => {
     if (!location.state?.applyFilter) { // Only fetch if not handling initial filter
       fetchCases(currentPage, searchTerm, filters.status, filters.documentStatus);
     }
-  }, [currentPage, filters.status, filters.documentStatus]); // Add filters.documentStatus to dependencies
+  }, [currentPage, filters]); // Add filters to dependencies
 
   // Handler functions
   const handleFilterChange = (filterType, value) => {
@@ -597,26 +623,23 @@ const Cases = () => {
   };
 
   const handleApplyFilters = () => {
-    // Update filters state
     const newFilters = { ...tempFilters };
     setFilters(newFilters);
     setShowFilters(false);
     setCurrentPage(1);
-    
-    // Immediately fetch with new filters
     fetchCases(1, searchTerm, newFilters.status, newFilters.documentStatus);
   };
 
   const clearAllFilters = () => {
     const emptyFilters = {
       status: '',
-      deadline: ''
+      deadline: '',
+      showMyCases: false
     };
     setTempFilters(emptyFilters);
     setFilters(emptyFilters);
     setShowFilters(false);
     setCurrentPage(1);
-    // Immediately fetch with cleared filters
     fetchCases(1, searchTerm, '', '');
   };
 
@@ -780,7 +803,7 @@ const Cases = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-sm text-gray-600">{caseItem.createdBy?.name}</span>
+                        <span className="text-sm text-gray-600">{caseItem.caseManagerName}</span>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
