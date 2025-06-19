@@ -145,9 +145,19 @@ const DocumentRow = ({
 
   const handleViewDocument = (e) => {
     e.stopPropagation();
-    if (documentDetails?.fileUrl) {
+    // Check both document and documentDetails for the URL
+    const fileUrl = document.fileUrl || documentDetails?.fileUrl;
+    if (fileUrl) {
       const token = localStorage.getItem('auth_token');
-      const url = new URL(documentDetails.fileUrl);
+      const url = new URL(fileUrl);
+      url.searchParams.set('token', token);
+      url.searchParams.set('t', Date.now());
+      window.open(url.toString(), '_blank');
+    } else if (document.id) {
+      // If no direct URL is available, construct one using the document ID
+      const token = localStorage.getItem('auth_token');
+      const API_URL = import.meta.env.VITE_API_URL;
+      const url = new URL(`${API_URL}/documents/view/${document.id}`);
       url.searchParams.set('token', token);
       url.searchParams.set('t', Date.now());
       window.open(url.toString(), '_blank');
