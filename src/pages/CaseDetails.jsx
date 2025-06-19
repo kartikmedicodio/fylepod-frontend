@@ -2767,9 +2767,9 @@ const CaseDetails = ({ caseId: propsCaseId, onBack }) => {
               </div>
               <div className="space-y-2">
                 {/* Only show the most recent message, make card big enough for full message */}
-                <div className="flex items-center bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-900 min-h-[48px] break-words">
+                <div className="flex items-center bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-900 min-h-[48px] break-words max-w-full min-w-0 overflow-x-auto">
                   <svg className="h-5 w-5 text-blue-400 mr-3 flex-shrink-0" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" /><circle cx="12" cy="12" r="4" fill="currentColor" /></svg>
-                  <span className="whitespace-pre-line">{uploadStatusMessages[0]}</span>
+                  <span className="whitespace-pre-line break-words max-w-full min-w-0">{uploadStatusMessages[0]}</span>
                 </div>
               </div>
             </div>
