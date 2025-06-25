@@ -15,6 +15,7 @@ import PendingForms from './pages/PendingForms';
 import CompletedForms from './pages/CompletedForms';
 import MyProfile from './pages/MyProfile';
 import CRM from './pages/CRM';
+import AnimatedDashboard from './pages/AnimatedDashboard';
 
 const App = () => {
   return (
@@ -119,6 +120,7 @@ const App = () => {
               </PrivateRoute>
             }
           />
+          <Route path="/animated-dashboard" element={<AnimatedDashboard />} />
           <Route path="/crm" element={<CRM />} />
           <Route path="/crm/user/:userId" element={<CRM />} />
           <Route path="/crm/user/:userId/application/:applicationId" element={<CRM />} />
