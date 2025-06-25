@@ -37,6 +37,7 @@
     "react-image-perspective-cropper": "^1.0.1",
     "react-perspective-cropper": "^0.2.2",
     "react-router-dom": "^7.0.2",
+    "recharts": "^3.0.0",
     "tailwind-merge": "^2.5.5",
     "tailwindcss": "^3.4.16"
   },
