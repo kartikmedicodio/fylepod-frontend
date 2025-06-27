@@ -2,7 +2,7 @@ name: Trigger Deployment
 on:
   push:
     branches:
-      - final-fe
+      - fylepod_design_main
 jobs:
   trigger-deploy:
     runs-on: ubuntu-latest

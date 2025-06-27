@@ -1,129 +1,186 @@
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { ChevronRight } from 'lucide-react';
+import { useBreadcrumb } from '../../contexts/BreadcrumbContext';
 import PropTypes from 'prop-types';
-import { useAuth } from '../../contexts/AuthContext';
-import { Bell, Building, ChevronRight } from 'lucide-react';
-import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
+import { usePage } from '../../contexts/PageContext';
+import AgentIndicator from '../agents/AgentIndicator';
 
-const Header = ({ showText = true, selectedUser, activeTab, completedApplications = [], pendingApplications = [] }) => {
-  const { user } = useAuth();
-  const companyName = "Lexon Legal Solutions";
-  const { applicationId } = useParams();
-  const navigate = useNavigate();
+const Header = ({ sidebarCollapsed, onAgentClick }) => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { currentBreadcrumb } = useBreadcrumb();
+  const { pageTitle } = usePage();
 
-  const isCorpRoute = location.pathname.includes('/crm');
+  const getBreadcrumbs = () => {
+    const path = location.pathname;
 
-  // Function to determine if an application is completed
-  const isApplicationCompleted = (appId) => {
-    return completedApplications.some(app => app._id === appId);
-  };
+    // If we have currentBreadcrumb array, use it
+    if (Array.isArray(currentBreadcrumb) && currentBreadcrumb.length > 0) {
+      return currentBreadcrumb.map(item => ({
+        name: item.name || item.label, // Support both name and legacy label
+        path: item.path || item.link  // Support both path and legacy link
+      }));
+    }
 
-  const renderBreadcrumb = () => {
-    if (isCorpRoute) {
-      return (
-        <div className="flex items-center space-x-2">
-          {/* Company name for corporation routes */}
-          <div 
-            onClick={() => navigate('/crm')}
-            className="flex items-center text-gray-700 cursor-pointer hover:text-gray-900"
-          >
-            <Building className="w-5 h-5 mr-2 text-gray-500" />
-            <span className="text-sm font-medium">{companyName}</span>
-          </div>
+    // Add a special case for individual case details
+    if (path.includes('/individuals/case/')) {
+      return [
+        { name: 'All Cases', path: '/individual-cases' },
+        { name: currentBreadcrumb?.name || 'Case Details', path: path }
+      ];
+    }
 
-          {/* Show user name when a user is selected */}
-          {!showText && selectedUser && (
-            <>
-              <ChevronRight className="w-4 h-4 text-gray-400" />
-              <span 
-                onClick={() => navigate(`/crm/user/${selectedUser._id}`)}
-                className="text-sm font-medium text-gray-700 cursor-pointer hover:text-gray-900"
-              >
-                {selectedUser.name}
-              </span>
-            </>
-          )}
+    if (pageTitle) {
+      return [{
+        name: pageTitle,
+        path: location.pathname
+      }];
+    }
 
-          {/* Show Completed/Pending Application when viewing an application */}
-          {!showText && applicationId && (
-            <>
-              <ChevronRight className="w-4 h-4 text-gray-400" />
-              <span className="text-sm font-medium text-gray-700">
-                {isApplicationCompleted(applicationId) ? 'Completed Application' : 'Pending Application'}
-              </span>
-            </>
-          )}
-        </div>
-      );
-    } else {
-      // Document Collection Agent view
-      return (
-        <div className="flex items-center space-x-2">
-          <div className="flex items-center text-gray-700">
-            <span className="text-lg font-semibold">Document Collection Agent</span>
-          </div>
+    const paths = location.pathname.split('/').filter(Boolean);
+    
+    // Handle different page types
+    switch(paths[0]) {
+      case '':
+      case 'dashboard':
+      case 'fndashboard':
+        return [
+          { name: 'Dashboard', path: '/dashboard' }
+        ];
+      
+      case 'profile':
+        return [
+          { name: 'Profile', path: '/profile' }
+        ];
+      
+      case 'case':
+        return [
+          { name: 'All Cases', path: '/individual-cases' },
+          { name: currentBreadcrumb?.name || 'Case Details', path: location.pathname }
+        ];
+      
+      case 'individual-cases':
+        return [
+          { name: 'All Cases', path: '/individual-cases' }
+        ];
 
-          {!showText && selectedUser && (
-            <>
-              <ChevronRight className="w-4 h-4 text-gray-400" />
-              <span 
-                onClick={() => navigate(`/user/${selectedUser._id}`)}
-                className="text-sm font-medium text-gray-700 cursor-pointer hover:text-gray-900"
-              >
-                {selectedUser.name}
-              </span>
-            </>
-          )}
+      case 'corporations':
+        if (paths.length === 1) {
+          return [
+            { name: 'Home', path: '/dashboard' },
+            { name: 'Corporations', path: '/corporations' }
+          ];
+        } else if (paths.length === 2) {
+          // Corporation Details page
+          return [
+            { name: 'Home', path: '/dashboard' },
+            { name: 'Corporations', path: '/corporations' },
+            { name: 'Corporation Details', path: `/corporations/${paths[1]}` }
+          ];
+        } else if (paths.length >= 4 && paths[2] === 'employee') {
+          // Employee page within corporation
+          const corporationPath = `/corporations/${paths[1]}`;
+          const employeePath = `${corporationPath}/employee/${paths[3]}`;
+          
+          if (paths.length >= 6 && paths[4] === 'case') {
+            // Case details page for employee
+            return [
+              { name: 'Home', path: '/dashboard' },
+              { name: 'Corporations', path: '/corporations' },
+              { name: 'Corporation Details', path: corporationPath },
+              { name: currentBreadcrumb?.employeeName || 'Employee Details', path: employeePath },
+              { name: 'Case Details', path: location.pathname }
+            ];
+          }
+          
+          return [
+            { name: 'Home', path: '/dashboard' },
+            { name: 'Corporations', path: '/corporations' },
+            { name: 'Corporation Details', path: corporationPath },
+            { name: currentBreadcrumb?.employeeName || 'Employee Details', path: employeePath }
+          ];
+        }
+        return [
+          { name: 'Home', path: '/dashboard' },
+          { name: 'Corporations', path: '/corporations' }
+        ];
 
-          {!showText && activeTab && (
-            <>
-              <ChevronRight className="w-4 h-4 text-gray-400" />
-              <span className="text-sm font-medium text-gray-700">
-                {activeTab === 'completed' ? 'Completed Documents' : 'Pending Documents'}
-              </span>
-            </>
-          )}
+      case 'cases':
+        if (paths[1] === 'new') {
+          return [
+            { name: 'Home', path: '/dashboard' },
+            { name: 'New Case', path: '/cases/new' }
+          ];
+        }
+        return [
+          { name: 'Home', path: '/dashboard' },
+          { name: 'Cases', path: '/cases' }
+        ];
 
-          {!showText && applicationId && (
-            <>
-              <ChevronRight className="w-4 h-4 text-gray-400" />
-              <span className="text-sm font-medium text-gray-700">
-                Document Details
-              </span>
-            </>
-          )}
-        </div>
-      );
+      case 'knowledge':
+        return [
+          { name: 'Knowledge Base', path: '/knowledge' }
+        ];
+
+      default:
+        // For other pages, create breadcrumbs from the path
+        return paths.map((path, index) => {
+          const fullPath = `/${paths.slice(0, index + 1).join('/')}`;
+          return {
+            name: path.split('-')
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(' '),
+            path: fullPath
+          };
+        });
     }
   };
 
-  return (
-    <header className="bg-white border-b h-16">
-      <div className="h-full px-4 flex items-center justify-between">
-        <div className="flex items-center space-x-6">
-          {renderBreadcrumb()}
-        </div>
+  const breadcrumbs = getBreadcrumbs();
 
-        {/* User Profile Section */}
-        <div className="flex items-center space-x-6">
-          <button className="text-gray-500 hover:text-gray-700">
-            <Bell className="w-5 h-5" />
-          </button>
-          
-          <div className="border-l h-8 border-gray-200"></div>
-          
-          <Link 
-            to="/profile" 
-            className="flex items-center space-x-3 hover:opacity-80 pl-4"
-          >
-            <span className="text-sm font-medium text-gray-700">
-              {user?.name || 'User'}
-            </span>
-            <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
-              <span className="text-sm font-medium text-primary-700">
-                {(user?.name || 'U').charAt(0)}
-              </span>
+  const handleBreadcrumbClick = (path, index) => {
+    navigate(path);
+  };
+
+  const renderBreadcrumb = () => {
+    return (
+      <ol className="flex items-center space-x-2">
+        {breadcrumbs.map((breadcrumb, index) => (
+          <li key={`${breadcrumb.path}-${index}`} className="flex items-center">
+            {index > 0 && (
+              <span className="mx-2 text-gray-400">{'>'}</span>
+            )}
+            <button
+              onClick={() => handleBreadcrumbClick(breadcrumb.path, index)}
+              className={`text-sm font-medium text-gray-600 hover:text-blue-600 transition-all duration-300 
+                ${sidebarCollapsed ? 'truncate max-w-[150px]' : 'truncate max-w-[200px]'}
+                ${index === breadcrumbs.length - 1 ? 'text-gray-900' : ''}`}
+            >
+              {breadcrumb.name}
+            </button>
+          </li>
+        ))}
+      </ol>
+    );
+  };
+
+  return (
+    <header className={`fixed top-0 right-0 transition-all duration-300 ${sidebarCollapsed ? 'left-16' : 'left-56'} z-50`}>
+      <div className="border-b-2 border-gray-400/50 bg-gradient-third/20 backdrop-blur-md">
+        <div className="flex h-16 items-center justify-between px-6">
+          {/* Left section */}
+          <div className="flex items-center">
+            <div className={`transition-all duration-300 ${sidebarCollapsed ? 'ml-2' : 'ml-4 lg:ml-0'}`}>
+              <div className="flex" aria-label="Breadcrumb">
+                {renderBreadcrumb()}
+              </div>
             </div>
-          </Link>
+          </div>
+
+          {/* Right section - Only keep AgentIndicator */}
+          <div className="flex items-center">
+            <AgentIndicator onAgentClick={onAgentClick} />
+          </div>
         </div>
       </div>
     </header>
@@ -131,13 +188,8 @@ const Header = ({ showText = true, selectedUser, activeTab, completedApplication
 };
 
 Header.propTypes = {
-  showText: PropTypes.bool,
-  selectedUser: PropTypes.shape({
-    name: PropTypes.string.isRequired,
-  }),
-  activeTab: PropTypes.string,
-  completedApplications: PropTypes.array,
-  pendingApplications: PropTypes.array
+  sidebarCollapsed: PropTypes.bool.isRequired,
+  onAgentClick: PropTypes.func.isRequired
 };
 
 export default Header; 

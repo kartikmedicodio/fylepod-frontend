@@ -1,153 +1,161 @@
-import { createContext, useContext, useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import api from "../utils/api";
+import { createContext, useContext, useState, useEffect } from 'react';
+import { getCurrentUser, login as loginService, logout as logoutService } from '../services/auth.service';
+import { setStoredToken, getStoredToken, removeStoredToken, setStoredUser, getStoredUser, removeStoredUser } from '../utils/auth';
+import PropTypes from 'prop-types';
 
-const AuthContext = createContext();
-
-export const useAuth = () => {
-  return useContext(AuthContext);
-};
+const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(() => {
-    // Initialize user from localStorage if available
-    const savedUser = localStorage.getItem('user');
-    return savedUser ? JSON.parse(savedUser) : null;
-  });
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [pendingFormsCount, setPendingFormsCount] = useState(0);
-  const [completedFormsCount, setCompletedFormsCount] = useState(0);
-  const navigate = useNavigate();
-
-  // Update localStorage whenever user changes
-  useEffect(() => {
-    if (user) {
-      localStorage.setItem('user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('user');
-    }
-  }, [user]);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
+    const checkAuth = async () => {
+      setLoading(true);
+      try {
+        const token = getStoredToken();
+        
+        if (!token) {
+          setIsAuthenticated(false);
+          setUser(null);
+          return;
+        }
+
+        // Try to get user from localStorage first
+        const storedUser = getStoredUser();
+        
+        if (storedUser) {
+          setUser(storedUser);
+          setIsAuthenticated(true);
+          
+          // Refresh user data in the background
+          try {
+            const freshUserData = await getCurrentUser();
+            if (freshUserData) {
+              setUser(freshUserData);
+              setStoredUser(freshUserData);
+            }
+          } catch (error) {
+            console.error('Error refreshing user data:', error);
+          }
+        } else {
+          // If no stored user, fetch from API
+          try {
+            const userData = await getCurrentUser();
+            
+            if (userData) {
+              setUser(userData);
+              setIsAuthenticated(true);
+              setStoredUser(userData);
+            } else {
+              setUser(null);
+              setIsAuthenticated(false);
+              removeStoredToken();
+              removeStoredUser();
+            }
+          } catch (error) {
+            console.error('User data fetch error:', error);
+            setUser(null);
+            setIsAuthenticated(false);
+            removeStoredToken();
+            removeStoredUser();
+          }
+        }
+      } catch (error) {
+        console.error('Authentication check error:', error);
+        setUser(null);
+        setIsAuthenticated(false);
+        removeStoredToken();
+        removeStoredUser();
+      } finally {
+        setLoading(false);
+      }
+    };
+
     checkAuth();
   }, []);
 
-  useEffect(() => {
-    if (user?._id) {
-      fetchPendingForms();
-    }
-  }, [user?._id]);
-
-  const fetchPendingForms = async (userId = null) => {
+  const login = async (credentials) => {
+    setLoading(true);
     try {
-      const id = userId || user?._id;
-      if (!id) return;
-
-      const response = await api.get(`/management/user/${id}`, {
-        params: {
-          status: 'pending'
-        }
-      });
+      const response = await loginService(credentials);
       
-      const pendingForms = response.data.data.entries || [];
-      setPendingFormsCount(pendingForms.length);
-    } catch (err) {
-      console.error('Error fetching pending forms count:', err);
-    }
-  };
-
-  const fetchFormsCount = async (userId = null) => {
-    try {
-      const id = userId || user?._id;
-      if (!id) return;
-
-      // Fetch pending forms
-      const pendingResponse = await api.get(`/management/user/${id}`, {
-        params: { status: 'pending' }
-      });
-      setPendingFormsCount(pendingResponse.data.data.entries?.length || 0);
-
-      // Fetch completed forms
-      const completedResponse = await api.get(`/management/user/${id}`, {
-        params: { status: 'completed' }
-      });
-      setCompletedFormsCount(completedResponse.data.data.entries?.length || 0);
-    } catch (err) {
-      console.error('Error fetching forms count:', err);
-    }
-  };
-
-  const checkAuth = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const savedUser = localStorage.getItem('user');
-      
-      if (token && savedUser) {
-        // Verify token is still valid with backend
-        const response = await api.get('/auth/me');
-        const freshUserData = response.data.data.user;
-        
-        // Update stored user data with fresh data from server
-        localStorage.setItem('user', JSON.stringify(freshUserData));
-        setUser(freshUserData);
-      } else {
-        // If either token or user data is missing, clear both
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        setUser(null);
+      if (!response?.data?.token) {
+        throw new Error('No token received from server');
       }
+
+      if (!response?.data?.user) {
+        throw new Error('No user data received from server');
+      }
+
+      const { token, user } = response.data;
+      
+      setStoredToken(token);
+      setUser(user);
+      setIsAuthenticated(true);
+      
+      // Fetch complete user data from /auth/me endpoint
+      try {
+        const completeUserData = await getCurrentUser();
+        if (completeUserData) {
+          setUser(completeUserData);
+          setStoredUser(completeUserData);
+        }
+      } catch (error) {
+        console.error('Error fetching complete user data:', error);
+        // Still save the basic user info we have
+        setStoredUser(user);
+      }
+      
+      return user;
     } catch (error) {
-      console.error('Auth check failed:', error);
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      setIsAuthenticated(false);
       setUser(null);
+      removeStoredToken();
+      removeStoredUser();
+      throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  const login = async (email, password) => {
+  const logout = async () => {
+    setLoading(true);
     try {
-      const response = await api.post('/auth/login', { email, password });
-      const { token, user: userData } = response.data.data;
-      
-      // Store both token and user data
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(userData));
-      setUser(userData);
-      await fetchPendingForms(userData._id);
-      
-      // Update the redirect URL to /crm
-      window.location.href = '/crm';
-      return true;
-    } catch (error) {
-      console.error('Login failed:', error);
-      throw error;
+      await logoutService();
+    } finally {
+      setUser(null);
+      setIsAuthenticated(false);
+      removeStoredUser();
+      setLoading(false);
+      window.location.href = '/login';
     }
-  };
-
-  const logout = () => {
-    // Clear both token and user data
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setUser(null);
-    setPendingFormsCount(0);
-    navigate('/login');
   };
 
   const value = {
     user,
     loading,
+    isAuthenticated,
     login,
     logout,
-    pendingFormsCount,
-    completedFormsCount,
-    refreshFormsCount: fetchFormsCount
   };
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
+};
+
+AuthProvider.propTypes = {
+  children: PropTypes.node.isRequired,
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 }; 
