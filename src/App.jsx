@@ -3,6 +3,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import AnimatedDashboard from './pages/AnimatedDashboard';
 import Documents from './pages/Documents';
 import ExtractedData from './pages/ExtractedData';
 import AIChat from './pages/AIChat';
@@ -23,6 +24,22 @@ const App = () => {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Navigate to="/crm" replace />} />
+          <Route
+            path="/dashboard"
+            element={
+              <PrivateRoute>
+                <Dashboard />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/animated-dashboard"
+            element={
+              <PrivateRoute>
+                <AnimatedDashboard />
+              </PrivateRoute>
+            }
+          />
           <Route
             path="/documents"
             element={
