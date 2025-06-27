@@ -27,6 +27,7 @@ import NewCorpAdmin from './pages/NewCorpAdmin';
 import { Toaster } from 'react-hot-toast';
 import Individuals from './pages/Individuals';
 import IndividualDetails from './pages/IndividualDetails';
+import UserDashboard from './pages/UserDashboard';
 import Queries from './pages/Queries';
 import AiQueries from './pages/AiQueries';
 import { useEffect } from 'react';
@@ -110,6 +111,9 @@ const App = () => {
                           {/* Individual Routes */}
                           <Route path="/individuals" element={<Individuals />} />
                           <Route path="/individuals/:individualId" element={<IndividualDetails />} />
+                          
+                          {/* User Dashboard Route */}
+                          <Route path="/user-dashboard" element={<UserDashboard />} />
                           
                           {/* New Customer Routes */}
                           <Route path="/company/new" element={<NewCompany />} />
